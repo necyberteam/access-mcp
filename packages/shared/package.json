@@ -1,0 +1,17 @@
+{
+  "name": "@access-mcp/shared",
+  "version": "0.1.0",
+  "description": "Shared utilities for ACCESS-CI MCP servers",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "axios": "^1.6.0",
+    "zod": "^3.22.0"
+  }
+}
