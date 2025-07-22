@@ -10,8 +10,8 @@ COPY packages/affinity-groups/package*.json ./packages/affinity-groups/
 # Copy npmrc
 COPY .npmrc ./
 
-# Install dependencies without cache
-RUN npm install --no-cache --prefer-offline=false
+# Install dependencies including devDependencies for build
+RUN npm ci
 
 # Copy source code
 COPY . .
