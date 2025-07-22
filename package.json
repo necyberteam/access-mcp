@@ -4,9 +4,7 @@
   "description": "MCP servers for ACCESS-CI APIs",
   "type": "module",
   "scripts": {
-    "build": "npm run build:shared && npm run build:affinity-groups",
-    "build:shared": "cd packages/shared && npm run build",
-    "build:affinity-groups": "cd packages/affinity-groups && npm run build",
+    "build": "npm run build --workspace=@access-mcp/shared && npm run build --workspace=@access-mcp/affinity-groups",
     "start": "node packages/affinity-groups/dist/index.js",
     "dev": "tsc --build --watch",
     "lint": "eslint . --ext .ts",
