@@ -1,4 +1,4 @@
-import { BaseAccessServer, handleApiError, sanitizeGroupId } from '@access-mcp/shared';
+import { BaseAccessServer, handleApiError, sanitizeGroupId } from '../../shared/dist/index.js';
 
 export class AffinityGroupsServer extends BaseAccessServer {
   constructor() {
