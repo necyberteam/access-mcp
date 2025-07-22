@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsc --build",
+    "start": "node packages/affinity-groups/dist/index.js",
     "dev": "tsc --build --watch",
     "lint": "eslint . --ext .ts",
     "format": "prettier --write .",
