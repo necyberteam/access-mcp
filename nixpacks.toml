@@ -2,7 +2,7 @@
 nixPkgs = ['nodejs_18', 'npm-9_x']
 
 [phases.install]
-cmds = ['npm cache clean --force', 'npm install --no-cache']
+cmds = ['npm install --prefer-offline=false --no-audit --no-fund']
 
 [phases.build]
 cmds = ['npm run build']
