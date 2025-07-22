@@ -5,7 +5,7 @@ nixPkgs = ["nodejs_18", "npm"]
 cmds = ["npm ci"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["npm run build --workspace=@access-mcp/shared", "npm run build --workspace=@access-mcp/affinity-groups"]
 
 [start]
 cmd = "node packages/affinity-groups/dist/index.js"
