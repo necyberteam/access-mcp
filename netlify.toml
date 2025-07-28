@@ -1,6 +1,6 @@
 [build]
   # Build command  
-  command = "npm ci && node scripts/build-all.js && node scripts/generate-docs.js && cd docs && npm run build"
+  command = "cd docs && npm ci && npm run build"
   
   # Directory to publish
   publish = "docs/.vitepress/dist"
