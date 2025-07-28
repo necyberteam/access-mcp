@@ -3,7 +3,7 @@
   command = "cd .. && npm ci && npm run build:all && npm run docs:generate && cd docs && npm run build"
   
   # Directory to publish
-  publish = "docs/dist"
+  publish = "dist"
   
   # Environment variables
   [build.environment]
@@ -15,7 +15,6 @@
   from = "/*"
   to = "/index.html"
   status = 200
-  conditions = {Role = ["admin"]}
 
 # Headers for security and performance
 [[headers]]
