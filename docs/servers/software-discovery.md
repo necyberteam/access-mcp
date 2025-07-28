@@ -28,7 +28,7 @@ npm install -g @access-mcp/software-discovery
 {
   "mcpServers": {
     "software-discovery": {
-      "command": "@access-mcp/software-discovery"
+      "command": "access-mcp-software-discovery"
     }
   }
 }

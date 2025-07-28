@@ -86,8 +86,6 @@ npm run build
 ## Next Steps
 
 - [Learn about available servers](/servers/)
-- [Configure specific servers](/reference/configuration)
-- [Try example queries](/reference/examples)
 
 ## Prerequisites
 

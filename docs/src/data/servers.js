@@ -38,7 +38,10 @@ export const servers = [
     "version": "0.1.0",
     "description": "ACCESS-CI Software Discovery Service MCP server",
     "readme": "",
-    "main": "dist/index.js"
+    "main": "dist/index.js",
+    "bin": {
+      "access-mcp-software-discovery": "dist/index.js"
+    }
   }
 ];
 
