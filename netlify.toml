@@ -3,7 +3,7 @@
   command = "npm ci && node scripts/build-all.js && node scripts/generate-docs.js && cd docs && npm run build"
   
   # Directory to publish
-  publish = ".vitepress/dist"
+  publish = "docs/.vitepress/dist"
   
   # Environment variables
   [build.environment]
