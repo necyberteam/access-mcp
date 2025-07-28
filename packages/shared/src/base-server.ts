@@ -2,6 +2,7 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
   CallToolRequestSchema,
+  InitializeRequestSchema,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
@@ -11,9 +12,13 @@ import axios, { AxiosInstance } from 'axios';
 export abstract class BaseAccessServer {
   protected server: Server;
   protected transport: StdioServerTransport;
-  protected httpClient: AxiosInstance;
+  private _httpClient?: AxiosInstance;
 
-  constructor(protected serverName: string, protected version: string) {
+  constructor(
+    protected serverName: string, 
+    protected version: string,
+    protected baseURL: string = 'https://support.access-ci.org/api'
+  ) {
     this.server = new Server(
       {
         name: serverName,
@@ -28,33 +33,85 @@ export abstract class BaseAccessServer {
     );
 
     this.transport = new StdioServerTransport();
-    this.httpClient = axios.create({
-      baseURL: 'https://support.access-ci.org/api',
-      timeout: 10000,
-      headers: {
-        'User-Agent': `${serverName}/${version}`,
-      },
-    });
-
     this.setupHandlers();
   }
 
+  protected get httpClient(): AxiosInstance {
+    if (!this._httpClient) {
+      const headers: any = {
+        'User-Agent': `${this.serverName}/${this.version}`,
+      };
+
+      // Add authentication if API key is provided
+      const apiKey = process.env.ACCESS_CI_API_KEY;
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      this._httpClient = axios.create({
+        baseURL: this.baseURL,
+        timeout: 5000,
+        headers,
+        validateStatus: () => true, // Don't throw on HTTP errors
+      });
+    }
+    return this._httpClient;
+  }
+
   private setupHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: this.getTools(),
-    }));
 
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => ({
-      resources: this.getResources(),
-    }));
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      try {
+        return { tools: this.getTools() };
+      } catch (error: unknown) {
+        // Silent error handling for MCP compatibility
+        return { tools: [] };
+      }
+    });
 
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) =>
-      this.handleToolCall(request)
-    );
+    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      try {
+        return { resources: this.getResources() };
+      } catch (error: unknown) {
+        // Silent error handling for MCP compatibility
+        return { resources: [] };
+      }
+    });
 
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) =>
-      this.handleResourceRead(request)
-    );
+    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      try {
+        return await this.handleToolCall(request);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('Error handling tool call:', errorMessage);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Error: ${errorMessage}`,
+            },
+          ],
+        };
+      }
+    });
+
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        return await this.handleResourceRead(request);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error('Error reading resource:', errorMessage);
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: 'text/plain',
+              text: `Error: ${errorMessage}`,
+            },
+          ],
+        };
+      }
+    });
   }
 
   protected abstract getTools(): any[];

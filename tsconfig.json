@@ -13,7 +13,10 @@
   },
   "references": [
     { "path": "./packages/shared" },
-    { "path": "./packages/affinity-groups" }
+    { "path": "./packages/affinity-groups" },
+    { "path": "./packages/compute-resources" },
+    { "path": "./packages/system-status" },
+    { "path": "./packages/software-discovery" }
   ],
   "files": []
 }

@@ -1,0 +1,75 @@
+/* Hide VitePress default header/nav since we're using ACCESS-CI UI */
+.VPNav {
+  display: none !important;
+}
+
+.VPSidebar {
+  display: none !important;
+}
+
+/* Adjust content positioning */
+.VPContent {
+  padding-top: 0 !important;
+}
+
+.VPDoc {
+  padding-top: 2rem;
+}
+
+/* Container adjustments */
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* Make sure ACCESS-CI components integrate well */
+#universal-menus,
+#header,
+#site-menus,
+#footer-menus,
+#footer {
+  /* ACCESS-CI UI components handle their own styling */
+}
+
+/* Ensure content has proper spacing */
+#main {
+  min-height: calc(100vh - 400px); /* Adjust based on header/footer height */
+  padding: 2rem 0;
+}
+
+/* Code blocks styling to match VitePress defaults */
+pre {
+  background-color: var(--vp-code-block-bg);
+  border-radius: 8px;
+  padding: 16px;
+  overflow-x: auto;
+}
+
+/* Table of contents positioning */
+#table-of-contents {
+  position: fixed;
+  right: 0;
+  top: 160px; /* Adjust based on header height */
+  width: 240px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  padding: 0 16px;
+}
+
+@media (max-width: 1280px) {
+  #table-of-contents {
+    display: none;
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 16px;
+  }
+  
+  #main {
+    padding: 1rem 0;
+  }
+}

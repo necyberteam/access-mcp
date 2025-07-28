@@ -8,6 +8,15 @@ export class AffinityGroupsServer extends BaseAccessServer {
   protected getTools() {
     return [
       {
+        name: 'list_affinity_groups',
+        description: 'List all ACCESS-CI affinity groups',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+          required: [],
+        },
+      },
+      {
         name: 'get_affinity_group',
         description: 'Get information about a specific ACCESS-CI affinity group',
         inputSchema: {
@@ -15,7 +24,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
           properties: {
             group_id: {
               type: 'string',
-              description: 'The affinity group ID (e.g., bridges2.psc.access-ci.org)',
+              description: 'The affinity group ID (e.g., aici.access-ci.org)',
             },
           },
           required: ['group_id'],
@@ -29,7 +38,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
           properties: {
             group_id: {
               type: 'string',
-              description: 'The affinity group ID (e.g., bridges2.psc.access-ci.org)',
+              description: 'The affinity group ID (e.g., aici.access-ci.org)',
             },
           },
           required: ['group_id'],
@@ -43,7 +52,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
           properties: {
             group_id: {
               type: 'string',
-              description: 'The affinity group ID (e.g., bridges2.psc.access-ci.org)',
+              description: 'The affinity group ID (e.g., aici.access-ci.org)',
             },
           },
           required: ['group_id'],
@@ -64,15 +73,26 @@ export class AffinityGroupsServer extends BaseAccessServer {
   }
 
   protected async handleToolCall(request: any) {
-    const { name, arguments: args } = request.params;
+    const { name, arguments: args = {} } = request.params;
 
     try {
       switch (name) {
+        case 'list_affinity_groups':
+          return await this.listAffinityGroups();
         case 'get_affinity_group':
+          if (!args.group_id) {
+            throw new Error('group_id parameter is required');
+          }
           return await this.getAffinityGroup(args.group_id);
         case 'get_affinity_group_events':
+          if (!args.group_id) {
+            throw new Error('group_id parameter is required');
+          }
           return await this.getAffinityGroupEvents(args.group_id);
         case 'get_affinity_group_kb':
+          if (!args.group_id) {
+            throw new Error('group_id parameter is required');
+          }
           return await this.getAffinityGroupKB(args.group_id);
         default:
           throw new Error(`Unknown tool: ${name}`);
@@ -109,13 +129,36 @@ export class AffinityGroupsServer extends BaseAccessServer {
 
   private async getAffinityGroup(groupId: string) {
     const sanitizedId = sanitizeGroupId(groupId);
-    const response = await this.httpClient.get(`/1.0/affinity_groups/${sanitizedId}`);
+    const response = await this.httpClient.get(`/1.1/affinity_groups/${sanitizedId}`);
+    
+    // Check if response data exists
+    if (!response.data) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `No data found for affinity group ID: ${groupId}`,
+          },
+        ],
+      };
+    }
+    
+    // Clean up the response data
+    const cleanData = Array.isArray(response.data) ? response.data.map(group => ({
+      title: group?.title,
+      description: group?.description?.replace(/<[^>]*>/g, '').replace(/\\n/g, '\n').trim(),
+      coordinator: group?.coordinator_name,
+      category: group?.field_affinity_group_category,
+      slack_link: group?.slack_link,
+      support_url: group?.url,
+      ask_ci_forum: group?.field_ask_ci_locale
+    })) : response.data;
     
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(response.data, null, 2),
+          text: JSON.stringify(cleanData, null, 2),
         },
       ],
     };
@@ -139,11 +182,52 @@ export class AffinityGroupsServer extends BaseAccessServer {
     const sanitizedId = sanitizeGroupId(groupId);
     const response = await this.httpClient.get(`/1.0/kb/${sanitizedId}`);
     
+    // Check for empty array response
+    if (Array.isArray(response.data) && response.data.length === 0) {
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'No knowledge base resources found for this affinity group',
+          },
+        ],
+      };
+    }
+    
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async listAffinityGroups() {
+    const response = await this.httpClient.get('/1.1/affinity_groups/all');
+    
+    // Clean up the response data for better readability
+    const cleanData = Array.isArray(response.data) ? response.data.map(group => ({
+      id: group.field_group_id || group.nid,  // Use field_group_id if available
+      nid: group.nid,
+      title: group.title,
+      description: group.description?.replace(/<[^>]*>/g, '').replace(/\\n/g, '\n').trim(),
+      coordinator: group.coordinator_name,
+      category: group.field_affinity_group_category,
+      slack_link: group.slack_link,
+      support_url: group.url,
+      ask_ci_forum: group.field_ask_ci_locale
+    })) : response.data;
+    
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            total_groups: Array.isArray(cleanData) ? cleanData.length : 0,
+            groups: cleanData
+          }, null, 2),
         },
       ],
     };

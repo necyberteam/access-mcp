@@ -7,13 +7,35 @@
   "bin": {
     "access-mcp-affinity-groups": "dist/index.js"
   },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch",
-    "start": "node dist/index.js"
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "access-ci",
+    "hpc",
+    "affinity-groups",
+    "research"
+  ],
+  "author": "ACCESS-CI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/access-ci/access-mcp.git",
+    "directory": "packages/affinity-groups"
+  },
+  "homepage": "https://github.com/access-ci/access-mcp#readme",
+  "engines": {
+    "node": ">=18.0.0"
   },
   "dependencies": {
-    "@access-mcp/shared": "file:../shared",
+    "@access-mcp/shared": "^0.1.0",
     "express": "^4.18.0"
   }
 }

@@ -1,0 +1,23 @@
+# Source files
+src/
+tsconfig.json
+tsconfig.tsbuildinfo
+
+# Tests
+__tests__/
+*.test.ts
+*.test.js
+
+# Development files
+.env
+.env.*
+
+# Build artifacts (except dist)
+node_modules/
+*.log
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

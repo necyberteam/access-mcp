@@ -1,0 +1,46 @@
+{
+  "name": "@access-mcp/software-discovery",
+  "version": "0.1.0",
+  "description": "ACCESS-CI Software Discovery Service MCP server",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "access-mcp-software-discovery": "dist/index.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "access-ci",
+    "hpc",
+    "software-discovery",
+    "applications"
+  ],
+  "author": "ACCESS-CI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/access-ci/access-mcp.git",
+    "directory": "packages/software-discovery"
+  },
+  "homepage": "https://github.com/access-ci/access-mcp#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@access-mcp/shared": "^0.1.0",
+    "@modelcontextprotocol/sdk": "^1.16.0",
+    "axios": "^1.7.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.8.4",
+    "typescript": "^5.6.3"
+  }
+}

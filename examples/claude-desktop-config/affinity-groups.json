@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "access-affinity-groups": {
+      "command": "access-mcp-affinity-groups"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "access-affinity-groups": {
+      "command": "/path/to/affinity-groups/index.js"
+    },
+    "access-compute-resources": {
+      "command": "/path/to/compute-resources/index.js"
+    },
+    "access-system-status": {
+      "command": "/path/to/system-status/index.js"
+    },
+    "access-software-discovery": {
+      "command": "/path/to/software-discovery/index.js",
+      "env": {
+        "SDS_API_KEY": "your-sds-api-key"
+      }
+    }
+  }
+}
