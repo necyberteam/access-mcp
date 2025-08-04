@@ -59,7 +59,7 @@ ${servers.map(server => `
 
 ${server.description}
 
-[View Details](/servers/${server.id}) | [API Reference](/reference/api#${server.id})
+[View Details](/servers/${server.id}){.btn-primary}
 
 \`\`\`bash
 # Install
@@ -69,7 +69,8 @@ npm install -g ${server.name}
 {
   "mcpServers": {
     "${server.id}": {
-      "command": "${Object.keys(server.bin || {})[0] || server.name}"
+      "command": "npx",
+      "args": ["${server.name}"]
     }
   }
 }
@@ -130,7 +131,8 @@ npm install -g ${server.name}
 {
   "mcpServers": {
     "${server.id}": {
-      "command": "${Object.keys(server.bin || {})[0] || server.name}"
+      "command": "npx",
+      "args": ["${server.name}"]
     }
   }
 }

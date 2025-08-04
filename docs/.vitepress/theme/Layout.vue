@@ -4,6 +4,7 @@
     <div id="universal-menus"></div>
     <div id="header"></div>
     <div id="site-menus"></div>
+    <!-- <div id="breadcrumbs"></div> -->
     
     <!-- Main Content -->
     <div id="main">
@@ -41,12 +42,12 @@ function initializeAccessCI() {
     '} from "https://esm.sh/@access-ci/ui@0.8.0";',
     '',
     'const siteItems = [',
-
-  '  {',
+    '  {',
     '    name: "Guide",',
     '    items: [',
     '      { name: "Home", href: "/" },',
     '      { name: "Getting Started", href: "/getting-started" },',
+    '      { name: "GitHub", href: "https://github.com/necyberteam/access-mcp" },',
     '    ],',
     '  },',
     '  {',
@@ -59,13 +60,9 @@ function initializeAccessCI() {
     '      { name: "Software Discovery", href: "/servers/software-discovery" },',
     '    ],',
     '  },',
-    '  {',
-    '    name: "GitHub",',
-    '    href: "https://github.com/necyberteam/access-mcp",',
-    '  },',
     '];',
     '',
-    '// Initialize components',
+    '// Initialize ACCESS-CI components',
     'universalMenus({',
     '  loginUrl: "/login",',
     '  logoutUrl: "/logout",',
@@ -75,6 +72,7 @@ function initializeAccessCI() {
     '',
     'header({',
     '  siteName: "Support",',
+    '  siteUrl: "https://support.access-ci.org",',
     '  target: document.getElementById("header"),',
     '});',
     '',
@@ -107,7 +105,6 @@ function initializeAccessCI() {
   document.head.appendChild(script)
   accessCIInitialized = true
   
-  console.log('ACCESS-CI UI script injected');
 }
 
 onMounted(() => {
@@ -128,6 +125,8 @@ onMounted(() => {
   --access-ci-teal-light: #48c0b9; /* Light teal */
   --access-ci-teal-medium: #008597; /* Medium teal */
   --access-ci-teal-dark: #1a5b6e; /* Dark teal for hover */
+  --access-ci-yellow: #FFD700; /* Primary yellow color */
+  --black: #232323; /* Black color for borders/text */
   
   /* Typography */
   --access-ci-font-small: 13px;
@@ -144,12 +143,20 @@ onMounted(() => {
   --access-ci-spacing-2xl: 5.06rem;
   
   /* Override VitePress variables */
-  --vp-c-brand-1: #232323;
-  --vp-c-brand-2: #3f3f3f;
-  --vp-c-brand-3: #707070;
+  --vp-c-brand-1: var(--access-ci-yellow);
+  --vp-c-brand-2: #f0c800;
+  --vp-c-brand-3: #d4af00;
+  --vp-button-brand-bg: var(--access-ci-yellow);
+  --vp-button-brand-text: #232323;
+  --vp-button-brand-hover-bg: white;
+  --vp-button-brand-hover-text: var(--black);
+  --vp-button-brand-border: var(--access-ci-yellow);
+  --vp-button-brand-hover-border: var(--black);
   --vp-c-text-1: #232323;
   --vp-c-text-2: #3f3f3f;
   --vp-c-text-3: #707070;
+  --vp-home-hero-name-color: #232323;
+  --vp-code-color: #232323;
 }
 
 /* Base layout */
@@ -161,7 +168,10 @@ onMounted(() => {
   line-height: 1.6;
   color: var(--access-ci-contrast);
   background-color: var(--access-ci-base-3);
+  width: 100%;
+  overflow-x: hidden;
 }
+
 
 /* Force font family on all elements */
 .access-ci-layout * {
@@ -174,6 +184,8 @@ onMounted(() => {
   margin: 0 auto;
   padding: var(--access-ci-spacing-lg) var(--access-ci-spacing-md);
   padding-top: var(--access-ci-spacing-md);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* Hide VitePress defaults that conflict */
@@ -356,29 +368,59 @@ onMounted(() => {
   transform: translateY(0);
 }
 
-/* Primary Button Variant */
-:deep(.vp-doc .button-primary),
-:deep(.vp-doc .btn-primary) {
-  background-color: var(--access-ci-teal-600);
+/* Primary Button Variant - Yellow with transitions */
+.access-ci-layout .vp-doc .button-primary,
+.access-ci-layout .vp-doc .btn-primary,
+.access-ci-layout .button-primary,
+.access-ci-layout .btn-primary {
+  color: #232323 !important;
+  background-color: var(--access-ci-yellow) !important;
+  border: 4px solid var(--access-ci-yellow) !important;
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  text-decoration: none !important;
+  padding: 0.5rem 2.5rem;
+  font-size: 1rem;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
 
-:deep(.vp-doc .button-primary:hover),
-:deep(.vp-doc .btn-primary:hover) {
-  background-color: var(--access-ci-teal-700);
+.access-ci-layout .vp-doc .button-primary:hover,
+.access-ci-layout .vp-doc .btn-primary:hover,
+.access-ci-layout .button-primary:hover,
+.access-ci-layout .btn-primary:hover {
+  color: var(--black) !important;
+  background-color: white !important;
+  border-color: var(--black) !important;
+  text-decoration: none !important;
+  transform: none;
 }
 
-/* Secondary Button Variant */
-:deep(.vp-doc .button-secondary),
-:deep(.vp-doc .btn-secondary) {
-  background-color: transparent;
-  color: var(--access-ci-teal-600);
-  border: 2px solid var(--access-ci-teal-600);
+/* Secondary Button Variant - Teal with white text */
+.access-ci-layout .vp-doc .button-secondary,
+.access-ci-layout .vp-doc .btn-secondary,
+.access-ci-layout .button-secondary,
+.access-ci-layout .btn-secondary {
+  color: #fff !important;
+  background-color: var(--access-ci-teal-medium) !important;
+  border: 4px solid var(--access-ci-teal-medium) !important;
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  text-decoration: none !important;
+  padding: 0.5rem 2.5rem;
+  font-size: 1rem;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
 }
 
-:deep(.vp-doc .button-secondary:hover),
-:deep(.vp-doc .btn-secondary:hover) {
-  background-color: var(--access-ci-teal-600);
-  color: #ffffff;
+.access-ci-layout .vp-doc .button-secondary:hover,
+.access-ci-layout .vp-doc .btn-secondary:hover,
+.access-ci-layout .button-secondary:hover,
+.access-ci-layout .btn-secondary:hover {
+  background-color: var(--access-ci-teal-dark) !important;
+  border-color: var(--access-ci-teal-dark) !important;
+  color: #fff !important;
+  text-decoration: none !important;
 }
 
 /* Enhanced Header Styles */
@@ -470,6 +512,15 @@ onMounted(() => {
   :deep(.vp-doc h2) {
     font-size: 18px;
   }
+  
+  /* Responsive buttons */
+  .access-ci-layout .VPButton.brand,
+  .access-ci-layout .VPButton.alt,
+  .access-ci-layout .VPHero .action .VPButton.brand,
+  .access-ci-layout .VPHero .action .VPButton.alt {
+    padding: 0.4rem 1.5rem !important;
+    font-size: 0.9rem !important;
+  }
 }
 
 @media (max-width: 480px) {
@@ -479,6 +530,98 @@ onMounted(() => {
   
   :deep(.vp-doc h1) {
     font-size: 24px;
+  }
+  
+  /* Smaller buttons on mobile */
+  .access-ci-layout .VPButton.brand,
+  .access-ci-layout .VPButton.alt,
+  .access-ci-layout .VPHero .action .VPButton.brand,
+  .access-ci-layout .VPHero .action .VPButton.alt {
+    padding: 0.3rem 1rem !important;
+    font-size: 0.85rem !important;
+    margin: 0.25rem !important;
+  }
+}
+
+/* VitePress Home Page Button Overrides */
+.access-ci-layout .VPButton.brand {
+  color: #232323 !important;
+  background-color: var(--access-ci-yellow) !important;
+  border: 4px solid var(--access-ci-yellow) !important;
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  text-decoration: none !important;
+  padding: 0.5rem 2.5rem;
+  font-size: 1rem;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+.access-ci-layout .VPButton.brand:hover {
+  color: var(--black) !important;
+  background-color: white !important;
+  border-color: var(--black) !important;
+  text-decoration: none !important;
+  transform: none !important;
+}
+
+/* Hero action buttons - Primary (brand theme) */
+.access-ci-layout .VPHero .action .VPButton.brand {
+  color: #232323 !important;
+  background-color: var(--access-ci-yellow) !important;
+  border: 4px solid var(--access-ci-yellow) !important;
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  text-decoration: none !important;
+  padding: 0.5rem 2.5rem;
+  font-size: 1rem;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+.access-ci-layout .VPHero .action .VPButton.brand:hover {
+  color: var(--black) !important;
+  background-color: white !important;
+  border-color: var(--black) !important;
+  text-decoration: none !important;
+  transform: none !important;
+}
+
+/* Hero action buttons - Secondary (alt theme) */
+.access-ci-layout .VPHero .action .VPButton.alt {
+  color: #fff !important;
+  background-color: var(--access-ci-teal-medium) !important;
+  border: 4px solid var(--access-ci-teal-medium) !important;
+  border-radius: 0 !important;
+  font-weight: 700 !important;
+  text-transform: uppercase;
+  text-decoration: none !important;
+  padding: 0.5rem 2.5rem;
+  font-size: 1rem;
+  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+.access-ci-layout .VPHero .action .VPButton.alt:hover {
+  background-color: var(--access-ci-teal-dark) !important;
+  border-color: var(--access-ci-teal-dark) !important;
+  color: #fff !important;
+  text-decoration: none !important;
+  transform: none !important;
+}
+
+/* Hero text styling - make it look like normal paragraph text */
+.access-ci-layout .text {
+  font-size: 1.1rem !important;
+  line-height: 1.6 !important;
+  font-weight: 400 !important;
+  color: var(--access-ci-contrast-2) !important;
+  max-width: 600px !important;
+}
+
+@media (min-width: 640px) {
+  .access-ci-layout .text {
+    font-size: 1.2rem !important;
+    line-height: 1.7 !important;
   }
 }
 </style>

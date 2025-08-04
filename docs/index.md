@@ -3,8 +3,7 @@ layout: home
 
 hero:
   name: "ACCESS-CI MCP Servers"
-  text: "Model Context Protocol for Cyberinfrastructure"
-  tagline: Connect AI assistants to ACCESS-CI resources, communities, and data
+  text: "Connect AI assistants to ACCESS-CI resources, communities, and data with these Model Context Protocol servers."
   actions:
     - theme: brand
       text: Get Started

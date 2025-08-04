@@ -28,7 +28,8 @@ npm install -g @access-mcp/affinity-groups
 {
   "mcpServers": {
     "affinity-groups": {
-      "command": "access-mcp-affinity-groups"
+      "command": "npx",
+      "args": ["@access-mcp/affinity-groups"]
     }
   }
 }
@@ -86,5 +87,5 @@ The server runs on stdio transport and can be integrated with MCP-compatible cli
 ---
 
 **Package:** `@access-mcp/affinity-groups`  
-**Version:** v0.1.0  
+**Version:** v0.2.3  
 **Main:** `dist/index.js`

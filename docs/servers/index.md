@@ -6,11 +6,11 @@ ACCESS-CI provides 4 MCP servers for different aspects of cyberinfrastructure:
 ## MCP server for ACCESS-CI Affinity Groups API
 
 **Package:** `@access-mcp/affinity-groups`  
-**Version:** v0.1.0
+**Version:** v0.2.3
 
 MCP server for ACCESS-CI Affinity Groups API
 
-[View Details](/servers/affinity-groups)
+[View Details](/servers/affinity-groups){.btn-primary}
 
 ```bash
 # Install
@@ -20,7 +20,8 @@ npm install -g @access-mcp/affinity-groups
 {
   "mcpServers": {
     "affinity-groups": {
-      "command": "access-mcp-affinity-groups"
+      "command": "npx",
+      "args": ["@access-mcp/affinity-groups"]
     }
   }
 }
@@ -29,11 +30,11 @@ npm install -g @access-mcp/affinity-groups
 ## MCP server for ACCESS-CI Compute Resources API
 
 **Package:** `@access-mcp/compute-resources`  
-**Version:** v0.1.0
+**Version:** v0.2.3
 
 MCP server for ACCESS-CI Compute Resources API
 
-[View Details](/servers/compute-resources)
+[View Details](/servers/compute-resources){.btn-primary}
 
 ```bash
 # Install
@@ -43,7 +44,8 @@ npm install -g @access-mcp/compute-resources
 {
   "mcpServers": {
     "compute-resources": {
-      "command": "access-mcp-compute-resources"
+      "command": "npx",
+      "args": ["@access-mcp/compute-resources"]
     }
   }
 }
@@ -52,11 +54,11 @@ npm install -g @access-mcp/compute-resources
 ## MCP server for ACCESS-CI System Status and Outages API
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.1.0
+**Version:** v0.2.3
 
 MCP server for ACCESS-CI System Status and Outages API
 
-[View Details](/servers/system-status)
+[View Details](/servers/system-status){.btn-primary}
 
 ```bash
 # Install
@@ -66,7 +68,8 @@ npm install -g @access-mcp/system-status
 {
   "mcpServers": {
     "system-status": {
-      "command": "access-mcp-system-status"
+      "command": "npx",
+      "args": ["@access-mcp/system-status"]
     }
   }
 }
@@ -75,11 +78,11 @@ npm install -g @access-mcp/system-status
 ## ACCESS-CI Software Discovery Service MCP server
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.1.0
+**Version:** v0.2.3
 
 ACCESS-CI Software Discovery Service MCP server
 
-[View Details](/servers/software-discovery)
+[View Details](/servers/software-discovery){.btn-primary}
 
 ```bash
 # Install
@@ -89,7 +92,8 @@ npm install -g @access-mcp/software-discovery
 {
   "mcpServers": {
     "software-discovery": {
-      "command": "access-mcp-software-discovery"
+      "command": "npx",
+      "args": ["@access-mcp/software-discovery"]
     }
   }
 }
