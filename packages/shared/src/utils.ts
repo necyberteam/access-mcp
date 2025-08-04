@@ -1,5 +1,5 @@
 export function sanitizeGroupId(groupId: string): string {
-  return groupId.replace(/[^a-zA-Z0-9.-]/g, '');
+  return groupId.replace(/[^a-zA-Z0-9.-]/g, "");
 }
 
 export function formatApiUrl(version: string, endpoint: string): string {
@@ -13,5 +13,5 @@ export function handleApiError(error: any): string {
   if (error.response?.status) {
     return `API error: ${error.response.status} ${error.response.statusText}`;
   }
-  return error.message || 'Unknown API error';
+  return error.message || "Unknown API error";
 }

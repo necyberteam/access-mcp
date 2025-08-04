@@ -5,6 +5,7 @@ MCP server for ACCESS-CI Compute Resources API
 ## Installation
 
 ### Download & Run
+
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `compute-resources/index.js` file
 3. Add to Claude Desktop config:
@@ -20,6 +21,7 @@ MCP server for ACCESS-CI Compute Resources API
 ```
 
 ### npm Package
+
 ```bash
 npm install -g @access-mcp/compute-resources
 ```
@@ -52,20 +54,25 @@ This server provides comprehensive information about compute resources available
 ## Tools
 
 ### list_compute_resources
+
 List all available ACCESS-CI compute resources.
 
 **Parameters:** None
 
 ### get_compute_resource
+
 Get detailed information about a specific compute resource.
 
 **Parameters:**
+
 - `resource_id` (string): The resource ID or info_groupid (e.g., "expanse.sdsc.xsede.org")
 
 ### get_resource_hardware
+
 Get hardware specifications for a compute resource.
 
 **Parameters:**
+
 - `resource_id` (string): The resource ID or info_groupid
 
 ## Resources

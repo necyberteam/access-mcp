@@ -1,4 +1,3 @@
-
 # Getting Started
 
 Choose your installation method based on your needs:
@@ -8,24 +7,26 @@ Choose your installation method based on your needs:
 **Best for**: Most users - simple one-command installation
 
 ### Step 1: Install All Servers
+
 Install all ACCESS-CI MCP servers with one command:
 
 ```bash
 npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
 ```
 
-*Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation.*
+_Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation._
 
 ### Step 2: Configure Claude Desktop
 
 Add servers to your Claude Desktop configuration file.
 
 **Config file locations:**
+
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
 
-*Note: Create the file if it doesn't exist.*
+_Note: Create the file if it doesn't exist._
 
 ```json
 {

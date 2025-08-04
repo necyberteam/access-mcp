@@ -1,13 +1,13 @@
-import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { Server } from "@modelcontextprotocol/sdk/server/index.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
   InitializeRequestSchema,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
-import axios, { AxiosInstance } from 'axios';
+} from "@modelcontextprotocol/sdk/types.js";
+import axios, { AxiosInstance } from "axios";
 
 export abstract class BaseAccessServer {
   protected server: Server;
@@ -15,9 +15,9 @@ export abstract class BaseAccessServer {
   private _httpClient?: AxiosInstance;
 
   constructor(
-    protected serverName: string, 
+    protected serverName: string,
     protected version: string,
-    protected baseURL: string = 'https://support.access-ci.org/api'
+    protected baseURL: string = "https://support.access-ci.org/api",
   ) {
     this.server = new Server(
       {
@@ -29,7 +29,7 @@ export abstract class BaseAccessServer {
           resources: {},
           tools: {},
         },
-      }
+      },
     );
 
     this.transport = new StdioServerTransport();
@@ -39,13 +39,13 @@ export abstract class BaseAccessServer {
   protected get httpClient(): AxiosInstance {
     if (!this._httpClient) {
       const headers: any = {
-        'User-Agent': `${this.serverName}/${this.version}`,
+        "User-Agent": `${this.serverName}/${this.version}`,
       };
 
       // Add authentication if API key is provided
       const apiKey = process.env.ACCESS_CI_API_KEY;
       if (apiKey) {
-        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers["Authorization"] = `Bearer ${apiKey}`;
       }
 
       this._httpClient = axios.create({
@@ -59,7 +59,6 @@ export abstract class BaseAccessServer {
   }
 
   private setupHandlers() {
-
     this.server.setRequestHandler(ListToolsRequestSchema, async () => {
       try {
         return { tools: this.getTools() };
@@ -82,12 +81,13 @@ export abstract class BaseAccessServer {
       try {
         return await this.handleToolCall(request);
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('Error handling tool call:', errorMessage);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error("Error handling tool call:", errorMessage);
         return {
           content: [
             {
-              type: 'text',
+              type: "text",
               text: `Error: ${errorMessage}`,
             },
           ],
@@ -95,23 +95,27 @@ export abstract class BaseAccessServer {
       }
     });
 
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      try {
-        return await this.handleResourceRead(request);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        console.error('Error reading resource:', errorMessage);
-        return {
-          contents: [
-            {
-              uri: request.params.uri,
-              mimeType: 'text/plain',
-              text: `Error: ${errorMessage}`,
-            },
-          ],
-        };
-      }
-    });
+    this.server.setRequestHandler(
+      ReadResourceRequestSchema,
+      async (request) => {
+        try {
+          return await this.handleResourceRead(request);
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          console.error("Error reading resource:", errorMessage);
+          return {
+            contents: [
+              {
+                uri: request.params.uri,
+                mimeType: "text/plain",
+                text: `Error: ${errorMessage}`,
+              },
+            ],
+          };
+        }
+      },
+    );
   }
 
   protected abstract getTools(): any[];

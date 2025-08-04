@@ -1,28 +1,27 @@
 #!/usr/bin/env node
 
-import { execSync } from 'child_process';
-import { readdirSync, statSync } from 'fs';
-import { join } from 'path';
+import { execSync } from "child_process";
+import { readdirSync, statSync } from "fs";
+import { join } from "path";
 
-console.log('🔨 Building all ACCESS-CI MCP servers...\n');
+console.log("🔨 Building all ACCESS-CI MCP servers...\n");
 
-const packagesDir = 'packages';
-const packages = readdirSync(packagesDir)
-  .filter(dir => {
-    const path = join(packagesDir, dir);
-    return statSync(path).isDirectory() && dir !== 'shared';
-  });
+const packagesDir = "packages";
+const packages = readdirSync(packagesDir).filter((dir) => {
+  const path = join(packagesDir, dir);
+  return statSync(path).isDirectory() && dir !== "shared";
+});
 
 // Build shared package first
-console.log('📦 Building shared package...');
+console.log("📦 Building shared package...");
 try {
-  execSync('npm run build', { 
-    cwd: 'packages/shared', 
-    stdio: 'inherit' 
+  execSync("npm run build", {
+    cwd: "packages/shared",
+    stdio: "inherit",
   });
-  console.log('✅ Shared package built successfully\n');
+  console.log("✅ Shared package built successfully\n");
 } catch (error) {
-  console.error('❌ Failed to build shared package:', error.message);
+  console.error("❌ Failed to build shared package:", error.message);
   process.exit(1);
 }
 
@@ -30,9 +29,9 @@ try {
 for (const pkg of packages) {
   console.log(`📦 Building ${pkg}...`);
   try {
-    execSync('npm run build', { 
-      cwd: join(packagesDir, pkg), 
-      stdio: 'inherit' 
+    execSync("npm run build", {
+      cwd: join(packagesDir, pkg),
+      stdio: "inherit",
     });
     console.log(`✅ ${pkg} built successfully\n`);
   } catch (error) {
@@ -41,4 +40,4 @@ for (const pkg of packages) {
   }
 }
 
-console.log('🎉 All packages built successfully!');
+console.log("🎉 All packages built successfully!");

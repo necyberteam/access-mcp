@@ -41,6 +41,7 @@ We welcome contributions to improve and expand the ACCESS-CI MCP servers!
 ### Commit Messages
 
 Use clear, descriptive commit messages:
+
 - `feat: Add new tool for resource metrics`
 - `fix: Handle empty API responses correctly`
 - `docs: Update configuration examples`
@@ -70,16 +71,19 @@ To add a new ACCESS-CI API server:
 ## Testing Your Changes
 
 ### Unit Tests
+
 ```bash
 npm test
 ```
 
 ### Integration Testing with MCP Inspector
+
 ```bash
 npx @modelcontextprotocol/inspector packages/your-server/dist/index.js
 ```
 
 ### Test Release Build
+
 ```bash
 npm run release
 ```

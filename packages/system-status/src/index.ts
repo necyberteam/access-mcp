@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
-import { SystemStatusServer } from './server.js';
-import { startWebServer } from './web-server.js';
+import { SystemStatusServer } from "./server.js";
+import { startWebServer } from "./web-server.js";
 
 async function main() {
   // Check if we should run as web server (for deployment)
   const port = process.env.PORT;
-  
+
   if (port) {
     // Running in web mode (deployment)
     startWebServer(parseInt(port));

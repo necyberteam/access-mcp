@@ -1,0 +1,46 @@
+{
+  "name": "@access-mcp/xdmod-metrics",
+  "version": "0.2.3",
+  "description": "MCP server for XDMoD Metrics and Usage Analytics API",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "access-xdmod-metrics": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "mcp",
+    "server",
+    "access-ci",
+    "xdmod",
+    "metrics",
+    "analytics",
+    "usage"
+  ],
+  "author": "ACCESS-CI",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/necyberteam/access-mcp.git",
+    "directory": "packages/xdmod-metrics"
+  },
+  "homepage": "https://github.com/necyberteam/access-mcp/tree/main/packages/xdmod-metrics",
+  "bugs": {
+    "url": "https://github.com/necyberteam/access-mcp/issues"
+  },
+  "dependencies": {
+    "@access-mcp/shared": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md"
+  ]
+}

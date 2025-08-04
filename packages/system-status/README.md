@@ -9,27 +9,35 @@ This server provides critical operational information about ACCESS-CI systems, i
 ## Tools
 
 ### get_current_outages
+
 Get current system outages and issues affecting ACCESS-CI resources.
 
 **Parameters:**
+
 - `resource_filter` (string, optional): Filter by specific resource name or ID
 
 ### get_scheduled_maintenance
+
 Get scheduled maintenance and future outages for ACCESS-CI resources.
 
 **Parameters:**
+
 - `resource_filter` (string, optional): Filter by specific resource name or ID
 
 ### get_system_announcements
+
 Get all system announcements (current and scheduled).
 
 **Parameters:**
+
 - `limit` (number, optional): Maximum number of announcements to return (default: 50)
 
 ### get_resource_status
+
 Get the current operational status of a specific resource.
 
 **Parameters:**
+
 - `resource_id` (string): The resource ID to check status for
 
 ## Resources

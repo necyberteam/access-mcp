@@ -20,13 +20,13 @@ npm install @access-mcp/shared
 ## Usage
 
 ```typescript
-import { BaseAccessServer, handleApiError } from '@access-mcp/shared';
+import { BaseAccessServer, handleApiError } from "@access-mcp/shared";
 
 export class MyServer extends BaseAccessServer {
   constructor() {
-    super('my-server', '1.0.0');
+    super("my-server", "1.0.0");
   }
-  
+
   // Implement required abstract methods
 }
 ```

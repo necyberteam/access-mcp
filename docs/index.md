@@ -28,7 +28,7 @@ features:
 The Model Context Protocol (MCP) enables AI assistants to securely access external data sources. ACCESS-CI MCP servers provide structured access to:
 
 - **Community data** from affinity groups and events
-- **Resource information** about compute systems and capabilities  
+- **Resource information** about compute systems and capabilities
 - **Real-time status** of system health and maintenance
 - **Software catalogs** across different ACCESS resources
 
@@ -39,14 +39,16 @@ With ACCESS-CI MCP servers, you can ask Claude:
 > "What GPU resources are available on ACCESS-CI and what machine learning software do they have?"
 
 Claude will query multiple MCP servers to provide comprehensive information about:
+
 - Available GPU-enabled systems
-- Hardware specifications 
+- Hardware specifications
 - Installed ML frameworks and libraries
 - Current system status and availability
 
 ## Installation
 
 ### 📦 Recommended: npm packages
+
 Install all ACCESS-CI MCP servers with one command (requires Node.js 18+):
 
 ```bash
@@ -54,6 +56,7 @@ npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access
 ```
 
 Then add to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+
 ```json
 {
   "mcpServers": {
@@ -80,7 +83,8 @@ Then add to your Claude Desktop config file (`~/Library/Application Support/Clau
 }
 ```
 
-### 🔧 For Developers  
+### 🔧 For Developers
+
 Install locally for custom integrations:
 
 ```bash

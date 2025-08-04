@@ -11,21 +11,27 @@ MCP server providing access to ACCESS-CI Affinity Groups API endpoints.
 ## Tools
 
 ### get_affinity_group
+
 Get basic information about a specific affinity group.
 
 **Parameters:**
+
 - `group_id` (string): The affinity group identifier (e.g., "bridges2.psc.access-ci.org")
 
 ### get_affinity_group_events
+
 Get events and trainings for a specific affinity group.
 
 **Parameters:**
+
 - `group_id` (string): The affinity group identifier
 
 ### get_affinity_group_kb
+
 Get knowledge base resources for a specific affinity group.
 
 **Parameters:**
+
 - `group_id` (string): The affinity group identifier
 
 ## Usage

@@ -5,7 +5,7 @@ This package contains standalone MCP servers for ACCESS-CI APIs.
 ## Servers Included
 
 - **affinity-groups**: ACCESS-CI Affinity Groups API
-- **compute-resources**: ACCESS-CI Compute Resources API  
+- **compute-resources**: ACCESS-CI Compute Resources API
 - **system-status**: ACCESS-CI System Status and Outages API
 - **software-discovery**: ACCESS-CI Software Discovery Service API
 

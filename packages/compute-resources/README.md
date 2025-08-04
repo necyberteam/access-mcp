@@ -9,20 +9,25 @@ This server provides comprehensive information about compute resources available
 ## Tools
 
 ### list_compute_resources
+
 List all available ACCESS-CI compute resources.
 
 **Parameters:** None
 
 ### get_compute_resource
+
 Get detailed information about a specific compute resource.
 
 **Parameters:**
+
 - `resource_id` (string): The resource ID or info_groupid (e.g., "expanse.sdsc.xsede.org")
 
 ### get_resource_hardware
+
 Get hardware specifications for a compute resource.
 
 **Parameters:**
+
 - `resource_id` (string): The resource ID or info_groupid
 
 ## Resources

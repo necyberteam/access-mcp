@@ -5,6 +5,7 @@ ACCESS-CI Software Discovery Service MCP server
 ## Installation
 
 ### Download & Run
+
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `software-discovery/index.js` file
 3. Add to Claude Desktop config:
@@ -20,6 +21,7 @@ ACCESS-CI Software Discovery Service MCP server
 ```
 
 ### npm Package
+
 ```bash
 npm install -g @access-mcp/software-discovery
 ```
@@ -52,30 +54,38 @@ This server enables searching and discovering software packages available across
 ## Tools
 
 ### search_software
+
 Search for software packages across ACCESS-CI resources.
 
 **Parameters:**
+
 - `query` (string): Search query for software names or descriptions
 - `resource_filter` (string, optional): Filter results by specific resource ID
 
 ### list_software_by_resource
+
 List all available software packages for a specific ACCESS-CI resource.
 
 **Parameters:**
+
 - `resource_id` (string): The resource ID (e.g., "expanse.sdsc.xsede.org")
 - `limit` (number, optional): Maximum number of results (default: 100)
 
 ### get_software_details
+
 Get detailed information about a specific software package on a resource.
 
 **Parameters:**
+
 - `software_name` (string): Name of the software package
 - `resource_id` (string): The resource ID where the software is installed
 
 ### search_software_by_category
+
 Search for software packages by category or domain.
 
 **Parameters:**
+
 - `category` (string): Software category (e.g., "bioinformatics", "chemistry", "physics")
 - `resource_filter` (string, optional): Filter by specific resource
 
