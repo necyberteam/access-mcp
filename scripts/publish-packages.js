@@ -68,7 +68,7 @@ function checkPackage(packageName) {
 
 async function main() {
   const isDryRun = process.argv.includes('--dry-run');
-  const publishCommand = isDryRun ? 'npm publish --dry-run' : 'npm publish';
+  const publishCommand = isDryRun ? 'npm publish --dry-run --access public' : 'npm publish --access public';
 
   console.log('🚀 ACCESS-CI MCP Packages Publisher');
   console.log(`📋 Mode: ${isDryRun ? 'DRY RUN' : 'LIVE PUBLISH'}`);
@@ -93,13 +93,13 @@ async function main() {
 
   if (isDryRun) {
     console.log('\n🎭 Running dry-run publish...');
-    runCommand('npm publish --dry-run --workspaces');
+    runCommand('npm publish --dry-run --workspaces --access public');
   } else {
     console.log('\n🚀 Publishing packages to npm...');
     
     // Publish shared package first (others depend on it)
     console.log('\n📦 Publishing shared package first...');
-    runCommand('npm publish', { cwd: 'packages/shared' });
+    runCommand('npm publish --access public', { cwd: 'packages/shared' });
     
     // Wait a moment for npm to propagate
     console.log('⏳ Waiting for npm to propagate...');
@@ -108,7 +108,7 @@ async function main() {
     // Publish other packages
     for (const packageName of PACKAGES.slice(1)) {
       console.log(`\n📦 Publishing ${packageName}...`);
-      runCommand('npm publish', { cwd: `packages/${packageName}` });
+      runCommand('npm publish --access public', { cwd: `packages/${packageName}` });
     }
   }
 
