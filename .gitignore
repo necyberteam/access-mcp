@@ -4,6 +4,7 @@ node_modules/
 # Build output
 dist/
 *.js.map
+*.tsbuildinfo
 
 # Environment files
 .env
