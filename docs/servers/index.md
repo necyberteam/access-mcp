@@ -103,7 +103,7 @@ Choose the method that works best for you:
 ### 📥 Download & Run (Recommended for end users)
 - Pre-built executables
 - No Node.js knowledge required  
-- [Download latest release](https://github.com/your-repo/releases)
+- [Download latest release](https://github.com/necyberteam/access-mcp/releases)
 
 ### 🔧 npm Packages (For developers)
 - Install individual servers

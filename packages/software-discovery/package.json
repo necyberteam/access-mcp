@@ -1,6 +1,6 @@
 {
   "name": "@access-mcp/software-discovery",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "ACCESS-CI Software Discovery Service MCP server",
   "type": "module",
   "main": "dist/index.js",
@@ -27,15 +27,15 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/access-ci/access-mcp.git",
+    "url": "https://github.com/necyberteam/access-mcp.git",
     "directory": "packages/software-discovery"
   },
-  "homepage": "https://github.com/access-ci/access-mcp#readme",
+  "homepage": "https://github.com/necyberteam/access-mcp#readme",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@access-mcp/shared": "^0.1.0",
+    "@access-mcp/shared": "^0.2.1",
     "@modelcontextprotocol/sdk": "^1.16.0",
     "axios": "^1.7.7"
   },

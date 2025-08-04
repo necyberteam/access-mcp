@@ -83,7 +83,7 @@ Choose the method that works best for you:
 ### 📥 Download & Run (Recommended for end users)
 - Pre-built executables
 - No Node.js knowledge required  
-- [Download latest release](https://github.com/your-repo/releases)
+- [Download latest release](https://github.com/necyberteam/access-mcp/releases)
 
 ### 🔧 npm Packages (For developers)
 - Install individual servers
@@ -107,7 +107,7 @@ ${server.description}
 ## Installation
 
 ### Download & Run
-1. Download the [latest release](https://github.com/your-repo/releases)
+1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the \`${server.id}/index.js\` file
 3. Add to Claude Desktop config:
 

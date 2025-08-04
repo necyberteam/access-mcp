@@ -2,17 +2,18 @@
 
 Choose your installation method based on your needs:
 
-## 📥 End Users (Download & Run)
+## 📦 Recommended: npm Installation
 
-**Best for**: Claude Desktop users who want to quickly add ACCESS-CI capabilities
+**Best for**: Most users - simple one-command installation
 
-### Step 1: Download
-Get the latest release from [GitHub Releases](https://github.com/your-repo/releases)
+### Step 1: Install All Servers
+Install all ACCESS-CI MCP servers with one command:
 
-### Step 2: Extract
-Unzip `access-mcp-servers-vX.X.X.zip` to your preferred location
+```bash
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
+```
 
-### Step 3: Configure Claude Desktop
+### Step 2: Configure Claude Desktop
 
 Add servers to your Claude Desktop configuration file:
 
@@ -23,16 +24,16 @@ Add servers to your Claude Desktop configuration file:
 {
   "mcpServers": {
     "access-affinity-groups": {
-      "command": "/path/to/affinity-groups/index.js"
+      "command": "access-mcp-affinity-groups"
     },
     "access-compute-resources": {
-      "command": "/path/to/compute-resources/index.js"
+      "command": "access-mcp-compute-resources"
     },
     "access-system-status": {
-      "command": "/path/to/system-status/index.js"
+      "command": "access-mcp-system-status"
     },
     "access-software-discovery": {
-      "command": "/path/to/software-discovery/index.js",
+      "command": "access-mcp-software-discovery",
       "env": {
         "SDS_API_KEY": "your-sds-api-key"
       }
@@ -41,24 +42,30 @@ Add servers to your Claude Desktop configuration file:
 }
 ```
 
-### Step 4: Restart Claude Desktop
+### Step 3: Restart Claude Desktop
 
-That's it! No Node.js knowledge required - everything is pre-built and ready to run.
+That's it! The commands are now available globally and Claude Desktop can use them.
+
+## 📥 Alternative: GitHub Releases
+
+**Best for**: Users who prefer downloading executables
+
+Get the latest release from [GitHub Releases](https://github.com/necyberteam/access-mcp/releases) and configure with full file paths.
 
 ## 🔧 Developers (npm packages)
 
 **Best for**: Developers building applications or custom integrations
 
-### Install Individual Servers
+### Install Individual or All Servers
 
 ```bash
-# Install globally for command-line use
-npm install -g @access-mcp/affinity-groups
-npm install -g @access-mcp/compute-resources
-npm install -g @access-mcp/system-status
-npm install -g @access-mcp/software-discovery
+# Install all servers at once
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
 
-# Or install locally for projects
+# Or install individual servers
+npm install -g @access-mcp/affinity-groups
+
+# For local project use
 npm install @access-mcp/affinity-groups
 ```
 

@@ -11,7 +11,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: View on GitHub
-      link: https://github.com/your-repo/access-mcp
+      link: https://github.com/necyberteam/access-mcp
 
 features:
   - title: 🏛️ Affinity Groups
@@ -45,15 +45,40 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 - Installed ML frameworks and libraries
 - Current system status and availability
 
-## Two Ways to Use
+## Installation
 
-### 📥 For End Users
-Download pre-built executables and add to Claude Desktop - no technical setup required.
+### 📦 Recommended: npm packages
+Install all ACCESS-CI MCP servers with one command (requires Node.js 18+):
 
-[Download Latest Release](https://github.com/your-repo/releases)
+```bash
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
+```
+
+Then configure Claude Desktop to use the installed commands:
+```json
+{
+  "mcpServers": {
+    "access-affinity-groups": {
+      "command": "access-mcp-affinity-groups"
+    },
+    "access-compute-resources": {
+      "command": "access-mcp-compute-resources"
+    },
+    "access-system-status": {
+      "command": "access-mcp-system-status"
+    },
+    "access-software-discovery": {
+      "command": "access-mcp-software-discovery",
+      "env": {
+        "SDS_API_KEY": "your-api-key"
+      }
+    }
+  }
+}
+```
 
 ### 🔧 For Developers  
-Install as npm packages for custom integrations and applications.
+Install locally for custom integrations:
 
 ```bash
 npm install @access-mcp/affinity-groups

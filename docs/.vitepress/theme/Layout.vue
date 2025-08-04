@@ -61,7 +61,7 @@ function initializeAccessCI() {
     '  },',
     '  {',
     '    name: "GitHub",',
-    '    href: "https://github.com/your-repo/access-mcp",',
+    '    href: "https://github.com/necyberteam/access-mcp",',
     '  },',
     '];',
     '',

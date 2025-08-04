@@ -117,6 +117,6 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 ## Links
 
 - **Documentation**: [Full documentation site]
-- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
+- **Issues**: [GitHub Issues](https://github.com/necyberteam/access-mcp/issues)
 - **ACCESS-CI**: [https://access-ci.org](https://access-ci.org)
 - **MCP Protocol**: [https://modelcontextprotocol.io](https://modelcontextprotocol.io)
