@@ -24,6 +24,14 @@ function runCommand(command, options = {}) {
   } catch (error) {
     console.error(`❌ Command failed: ${command}`);
     console.error(error.message);
+    
+    // Check for OTP-related errors
+    if (error.message.includes('EOTP') || error.message.includes('one-time password')) {
+      console.error('\n💡 Tip: OTP may have expired. Please run the script again with a fresh OTP.');
+      console.error('   You can also publish individual packages manually:');
+      console.error('   cd packages/<package-name> && npm publish --access public --otp=<code>');
+    }
+    
     process.exit(1);
   }
 }
@@ -68,10 +76,13 @@ function checkPackage(packageName) {
 
 async function main() {
   const isDryRun = process.argv.includes('--dry-run');
+  const skipShared = process.argv.includes('--skip-shared');
+  
   const publishCommand = isDryRun ? 'npm publish --dry-run --access public' : 'npm publish --access public';
 
   console.log('🚀 ACCESS-CI MCP Packages Publisher');
   console.log(`📋 Mode: ${isDryRun ? 'DRY RUN' : 'LIVE PUBLISH'}`);
+  if (skipShared) console.log('⚠️  Skipping shared package (--skip-shared)');
   console.log('');
 
   // Pre-publish checks
@@ -97,18 +108,38 @@ async function main() {
   } else {
     console.log('\n🚀 Publishing packages to npm...');
     
-    // Publish shared package first (others depend on it)
-    console.log('\n📦 Publishing shared package first...');
-    runCommand('npm publish --access public', { cwd: 'packages/shared' });
+    if (!skipShared) {
+      // Publish shared package first (others depend on it)
+      console.log('\n📦 Publishing shared package first...');
+      runCommand('npm publish --access public', { cwd: 'packages/shared' });
+      
+      // Wait a moment for npm to propagate
+      console.log('⏳ Waiting for npm to propagate...');
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
     
-    // Wait a moment for npm to propagate
-    console.log('⏳ Waiting for npm to propagate...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // Publish server packages
+    const serverPackages = PACKAGES.slice(1); // All packages except 'shared'
     
-    // Publish other packages
-    for (const packageName of PACKAGES.slice(1)) {
+    // Publish server packages with individual error handling
+    for (const packageName of serverPackages) {
       console.log(`\n📦 Publishing ${packageName}...`);
-      runCommand('npm publish --access public', { cwd: `packages/${packageName}` });
+      try {
+        execSync('npm publish --access public', { 
+          stdio: 'inherit',
+          encoding: 'utf8',
+          cwd: `packages/${packageName}`
+        });
+        console.log(`✅ ${packageName} published successfully!`);
+      } catch (error) {
+        console.error(`❌ Failed to publish ${packageName}:`, error.message);
+        if (error.message.includes('EOTP') || error.message.includes('one-time password')) {
+          console.error('💡 OTP may have expired. You can publish this package manually:');
+          console.error(`   cd packages/${packageName} && npm publish --access public --otp=<code>`);
+        }
+        console.error('Continuing with remaining packages...');
+        // Don't exit, continue with other packages
+      }
     }
   }
 
@@ -117,6 +148,9 @@ async function main() {
   console.log('1. Verify packages on npmjs.com');
   console.log('2. Test installation: npm install -g @access-mcp/affinity-groups');
   console.log('3. Update documentation with installation instructions');
+  console.log('\n💡 Usage options:');
+  console.log('  --dry-run     : Test publish without actually publishing');
+  console.log('  --skip-shared : Skip publishing the shared package');
 }
 
 main().catch(error => {

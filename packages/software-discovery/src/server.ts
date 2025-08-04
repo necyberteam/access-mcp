@@ -1,4 +1,4 @@
-import { BaseAccessServer, handleApiError } from '../../shared/dist/index.js';
+import { BaseAccessServer, handleApiError } from '@access-mcp/shared';
 import axios, { AxiosInstance } from 'axios';
 
 export class SoftwareDiscoveryServer extends BaseAccessServer {

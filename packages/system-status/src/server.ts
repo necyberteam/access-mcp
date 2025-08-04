@@ -1,4 +1,4 @@
-import { BaseAccessServer, handleApiError } from '../../shared/dist/index.js';
+import { BaseAccessServer, handleApiError } from '@access-mcp/shared';
 
 export class SystemStatusServer extends BaseAccessServer {
   constructor() {

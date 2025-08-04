@@ -1,4 +1,4 @@
-import { BaseAccessServer, handleApiError, sanitizeGroupId } from '../../shared/dist/index.js';
+import { BaseAccessServer, handleApiError, sanitizeGroupId } from '@access-mcp/shared';
 
 export class ComputeResourcesServer extends BaseAccessServer {
   constructor() {

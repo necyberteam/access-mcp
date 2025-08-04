@@ -13,27 +13,37 @@ Install all ACCESS-CI MCP servers with one command:
 npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
 ```
 
+*Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation.*
+
 ### Step 2: Configure Claude Desktop
 
-Add servers to your Claude Desktop configuration file:
+Add servers to your Claude Desktop configuration file.
 
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+**Config file locations:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+*Note: Create the file if it doesn't exist.*
 
 ```json
 {
   "mcpServers": {
     "access-affinity-groups": {
-      "command": "access-mcp-affinity-groups"
+      "command": "npx",
+      "args": ["@access-mcp/affinity-groups"]
     },
     "access-compute-resources": {
-      "command": "access-mcp-compute-resources"
+      "command": "npx",
+      "args": ["@access-mcp/compute-resources"]
     },
     "access-system-status": {
-      "command": "access-mcp-system-status"
+      "command": "npx",
+      "args": ["@access-mcp/system-status"]
     },
     "access-software-discovery": {
-      "command": "access-mcp-software-discovery",
+      "command": "npx",
+      "args": ["@access-mcp/software-discovery"],
       "env": {
         "SDS_API_KEY": "your-sds-api-key"
       }
@@ -84,7 +94,8 @@ npm run build
 {
   "mcpServers": {
     "access-affinity-groups": {
-      "command": "access-mcp-affinity-groups"
+      "command": "npx",
+      "args": ["@access-mcp/affinity-groups"]
     }
   }
 }

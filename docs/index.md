@@ -54,21 +54,25 @@ Install all ACCESS-CI MCP servers with one command (requires Node.js 18+):
 npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
 ```
 
-Then configure Claude Desktop to use the installed commands:
+Then add to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
 ```json
 {
   "mcpServers": {
     "access-affinity-groups": {
-      "command": "access-mcp-affinity-groups"
+      "command": "npx",
+      "args": ["@access-mcp/affinity-groups"]
     },
     "access-compute-resources": {
-      "command": "access-mcp-compute-resources"
+      "command": "npx",
+      "args": ["@access-mcp/compute-resources"]
     },
     "access-system-status": {
-      "command": "access-mcp-system-status"
+      "command": "npx",
+      "args": ["@access-mcp/system-status"]
     },
     "access-software-discovery": {
-      "command": "access-mcp-software-discovery",
+      "command": "npx",
+      "args": ["@access-mcp/software-discovery"],
       "env": {
         "SDS_API_KEY": "your-api-key"
       }
