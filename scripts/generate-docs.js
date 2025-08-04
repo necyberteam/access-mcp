@@ -1,32 +1,32 @@
 #!/usr/bin/env node
 
-import { writeFileSync, readFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { writeFileSync, readFileSync, mkdirSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const rootDir = join(__dirname, '..');
-const docsDir = join(rootDir, 'docs');
+const rootDir = join(__dirname, "..");
+const docsDir = join(rootDir, "docs");
 
-console.log('📚 Generating VitePress documentation from MCP servers...\n');
+console.log("📚 Generating VitePress documentation from MCP servers...\n");
 
 /**
  * Extract MCP server metadata from built server classes and package info
  */
 async function extractServerMetadata(packageName) {
   try {
-    const pkgJsonPath = join(rootDir, 'packages', packageName, 'package.json');
-    const packageJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));
-    
+    const pkgJsonPath = join(rootDir, "packages", packageName, "package.json");
+    const packageJson = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+
     // Read README for additional details
-    let readmeContent = '';
+    let readmeContent = "";
     try {
-      const readmePath = join(rootDir, 'packages', packageName, 'README.md');
-      readmeContent = readFileSync(readmePath, 'utf-8');
+      const readmePath = join(rootDir, "packages", packageName, "README.md");
+      readmeContent = readFileSync(readmePath, "utf-8");
     } catch (err) {
       // README doesn't exist, that's ok
     }
-    
+
     return {
       id: packageName,
       name: packageJson.name,
@@ -35,10 +35,13 @@ async function extractServerMetadata(packageName) {
       readme: readmeContent,
       // Extract additional metadata that could be useful
       main: packageJson.main,
-      bin: packageJson.bin
+      bin: packageJson.bin,
     };
   } catch (error) {
-    console.warn(`⚠️  Could not extract metadata for ${packageName}:`, error.message);
+    console.warn(
+      `⚠️  Could not extract metadata for ${packageName}:`,
+      error.message,
+    );
     return null;
   }
 }
@@ -51,7 +54,9 @@ function generateServersOverview(servers) {
 
 ACCESS-CI provides ${servers.length} MCP servers for different aspects of cyberinfrastructure:
 
-${servers.map(server => `
+${servers
+  .map(
+    (server) => `
 ## ${server.description}
 
 **Package:** \`${server.name}\`  
@@ -75,7 +80,9 @@ npm install -g ${server.name}
   }
 }
 \`\`\`
-`).join('')}
+`,
+  )
+  .join("")}
 
 ## Installation Methods
 
@@ -100,7 +107,7 @@ Choose the method that works best for you:
  */
 function generateServerPage(server) {
   const serverTitle = server.description || server.name;
-  
+
   return `# ${serverTitle}
 
 ${server.description}
@@ -144,7 +151,7 @@ npm install -g ${server.name}
 
 ## Development
 
-${server.readme || 'See the package README for development information.'}
+${server.readme || "See the package README for development information."}
 
 ---
 
@@ -157,8 +164,14 @@ ${server.readme || 'See the package README for development information.'}
 // Main execution
 async function main() {
   const servers = [];
-  const serverPackages = ['affinity-groups', 'compute-resources', 'system-status', 'software-discovery'];
-  
+  const serverPackages = [
+    "affinity-groups",
+    "compute-resources",
+    "system-status",
+    "software-discovery",
+    "xdmod-metrics",
+  ];
+
   // Extract metadata from all server packages
   for (const packageName of serverPackages) {
     const metadata = await extractServerMetadata(packageName);
@@ -167,31 +180,31 @@ async function main() {
       console.log(`✅ Extracted metadata for ${metadata.name}`);
     }
   }
-  
+
   // Ensure docs directories exist
-  const serversDir = join(docsDir, 'servers');
+  const serversDir = join(docsDir, "servers");
   try {
     mkdirSync(serversDir, { recursive: true });
   } catch (err) {
     // Directory already exists
   }
-  
+
   // Generate servers overview page
   const serversOverview = generateServersOverview(servers);
-  writeFileSync(join(serversDir, 'index.md'), serversOverview);
-  console.log('✅ Generated /servers/index.md');
-  
+  writeFileSync(join(serversDir, "index.md"), serversOverview);
+  console.log("✅ Generated /servers/index.md");
+
   // Generate individual server pages
   for (const server of servers) {
     const serverPage = generateServerPage(server);
     writeFileSync(join(serversDir, `${server.id}.md`), serverPage);
     console.log(`✅ Generated /servers/${server.id}.md`);
   }
-  
+
   // Update the existing data file for compatibility
-  const serversDataPath = join(docsDir, 'src', 'data', 'servers.js');
+  const serversDataPath = join(docsDir, "src", "data", "servers.js");
   try {
-    mkdirSync(join(docsDir, 'src', 'data'), { recursive: true });
+    mkdirSync(join(docsDir, "src", "data"), { recursive: true });
     const serversData = `export const servers = ${JSON.stringify(servers, null, 2)};
 
 export function getServerById(id) {
@@ -203,11 +216,11 @@ export function getActiveServers() {
 }
 `;
     writeFileSync(serversDataPath, serversData);
-    console.log('✅ Updated servers data file');
+    console.log("✅ Updated servers data file");
   } catch (err) {
-    console.warn('⚠️  Could not update servers data file:', err.message);
+    console.warn("⚠️  Could not update servers data file:", err.message);
   }
-  
+
   console.log(`\n📚 VitePress documentation generation complete!`);
   console.log(`Generated documentation for ${servers.length} servers`);
   console.log(`\nTo preview: cd docs && npm run dev`);

@@ -1,0 +1,292 @@
+# ACCESS-CI XDMoD Metrics MCP Server
+
+MCP server providing access to XDMoD (XD Metrics on Demand) Usage Analytics API endpoints for ACCESS-CI infrastructure metrics and statistics.
+
+## API Endpoints Covered
+
+- **Dimensions**: `/controllers/user_interface.php` - Get all available dimensions from Usage Tab
+- **Statistics**: `/controllers/user_interface.php` - Get available statistics for each dimension
+- **Chart Data**: `/controllers/user_interface.php` - Get raw chart data and metadata
+- **Chart Images**: `/controllers/user_interface.php` - Get chart images in SVG, PNG, or PDF format
+- **Chart Links**: Generate direct links to XDMoD portal charts
+
+## Tools
+
+### get_dimensions
+
+Get all available dimensions from the XDMoD Usage Tab.
+
+**Parameters:** None
+
+**Returns:** List of all dimensions with their IDs, categories, and group-by fields.
+
+### get_statistics
+
+Get available statistics for a specific dimension.
+
+**Parameters:**
+
+- `dimension_id` (string): The dimension ID (e.g., "Jobs_none")
+- `category` (string): The realm/category (e.g., "Jobs")
+- `group_by` (string): The group by field (e.g., "none")
+
+**Returns:** List of statistics available for the specified dimension.
+
+### get_chart_data
+
+Get chart data and metadata for a specific statistic.
+
+**Parameters:**
+
+- `realm` (string): The realm (e.g., "Jobs")
+- `group_by` (string): The group by field (e.g., "none")
+- `statistic` (string): The statistic name (e.g., "total_cpu_hours")
+- `start_date` (string): Start date in YYYY-MM-DD format
+- `end_date` (string): End date in YYYY-MM-DD format
+- `dataset_type` (string, optional): Dataset type (default: "timeseries")
+
+**Returns:** Raw chart data including descriptions and metadata.
+
+### get_chart_image
+
+Get chart image (SVG, PNG, or PDF) for a specific statistic.
+
+**Parameters:**
+
+- `realm` (string): The realm (e.g., "Jobs")
+- `group_by` (string): The group by field (e.g., "none")
+- `statistic` (string): The statistic name (e.g., "total_cpu_hours")
+- `start_date` (string): Start date in YYYY-MM-DD format
+- `end_date` (string): End date in YYYY-MM-DD format
+- `format` (string, optional): Image format - "svg", "png", or "pdf" (default: "svg")
+- `width` (number, optional): Image width in pixels (default: 916)
+- `height` (number, optional): Image height in pixels (default: 484)
+- `dataset_type` (string, optional): Dataset type (default: "timeseries")
+
+**Returns:** Chart image data in the requested format.
+
+### get_chart_link
+
+Generate a direct link to view the chart in the XDMoD portal.
+
+**Parameters:**
+
+- `statistic_id` (string): The statistic ID from the dimensions/statistics API
+
+**Returns:** Direct URL to view the interactive chart in XDMoD.
+
+## Quick Start with Claude Desktop
+
+After adding this server to your Claude Desktop configuration, you can ask natural language questions like:
+
+### 🔍 **Explore Available Metrics**
+
+- "What dimensions are available in XDMoD?"
+- "Show me all statistics for the Jobs dimension"
+- "What metrics can I track for Cloud resources?"
+
+### 📊 **Get Usage Data**
+
+- "Show me total CPU hours for January 2024"
+- "What was the job count last month?"
+- "Get me the average wait time data for Q1 2024"
+
+### 📈 **Generate Charts**
+
+- "Create an SVG chart of CPU hours for the last 30 days"
+- "Generate a high-resolution PNG chart of job counts for March 2024"
+- "Show me a PDF chart of resource utilization trends"
+
+### 🔗 **Portal Integration**
+
+- "Give me a direct link to the CPU hours chart in XDMoD"
+- "How can I view this data interactively in the portal?"
+
+## Detailed Usage Examples
+
+### Getting Available Dimensions
+
+**Natural Language**: "What metrics are available in XDMoD?"
+
+**Tool Call**:
+
+```typescript
+const dimensions = await get_dimensions();
+```
+
+**Returns**: List of dimensions like Jobs, Cloud, Storage, GPU, etc.
+
+### Getting Statistics for a Dimension
+
+**Natural Language**: "Show me what statistics I can get for Jobs"
+
+**Tool Call**:
+
+```typescript
+const statistics = await get_statistics({
+  dimension_id: "Jobs_none",
+  category: "Jobs",
+  group_by: "none",
+});
+```
+
+**Returns**: Metrics like total_cpu_hours, job_count, avg_cpu_hours, wait_time, etc.
+
+### Getting Chart Data
+
+**Natural Language**: "Get me CPU hours data for January 2024"
+
+**Tool Call**:
+
+```typescript
+const chartData = await get_chart_data({
+  realm: "Jobs",
+  group_by: "none",
+  statistic: "total_cpu_hours",
+  start_date: "2024-01-01",
+  end_date: "2024-01-31",
+});
+```
+
+**Returns**: Raw data with chart descriptions and metadata
+
+### Getting Chart Images
+
+**Natural Language**: "Create a chart showing CPU usage trends for Q1 2024"
+
+**Tool Call**:
+
+```typescript
+// SVG format (default)
+const svgChart = await get_chart_image({
+  realm: "Jobs",
+  group_by: "none",
+  statistic: "total_cpu_hours",
+  start_date: "2024-01-01",
+  end_date: "2024-03-31",
+  format: "svg",
+});
+
+// High-resolution PNG
+const pngChart = await get_chart_image({
+  realm: "Jobs",
+  group_by: "none",
+  statistic: "total_cpu_hours",
+  start_date: "2024-01-01",
+  end_date: "2024-03-31",
+  format: "png",
+  width: 1920,
+  height: 1080,
+});
+```
+
+### Getting Chart Links
+
+**Natural Language**: "Give me a link to view this chart in XDMoD"
+
+**Tool Call**:
+
+```typescript
+const chartLink = await get_chart_link({
+  statistic_id: "Jobs_none_total_cpu_hours",
+});
+```
+
+**Returns**: Direct URL like: `https://xdmod.access-ci.org/index.php#tg_usage?node=Jobs_none_total_cpu_hours`
+
+## Common Statistics
+
+Popular statistics available in the Jobs realm:
+
+- `total_cpu_hours` - Total CPU Hours
+- `job_count` - Number of Jobs
+- `avg_cpu_hours` - Average CPU Hours per Job
+- `total_waitduration_hours` - Total Wait Duration Hours
+- `avg_waitduration_hours` - Average Wait Duration Hours
+- `max_processors` - Maximum Processor Count
+- `normalized_avg_processors` - Normalized Average Processors
+- `min_processors` - Minimum Processor Count
+
+## Practical Workflows
+
+### 📊 **Monthly Reporting Workflow**
+
+1. "What dimensions are available?" → Choose your metric category
+2. "Show me statistics for Jobs dimension" → Pick relevant metrics
+3. "Generate a chart of total CPU hours for last month" → Get visual
+4. "Give me the link to view this in XDMoD" → Share with team
+
+### 🔍 **Performance Investigation**
+
+1. "Get me job count data for the past week"
+2. "Show me average wait times for the same period"
+3. "Create a comparison chart of wait times vs job counts"
+4. "What's the correlation between usage and wait times?"
+
+### 📈 **Capacity Planning**
+
+1. "Show CPU usage trends for the last 6 months"
+2. "What are the peak usage periods?"
+3. "Generate high-resolution charts for presentation"
+4. "Export data for further analysis"
+
+## Date Formats and Ranges
+
+All date parameters must be in `YYYY-MM-DD` format:
+
+- `2024-01-01` - January 1st, 2024
+- `2024-12-31` - December 31st, 2024
+
+**Common Date Ranges**:
+
+- Last Month: Use first and last day of previous month
+- Quarter: Q1 = Jan 1 - Mar 31, Q2 = Apr 1 - Jun 30, etc.
+- Year to Date: Jan 1 to today's date
+- Custom Period: Any start and end date you need
+
+## Tips and Best Practices
+
+### 🎯 **Getting Started**
+
+1. Always start by exploring available dimensions
+2. Check what statistics are available for your chosen dimension
+3. Use descriptive natural language - Claude will map it to the right tools
+
+### 📊 **Working with Data**
+
+- Request data first to understand the structure
+- Then generate visualizations based on what you find
+- Use chart links to share interactive views with colleagues
+
+### 🖼️ **Chart Formats**
+
+- **SVG**: Best for web display and scaling
+- **PNG**: Best for presentations and documents
+- **PDF**: Best for archival and printing
+
+### 🔄 **Efficient Workflows**
+
+- Save frequently used date ranges
+- Bookmark generated portal links
+- Export data for longitudinal analysis
+
+## Authentication
+
+This server uses public access to XDMoD APIs and does not require authentication. For authenticated access to additional data, authentication can be added in future versions.
+
+## Data Source
+
+All data is sourced from the ACCESS-CI XDMoD portal at https://xdmod.access-ci.org/
+
+## Usage
+
+```bash
+# Install and build
+npm install
+npm run build
+
+# Start the server
+npm start
+```
+
+The server runs on stdio transport and can be integrated with MCP-compatible clients.

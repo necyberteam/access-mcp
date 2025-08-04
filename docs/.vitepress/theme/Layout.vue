@@ -5,12 +5,12 @@
     <div id="header"></div>
     <div id="site-menus"></div>
     <!-- <div id="breadcrumbs"></div> -->
-    
+
     <!-- Main Content -->
     <div id="main">
       <Layout />
     </div>
-    
+
     <!-- ACCESS-CI Footer -->
     <div id="footer-menus"></div>
     <div id="footer"></div>
@@ -19,97 +19,97 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
-import DefaultTheme from 'vitepress/theme'
+import { onMounted } from "vue";
+import DefaultTheme from "vitepress/theme";
 
-const { Layout } = DefaultTheme
+const { Layout } = DefaultTheme;
 
-let accessCIInitialized = false
+let accessCIInitialized = false;
 
 function initializeAccessCI() {
-  if (accessCIInitialized) return
-  
+  if (accessCIInitialized) return;
+
   // Create script element for ACCESS-CI UI
-  const script = document.createElement('script')
-  script.type = 'module'
+  const script = document.createElement("script");
+  script.type = "module";
   const scriptContent = [
-    'import {',
-    '  footer,',
-    '  footerMenus,',
-    '  header,',
-    '  siteMenus,',
-    '  universalMenus,',
+    "import {",
+    "  footer,",
+    "  footerMenus,",
+    "  header,",
+    "  siteMenus,",
+    "  universalMenus,",
     '} from "https://esm.sh/@access-ci/ui@0.8.0";',
-    '',
-    'const siteItems = [',
-    '  {',
+    "",
+    "const siteItems = [",
+    "  {",
     '    name: "Guide",',
-    '    items: [',
+    "    items: [",
     '      { name: "Home", href: "/" },',
     '      { name: "Getting Started", href: "/getting-started" },',
     '      { name: "GitHub", href: "https://github.com/necyberteam/access-mcp" },',
-    '    ],',
-    '  },',
-    '  {',
+    "    ],",
+    "  },",
+    "  {",
     '    name: "Servers",',
-    '    items: [',
+    "    items: [",
     '      { name: "Overview", href: "/servers/" },',
     '      { name: "Affinity Groups", href: "/servers/affinity-groups" },',
     '      { name: "Compute Resources", href: "/servers/compute-resources" },',
     '      { name: "System Status", href: "/servers/system-status" },',
     '      { name: "Software Discovery", href: "/servers/software-discovery" },',
-    '    ],',
-    '  },',
-    '];',
-    '',
-    '// Initialize ACCESS-CI components',
-    'universalMenus({',
+    '      { name: "XDMoD Metrics", href: "/servers/xdmod-metrics" },',
+    "    ],",
+    "  },",
+    "];",
+    "",
+    "// Initialize ACCESS-CI components",
+    "universalMenus({",
     '  loginUrl: "/login",',
     '  logoutUrl: "/logout",',
     '  siteName: "Support",',
     '  target: document.getElementById("universal-menus"),',
-    '});',
-    '',
-    'header({',
+    "});",
+    "",
+    "header({",
     '  siteName: "Support",',
     '  siteUrl: "https://support.access-ci.org",',
     '  target: document.getElementById("header"),',
-    '});',
-    '',
-    'siteMenus({',
-    '  items: siteItems,',
+    "});",
+    "",
+    "siteMenus({",
+    "  items: siteItems,",
     '  siteName: "Support",',
     '  target: document.getElementById("site-menus"),',
-    '});',
-    '',
-    'footerMenus({',
-    '  items: siteItems,',
+    "});",
+    "",
+    "footerMenus({",
+    "  items: siteItems,",
     '  siteName: "Support",',
     '  target: document.getElementById("footer-menus"),',
-    '});',
-    '',
-    'footer({',
+    "});",
+    "",
+    "footer({",
     '  target: document.getElementById("footer")',
-    '});',
-    '',
-    '// ACCESS-CI UI components initialized'
+    "});",
+    "",
+    "// ACCESS-CI UI components initialized",
   ];
-  
-  script.innerHTML = scriptContent.join('\n');
-  
+
+  script.innerHTML = scriptContent.join("\n");
+
   // Add error handling
   script.onerror = (error) => {
-    console.error('ACCESS-CI UI script failed to load:', error);
+    console.error("ACCESS-CI UI script failed to load:", error);
   };
-  
-  document.head.appendChild(script)
-  accessCIInitialized = true
-  
+
+  document.head.appendChild(script);
+  accessCIInitialized = true;
 }
 
 onMounted(() => {
-  initializeAccessCI()
-})
+  initializeAccessCI();
+});
 </script>
 
 <style>
@@ -125,15 +125,15 @@ onMounted(() => {
   --access-ci-teal-light: #48c0b9; /* Light teal */
   --access-ci-teal-medium: #008597; /* Medium teal */
   --access-ci-teal-dark: #1a5b6e; /* Dark teal for hover */
-  --access-ci-yellow: #FFD700; /* Primary yellow color */
+  --access-ci-yellow: #ffd700; /* Primary yellow color */
   --black: #232323; /* Black color for borders/text */
-  
+
   /* Typography */
   --access-ci-font-small: 13px;
   --access-ci-font-medium: 20px;
   --access-ci-font-large: 36px;
   --access-ci-font-xlarge: 42px;
-  
+
   /* Spacing */
   --access-ci-spacing-xs: 0.44rem;
   --access-ci-spacing-sm: 0.88rem;
@@ -141,7 +141,7 @@ onMounted(() => {
   --access-ci-spacing-lg: 2rem;
   --access-ci-spacing-xl: 3rem;
   --access-ci-spacing-2xl: 5.06rem;
-  
+
   /* Override VitePress variables */
   --vp-c-brand-1: var(--access-ci-yellow);
   --vp-c-brand-2: #f0c800;
@@ -164,7 +164,7 @@ onMounted(() => {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  font-family: 'Archivo', sans-serif;
+  font-family: "Archivo", sans-serif;
   line-height: 1.6;
   color: var(--access-ci-contrast);
   background-color: var(--access-ci-base-3);
@@ -172,10 +172,9 @@ onMounted(() => {
   overflow-x: hidden;
 }
 
-
 /* Force font family on all elements */
 .access-ci-layout * {
-  font-family: 'Archivo', sans-serif !important;
+  font-family: "Archivo", sans-serif !important;
 }
 
 #main {
@@ -258,7 +257,7 @@ onMounted(() => {
   font-weight: 800 !important;
   text-underline-offset: 2px !important;
   transition: color 0.3s ease !important;
-  font-family: 'Archivo', sans-serif !important;
+  font-family: "Archivo", sans-serif !important;
 }
 
 .access-ci-layout a:hover {
@@ -281,7 +280,7 @@ onMounted(() => {
   padding: var(--access-ci-spacing-md) !important;
   margin: var(--access-ci-spacing-md) 0 !important;
   overflow-x: auto !important;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace !important;
 }
 
 .access-ci-layout :deep(.vp-doc code),
@@ -291,7 +290,7 @@ onMounted(() => {
   border-radius: 3px !important;
   font-size: 0.9em !important;
   color: var(--access-ci-contrast) !important;
-  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace !important;
+  font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace !important;
 }
 
 .access-ci-layout :deep(.vp-doc pre code),
@@ -346,12 +345,15 @@ onMounted(() => {
   border-radius: 9999px;
   padding: calc(0.667em + 2px) calc(1.333em + 2px);
   font-size: 1.125em;
-  font-family: 'Archivo', sans-serif;
+  font-family: "Archivo", sans-serif;
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
-  transition: background-color 0.3s ease, transform 0.1s ease;
-  margin: var(--access-ci-spacing-xs) var(--access-ci-spacing-xs) var(--access-ci-spacing-xs) 0;
+  transition:
+    background-color 0.3s ease,
+    transform 0.1s ease;
+  margin: var(--access-ci-spacing-xs) var(--access-ci-spacing-xs)
+    var(--access-ci-spacing-xs) 0;
 }
 
 :deep(.vp-doc .button:hover),
@@ -382,7 +384,10 @@ onMounted(() => {
   text-decoration: none !important;
   padding: 0.5rem 2.5rem;
   font-size: 1rem;
-  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+  transition:
+    color 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
 }
 
 .access-ci-layout .vp-doc .button-primary:hover,
@@ -410,7 +415,10 @@ onMounted(() => {
   text-decoration: none !important;
   padding: 0.5rem 2.5rem;
   font-size: 1rem;
-  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+  transition:
+    color 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
 }
 
 .access-ci-layout .vp-doc .button-secondary:hover,
@@ -504,15 +512,15 @@ onMounted(() => {
   #main {
     padding: var(--access-ci-spacing-md) var(--access-ci-spacing-sm);
   }
-  
+
   :deep(.vp-doc h1) {
     font-size: 28px;
   }
-  
+
   :deep(.vp-doc h2) {
     font-size: 18px;
   }
-  
+
   /* Responsive buttons */
   .access-ci-layout .VPButton.brand,
   .access-ci-layout .VPButton.alt,
@@ -527,11 +535,11 @@ onMounted(() => {
   #main {
     padding: var(--access-ci-spacing-sm);
   }
-  
+
   :deep(.vp-doc h1) {
     font-size: 24px;
   }
-  
+
   /* Smaller buttons on mobile */
   .access-ci-layout .VPButton.brand,
   .access-ci-layout .VPButton.alt,
@@ -554,7 +562,10 @@ onMounted(() => {
   text-decoration: none !important;
   padding: 0.5rem 2.5rem;
   font-size: 1rem;
-  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+  transition:
+    color 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
 }
 
 .access-ci-layout .VPButton.brand:hover {
@@ -576,7 +587,10 @@ onMounted(() => {
   text-decoration: none !important;
   padding: 0.5rem 2.5rem;
   font-size: 1rem;
-  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+  transition:
+    color 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
 }
 
 .access-ci-layout .VPHero .action .VPButton.brand:hover {
@@ -598,7 +612,10 @@ onMounted(() => {
   text-decoration: none !important;
   padding: 0.5rem 2.5rem;
   font-size: 1rem;
-  transition: color 0.15s ease-in-out, background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+  transition:
+    color 0.15s ease-in-out,
+    background-color 0.15s ease-in-out,
+    border-color 0.15s ease-in-out;
 }
 
 .access-ci-layout .VPHero .action .VPButton.alt:hover {

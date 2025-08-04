@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const AffinityGroupSchema = z.object({
   group_id: z.string(),

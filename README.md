@@ -5,8 +5,9 @@ Model Context Protocol (MCP) servers for ACCESS-CI APIs, enabling AI assistants 
 ## Overview
 
 This repository contains MCP servers that provide programmatic access to:
+
 - **Affinity Groups** - Community groups, events, and knowledge base
-- **Compute Resources** - Hardware specifications and resource information  
+- **Compute Resources** - Hardware specifications and resource information
 - **System Status** - Outages, maintenance, and announcements
 - **Software Discovery** - Available software packages across resources
 
@@ -47,10 +48,12 @@ access_mcp/
 ## Development
 
 ### Prerequisites
+
 - Node.js 18+
 - npm
 
 ### Key Commands
+
 - `npm run build` - Build all TypeScript packages
 - `npm run dev` - Watch mode for development
 - `npm test` - Run test suite
@@ -76,12 +79,14 @@ npx @modelcontextprotocol/inspector packages/affinity-groups/dist/index.js
 ## Documentation
 
 Full documentation is available at [docs-site-url] and includes:
+
 - Installation guides for end users and developers
 - API reference for each server
 - Claude Desktop configuration examples
 - Troubleshooting and FAQs
 
 To work on documentation:
+
 ```bash
 cd docs
 npm run dev    # Start development server

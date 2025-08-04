@@ -15,7 +15,7 @@ The project contains these publishable packages:
 
 - `@access-mcp/shared` - Shared utilities (must be published first)
 - `@access-mcp/affinity-groups` - Affinity Groups API server
-- `@access-mcp/compute-resources` - Compute Resources API server  
+- `@access-mcp/compute-resources` - Compute Resources API server
 - `@access-mcp/system-status` - System Status API server
 - `@access-mcp/software-discovery` - Software Discovery API server
 
@@ -30,6 +30,7 @@ npm run publish:dry
 ```
 
 This will:
+
 - Build all packages
 - Run tests
 - Validate package.json files
@@ -44,6 +45,7 @@ npm run publish:packages
 ```
 
 This will:
+
 - Run all pre-publish checks
 - Publish `@access-mcp/shared` first
 - Wait for npm propagation
@@ -57,7 +59,7 @@ To update versions before publishing:
 # Patch version (0.1.0 -> 0.1.1)
 npm run version:patch
 
-# Minor version (0.1.0 -> 0.2.0)  
+# Minor version (0.1.0 -> 0.2.0)
 npm run version:minor
 
 # Major version (0.1.0 -> 1.0.0)
@@ -96,17 +98,21 @@ npm publish
 ## Troubleshooting
 
 ### Version conflicts
+
 If you get version conflict errors, ensure `@access-mcp/shared` is published first and other packages reference the correct version.
 
 ### Permission errors
+
 Ensure you're logged in to npm and have publish permissions for the `@access-mcp` scope.
 
 ### Build failures
+
 Run `npm run build` manually to see detailed build errors.
 
 ## Package Metadata
 
 Each package includes:
+
 - Proper npm metadata (author, license, repository)
 - Binary executables for CLI usage
 - Keywords for discoverability

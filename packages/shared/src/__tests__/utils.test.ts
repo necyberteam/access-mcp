@@ -1,59 +1,59 @@
-import { describe, test, expect } from 'vitest';
-import { sanitizeGroupId, formatApiUrl, handleApiError } from '../utils.js';
+import { describe, test, expect } from "vitest";
+import { sanitizeGroupId, formatApiUrl, handleApiError } from "../utils.js";
 
-describe('Utils', () => {
-  describe('sanitizeGroupId', () => {
-    test('should remove invalid characters', () => {
-      expect(sanitizeGroupId('test@#$%')).toBe('test');
+describe("Utils", () => {
+  describe("sanitizeGroupId", () => {
+    test("should remove invalid characters", () => {
+      expect(sanitizeGroupId("test@#$%")).toBe("test");
     });
 
-    test('should keep valid characters', () => {
-      expect(sanitizeGroupId('test.group-123')).toBe('test.group-123');
+    test("should keep valid characters", () => {
+      expect(sanitizeGroupId("test.group-123")).toBe("test.group-123");
     });
 
-    test('should handle empty string', () => {
-      expect(sanitizeGroupId('')).toBe('');
-    });
-  });
-
-  describe('formatApiUrl', () => {
-    test('should format API URL correctly', () => {
-      expect(formatApiUrl('1.0', 'users')).toBe('/1.0/users');
-    });
-
-    test('should handle empty endpoint', () => {
-      expect(formatApiUrl('2.0', '')).toBe('/2.0/');
+    test("should handle empty string", () => {
+      expect(sanitizeGroupId("")).toBe("");
     });
   });
 
-  describe('handleApiError', () => {
-    test('should extract message from response data', () => {
+  describe("formatApiUrl", () => {
+    test("should format API URL correctly", () => {
+      expect(formatApiUrl("1.0", "users")).toBe("/1.0/users");
+    });
+
+    test("should handle empty endpoint", () => {
+      expect(formatApiUrl("2.0", "")).toBe("/2.0/");
+    });
+  });
+
+  describe("handleApiError", () => {
+    test("should extract message from response data", () => {
       const error = {
         response: {
-          data: { message: 'Custom error message' }
-        }
+          data: { message: "Custom error message" },
+        },
       };
-      expect(handleApiError(error)).toBe('Custom error message');
+      expect(handleApiError(error)).toBe("Custom error message");
     });
 
-    test('should handle status error', () => {
+    test("should handle status error", () => {
       const error = {
         response: {
           status: 404,
-          statusText: 'Not Found'
-        }
+          statusText: "Not Found",
+        },
       };
-      expect(handleApiError(error)).toBe('API error: 404 Not Found');
+      expect(handleApiError(error)).toBe("API error: 404 Not Found");
     });
 
-    test('should handle error message', () => {
-      const error = { message: 'Network error' };
-      expect(handleApiError(error)).toBe('Network error');
+    test("should handle error message", () => {
+      const error = { message: "Network error" };
+      expect(handleApiError(error)).toBe("Network error");
     });
 
-    test('should handle unknown error', () => {
+    test("should handle unknown error", () => {
       const error = {};
-      expect(handleApiError(error)).toBe('Unknown API error');
+      expect(handleApiError(error)).toBe("Unknown API error");
     });
   });
 });
