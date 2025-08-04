@@ -1,6 +1,6 @@
 {
   "name": "@access-mcp/software-discovery",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ACCESS-CI Software Discovery Service MCP server",
   "type": "module",
   "main": "dist/index.js",
