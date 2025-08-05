@@ -125,7 +125,7 @@ onMounted(() => {
   --access-ci-teal-light: #48c0b9; /* Light teal */
   --access-ci-teal-medium: #008597; /* Medium teal */
   --access-ci-teal-dark: #1a5b6e; /* Dark teal for hover */
-  --access-ci-yellow: #ffd700; /* Primary yellow color */
+  --access-ci-yellow: #FFC42D; /* Primary yellow color */
   --black: #232323; /* Black color for borders/text */
 
   /* Typography */
