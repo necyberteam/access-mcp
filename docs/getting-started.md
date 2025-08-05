@@ -18,15 +18,13 @@ _Note: Global installation (`-g`) is recommended for better performance, but the
 
 ### Step 2: Configure Claude Desktop
 
-Add servers to your Claude Desktop configuration file.
+Add servers to your Claude Desktop configuration file. (If the file "claude_desktop_config.json" doesn't exist create it in one of the following locations)
 
 **Config file locations:**
 
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux**: `~/.config/Claude/claude_desktop_config.json`
-
-_Note: Create the file if it doesn't exist._
 
 ```json
 {
