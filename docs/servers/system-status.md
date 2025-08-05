@@ -5,7 +5,6 @@ MCP server for ACCESS-CI System Status and Outages API
 ## Installation
 
 ### Download & Run
-
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `system-status/index.js` file
 3. Add to Claude Desktop config:
@@ -21,7 +20,6 @@ MCP server for ACCESS-CI System Status and Outages API
 ```
 
 ### npm Package
-
 ```bash
 npm install -g @access-mcp/system-status
 ```
@@ -116,6 +114,7 @@ This server connects to the ACCESS-CI Operations API at `https://operations-api.
 ## License
 
 MIT
+
 
 ---
 

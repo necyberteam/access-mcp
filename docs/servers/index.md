@@ -1,6 +1,7 @@
 # MCP Servers Overview
 
-ACCESS-CI provides 5 MCP servers for different aspects of cyberinfrastructure:
+ACCESS-CI provides 6 MCP servers for different aspects of cyberinfrastructure:
+
 
 ## MCP server for ACCESS-CI Affinity Groups API
 
@@ -101,7 +102,7 @@ npm install -g @access-mcp/software-discovery
 ## MCP server for XDMoD Metrics and Usage Analytics API
 
 **Package:** `@access-mcp/xdmod-metrics`  
-**Version:** v0.2.3
+**Version:** v0.3.0
 
 MCP server for XDMoD Metrics and Usage Analytics API
 
@@ -122,18 +123,41 @@ npm install -g @access-mcp/xdmod-metrics
 }
 ```
 
+## MCP server for ACCESS-CI Allocations and Research Projects API
+
+**Package:** `@access-mcp/allocations`  
+**Version:** v0.1.0
+
+MCP server for ACCESS-CI Allocations and Research Projects API
+
+[View Details](/servers/allocations){.btn-primary}
+
+```bash
+# Install
+npm install -g @access-mcp/allocations
+
+# Configure
+{
+  "mcpServers": {
+    "allocations": {
+      "command": "npx",
+      "args": ["@access-mcp/allocations"]
+    }
+  }
+}
+```
+
+
 ## Installation Methods
 
 Choose the method that works best for you:
 
 ### 📥 Download & Run (Recommended for end users)
-
 - Pre-built executables
-- No Node.js knowledge required
+- No Node.js knowledge required  
 - [Download latest release](https://github.com/necyberteam/access-mcp/releases)
 
 ### 🔧 npm Packages (For developers)
-
 - Install individual servers
 - Integrate into your applications
 - Full development workflow

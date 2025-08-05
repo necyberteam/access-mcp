@@ -5,7 +5,6 @@ MCP server for XDMoD Metrics and Usage Analytics API
 ## Installation
 
 ### Download & Run
-
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `xdmod-metrics/index.js` file
 3. Add to Claude Desktop config:
@@ -21,7 +20,6 @@ MCP server for XDMoD Metrics and Usage Analytics API
 ```
 
 ### npm Package
-
 ```bash
 npm install -g @access-mcp/xdmod-metrics
 ```
@@ -104,7 +102,7 @@ Get chart image (SVG, PNG, or PDF) for a specific statistic.
 - `statistic` (string): The statistic name (e.g., "total_cpu_hours")
 - `start_date` (string): Start date in YYYY-MM-DD format
 - `end_date` (string): End date in YYYY-MM-DD format
-- `format` (string, optional): Image format - "svg", "png", or "pdf" (default: "svg")
+- `format` (string, optional): Image format - "svg", "png", or "pdf" (default: "svg"). Note: PNG displays directly in Claude Desktop, SVG returns as data URL and code, PDF returns as downloadable data
 - `width` (number, optional): Image width in pixels (default: 916)
 - `height` (number, optional): Image height in pixels (default: 484)
 - `dataset_type` (string, optional): Dataset type (default: "timeseries")
@@ -135,6 +133,10 @@ Check authentication status and debug information.
 - Troubleshooting guidance for authentication issues
 - Environment variable and command-line argument detection
 
+## Authentication
+
+The server supports optional API token authentication via the `XDMOD_API_TOKEN` environment variable. While authenticated access is configured, the current release focuses on public data access. Personal usage features are in development and preserved in `src/user-specific.ts` for future releases.
+
 ## Quick Start with Claude Desktop
 
 After adding this server to your Claude Desktop configuration, you can ask natural language questions like:
@@ -162,12 +164,6 @@ After adding this server to your Claude Desktop configuration, you can ask natur
 - "Give me a direct link to the CPU hours chart in XDMoD"
 - "Generate a link to view GPU usage by resource in the portal"
 - "How can I view this data interactively in the portal?"
-
-### 🔧 **Debug & Troubleshooting**
-
-- "Debug my XDMoD authentication status"
-- "Check if my API token is working"
-- "Help me troubleshoot authentication issues"
 
 ## Detailed Usage Examples
 
@@ -217,6 +213,25 @@ const chartData = await get_chart_data({
 
 **Returns**: Raw data with chart descriptions and metadata
 
+### Getting GPU Usage Data
+
+**Natural Language**: "Show me GPU usage on Bridges 2 for the last year"
+
+**Tool Call**:
+
+```typescript
+const gpuData = await get_chart_data({
+  realm: "SUPREMM",  // Use SUPREMM for GPU metrics!
+  group_by: "resource",
+  statistic: "gpu_time", // or "avg_percent_gpu_usage"
+  start_date: "2024-01-01",
+  end_date: "2024-12-31",
+  filters: {
+    resource: "Bridges 2 GPU"
+  }
+});
+```
+
 ### Getting Chart Images
 
 **Natural Language**: "Create a chart showing CPU usage trends for Q1 2024"
@@ -254,39 +269,54 @@ const pngChart = await get_chart_image({
 **Tool Call**:
 
 ```typescript
+// Basic chart link
 const chartLink = await get_chart_link({
   realm: "Jobs",
   group_by: "none",
-  statistic: "total_cpu_hours",
+  statistic: "total_cpu_hours"
+});
+
+// GPU usage chart link grouped by resource
+const gpuChartLink = await get_chart_link({
+  realm: "SUPREMM",
+  group_by: "resource", 
+  statistic: "gpu_time"
 });
 ```
 
-**Returns**: Direct URL to the XDMoD portal with interactive chart filtering options.
+**Returns**: Direct URL like: `https://xdmod.access-ci.org/index.php#tg_usage?node=statistic&realm=Jobs&group_by=none&statistic=total_cpu_hours`
 
-### Debug Authentication Status
+## Understanding Realms
 
-**Natural Language**: "Debug my XDMoD authentication status"
+XDMoD organizes metrics into different **realms** that provide different types of data:
 
-**Tool Call**:
-
-```typescript
-const debugInfo = await debug_auth_status();
-```
-
-**Returns**: Comprehensive authentication debugging information including token status, available tools, and troubleshooting guidance.
-
-## Common Statistics
-
-Popular statistics available in the Jobs realm:
-
+### **Jobs Realm** 
+Basic job accounting and resource usage metrics:
 - `total_cpu_hours` - Total CPU Hours
-- `job_count` - Number of Jobs
+- `job_count` - Number of Jobs Ended
 - `avg_cpu_hours` - Average CPU Hours per Job
 - `total_waitduration_hours` - Total Wait Duration Hours
 - `avg_waitduration_hours` - Average Wait Duration Hours
 - `max_processors` - Maximum Processor Count
-- `normalized_avg_processors` - Normalized Average Processors
-- `min_processors` - Minimum Processor Count
+- `total_ace` - ACCESS Credit Equivalents Charged: Total
+- `utilization` - ACCESS CPU Utilization
+
+### **SUPREMM Realm** 
+Detailed performance analytics and system metrics:
+- `gpu_time` - **GPU Hours: Total** 🎯
+- `avg_percent_gpu_usage` - **Avg GPU usage: weighted by GPU hour** 🎯
+- `wall_time` - CPU Hours: Total
+- `cpu_time_user` - CPU Hours: User: Total
+- `avg_percent_cpu_user` - Avg CPU %: User: weighted by core-hour
+- `avg_flops_per_core` - Avg: FLOPS: Per Core weighted by core-hour
+- `avg_memory_per_core` - Avg: Memory: Per Core weighted by core-hour
+- `avg_ib_rx_bytes` - Avg: InfiniBand rate: Per Node weighted by node-hour
+
+**💡 For GPU metrics, always use the SUPREMM realm!**
+
+## Authentication 
+
+The server supports optional API token authentication for enhanced debugging and troubleshooting. The current release focuses on system-wide public metrics data from XDMoD.
 
 ## Practical Workflows
 
@@ -353,35 +383,56 @@ All date parameters must be in `YYYY-MM-DD` format:
 
 ## Authentication
 
-The server supports optional API token authentication via the `XDMOD_API_TOKEN` environment variable for enhanced debugging capabilities. The current release focuses on system-wide public metrics data from XDMoD.
+### **Public Access (Default)**
+By default, this server uses public access to XDMoD APIs and provides general usage statistics and metrics.
 
-### Authentication Setup
+### **Authenticated Access (Personal Data)**
+For access to personal usage data like "show me my credit usage in the last 3 months", you can set up authentication using an XDMoD API token.
 
-To enable authentication debugging features:
+#### **Setting Up Authentication:**
 
-1. **Get an API Token** from your XDMoD portal account
-2. **Set Environment Variable** in your Claude Desktop config:
+1. **Generate API Token:**
+   - Sign in to [XDMoD portal](https://xdmod.access-ci.org/)
+   - Click "My Profile" button (top-right corner)
+   - Click "API Token" tab
+   - Copy your token (save it securely - you won't see it again!)
 
-```json
-{
-  "mcpServers": {
-    "xdmod-metrics": {
-      "command": "npx",
-      "args": ["@access-mcp/xdmod-metrics"],
-      "env": {
-        "XDMOD_API_TOKEN": "your-api-token-here"
-      }
-    }
-  }
-}
-```
+2. **Configure Authentication (Choose One):**
 
-3. **Test Authentication**: Ask Claude to "Debug my XDMoD authentication status"
+   **Option A: Environment Variable**
+   ```bash
+   export XDMOD_API_TOKEN="your-token-here"
+   npm start
+   ```
 
-### Authentication Features
+   **Option B: Claude Desktop Config** *(Recommended)*
+   ```json
+   {
+     "mcpServers": {
+       "xdmod-metrics": {
+         "command": "node",
+         "args": [
+           "/path/to/access_mcp/packages/xdmod-metrics/dist/index.js",
+           "--api-token",
+           "your-token-here"
+         ]
+       }
+     }
+   }
+   ```
 
+3. **Test Authentication:**
+   Ask Claude: *"Debug my XDMoD authentication status"* to verify setup
+
+#### **Authentication Features:**
 When authenticated, you get enhanced debugging capabilities:
+
 - `debug_auth_status` - Comprehensive authentication status and troubleshooting
+
+#### **Example Authentication Queries:**
+- "Debug my XDMoD authentication status"
+- "Check if my API token is working"
+- "Help me troubleshoot authentication issues"
 
 **Note:** Personal usage data features are in development. The current release focuses on system-wide public metrics.
 
@@ -401,6 +452,7 @@ npm start
 ```
 
 The server runs on stdio transport and can be integrated with MCP-compatible clients.
+
 
 ---
 

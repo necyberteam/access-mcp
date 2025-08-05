@@ -170,6 +170,7 @@ async function main() {
     "system-status",
     "software-discovery",
     "xdmod-metrics",
+    "allocations",
   ];
 
   // Extract metadata from all server packages

@@ -5,7 +5,6 @@ MCP server for ACCESS-CI Affinity Groups API
 ## Installation
 
 ### Download & Run
-
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `affinity-groups/index.js` file
 3. Add to Claude Desktop config:
@@ -21,7 +20,6 @@ MCP server for ACCESS-CI Affinity Groups API
 ```
 
 ### npm Package
-
 ```bash
 npm install -g @access-mcp/affinity-groups
 ```
@@ -91,6 +89,7 @@ npm start
 ```
 
 The server runs on stdio transport and can be integrated with MCP-compatible clients.
+
 
 ---
 

@@ -21,6 +21,10 @@ features:
     details: Monitor outages, maintenance schedules, and system announcements in real-time
   - title: 🔧 Software Discovery
     details: Search and explore software packages available on ACCESS-CI resources
+  - title: 📈 XDMoD Metrics
+    details: Access usage analytics, generate charts, and explore computational resource utilization data
+  - title: 🔬 Research Allocations
+    details: Discover active research projects, find collaborations, and analyze resource allocation trends
 ---
 
 ## What is MCP?
@@ -31,6 +35,8 @@ The Model Context Protocol (MCP) enables AI assistants to securely access extern
 - **Resource information** about compute systems and capabilities
 - **Real-time status** of system health and maintenance
 - **Software catalogs** across different ACCESS resources
+- **Usage analytics** and computational resource utilization metrics
+- **Research projects** and allocation data for collaboration discovery
 
 ## Quick Example
 
@@ -52,7 +58,7 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 Install all ACCESS-CI MCP servers with one command (requires Node.js 18+):
 
 ```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations
 ```
 
 Then add to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
@@ -78,6 +84,17 @@ Then add to your Claude Desktop config file (`~/Library/Application Support/Clau
       "env": {
         "SDS_API_KEY": "your-api-key"
       }
+    },
+    "access-xdmod-metrics": {
+      "command": "npx",
+      "args": ["@access-mcp/xdmod-metrics"],
+      "env": {
+        "XDMOD_API_TOKEN": "your-xdmod-api-token"
+      }
+    },
+    "access-allocations": {
+      "command": "npx",
+      "args": ["@access-mcp/allocations"]
     }
   }
 }
