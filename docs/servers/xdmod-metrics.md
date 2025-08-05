@@ -54,6 +54,7 @@ MCP server providing access to XDMoD (XD Metrics on Demand) Usage Analytics API 
 - **Chart Data**: `/controllers/user_interface.php` - Get raw chart data and metadata
 - **Chart Images**: `/controllers/user_interface.php` - Get chart images in SVG, PNG, or PDF format
 - **Chart Links**: Generate direct links to XDMoD portal charts
+- **Debug Tools**: Authentication status and troubleshooting utilities
 
 ## Tools
 
@@ -116,9 +117,23 @@ Generate a direct link to view the chart in the XDMoD portal.
 
 **Parameters:**
 
-- `statistic_id` (string): The statistic ID from the dimensions/statistics API
+- `realm` (string): The realm (e.g., "Jobs", "SUPREMM")
+- `group_by` (string): The group by field (e.g., "none", "resource")
+- `statistic` (string): The statistic name (e.g., "total_cpu_hours", "gpu_time")
 
-**Returns:** Direct URL to view the interactive chart in XDMoD.
+**Returns:** Direct URL to view the interactive chart in XDMoD. Use the portal's filtering options to narrow down to specific resources, users, or other criteria.
+
+### debug_auth_status
+
+Check authentication status and debug information.
+
+**Parameters:** None
+
+**Returns:** Comprehensive debugging information including:
+- API token status and configuration
+- Available tools and their authentication requirements  
+- Troubleshooting guidance for authentication issues
+- Environment variable and command-line argument detection
 
 ## Quick Start with Claude Desktop
 
@@ -145,7 +160,14 @@ After adding this server to your Claude Desktop configuration, you can ask natur
 ### 🔗 **Portal Integration**
 
 - "Give me a direct link to the CPU hours chart in XDMoD"
+- "Generate a link to view GPU usage by resource in the portal"
 - "How can I view this data interactively in the portal?"
+
+### 🔧 **Debug & Troubleshooting**
+
+- "Debug my XDMoD authentication status"
+- "Check if my API token is working"
+- "Help me troubleshoot authentication issues"
 
 ## Detailed Usage Examples
 
@@ -233,11 +255,25 @@ const pngChart = await get_chart_image({
 
 ```typescript
 const chartLink = await get_chart_link({
-  statistic_id: "Jobs_none_total_cpu_hours",
+  realm: "Jobs",
+  group_by: "none",
+  statistic: "total_cpu_hours",
 });
 ```
 
-**Returns**: Direct URL like: `https://xdmod.access-ci.org/index.php#tg_usage?node=Jobs_none_total_cpu_hours`
+**Returns**: Direct URL to the XDMoD portal with interactive chart filtering options.
+
+### Debug Authentication Status
+
+**Natural Language**: "Debug my XDMoD authentication status"
+
+**Tool Call**:
+
+```typescript
+const debugInfo = await debug_auth_status();
+```
+
+**Returns**: Comprehensive authentication debugging information including token status, available tools, and troubleshooting guidance.
 
 ## Common Statistics
 
@@ -317,7 +353,37 @@ All date parameters must be in `YYYY-MM-DD` format:
 
 ## Authentication
 
-This server uses public access to XDMoD APIs and does not require authentication. For authenticated access to additional data, authentication can be added in future versions.
+The server supports optional API token authentication via the `XDMOD_API_TOKEN` environment variable for enhanced debugging capabilities. The current release focuses on system-wide public metrics data from XDMoD.
+
+### Authentication Setup
+
+To enable authentication debugging features:
+
+1. **Get an API Token** from your XDMoD portal account
+2. **Set Environment Variable** in your Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "xdmod-metrics": {
+      "command": "npx",
+      "args": ["@access-mcp/xdmod-metrics"],
+      "env": {
+        "XDMOD_API_TOKEN": "your-api-token-here"
+      }
+    }
+  }
+}
+```
+
+3. **Test Authentication**: Ask Claude to "Debug my XDMoD authentication status"
+
+### Authentication Features
+
+When authenticated, you get enhanced debugging capabilities:
+- `debug_auth_status` - Comprehensive authentication status and troubleshooting
+
+**Note:** Personal usage data features are in development. The current release focuses on system-wide public metrics.
 
 ## Data Source
 
@@ -339,5 +405,5 @@ The server runs on stdio transport and can be integrated with MCP-compatible cli
 ---
 
 **Package:** `@access-mcp/xdmod-metrics`  
-**Version:** v0.2.3  
+**Version:** v0.3.0  
 **Main:** `dist/index.js`
