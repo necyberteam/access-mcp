@@ -13,29 +13,30 @@ hero:
       link: https://github.com/necyberteam/access-mcp
 
 features:
-  - title: 🏛️ Affinity Groups
-    details: Connect with ACCESS-CI communities, discover events, and access knowledge base resources
-  - title: 💻 Compute Resources
+
+  - title: Compute Resources
     details: Query hardware specifications, capabilities, and availability across ACCESS resources
-  - title: 📊 System Status
+  - title: System Status
     details: Monitor outages, maintenance schedules, and system announcements in real-time
-  - title: 🔧 Software Discovery
+  - title: Software Discovery
     details: Search and explore software packages available on ACCESS-CI resources
-  - title: 📈 XDMoD Metrics
+  - title: XDMoD Metrics
     details: Access usage analytics, generate charts, and explore computational resource utilization data
-  - title: 🔬 Research Allocations
+  - title: Affinity Groups
+    details: Connect with ACCESS-CI communities, discover events, and access knowledge base resources
+  - title: Research Allocations
     details: Discover active research projects, find collaborations, and analyze resource allocation trends
 ---
 
 ## What is MCP?
 
-The Model Context Protocol (MCP) enables AI assistants to securely access external data sources. ACCESS-CI MCP servers provide structured access to:
+The Model Context Protocol (MCP) allows AI assistants to securely interact with external data sources. ACCESS-CI MCP servers offer structured access to:
 
-- **Community data** from affinity groups and events
 - **Resource information** about compute systems and capabilities
 - **Real-time status** of system health and maintenance
 - **Software catalogs** across different ACCESS resources
 - **Usage analytics** and computational resource utilization metrics
+- **Community data** from affinity groups and events
 - **Research projects** and allocation data for collaboration discovery
 
 ## Quick Example
