@@ -6,10 +6,11 @@ Model Context Protocol (MCP) servers for ACCESS-CI APIs, enabling AI assistants 
 
 This repository contains MCP servers that provide programmatic access to:
 
-- **Affinity Groups** - Community groups, events, and knowledge base
 - **Compute Resources** - Hardware specifications and resource information
 - **System Status** - Outages, maintenance, and announcements
 - **Software Discovery** - Available software packages across resources
+- **Affinity Groups** - Community groups, events, and knowledge base
+
 
 ## Quick Start
 
@@ -35,9 +36,9 @@ npm run release
 access_mcp/
 ├── packages/
 │   ├── shared/              # Shared base classes and utilities
-│   ├── affinity-groups/     # Affinity Groups API server
 │   ├── compute-resources/   # Compute Resources API server
 │   ├── software-discovery/  # Software Discovery API server
+│   ├── affinity-groups/     # Affinity Groups API server
 │   └── system-status/       # System Status API server
 ├── docs/                    # Documentation site (deployed to Netlify)
 ├── examples/                # Usage examples and configurations
