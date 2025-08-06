@@ -126,7 +126,7 @@ npm install -g @access-mcp/xdmod-metrics
 ## MCP server for ACCESS-CI Allocations and Research Projects API
 
 **Package:** `@access-mcp/allocations`  
-**Version:** v0.1.0
+**Version:** v0.2.0
 
 MCP server for ACCESS-CI Allocations and Research Projects API
 

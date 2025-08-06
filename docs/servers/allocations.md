@@ -43,11 +43,11 @@ npm install -g @access-mcp/allocations
 
 # ACCESS-CI Allocations MCP Server
 
-MCP server providing access to ACCESS-CI allocations and research projects data.
+MCP server providing access to ACCESS-CI allocations and research projects data with NSF Awards integration.
 
 ## Overview
 
-This server provides comprehensive access to active research projects and allocations across the ACCESS-CI ecosystem, enabling project discovery, collaboration opportunities, and resource allocation analysis.
+This server provides comprehensive access to active research projects and allocations across the ACCESS-CI ecosystem, enabling project discovery, collaboration opportunities, and resource allocation analysis. Enhanced with NSF Awards data for complete research funding context.
 
 ## Tools
 
@@ -106,6 +106,42 @@ Find projects with similar research focus or abstracts.
 - `keywords` (string, optional): Keywords to find similar projects
 - `limit` (number, optional): Maximum number of similar projects to return (default: 10)
 
+### get_nsf_award
+
+Get NSF award details for a specific award number.
+
+**Parameters:**
+
+- `award_number` (string): NSF award number (e.g., '2138259')
+
+### enrich_project_with_nsf
+
+Enrich an ACCESS project with NSF award data by searching for matching PI and institution.
+
+**Parameters:**
+
+- `project_id` (number): ACCESS project ID to enrich with NSF data
+
+### find_nsf_awards_by_pi
+
+Find NSF awards for a specific Principal Investigator.
+
+**Parameters:**
+
+- `pi_name` (string): Principal Investigator name to search for
+- `limit` (number, optional): Maximum number of awards to return (default: 10)
+
+### find_nsf_awards_by_personnel
+
+Search NSF awards by Principal Investigator name. 
+
+**Note:** Co-PI and Program Officer searches are not reliable in the NSF API and have been removed.
+
+**Parameters:**
+
+- `person_name` (string): Principal Investigator name to search for
+- `limit` (number, optional): Maximum number of awards to return (default: 10)
+
 ## Resources
 
 - `accessci://allocations`: ACCESS-CI Research Projects and Allocations data
@@ -133,7 +169,9 @@ Add to your Claude Desktop configuration:
 
 ## API Endpoints
 
-This server connects to the ACCESS-CI Allocations portal at `https://allocations.access-ci.org`
+This server connects to:
+- ACCESS-CI Allocations portal at `https://allocations.access-ci.org`
+- NSF Awards Search at `https://www.nsf.gov/awardsearch/`
 
 **Important Note:** ACCESS Credits are computational resource credits, NOT monetary currency.
 
@@ -144,5 +182,5 @@ MIT
 ---
 
 **Package:** `@access-mcp/allocations`  
-**Version:** v0.1.0  
+**Version:** v0.2.0  
 **Main:** `dist/index.js`
