@@ -30,7 +30,8 @@ features:
 
 ## What is MCP?
 
-The Model Context Protocol (MCP) allows AI assistants to securely interact with external data sources. ACCESS-CI MCP servers offer structured access to:
+The Model Context Protocol (MCP) allows AI assistants to securely interact with external data sources.
+ACCESS-CI MCP servers offer structured access to:
 
 - **Resource information** about compute systems and capabilities
 - **Real-time status** of system health and maintenance
