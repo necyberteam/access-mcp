@@ -19,6 +19,7 @@ interface XDMoDStatistic {
   leaf?: boolean;
 }
 
+
 // NSF Award interfaces
 interface NSFAward {
   awardNumber: string;
@@ -1123,10 +1124,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
         result += `  - Institution: ${award.institution}\n\n`;
         
         // Try to extract numeric amount for totaling
-        const match = award.totalIntendedAward.match(/[\d,]+/);
-        if (match) {
-          const amount = parseFloat(match[0].replace(/,/g, ''));
-          if (!isNaN(amount)) totalFunding += amount;
+        if (award.totalIntendedAward) {
+          const match = award.totalIntendedAward.match(/[\d,]+/);
+          if (match) {
+            const amount = parseFloat(match[0].replace(/,/g, ''));
+            if (!isNaN(amount)) totalFunding += amount;
+          }
         }
       }
       
@@ -1276,10 +1279,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
         topPIs.set(award.principalInvestigator, piCount + 1);
         
         // Sum funding
-        const match = award.totalIntendedAward.match(/[\d,]+/);
-        if (match) {
-          const amount = parseFloat(match[0].replace(/,/g, ''));
-          if (!isNaN(amount)) totalFunding += amount;
+        if (award.totalIntendedAward) {
+          const match = award.totalIntendedAward.match(/[\d,]+/);
+          if (match) {
+            const amount = parseFloat(match[0].replace(/,/g, ''));
+            if (!isNaN(amount)) totalFunding += amount;
+          }
         }
       }
       
@@ -1350,6 +1355,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
     
     return result;
   }
+
 
   // NSF Data Fetching Methods
   private async fetchNSFAwardData(awardNumber: string): Promise<NSFAward> {
@@ -1430,7 +1436,6 @@ class XDMoDMetricsServer extends BaseAccessServer {
         allAwards.push(...matches);
         
         if (matches.length > 0) {
-          console.log(`NSF ${strategy.type} search found ${matches.length} awards for "${piName}"`);
         }
       }
 
