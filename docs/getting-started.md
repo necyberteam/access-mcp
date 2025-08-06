@@ -11,7 +11,7 @@ Choose your installation method based on your needs:
 Install all ACCESS-CI MCP servers with one command:
 
 ```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations
 ```
 
 _Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation._
@@ -47,6 +47,17 @@ Add servers to your Claude Desktop configuration file. (If the file "claude_desk
       "env": {
         "SDS_API_KEY": "your-sds-api-key"
       }
+    },
+    "access-xdmod-metrics": {
+      "command": "npx",
+      "args": ["@access-mcp/xdmod-metrics"],
+      "env": {
+        "XDMOD_API_TOKEN": "your-xdmod-api-token"
+      }
+    },
+    "access-allocations": {
+      "command": "npx",
+      "args": ["@access-mcp/allocations"]
     }
   }
 }
@@ -56,11 +67,6 @@ Add servers to your Claude Desktop configuration file. (If the file "claude_desk
 
 That's it! The commands are now available globally and Claude Desktop can use them.
 
-## 📥 Alternative: GitHub Releases
-
-**Best for**: Users who prefer downloading executables
-
-Get the latest release from [GitHub Releases](https://github.com/necyberteam/access-mcp/releases) and configure with full file paths.
 
 ## 🔧 Developers (npm packages)
 
@@ -70,7 +76,7 @@ Get the latest release from [GitHub Releases](https://github.com/necyberteam/acc
 
 ```bash
 # Install all servers at once
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations
 
 # Or install individual servers
 npm install -g @access-mcp/affinity-groups
@@ -110,3 +116,4 @@ npm run build
 - Node.js 18+ (runtime only for downloaded executables)
 - Claude Desktop or MCP-compatible client
 - SDS API key (for software discovery server only)
+- XDMoD API token (for XDMoD metrics server only)

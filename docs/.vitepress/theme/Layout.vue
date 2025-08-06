@@ -59,6 +59,7 @@ function initializeAccessCI() {
     '      { name: "System Status", href: "/servers/system-status" },',
     '      { name: "Software Discovery", href: "/servers/software-discovery" },',
     '      { name: "XDMoD Metrics", href: "/servers/xdmod-metrics" },',
+    '      { name: "Allocations", href: "/servers/allocations" },',
     "    ],",
     "  },",
     "];",
@@ -142,6 +143,7 @@ onMounted(() => {
   --access-ci-spacing-xl: 3rem;
   --access-ci-spacing-2xl: 5.06rem;
 
+
   /* Override VitePress variables */
   --vp-c-brand-1: var(--access-ci-yellow);
   --vp-c-brand-2: #f0c800;
@@ -187,9 +189,10 @@ onMounted(() => {
   box-sizing: border-box;
 }
 
-/* Hide VitePress defaults that conflict */
+/* Hide all VitePress navigation components */
 :deep(.VPNav),
 :deep(.VPSidebar),
+:deep(.VPDocAside),
 :deep(.VPDocFooter) {
   display: none !important;
 }

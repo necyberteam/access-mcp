@@ -22,9 +22,9 @@ export default defineConfig({
     ],
   ],
 
-  // Since we're using ACCESS-CI UI for navigation, we disable VitePress nav/sidebar
+  // Since we're using ACCESS-CI UI for navigation, we disable all VitePress navigation
   themeConfig: {
-    // Disable VitePress navigation components
+    // Disable all VitePress navigation components
     nav: false,
     sidebar: false,
     aside: false,
@@ -32,7 +32,7 @@ export default defineConfig({
     // Keep search functionality if needed
     search: {
       provider: "local",
-    },
+    }
   },
 
   // Enable SPA mode for better integration with ACCESS-CI UI

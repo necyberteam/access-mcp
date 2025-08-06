@@ -1,4 +1,4 @@
-# ACCESS-CI XDMoD Metrics MCP Server
+# XDMoD Metrics MCP Server
 
 MCP server providing access to XDMoD (XD Metrics on Demand) Usage Analytics API endpoints for ACCESS-CI infrastructure metrics and statistics.
 

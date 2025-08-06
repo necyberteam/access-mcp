@@ -41,7 +41,7 @@ npm install -g @access-mcp/allocations
 
 ## Development
 
-# ACCESS-CI Allocations MCP Server
+# Allocations MCP Server
 
 MCP server providing access to ACCESS-CI allocations and research projects data with NSF Awards integration.
 
@@ -152,7 +152,7 @@ Search NSF awards by Principal Investigator name.
 npm install -g @access-mcp/allocations
 ```
 
-## Usage
+## Configuration
 
 Add to your Claude Desktop configuration:
 
@@ -166,6 +166,145 @@ Add to your Claude Desktop configuration:
   }
 }
 ```
+
+## Usage Examples
+
+### 🔬 **Discover Research Projects**
+
+- "Find projects in computational biology"
+- "What research is being done on climate modeling?"
+- "Show me projects using machine learning"
+
+### 👥 **Find Collaborations**
+
+- "Who is working on quantum computing research?"
+- "Find projects at MIT using GPU resources"
+- "Show me similar projects to TG-BIO210042"
+
+### 💰 **Analyze Allocations**
+
+- "What's the total allocation for genomics research?"
+- "Show allocation statistics across different fields"
+- "Which resources are most used for AI research?"
+
+### 🏛️ **NSF Award Integration**
+
+- "Find NSF award details for project 2138259"
+- "Show me all NSF awards for Stephen Deems"
+- "Enrich this ACCESS project with NSF funding data"
+
+## Detailed Usage Examples
+
+### Searching Research Projects
+
+**Natural Language**: "Find active projects in machine learning"
+
+**Tool Call**:
+```typescript
+const projects = await search_projects({
+  query: "machine learning",
+  limit: 10
+});
+```
+
+**Returns**: List of projects with:
+- Project titles and abstracts
+- Principal Investigator information
+- Institution details
+- Resource allocations (in ACCESS Credits or compute hours)
+- Grant numbers
+
+### Getting Project Details
+
+**Natural Language**: "Tell me about project TG-BIO210042"
+
+**Tool Call**:
+```typescript
+const details = await get_project_details({
+  project_id: "TG-BIO210042"
+});
+```
+
+**Returns**: Comprehensive project information:
+- Full abstract and research goals
+- PI and Co-PI details
+- Allocated resources and usage
+- Start/end dates
+- Publications and outcomes
+
+### Finding Similar Research
+
+**Natural Language**: "Find projects similar to this genomics project"
+
+**Tool Call**:
+```typescript
+const similar = await find_similar_projects({
+  project_id: "TG-BIO210042",
+  limit: 5
+});
+```
+
+**Returns**: Related projects based on:
+- Research domain overlap
+- Methodology similarities
+- Resource usage patterns
+- Institutional connections
+
+### Analyzing Resource Allocations
+
+**Natural Language**: "Show me allocation statistics for computational chemistry"
+
+**Tool Call**:
+```typescript
+const stats = await get_allocation_statistics({
+  pages_to_analyze: 10
+});
+```
+
+**Returns**: Statistical analysis including:
+- Total ACCESS Credits allocated
+- Distribution by field of science
+- Top institutions and PIs
+- Resource utilization trends
+- Average allocation sizes
+
+### NSF Award Lookup
+
+**Natural Language**: "Get details for NSF award 2138259"
+
+**Tool Call**:
+```typescript
+const award = await get_nsf_award({
+  award_number: "2138259"
+});
+```
+
+**Returns**: NSF award information:
+- Award title and abstract
+- Principal Investigator
+- Award amount
+- Start and end dates
+- Program officer
+- Funded institution
+
+### Finding NSF Awards by PI
+
+**Natural Language**: "Show me NSF awards for Shelley Knuth"
+
+**Tool Call**:
+```typescript
+const awards = await find_nsf_awards_by_pi({
+  pi_name: "Shelley Knuth",
+  limit: 10
+});
+```
+
+**Returns**: List of NSF awards including:
+- Award numbers and titles
+- Funding amounts
+- Award dates
+- Institutions
+- Co-PIs (when available)
 
 ## API Endpoints
 

@@ -54,8 +54,6 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 
 ## Installation
 
-### 📦 Recommended: npm packages
-
 Install all ACCESS-CI MCP servers with one command (requires Node.js 18+):
 
 ```bash

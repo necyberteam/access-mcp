@@ -3,7 +3,7 @@
 ACCESS-CI provides 6 MCP servers for different aspects of cyberinfrastructure:
 
 
-## MCP server for ACCESS-CI Affinity Groups API
+## Affinity Groups MCP Server
 
 **Package:** `@access-mcp/affinity-groups`  
 **Version:** v0.2.3
@@ -27,7 +27,7 @@ npm install -g @access-mcp/affinity-groups
 }
 ```
 
-## MCP server for ACCESS-CI Compute Resources API
+## Compute Resources MCP Server
 
 **Package:** `@access-mcp/compute-resources`  
 **Version:** v0.2.3
@@ -51,7 +51,7 @@ npm install -g @access-mcp/compute-resources
 }
 ```
 
-## MCP server for ACCESS-CI System Status and Outages API
+## System Status MCP Server
 
 **Package:** `@access-mcp/system-status`  
 **Version:** v0.2.3
@@ -75,7 +75,7 @@ npm install -g @access-mcp/system-status
 }
 ```
 
-## ACCESS-CI Software Discovery Service MCP server
+## Software Discovery MCP Server
 
 **Package:** `@access-mcp/software-discovery`  
 **Version:** v0.2.3
@@ -99,7 +99,7 @@ npm install -g @access-mcp/software-discovery
 }
 ```
 
-## MCP server for XDMoD Metrics and Usage Analytics API
+## XDMoD Metrics MCP Server
 
 **Package:** `@access-mcp/xdmod-metrics`  
 **Version:** v0.3.0
@@ -123,7 +123,7 @@ npm install -g @access-mcp/xdmod-metrics
 }
 ```
 
-## MCP server for ACCESS-CI Allocations and Research Projects API
+## Allocations MCP Server
 
 **Package:** `@access-mcp/allocations`  
 **Version:** v0.2.0
