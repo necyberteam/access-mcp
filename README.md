@@ -9,6 +9,8 @@ This repository contains MCP servers that provide programmatic access to:
 - **Compute Resources** - Hardware specifications and resource information
 - **System Status** - Outages, maintenance, and announcements
 - **Software Discovery** - Available software packages across resources
+- **XDMoD Metrics** - Usage analytics, computational resource utilization, and NSF funding integration
+- **Allocations** - Active research projects and resource allocation discovery
 - **Affinity Groups** - Community groups, events, and knowledge base
 
 
@@ -37,9 +39,11 @@ access_mcp/
 ├── packages/
 │   ├── shared/              # Shared base classes and utilities
 │   ├── compute-resources/   # Compute Resources API server
+│   ├── system-status/       # System Status API server
 │   ├── software-discovery/  # Software Discovery API server
-│   ├── affinity-groups/     # Affinity Groups API server
-│   └── system-status/       # System Status API server
+│   ├── xdmod-metrics/       # XDMoD Usage Analytics and NSF integration
+│   ├── allocations/         # Research Allocations API server
+│   └── affinity-groups/     # Affinity Groups API server
 ├── docs/                    # Documentation site (deployed to Netlify)
 ├── examples/                # Usage examples and configurations
 ├── scripts/                 # Build and automation scripts
@@ -66,6 +70,9 @@ access_mcp/
 Use the MCP Inspector for interactive testing:
 
 ```bash
+# Test any server
+npx @modelcontextprotocol/inspector packages/xdmod-metrics/dist/index.js
+npx @modelcontextprotocol/inspector packages/allocations/dist/index.js
 npx @modelcontextprotocol/inspector packages/affinity-groups/dist/index.js
 ```
 
