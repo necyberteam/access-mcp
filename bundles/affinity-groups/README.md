@@ -1,4 +1,4 @@
-# ACCESS-CI Affinity Groups MCP Server
+# Affinity Groups MCP Server
 
 MCP server providing access to ACCESS-CI Affinity Groups API endpoints.
 
@@ -34,15 +34,84 @@ Get knowledge base resources for a specific affinity group.
 
 - `group_id` (string): The affinity group identifier
 
-## Usage
+## Installation
 
 ```bash
-# Install and build
-npm install
-npm run build
-
-# Start the server
-npm start
+npm install -g @access-mcp/affinity-groups
 ```
 
-The server runs on stdio transport and can be integrated with MCP-compatible clients.
+## Configuration
+
+Add to your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "access-affinity-groups": {
+      "command": "npx",
+      "args": ["@access-mcp/affinity-groups"]
+    }
+  }
+}
+```
+
+## Usage Examples
+
+### 🔍 **Discover Community Resources**
+
+- "What affinity groups are available for machine learning?"
+- "Show me information about the GPU computing affinity group"
+- "Find affinity groups related to bioinformatics"
+
+### 📅 **Find Events and Trainings**
+
+- "What upcoming events are there for the bridges2.psc.access-ci.org group?"
+- "Show me training opportunities for GPU computing"
+- "Find workshops about parallel computing"
+
+### 📚 **Access Knowledge Base**
+
+- "Get knowledge base resources for quantum computing"
+- "What documentation is available for the Anvil cluster?"
+- "Find tutorials for the Delta GPU system"
+
+## Detailed Usage Examples
+
+### Getting Affinity Group Information
+
+**Natural Language**: "Tell me about the Bridges-2 affinity group"
+
+**Tool Call**:
+```typescript
+const groupInfo = await get_affinity_group({
+  group_id: "bridges2.psc.access-ci.org"
+});
+```
+
+**Returns**: Group details including description, members, resources, and contact information.
+
+### Finding Events and Trainings
+
+**Natural Language**: "What events are coming up for GPU computing?"
+
+**Tool Call**:
+```typescript
+const events = await get_affinity_group_events({
+  group_id: "gpu-computing.access-ci.org"
+});
+```
+
+**Returns**: List of upcoming workshops, training sessions, and community events.
+
+### Accessing Knowledge Base Resources
+
+**Natural Language**: "Find documentation for the Delta system"
+
+**Tool Call**:
+```typescript
+const resources = await get_affinity_group_kb({
+  group_id: "delta.ncsa.access-ci.org"
+});
+```
+
+**Returns**: Documentation, tutorials, best practices, and user guides.

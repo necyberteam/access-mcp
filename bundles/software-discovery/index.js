@@ -26832,7 +26832,7 @@ var {
   mergeConfig: mergeConfig2
 } = axios_default;
 
-// packages/shared/dist/base-server.js
+// packages/software-discovery/node_modules/@access-mcp/shared/dist/base-server.js
 var BaseAccessServer = class {
   serverName;
   version;
@@ -26929,7 +26929,7 @@ var BaseAccessServer = class {
   }
 };
 
-// packages/shared/dist/types.js
+// packages/software-discovery/node_modules/@access-mcp/shared/dist/types.js
 var AffinityGroupSchema = external_exports.object({
   group_id: external_exports.string(),
   name: external_exports.string().optional(),
@@ -26951,7 +26951,7 @@ var KnowledgeBaseResourceSchema = external_exports.object({
   tags: external_exports.array(external_exports.string()).optional()
 });
 
-// packages/shared/dist/utils.js
+// packages/software-discovery/node_modules/@access-mcp/shared/dist/utils.js
 function handleApiError(error) {
   if (error.response?.data?.message) {
     return error.response.data.message;
@@ -26966,7 +26966,26 @@ function handleApiError(error) {
 var SoftwareDiscoveryServer = class extends BaseAccessServer {
   _sdsClient;
   constructor() {
-    super("access-mcp-software-discovery", "0.1.0", "https://ara-db.ccs.uky.edu");
+    super("access-mcp-software-discovery", "0.3.0", "https://ara-db.ccs.uky.edu");
+  }
+  /**
+   * Normalizes resource IDs to handle legacy XSEDE format and domain variations.
+   * This provides backward compatibility while the SDS API migrates to ACCESS-CI format.
+   *
+   * @param resourceId - The resource ID to normalize
+   * @returns The normalized resource ID in ACCESS-CI format
+   */
+  normalizeResourceId(resourceId) {
+    if (resourceId.includes(".xsede.org")) {
+      return resourceId.replace(".xsede.org", ".access-ci.org");
+    }
+    if (resourceId.includes(".illinois.edu")) {
+      return resourceId.replace(".illinois.edu", ".access-ci.org");
+    }
+    if (resourceId.includes(".edu")) {
+      return resourceId.replace(".edu", ".access-ci.org");
+    }
+    return resourceId;
   }
   get sdsClient() {
     if (!this._sdsClient) {
@@ -26974,7 +26993,7 @@ var SoftwareDiscoveryServer = class extends BaseAccessServer {
         baseURL: "https://ara-db.ccs.uky.edu",
         timeout: 1e4,
         headers: {
-          "User-Agent": "access-mcp-software-discovery/0.1.0"
+          "User-Agent": "access-mcp-software-discovery/0.3.0"
         },
         validateStatus: () => true
       });
@@ -27170,6 +27189,7 @@ var SoftwareDiscoveryServer = class extends BaseAccessServer {
         ]
       };
     }
+    const normalizedResourceId = this.normalizeResourceId(resourceId);
     const apiFields = [
       "software_name",
       "software_description",
@@ -27178,7 +27198,7 @@ var SoftwareDiscoveryServer = class extends BaseAccessServer {
       "software_use_link",
       "software_versions"
     ];
-    const response = await this.sdsClient.get(`/api=API_0/${apiKey}/rp=${resourceId}?include=${apiFields.join(",")}`);
+    const response = await this.sdsClient.get(`/api=API_0/${apiKey}/rp=${normalizedResourceId}?include=${apiFields.join(",")}`);
     if (response.status !== 200) {
       return {
         content: [
@@ -27186,6 +27206,7 @@ var SoftwareDiscoveryServer = class extends BaseAccessServer {
             type: "text",
             text: JSON.stringify({
               resource_id: resourceId,
+              normalized_resource_id: normalizedResourceId,
               error: `SDS API error: ${response.status} ${response.statusText}`,
               software: []
             }, null, 2)
@@ -27207,6 +27228,7 @@ var SoftwareDiscoveryServer = class extends BaseAccessServer {
           type: "text",
           text: JSON.stringify({
             resource_id: resourceId,
+            normalized_resource_id: normalizedResourceId,
             total_packages: softwareList.length,
             search_query: searchQuery,
             software: softwareList.map((pkg) => ({
@@ -27259,13 +27281,28 @@ var SoftwareDiscoveryServer = class extends BaseAccessServer {
   }
   async getSoftwareCategories(resourceId) {
     const categories = [
-      { name: "Compilers", description: "Programming language compilers and toolchains" },
+      {
+        name: "Compilers",
+        description: "Programming language compilers and toolchains"
+      },
       { name: "Libraries", description: "Software libraries and frameworks" },
       { name: "Applications", description: "End-user applications and tools" },
-      { name: "Development Tools", description: "Development and debugging tools" },
-      { name: "Scientific Computing", description: "Scientific and numerical computing packages" },
-      { name: "Data Analytics", description: "Data analysis and visualization tools" },
-      { name: "Machine Learning", description: "AI and machine learning frameworks" },
+      {
+        name: "Development Tools",
+        description: "Development and debugging tools"
+      },
+      {
+        name: "Scientific Computing",
+        description: "Scientific and numerical computing packages"
+      },
+      {
+        name: "Data Analytics",
+        description: "Data analysis and visualization tools"
+      },
+      {
+        name: "Machine Learning",
+        description: "AI and machine learning frameworks"
+      },
       { name: "Bioinformatics", description: "Biological data analysis tools" },
       { name: "Chemistry", description: "Computational chemistry packages" },
       { name: "Physics", description: "Physics simulation and modeling tools" }

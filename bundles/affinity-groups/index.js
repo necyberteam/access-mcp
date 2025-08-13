@@ -40999,7 +40999,7 @@ var {
   mergeConfig: mergeConfig2
 } = axios_default;
 
-// packages/shared/dist/base-server.js
+// packages/affinity-groups/node_modules/@access-mcp/shared/dist/base-server.js
 var BaseAccessServer = class {
   serverName;
   version;
@@ -41096,7 +41096,7 @@ var BaseAccessServer = class {
   }
 };
 
-// packages/shared/dist/types.js
+// packages/affinity-groups/node_modules/@access-mcp/shared/dist/types.js
 var AffinityGroupSchema = external_exports.object({
   group_id: external_exports.string(),
   name: external_exports.string().optional(),
@@ -41118,7 +41118,7 @@ var KnowledgeBaseResourceSchema = external_exports.object({
   tags: external_exports.array(external_exports.string()).optional()
 });
 
-// packages/shared/dist/utils.js
+// packages/affinity-groups/node_modules/@access-mcp/shared/dist/utils.js
 function sanitizeGroupId(groupId) {
   return groupId.replace(/[^a-zA-Z0-9.-]/g, "");
 }
@@ -41135,7 +41135,7 @@ function handleApiError(error) {
 // packages/affinity-groups/dist/server.js
 var AffinityGroupsServer = class extends BaseAccessServer {
   constructor() {
-    super("access-mcp-affinity-groups", "0.1.0");
+    super("access-mcp-affinity-groups", "0.3.0");
   }
   getTools() {
     return [
@@ -41360,13 +41360,13 @@ function startWebServer(port = 3e3) {
     res.json({
       status: "ok",
       service: "access-mcp-affinity-groups",
-      version: "0.1.0"
+      version: "0.3.0"
     });
   });
   app.get("/api", (req, res) => {
     res.json({
       name: "ACCESS-CI Affinity Groups MCP Server",
-      version: "0.1.0",
+      version: "0.3.0",
       endpoints: {
         documentation: "/",
         health: "/health",

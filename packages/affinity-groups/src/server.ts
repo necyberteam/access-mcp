@@ -6,7 +6,7 @@ import {
 
 export class AffinityGroupsServer extends BaseAccessServer {
   constructor() {
-    super("access-mcp-affinity-groups", "0.1.0");
+    super("access-mcp-affinity-groups", "0.3.0");
   }
 
   protected getTools() {

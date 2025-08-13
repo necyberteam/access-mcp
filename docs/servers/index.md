@@ -3,10 +3,10 @@
 ACCESS-CI provides 6 MCP servers for different aspects of cyberinfrastructure:
 
 
-## Affinity Groups MCP Server
+## MCP server for ACCESS-CI Affinity Groups API
 
 **Package:** `@access-mcp/affinity-groups`  
-**Version:** v0.2.3
+**Version:** v0.3.0
 
 MCP server for ACCESS-CI Affinity Groups API
 
@@ -27,10 +27,10 @@ npm install -g @access-mcp/affinity-groups
 }
 ```
 
-## Compute Resources MCP Server
+## MCP server for ACCESS-CI Compute Resources API
 
 **Package:** `@access-mcp/compute-resources`  
-**Version:** v0.2.3
+**Version:** v0.3.0
 
 MCP server for ACCESS-CI Compute Resources API
 
@@ -51,10 +51,10 @@ npm install -g @access-mcp/compute-resources
 }
 ```
 
-## System Status MCP Server
+## MCP server for ACCESS-CI System Status and Outages API
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.2.3
+**Version:** v0.3.0
 
 MCP server for ACCESS-CI System Status and Outages API
 
@@ -75,10 +75,10 @@ npm install -g @access-mcp/system-status
 }
 ```
 
-## Software Discovery MCP Server
+## ACCESS-CI Software Discovery Service MCP server
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.2.3
+**Version:** v0.3.0
 
 ACCESS-CI Software Discovery Service MCP server
 
@@ -99,10 +99,10 @@ npm install -g @access-mcp/software-discovery
 }
 ```
 
-## XDMoD Metrics MCP Server
+## MCP server for XDMoD Metrics and Usage Analytics API
 
 **Package:** `@access-mcp/xdmod-metrics`  
-**Version:** v0.3.0
+**Version:** v0.4.0
 
 MCP server for XDMoD Metrics and Usage Analytics API
 
@@ -123,10 +123,10 @@ npm install -g @access-mcp/xdmod-metrics
 }
 ```
 
-## Allocations MCP Server
+## MCP server for ACCESS-CI Allocations and Research Projects API
 
 **Package:** `@access-mcp/allocations`  
-**Version:** v0.2.0
+**Version:** v0.3.0
 
 MCP server for ACCESS-CI Allocations and Research Projects API
 

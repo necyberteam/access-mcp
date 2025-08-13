@@ -43,7 +43,7 @@ npm install -g @access-mcp/xdmod-metrics
 
 # XDMoD Metrics MCP Server
 
-MCP server providing access to XDMoD (XD Metrics on Demand) Usage Analytics API endpoints for ACCESS-CI infrastructure metrics and statistics.
+MCP server providing access to XDMoD (XD Metrics on Demand) Usage Analytics API endpoints for ACCESS-CI infrastructure metrics and statistics, enhanced with NSF Awards integration for comprehensive research funding context.
 
 ## API Endpoints Covered
 
@@ -52,6 +52,7 @@ MCP server providing access to XDMoD (XD Metrics on Demand) Usage Analytics API 
 - **Chart Data**: `/controllers/user_interface.php` - Get raw chart data and metadata
 - **Chart Images**: `/controllers/user_interface.php` - Get chart images in SVG, PNG, or PDF format
 - **Chart Links**: Generate direct links to XDMoD portal charts
+- **NSF Awards**: `https://api.nsf.gov/services/v1/awards.json` - NSF award details and search
 - **Debug Tools**: Authentication status and troubleshooting utilities
 
 ## Tools
@@ -121,6 +122,73 @@ Generate a direct link to view the chart in the XDMoD portal.
 
 **Returns:** Direct URL to view the interactive chart in XDMoD. Use the portal's filtering options to narrow down to specific resources, users, or other criteria.
 
+### get_nsf_award
+
+Get NSF award details for a specific award number.
+
+**Parameters:**
+
+- `award_number` (string): NSF award number (e.g., '2138259')
+
+### find_nsf_awards_by_pi
+
+Find NSF awards for a specific Principal Investigator.
+
+**Parameters:**
+
+- `pi_name` (string): Principal Investigator name to search for
+- `limit` (number, optional): Maximum number of awards to return (default: 10)
+
+### find_nsf_awards_by_personnel
+
+Search NSF awards by Principal Investigator name.
+
+**Note:** Co-PI and Program Officer searches are not reliable in the NSF API and have been removed.
+
+**Parameters:**
+
+- `person_name` (string): Principal Investigator name to search for
+- `limit` (number, optional): Maximum number of awards to return (default: 10)
+
+### get_usage_with_nsf_context
+
+Get XDMoD usage data enriched with NSF funding context for a researcher or institution.
+
+**Parameters:**
+
+- `researcher_name` (string, optional): Name of researcher to analyze
+- `institution_name` (string, optional): Institution to analyze
+- `start_date` (string): Start date in YYYY-MM-DD format
+- `end_date` (string): End date in YYYY-MM-DD format
+- `limit` (number, optional): Maximum NSF awards to include (default: 10)
+
+**Returns:** Combined analysis including XDMoD usage metrics and associated NSF funding portfolio
+
+### analyze_funding_vs_usage
+
+Compare NSF funding amounts with actual XDMoD computational usage patterns.
+
+**Parameters:**
+
+- `nsf_award_number` (string): Specific NSF award number to analyze
+- `start_date` (string): Start date in YYYY-MM-DD format  
+- `end_date` (string): End date in YYYY-MM-DD format
+
+**Returns:** Comparative analysis of funding allocation versus computational resource consumption
+
+### institutional_research_profile
+
+Generate a comprehensive research profile combining XDMoD usage patterns with NSF funding for an institution.
+
+**Parameters:**
+
+- `institution_name` (string): Institution name to profile
+- `start_date` (string): Start date in YYYY-MM-DD format
+- `end_date` (string): End date in YYYY-MM-DD format
+- `limit` (number, optional): Maximum NSF awards to include (default: 20)
+
+**Returns:** Comprehensive institutional profile with funding and usage correlation analysis
+
 ### debug_auth_status
 
 Check authentication status and debug information.
@@ -164,6 +232,13 @@ After adding this server to your Claude Desktop configuration, you can ask natur
 - "Give me a direct link to the CPU hours chart in XDMoD"
 - "Generate a link to view GPU usage by resource in the portal"
 - "How can I view this data interactively in the portal?"
+
+### 🔬 **NSF Integration & Research Analysis**
+
+- "Show me Dr. Smith's computational usage with their NSF funding context"
+- "Analyze how NSF award 2138259's funding correlates with actual usage"
+- "Generate a research profile for University of Illinois combining usage and NSF funding"
+- "Compare funding allocation versus computational resource consumption"
 
 ## Detailed Usage Examples
 
@@ -286,6 +361,56 @@ const gpuChartLink = await get_chart_link({
 
 **Returns**: Direct URL like: `https://xdmod.access-ci.org/index.php#tg_usage?node=statistic&realm=Jobs&group_by=none&statistic=total_cpu_hours`
 
+### Research Analysis with NSF Integration
+
+**Natural Language**: "Analyze Dr. Smith's computational usage with their NSF funding context for 2024"
+
+**Tool Call**:
+
+```typescript
+const researchAnalysis = await get_usage_with_nsf_context({
+  researcher_name: "John Smith",
+  start_date: "2024-01-01",
+  end_date: "2024-12-31",
+  limit: 5
+});
+```
+
+**Returns**: Combined analysis showing XDMoD usage patterns alongside NSF funding portfolio
+
+### Funding vs Usage Analysis
+
+**Natural Language**: "Compare NSF award 2138259's funding with actual computational usage"
+
+**Tool Call**:
+
+```typescript
+const fundingAnalysis = await analyze_funding_vs_usage({
+  nsf_award_number: "2138259",
+  start_date: "2024-01-01",
+  end_date: "2024-12-31"
+});
+```
+
+**Returns**: Detailed comparison of funding allocation versus actual resource consumption
+
+### Institutional Research Profile
+
+**Natural Language**: "Generate a comprehensive research profile for University of Illinois"
+
+**Tool Call**:
+
+```typescript
+const institutionProfile = await institutional_research_profile({
+  institution_name: "University of Illinois",
+  start_date: "2024-01-01", 
+  end_date: "2024-12-31",
+  limit: 15
+});
+```
+
+**Returns**: Complete institutional analysis combining usage patterns with NSF funding landscape
+
 ## Understanding Realms
 
 XDMoD organizes metrics into different **realms** that provide different types of data:
@@ -340,6 +465,13 @@ The server supports optional API token authentication for enhanced debugging and
 2. "What are the peak usage periods?"
 3. "Generate high-resolution charts for presentation"
 4. "Export data for further analysis"
+
+### 🔬 **Research Impact Analysis**
+
+1. "Analyze Dr. Johnson's computational usage with NSF funding context"
+2. "Compare funding efficiency across different research groups"
+3. "Generate institutional research profile with funding correlations"
+4. "Identify usage patterns that correlate with successful funding outcomes"
 
 ## Date Formats and Ranges
 
@@ -457,5 +589,5 @@ The server runs on stdio transport and can be integrated with MCP-compatible cli
 ---
 
 **Package:** `@access-mcp/xdmod-metrics`  
-**Version:** v0.3.0  
+**Version:** v0.4.0  
 **Main:** `dist/index.js`

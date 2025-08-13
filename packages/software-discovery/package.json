@@ -1,6 +1,6 @@
 {
   "name": "@access-mcp/software-discovery",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "description": "ACCESS-CI Software Discovery Service MCP server",
   "type": "module",
   "main": "dist/index.js",
@@ -35,7 +35,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@access-mcp/shared": "^0.2.2",
+    "@access-mcp/shared": "^0.3.0",
     "@modelcontextprotocol/sdk": "^1.16.0",
     "axios": "^1.7.7"
   },

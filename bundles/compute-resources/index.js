@@ -40999,7 +40999,7 @@ var {
   mergeConfig: mergeConfig2
 } = axios_default;
 
-// packages/shared/dist/base-server.js
+// packages/compute-resources/node_modules/@access-mcp/shared/dist/base-server.js
 var BaseAccessServer = class {
   serverName;
   version;
@@ -41096,7 +41096,7 @@ var BaseAccessServer = class {
   }
 };
 
-// packages/shared/dist/types.js
+// packages/compute-resources/node_modules/@access-mcp/shared/dist/types.js
 var AffinityGroupSchema = external_exports.object({
   group_id: external_exports.string(),
   name: external_exports.string().optional(),
@@ -41118,7 +41118,7 @@ var KnowledgeBaseResourceSchema = external_exports.object({
   tags: external_exports.array(external_exports.string()).optional()
 });
 
-// packages/shared/dist/utils.js
+// packages/compute-resources/node_modules/@access-mcp/shared/dist/utils.js
 function sanitizeGroupId(groupId) {
   return groupId.replace(/[^a-zA-Z0-9.-]/g, "");
 }
@@ -41135,7 +41135,7 @@ function handleApiError(error) {
 // packages/compute-resources/dist/server.js
 var ComputeResourcesServer = class extends BaseAccessServer {
   constructor() {
-    super("access-mcp-compute-resources", "0.1.0", "https://operations-api.access-ci.org");
+    super("access-mcp-compute-resources", "0.3.0", "https://operations-api.access-ci.org");
   }
   getTools() {
     return [
@@ -41300,7 +41300,7 @@ function startWebServer(port = 3e3) {
   app.get("/api/tools", (req, res) => {
     res.json({
       server: "ACCESS-CI Compute Resources MCP Server",
-      version: "0.1.0",
+      version: "0.3.0",
       tools: [
         {
           name: "list_compute_resources",

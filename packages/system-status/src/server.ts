@@ -4,7 +4,7 @@ export class SystemStatusServer extends BaseAccessServer {
   constructor() {
     super(
       "access-mcp-system-status",
-      "0.1.0",
+      "0.3.0",
       "https://operations-api.access-ci.org",
     );
   }

@@ -163,5 +163,5 @@ const resources = await get_affinity_group_kb({
 ---
 
 **Package:** `@access-mcp/affinity-groups`  
-**Version:** v0.2.3  
+**Version:** v0.3.0  
 **Main:** `dist/index.js`

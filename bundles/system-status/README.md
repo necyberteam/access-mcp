@@ -1,46 +1,3 @@
-# MCP server for ACCESS-CI System Status and Outages API
-
-MCP server for ACCESS-CI System Status and Outages API
-
-## Installation
-
-### Download & Run
-1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
-2. Extract and locate the `system-status/index.js` file
-3. Add to Claude Desktop config:
-
-```json
-{
-  "mcpServers": {
-    "system-status": {
-      "command": "/path/to/system-status/index.js"
-    }
-  }
-}
-```
-
-### npm Package
-```bash
-npm install -g @access-mcp/system-status
-```
-
-```json
-{
-  "mcpServers": {
-    "system-status": {
-      "command": "npx",
-      "args": ["@access-mcp/system-status"]
-    }
-  }
-}
-```
-
-## Usage Examples
-
-<!-- TODO: Extract examples from server code -->
-
-## Development
-
 # System Status MCP Server
 
 MCP server providing real-time system status information for ACCESS-CI resources.
@@ -209,10 +166,3 @@ This server connects to the ACCESS-CI Operations API at `https://operations-api.
 ## License
 
 MIT
-
-
----
-
-**Package:** `@access-mcp/system-status`  
-**Version:** v0.3.0  
-**Main:** `dist/index.js`

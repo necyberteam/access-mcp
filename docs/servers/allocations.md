@@ -321,5 +321,5 @@ MIT
 ---
 
 **Package:** `@access-mcp/allocations`  
-**Version:** v0.2.0  
+**Version:** v0.3.0  
 **Main:** `dist/index.js`

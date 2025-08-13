@@ -18,7 +18,7 @@ export function startWebServer(port: number = 3000) {
     res.json({
       status: "ok",
       service: "access-mcp-affinity-groups",
-      version: "0.1.0",
+      version: "0.3.0",
     });
   });
 
@@ -26,7 +26,7 @@ export function startWebServer(port: number = 3000) {
   app.get("/api", (req, res) => {
     res.json({
       name: "ACCESS-CI Affinity Groups MCP Server",
-      version: "0.1.0",
+      version: "0.3.0",
       endpoints: {
         documentation: "/",
         health: "/health",

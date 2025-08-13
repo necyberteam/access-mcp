@@ -66,7 +66,7 @@ List all available software packages for a specific ACCESS-CI resource.
 
 **Parameters:**
 
-- `resource_id` (string): The resource ID (e.g., "expanse.sdsc.xsede.org")
+- `resource_id` (string): The resource ID (e.g., "expanse.sdsc.access-ci.org", legacy XSEDE format also supported)
 - `limit` (number, optional): Maximum number of results (default: 100)
 
 ### get_software_details
@@ -118,6 +118,14 @@ Add to your Claude Desktop configuration:
 ## Environment Variables
 
 - `SDS_API_KEY`: API key for the Software Discovery Service (required)
+
+## Resource ID Compatibility
+
+This server supports both current ACCESS-CI format and legacy XSEDE format resource IDs:
+
+- **Preferred format**: `anvil.purdue.access-ci.org`
+- **Legacy XSEDE format**: `anvil.purdue.xsede.org` (automatically converted)
+- **Other legacy formats**: `delta.ncsa.illinois.edu` (automatically converted)
 
 ## Usage Examples
 
@@ -171,7 +179,7 @@ const results = await search_software({
 **Tool Call**:
 ```typescript
 const software = await list_software_by_resource({
-  resource_id: "delta.ncsa.xsede.org",
+  resource_id: "delta.ncsa.access-ci.org",
   limit: 50
 });
 ```
@@ -190,7 +198,7 @@ const software = await list_software_by_resource({
 ```typescript
 const details = await get_software_details({
   software_name: "GROMACS",
-  resource_id: "expanse.sdsc.xsede.org"
+  resource_id: "expanse.sdsc.access-ci.org"
 });
 ```
 
@@ -230,5 +238,5 @@ MIT
 ---
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.2.3  
+**Version:** v0.3.0  
 **Main:** `dist/index.js`

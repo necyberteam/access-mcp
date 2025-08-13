@@ -60,7 +60,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
   private apiToken?: string;
 
   constructor() {
-    super("xdmod-metrics", "0.2.3", "https://xdmod.access-ci.org");
+    super("xdmod-metrics", "0.4.0", "https://xdmod.access-ci.org");
     
     // Get API token from environment variable OR process arguments
     this.apiToken = process.env.XDMOD_API_TOKEN;

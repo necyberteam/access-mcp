@@ -40999,7 +40999,7 @@ var {
   mergeConfig: mergeConfig2
 } = axios_default;
 
-// packages/shared/dist/base-server.js
+// packages/system-status/node_modules/@access-mcp/shared/dist/base-server.js
 var BaseAccessServer = class {
   serverName;
   version;
@@ -41096,7 +41096,7 @@ var BaseAccessServer = class {
   }
 };
 
-// packages/shared/dist/types.js
+// packages/system-status/node_modules/@access-mcp/shared/dist/types.js
 var AffinityGroupSchema = external_exports.object({
   group_id: external_exports.string(),
   name: external_exports.string().optional(),
@@ -41118,7 +41118,7 @@ var KnowledgeBaseResourceSchema = external_exports.object({
   tags: external_exports.array(external_exports.string()).optional()
 });
 
-// packages/shared/dist/utils.js
+// packages/system-status/node_modules/@access-mcp/shared/dist/utils.js
 function handleApiError(error) {
   if (error.response?.data?.message) {
     return error.response.data.message;
@@ -41132,7 +41132,7 @@ function handleApiError(error) {
 // packages/system-status/dist/server.js
 var SystemStatusServer = class extends BaseAccessServer {
   constructor() {
-    super("access-mcp-system-status", "0.1.0", "https://operations-api.access-ci.org");
+    super("access-mcp-system-status", "0.3.0", "https://operations-api.access-ci.org");
   }
   getTools() {
     return [
@@ -41465,7 +41465,7 @@ function startWebServer(port = 3e3) {
   app.get("/api/tools", (req, res) => {
     res.json({
       server: "ACCESS-CI System Status MCP Server",
-      version: "0.1.0",
+      version: "0.3.0",
       tools: [
         {
           name: "get_current_outages",

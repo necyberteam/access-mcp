@@ -33,7 +33,7 @@ describe("AffinityGroupsServer", () => {
     test("should have correct configuration", () => {
       // Test by using the public server interface
       expect(server["serverName"]).toBe("access-mcp-affinity-groups");
-      expect(server["version"]).toBe("0.1.0");
+      expect(server["version"]).toBe("0.3.0");
     });
   });
 });

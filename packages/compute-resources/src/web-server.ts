@@ -19,7 +19,7 @@ export function startWebServer(port: number = 3000) {
   app.get("/api/tools", (req, res) => {
     res.json({
       server: "ACCESS-CI Compute Resources MCP Server",
-      version: "0.1.0",
+      version: "0.3.0",
       tools: [
         {
           name: "list_compute_resources",

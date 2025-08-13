@@ -68,7 +68,7 @@ export class AllocationsServer extends BaseAccessServer {
   constructor() {
     super(
       "access-allocations",
-      "0.2.0",
+      "0.3.0",
       "https://allocations.access-ci.org",
     );
   }

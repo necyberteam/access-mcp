@@ -7,9 +7,32 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   constructor() {
     super(
       "access-mcp-software-discovery",
-      "0.1.0",
+      "0.3.0",
       "https://ara-db.ccs.uky.edu",
     );
+  }
+
+  /**
+   * Normalizes resource IDs to handle legacy XSEDE format and domain variations.
+   * This provides backward compatibility while the SDS API migrates to ACCESS-CI format.
+   * 
+   * @param resourceId - The resource ID to normalize
+   * @returns The normalized resource ID in ACCESS-CI format
+   */
+  private normalizeResourceId(resourceId: string): string {
+    // Convert old XSEDE format to new ACCESS-CI format
+    if (resourceId.includes('.xsede.org')) {
+      return resourceId.replace('.xsede.org', '.access-ci.org');
+    }
+    // Convert legacy domain variations
+    if (resourceId.includes('.illinois.edu')) {
+      return resourceId.replace('.illinois.edu', '.access-ci.org');
+    }
+    if (resourceId.includes('.edu')) {
+      return resourceId.replace('.edu', '.access-ci.org');  
+    }
+    // If already in correct format or unknown format, return as-is
+    return resourceId;
   }
 
   protected get sdsClient(): AxiosInstance {
@@ -18,7 +41,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         baseURL: "https://ara-db.ccs.uky.edu",
         timeout: 10000,
         headers: {
-          "User-Agent": "access-mcp-software-discovery/0.1.0",
+          "User-Agent": "access-mcp-software-discovery/0.3.0",
         },
         validateStatus: () => true,
       });
@@ -259,6 +282,9 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       };
     }
 
+    // Normalize the resource ID to handle legacy formats
+    const normalizedResourceId = this.normalizeResourceId(resourceId);
+
     const apiFields = [
       "software_name",
       "software_description",
@@ -269,7 +295,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     ];
 
     const response = await this.sdsClient.get(
-      `/api=API_0/${apiKey}/rp=${resourceId}?include=${apiFields.join(",")}`,
+      `/api=API_0/${apiKey}/rp=${normalizedResourceId}?include=${apiFields.join(",")}`,
     );
 
     if (response.status !== 200) {
@@ -280,6 +306,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             text: JSON.stringify(
               {
                 resource_id: resourceId,
+                normalized_resource_id: normalizedResourceId,
                 error: `SDS API error: ${response.status} ${response.statusText}`,
                 software: [],
               },
@@ -315,6 +342,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           text: JSON.stringify(
             {
               resource_id: resourceId,
+              normalized_resource_id: normalizedResourceId,
               total_packages: softwareList.length,
               search_query: searchQuery,
               software: softwareList.map((pkg: any) => ({
