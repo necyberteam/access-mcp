@@ -5,6 +5,7 @@ ACCESS-CI Software Discovery Service MCP server
 ## Installation
 
 ### Download & Run
+
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `software-discovery/index.js` file
 3. Add to Claude Desktop config:
@@ -20,6 +21,7 @@ ACCESS-CI Software Discovery Service MCP server
 ```
 
 ### npm Package
+
 ```bash
 npm install -g @access-mcp/software-discovery
 ```
@@ -160,13 +162,15 @@ This server supports both current ACCESS-CI format and legacy XSEDE format resou
 **Natural Language**: "Is PyTorch available on any ACCESS resources?"
 
 **Tool Call**:
+
 ```typescript
 const results = await search_software({
-  query: "PyTorch"
+  query: "PyTorch",
 });
 ```
 
 **Returns**: List of resources with PyTorch installed, including:
+
 - Available versions
 - Module names
 - Installation paths
@@ -177,14 +181,16 @@ const results = await search_software({
 **Natural Language**: "What software is available on Delta?"
 
 **Tool Call**:
+
 ```typescript
 const software = await list_software_by_resource({
   resource_id: "delta.ncsa.access-ci.org",
-  limit: 50
+  limit: 50,
 });
 ```
 
 **Returns**: Comprehensive software inventory including:
+
 - Application names and versions
 - Module load commands
 - Software categories
@@ -195,14 +201,16 @@ const software = await list_software_by_resource({
 **Natural Language**: "How do I use GROMACS on Expanse?"
 
 **Tool Call**:
+
 ```typescript
 const details = await get_software_details({
   software_name: "GROMACS",
-  resource_id: "expanse.sdsc.access-ci.org"
+  resource_id: "expanse.sdsc.access-ci.org",
 });
 ```
 
 **Returns**: Detailed usage information:
+
 - Module load commands
 - Environment setup
 - Example job scripts
@@ -214,13 +222,15 @@ const details = await get_software_details({
 **Natural Language**: "What bioinformatics tools are available?"
 
 **Tool Call**:
+
 ```typescript
 const biotools = await search_software_by_category({
-  category: "bioinformatics"
+  category: "bioinformatics",
 });
 ```
 
 **Returns**: Category-specific software across all resources:
+
 - Popular packages in the domain
 - Resource availability
 - Version compatibility
@@ -233,7 +243,6 @@ This server connects to the ACCESS-CI Software Discovery Service at `https://ara
 ## License
 
 MIT
-
 
 ---
 

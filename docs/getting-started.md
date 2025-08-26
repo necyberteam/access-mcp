@@ -11,7 +11,7 @@ Choose your installation method based on your needs:
 Install all ACCESS-CI MCP servers with one command:
 
 ```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/events
 ```
 
 _Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation._
@@ -58,6 +58,10 @@ Add servers to your Claude Desktop configuration file. (If the file "claude_desk
     "access-allocations": {
       "command": "npx",
       "args": ["@access-mcp/allocations"]
+    },
+    "access-events": {
+      "command": "npx",
+      "args": ["@access-mcp/events"]
     }
   }
 }
@@ -67,7 +71,6 @@ Add servers to your Claude Desktop configuration file. (If the file "claude_desk
 
 That's it! The commands are now available globally and Claude Desktop can use them.
 
-
 ## 🔧 Developers (npm packages)
 
 **Best for**: Developers building applications or custom integrations
@@ -76,7 +79,7 @@ That's it! The commands are now available globally and Claude Desktop can use th
 
 ```bash
 # Install all servers at once
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/events
 
 # Or install individual servers
 npm install -g @access-mcp/affinity-groups

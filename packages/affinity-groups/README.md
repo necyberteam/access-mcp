@@ -82,9 +82,10 @@ Add to your Claude Desktop configuration:
 **Natural Language**: "Tell me about the Bridges-2 affinity group"
 
 **Tool Call**:
+
 ```typescript
 const groupInfo = await get_affinity_group({
-  group_id: "bridges2.psc.access-ci.org"
+  group_id: "bridges2.psc.access-ci.org",
 });
 ```
 
@@ -95,9 +96,10 @@ const groupInfo = await get_affinity_group({
 **Natural Language**: "What events are coming up for GPU computing?"
 
 **Tool Call**:
+
 ```typescript
 const events = await get_affinity_group_events({
-  group_id: "gpu-computing.access-ci.org"
+  group_id: "gpu-computing.access-ci.org",
 });
 ```
 
@@ -108,9 +110,10 @@ const events = await get_affinity_group_events({
 **Natural Language**: "Find documentation for the Delta system"
 
 **Tool Call**:
+
 ```typescript
 const resources = await get_affinity_group_kb({
-  group_id: "delta.ncsa.access-ci.org"
+  group_id: "delta.ncsa.access-ci.org",
 });
 ```
 

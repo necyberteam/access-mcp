@@ -5,6 +5,7 @@ MCP server for ACCESS-CI Affinity Groups API
 ## Installation
 
 ### Download & Run
+
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `affinity-groups/index.js` file
 3. Add to Claude Desktop config:
@@ -20,6 +21,7 @@ MCP server for ACCESS-CI Affinity Groups API
 ```
 
 ### npm Package
+
 ```bash
 npm install -g @access-mcp/affinity-groups
 ```
@@ -125,9 +127,10 @@ Add to your Claude Desktop configuration:
 **Natural Language**: "Tell me about the Bridges-2 affinity group"
 
 **Tool Call**:
+
 ```typescript
 const groupInfo = await get_affinity_group({
-  group_id: "bridges2.psc.access-ci.org"
+  group_id: "bridges2.psc.access-ci.org",
 });
 ```
 
@@ -138,9 +141,10 @@ const groupInfo = await get_affinity_group({
 **Natural Language**: "What events are coming up for GPU computing?"
 
 **Tool Call**:
+
 ```typescript
 const events = await get_affinity_group_events({
-  group_id: "gpu-computing.access-ci.org"
+  group_id: "gpu-computing.access-ci.org",
 });
 ```
 
@@ -151,14 +155,14 @@ const events = await get_affinity_group_events({
 **Natural Language**: "Find documentation for the Delta system"
 
 **Tool Call**:
+
 ```typescript
 const resources = await get_affinity_group_kb({
-  group_id: "delta.ncsa.access-ci.org"
+  group_id: "delta.ncsa.access-ci.org",
 });
 ```
 
 **Returns**: Documentation, tutorials, best practices, and user guides.
-
 
 ---
 

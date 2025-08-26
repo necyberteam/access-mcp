@@ -90,7 +90,7 @@ Find NSF awards for a specific Principal Investigator.
 
 ### find_nsf_awards_by_personnel
 
-Search NSF awards by Principal Investigator name. 
+Search NSF awards by Principal Investigator name.
 
 **Note:** Co-PI and Program Officer searches are not reliable in the NSF API and have been removed.
 
@@ -157,14 +157,16 @@ Add to your Claude Desktop configuration:
 **Natural Language**: "Find active projects in machine learning"
 
 **Tool Call**:
+
 ```typescript
 const projects = await search_projects({
   query: "machine learning",
-  limit: 10
+  limit: 10,
 });
 ```
 
 **Returns**: List of projects with:
+
 - Project titles and abstracts
 - Principal Investigator information
 - Institution details
@@ -176,13 +178,15 @@ const projects = await search_projects({
 **Natural Language**: "Tell me about project TG-BIO210042"
 
 **Tool Call**:
+
 ```typescript
 const details = await get_project_details({
-  project_id: "TG-BIO210042"
+  project_id: "TG-BIO210042",
 });
 ```
 
 **Returns**: Comprehensive project information:
+
 - Full abstract and research goals
 - PI and Co-PI details
 - Allocated resources and usage
@@ -194,14 +198,16 @@ const details = await get_project_details({
 **Natural Language**: "Find projects similar to this genomics project"
 
 **Tool Call**:
+
 ```typescript
 const similar = await find_similar_projects({
   project_id: "TG-BIO210042",
-  limit: 5
+  limit: 5,
 });
 ```
 
 **Returns**: Related projects based on:
+
 - Research domain overlap
 - Methodology similarities
 - Resource usage patterns
@@ -212,13 +218,15 @@ const similar = await find_similar_projects({
 **Natural Language**: "Show me allocation statistics for computational chemistry"
 
 **Tool Call**:
+
 ```typescript
 const stats = await get_allocation_statistics({
-  pages_to_analyze: 10
+  pages_to_analyze: 10,
 });
 ```
 
 **Returns**: Statistical analysis including:
+
 - Total ACCESS Credits allocated
 - Distribution by field of science
 - Top institutions and PIs
@@ -230,13 +238,15 @@ const stats = await get_allocation_statistics({
 **Natural Language**: "Get details for NSF award 2138259"
 
 **Tool Call**:
+
 ```typescript
 const award = await get_nsf_award({
-  award_number: "2138259"
+  award_number: "2138259",
 });
 ```
 
 **Returns**: NSF award information:
+
 - Award title and abstract
 - Principal Investigator
 - Award amount
@@ -249,14 +259,16 @@ const award = await get_nsf_award({
 **Natural Language**: "Show me NSF awards for Shelley Knuth"
 
 **Tool Call**:
+
 ```typescript
 const awards = await find_nsf_awards_by_pi({
   pi_name: "Shelley Knuth",
-  limit: 10
+  limit: 10,
 });
 ```
 
 **Returns**: List of NSF awards including:
+
 - Award numbers and titles
 - Funding amounts
 - Award dates
@@ -266,6 +278,7 @@ const awards = await find_nsf_awards_by_pi({
 ## API Endpoints
 
 This server connects to:
+
 - ACCESS-CI Allocations portal at `https://allocations.access-ci.org`
 - NSF Awards Search at `https://www.nsf.gov/awardsearch/`
 

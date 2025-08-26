@@ -13,7 +13,6 @@ hero:
       link: https://github.com/necyberteam/access-mcp
 
 features:
-
   - title: Compute Resources
     details: Query hardware specifications, capabilities, and availability across ACCESS resources
   - title: System Status
@@ -26,11 +25,13 @@ features:
     details: Connect with ACCESS-CI communities, discover events, and access knowledge base resources
   - title: Research Allocations
     details: Discover active research projects, find collaborations, and analyze resource allocation trends
+  - title: Events
+    details: Find workshops, webinars, and training events with comprehensive filtering by date, type, skill level, and tags
 ---
 
 ## What is MCP?
 
-The Model Context Protocol (MCP) allows AI assistants to securely interact with external data sources.  
+The Model Context Protocol (MCP) allows AI assistants to securely interact with external data sources.
 
 ACCESS-CI MCP servers offer structured access to:
 
@@ -38,8 +39,9 @@ ACCESS-CI MCP servers offer structured access to:
 - **Real-time status** of system health and maintenance
 - **Software catalogs** across different ACCESS resources
 - **Usage analytics** and computational resource utilization metrics
-- **Community data** from affinity groups and events
+- **Community data** from affinity groups and knowledge bases
 - **Research projects** and allocation data for collaboration discovery
+- **Training events** with workshops, webinars, and learning opportunities
 
 ## Quick Example
 
@@ -59,7 +61,7 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 Install all ACCESS-CI MCP servers with one command (requires Node.js 18+):
 
 ```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/events
 ```
 
 Then add to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
@@ -96,6 +98,10 @@ Then add to your Claude Desktop config file (`~/Library/Application Support/Clau
     "access-allocations": {
       "command": "npx",
       "args": ["@access-mcp/allocations"]
+    },
+    "access-events": {
+      "command": "npx",
+      "args": ["@access-mcp/events"]
     }
   }
 }

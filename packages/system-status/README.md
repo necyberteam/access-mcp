@@ -98,11 +98,13 @@ Add to your Claude Desktop configuration:
 **Natural Language**: "Are there any systems down right now?"
 
 **Tool Call**:
+
 ```typescript
 const outages = await get_current_outages();
 ```
 
 **Returns**: List of active outages with:
+
 - Affected resources
 - Start time and expected resolution
 - Impact description
@@ -113,13 +115,15 @@ const outages = await get_current_outages();
 **Natural Language**: "When is Delta scheduled for maintenance?"
 
 **Tool Call**:
+
 ```typescript
 const maintenance = await get_scheduled_maintenance({
-  resource_filter: "delta"
+  resource_filter: "delta",
 });
 ```
 
 **Returns**: Upcoming maintenance windows including:
+
 - Scheduled start and end times
 - Systems affected
 - Type of maintenance
@@ -130,13 +134,15 @@ const maintenance = await get_scheduled_maintenance({
 **Natural Language**: "What are the latest announcements?"
 
 **Tool Call**:
+
 ```typescript
 const announcements = await get_system_announcements({
-  limit: 10
+  limit: 10,
 });
 ```
 
 **Returns**: Recent announcements about:
+
 - Policy changes
 - New features or services
 - Important deadlines
@@ -147,13 +153,15 @@ const announcements = await get_system_announcements({
 **Natural Language**: "Is Expanse available?"
 
 **Tool Call**:
+
 ```typescript
 const status = await get_resource_status({
-  resource_id: "expanse.sdsc.xsede.org"
+  resource_id: "expanse.sdsc.xsede.org",
 });
 ```
 
 **Returns**: Current operational status:
+
 - Overall system health
 - Service availability
 - Performance metrics

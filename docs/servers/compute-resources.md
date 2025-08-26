@@ -5,6 +5,7 @@ MCP server for ACCESS-CI Compute Resources API
 ## Installation
 
 ### Download & Run
+
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `compute-resources/index.js` file
 3. Add to Claude Desktop config:
@@ -20,6 +21,7 @@ MCP server for ACCESS-CI Compute Resources API
 ```
 
 ### npm Package
+
 ```bash
 npm install -g @access-mcp/compute-resources
 ```
@@ -125,6 +127,7 @@ Add to your Claude Desktop configuration:
 **Natural Language**: "Show me all available ACCESS-CI compute resources"
 
 **Tool Call**:
+
 ```typescript
 const resources = await list_compute_resources();
 ```
@@ -136,13 +139,15 @@ const resources = await list_compute_resources();
 **Natural Language**: "Tell me everything about the Expanse cluster"
 
 **Tool Call**:
+
 ```typescript
 const details = await get_compute_resource({
-  resource_id: "expanse.sdsc.xsede.org"
+  resource_id: "expanse.sdsc.xsede.org",
 });
 ```
 
 **Returns**: Comprehensive information including:
+
 - System architecture and configuration
 - Node types and counts
 - Storage systems
@@ -155,13 +160,15 @@ const details = await get_compute_resource({
 **Natural Language**: "What hardware does Delta have?"
 
 **Tool Call**:
+
 ```typescript
 const hardware = await get_resource_hardware({
-  resource_id: "delta.ncsa.xsede.org"
+  resource_id: "delta.ncsa.xsede.org",
 });
 ```
 
 **Returns**: Detailed hardware specifications:
+
 - CPU models and core counts
 - GPU models and configurations
 - Memory per node
@@ -175,7 +182,6 @@ This server connects to the ACCESS-CI Operations API at `https://operations-api.
 ## License
 
 MIT
-
 
 ---
 

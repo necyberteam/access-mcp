@@ -82,6 +82,7 @@ Add to your Claude Desktop configuration:
 **Natural Language**: "Show me all available ACCESS-CI compute resources"
 
 **Tool Call**:
+
 ```typescript
 const resources = await list_compute_resources();
 ```
@@ -93,13 +94,15 @@ const resources = await list_compute_resources();
 **Natural Language**: "Tell me everything about the Expanse cluster"
 
 **Tool Call**:
+
 ```typescript
 const details = await get_compute_resource({
-  resource_id: "expanse.sdsc.xsede.org"
+  resource_id: "expanse.sdsc.xsede.org",
 });
 ```
 
 **Returns**: Comprehensive information including:
+
 - System architecture and configuration
 - Node types and counts
 - Storage systems
@@ -112,13 +115,15 @@ const details = await get_compute_resource({
 **Natural Language**: "What hardware does Delta have?"
 
 **Tool Call**:
+
 ```typescript
 const hardware = await get_resource_hardware({
-  resource_id: "delta.ncsa.xsede.org"
+  resource_id: "delta.ncsa.xsede.org",
 });
 ```
 
 **Returns**: Detailed hardware specifications:
+
 - CPU models and core counts
 - GPU models and configurations
 - Memory per node

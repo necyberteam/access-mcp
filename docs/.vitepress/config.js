@@ -32,7 +32,7 @@ export default defineConfig({
     // Keep search functionality if needed
     search: {
       provider: "local",
-    }
+    },
   },
 
   // Enable SPA mode for better integration with ACCESS-CI UI

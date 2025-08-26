@@ -15,21 +15,21 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   /**
    * Normalizes resource IDs to handle legacy XSEDE format and domain variations.
    * This provides backward compatibility while the SDS API migrates to ACCESS-CI format.
-   * 
+   *
    * @param resourceId - The resource ID to normalize
    * @returns The normalized resource ID in ACCESS-CI format
    */
   private normalizeResourceId(resourceId: string): string {
     // Convert old XSEDE format to new ACCESS-CI format
-    if (resourceId.includes('.xsede.org')) {
-      return resourceId.replace('.xsede.org', '.access-ci.org');
+    if (resourceId.includes(".xsede.org")) {
+      return resourceId.replace(".xsede.org", ".access-ci.org");
     }
     // Convert legacy domain variations
-    if (resourceId.includes('.illinois.edu')) {
-      return resourceId.replace('.illinois.edu', '.access-ci.org');
+    if (resourceId.includes(".illinois.edu")) {
+      return resourceId.replace(".illinois.edu", ".access-ci.org");
     }
-    if (resourceId.includes('.edu')) {
-      return resourceId.replace('.edu', '.access-ci.org');  
+    if (resourceId.includes(".edu")) {
+      return resourceId.replace(".edu", ".access-ci.org");
     }
     // If already in correct format or unknown format, return as-is
     return resourceId;

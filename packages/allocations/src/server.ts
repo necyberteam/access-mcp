@@ -2,7 +2,7 @@ import { BaseAccessServer, handleApiError } from "@access-mcp/shared";
 
 /**
  * ACCESS-CI Allocations MCP Server
- * 
+ *
  * IMPORTANT CONTEXT FOR AI ASSISTANTS:
  * - ACCESS Credits are computational resource credits, NOT monetary currency
  * - They represent computing time/resources allocated to researchers
@@ -66,32 +66,32 @@ interface ProjectWithNSF extends Project {
 
 export class AllocationsServer extends BaseAccessServer {
   constructor() {
-    super(
-      "access-allocations",
-      "0.3.0",
-      "https://allocations.access-ci.org",
-    );
+    super("access-allocations", "0.3.0", "https://allocations.access-ci.org");
   }
 
   protected getTools() {
     return [
       {
         name: "search_projects",
-        description: "Search ACCESS-CI research projects by keyword, PI name, or institution",
+        description:
+          "Search ACCESS-CI research projects by keyword, PI name, or institution",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Search query for project titles, abstracts, PI names, or institutions",
+              description:
+                "Search query for project titles, abstracts, PI names, or institutions",
             },
             field_of_science: {
               type: "string",
-              description: "Filter by field of science (e.g., 'Computer Science', 'Physics')",
+              description:
+                "Filter by field of science (e.g., 'Computer Science', 'Physics')",
             },
             allocation_type: {
               type: "string",
-              description: "Filter by allocation type (e.g., 'Discover', 'Explore', 'Accelerate')",
+              description:
+                "Filter by allocation type (e.g., 'Discover', 'Explore', 'Accelerate')",
             },
             limit: {
               type: "number",
@@ -104,7 +104,8 @@ export class AllocationsServer extends BaseAccessServer {
       },
       {
         name: "get_project_details",
-        description: "Get detailed information about a specific research project",
+        description:
+          "Get detailed information about a specific research project",
         inputSchema: {
           type: "object",
           properties: {
@@ -124,7 +125,8 @@ export class AllocationsServer extends BaseAccessServer {
           properties: {
             field_of_science: {
               type: "string",
-              description: "Field of science (e.g., 'Computer Science', 'Physics', 'Chemistry')",
+              description:
+                "Field of science (e.g., 'Computer Science', 'Physics', 'Chemistry')",
             },
             limit: {
               type: "number",
@@ -143,7 +145,8 @@ export class AllocationsServer extends BaseAccessServer {
           properties: {
             resource_name: {
               type: "string",
-              description: "Resource name (e.g., 'NCSA Delta GPU', 'Purdue Anvil', 'ACCESS Credits')",
+              description:
+                "Resource name (e.g., 'NCSA Delta GPU', 'Purdue Anvil', 'ACCESS Credits')",
             },
             limit: {
               type: "number",
@@ -156,13 +159,15 @@ export class AllocationsServer extends BaseAccessServer {
       },
       {
         name: "get_allocation_statistics",
-        description: "Get statistics about resource allocations and research trends",
+        description:
+          "Get statistics about resource allocations and research trends",
         inputSchema: {
           type: "object",
           properties: {
             pages_to_analyze: {
               type: "number",
-              description: "Number of pages to analyze for statistics (default: 5, max: 20)",
+              description:
+                "Number of pages to analyze for statistics (default: 5, max: 20)",
               default: 5,
             },
           },
@@ -181,11 +186,13 @@ export class AllocationsServer extends BaseAccessServer {
             },
             keywords: {
               type: "string",
-              description: "Keywords to find similar projects (alternative to project_id)",
+              description:
+                "Keywords to find similar projects (alternative to project_id)",
             },
             limit: {
               type: "number",
-              description: "Maximum number of similar projects to return (default: 10)",
+              description:
+                "Maximum number of similar projects to return (default: 10)",
               default: 10,
             },
           },
@@ -208,7 +215,8 @@ export class AllocationsServer extends BaseAccessServer {
       },
       {
         name: "enrich_project_with_nsf",
-        description: "Enrich an ACCESS project with NSF award data by searching for matching PI and institution",
+        description:
+          "Enrich an ACCESS project with NSF award data by searching for matching PI and institution",
         inputSchema: {
           type: "object",
           properties: {
@@ -241,7 +249,8 @@ export class AllocationsServer extends BaseAccessServer {
       },
       {
         name: "find_nsf_awards_by_personnel",
-        description: "Search NSF awards by Principal Investigator name (Note: Co-PI and Program Officer searches are not reliable in the NSF API)",
+        description:
+          "Search NSF awards by Principal Investigator name (Note: Co-PI and Program Officer searches are not reliable in the NSF API)",
         inputSchema: {
           type: "object",
           properties: {
@@ -266,7 +275,8 @@ export class AllocationsServer extends BaseAccessServer {
       {
         uri: "accessci://allocations",
         name: "ACCESS-CI Research Projects and Allocations",
-        description: "Current research projects, allocations, and resource utilization data",
+        description:
+          "Current research projects, allocations, and resource utilization data",
         mimeType: "application/json",
       },
     ];
@@ -278,17 +288,32 @@ export class AllocationsServer extends BaseAccessServer {
     try {
       switch (name) {
         case "search_projects":
-          return await this.searchProjects(args.query, args.field_of_science, args.allocation_type, args.limit);
+          return await this.searchProjects(
+            args.query,
+            args.field_of_science,
+            args.allocation_type,
+            args.limit,
+          );
         case "get_project_details":
           return await this.getProjectDetails(args.project_id);
         case "list_projects_by_field":
-          return await this.listProjectsByField(args.field_of_science, args.limit);
+          return await this.listProjectsByField(
+            args.field_of_science,
+            args.limit,
+          );
         case "list_projects_by_resource":
-          return await this.listProjectsByResource(args.resource_name, args.limit);
+          return await this.listProjectsByResource(
+            args.resource_name,
+            args.limit,
+          );
         case "get_allocation_statistics":
           return await this.getAllocationStatistics(args.pages_to_analyze || 5);
         case "find_similar_projects":
-          return await this.findSimilarProjects(args.project_id, args.keywords, args.limit);
+          return await this.findSimilarProjects(
+            args.project_id,
+            args.keywords,
+            args.limit,
+          );
         case "get_nsf_award":
           return await this.getNSFAward(args.award_number);
         case "enrich_project_with_nsf":
@@ -296,7 +321,10 @@ export class AllocationsServer extends BaseAccessServer {
         case "find_nsf_awards_by_pi":
           return await this.findNSFAwardsByPI(args.pi_name, args.limit);
         case "find_nsf_awards_by_personnel":
-          return await this.findNSFAwardsByPersonnel(args.person_name, args.limit);
+          return await this.findNSFAwardsByPersonnel(
+            args.person_name,
+            args.limit,
+          );
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -328,7 +356,9 @@ export class AllocationsServer extends BaseAccessServer {
           ],
         };
       } catch (error) {
-        throw new Error(`Failed to fetch allocations data: ${handleApiError(error)}`);
+        throw new Error(
+          `Failed to fetch allocations data: ${handleApiError(error)}`,
+        );
       }
     }
 
@@ -338,7 +368,7 @@ export class AllocationsServer extends BaseAccessServer {
   // Core API methods
   private async fetchProjects(page: number = 1): Promise<ProjectsResponse> {
     const url = `${this.baseURL}/current-projects.json?page=${page}`;
-    
+
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -346,11 +376,18 @@ export class AllocationsServer extends BaseAccessServer {
       }
       return await response.json();
     } catch (error) {
-      throw new Error(`Failed to fetch projects: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to fetch projects: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
-  private async searchProjects(query: string, fieldOfScience?: string, allocationType?: string, limit: number = 20) {
+  private async searchProjects(
+    query: string,
+    fieldOfScience?: string,
+    allocationType?: string,
+    limit: number = 20,
+  ) {
     // Search through multiple pages to find matching projects
     const results: Project[] = [];
     let currentPage = 1;
@@ -358,14 +395,20 @@ export class AllocationsServer extends BaseAccessServer {
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
-      
+
       for (const project of data.projects) {
         if (results.length >= limit) break;
 
         // Check if project matches search criteria
         const matchesQuery = this.projectMatchesQuery(project, query);
-        const matchesField = !fieldOfScience || project.fos.toLowerCase().includes(fieldOfScience.toLowerCase());
-        const matchesType = !allocationType || project.allocationType.toLowerCase().includes(allocationType.toLowerCase());
+        const matchesField =
+          !fieldOfScience ||
+          project.fos.toLowerCase().includes(fieldOfScience.toLowerCase());
+        const matchesType =
+          !allocationType ||
+          project.allocationType
+            .toLowerCase()
+            .includes(allocationType.toLowerCase());
 
         if (matchesQuery && matchesField && matchesType) {
           results.push(project);
@@ -380,7 +423,10 @@ export class AllocationsServer extends BaseAccessServer {
       content: [
         {
           type: "text",
-          text: this.formatProjectResults(results, `Search results for "${query}"${fieldOfScience ? ` in ${fieldOfScience}` : ''}${allocationType ? ` (${allocationType})` : ''}`),
+          text: this.formatProjectResults(
+            results,
+            `Search results for "${query}"${fieldOfScience ? ` in ${fieldOfScience}` : ""}${allocationType ? ` (${allocationType})` : ""}`,
+          ),
         },
       ],
     };
@@ -404,8 +450,8 @@ export class AllocationsServer extends BaseAccessServer {
 
     while (currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
-      
-      const project = data.projects.find(p => p.projectId === projectId);
+
+      const project = data.projects.find((p) => p.projectId === projectId);
       if (project) {
         return {
           content: [
@@ -431,17 +477,20 @@ export class AllocationsServer extends BaseAccessServer {
     };
   }
 
-  private async listProjectsByField(fieldOfScience: string, limit: number = 20) {
+  private async listProjectsByField(
+    fieldOfScience: string,
+    limit: number = 20,
+  ) {
     const results: Project[] = [];
     let currentPage = 1;
     const maxPages = 10;
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
-      
+
       for (const project of data.projects) {
         if (results.length >= limit) break;
-        
+
         if (project.fos.toLowerCase().includes(fieldOfScience.toLowerCase())) {
           results.push(project);
         }
@@ -455,27 +504,35 @@ export class AllocationsServer extends BaseAccessServer {
       content: [
         {
           type: "text",
-          text: this.formatProjectResults(results, `Projects in ${fieldOfScience}`),
+          text: this.formatProjectResults(
+            results,
+            `Projects in ${fieldOfScience}`,
+          ),
         },
       ],
     };
   }
 
-  private async listProjectsByResource(resourceName: string, limit: number = 20) {
+  private async listProjectsByResource(
+    resourceName: string,
+    limit: number = 20,
+  ) {
     const results: Project[] = [];
     let currentPage = 1;
     const maxPages = 10;
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
-      
+
       for (const project of data.projects) {
         if (results.length >= limit) break;
-        
-        const hasResource = project.resources.some(resource => 
-          resource.resourceName.toLowerCase().includes(resourceName.toLowerCase())
+
+        const hasResource = project.resources.some((resource) =>
+          resource.resourceName
+            .toLowerCase()
+            .includes(resourceName.toLowerCase()),
         );
-        
+
         if (hasResource) {
           results.push(project);
         }
@@ -489,7 +546,10 @@ export class AllocationsServer extends BaseAccessServer {
       content: [
         {
           type: "text",
-          text: this.formatProjectResults(results, `Projects using ${resourceName}`),
+          text: this.formatProjectResults(
+            results,
+            `Projects using ${resourceName}`,
+          ),
         },
       ],
     };
@@ -506,15 +566,24 @@ export class AllocationsServer extends BaseAccessServer {
     for (let page = 1; page <= Math.min(pagesToAnalyze, 20); page++) {
       const data = await this.fetchProjects(page);
       projects.push(...data.projects);
-      
+
       // Update statistics
       for (const project of data.projects) {
         fieldsMap.set(project.fos, (fieldsMap.get(project.fos) || 0) + 1);
-        institutionsMap.set(project.piInstitution, (institutionsMap.get(project.piInstitution) || 0) + 1);
-        allocationTypesMap.set(project.allocationType, (allocationTypesMap.get(project.allocationType) || 0) + 1);
-        
+        institutionsMap.set(
+          project.piInstitution,
+          (institutionsMap.get(project.piInstitution) || 0) + 1,
+        );
+        allocationTypesMap.set(
+          project.allocationType,
+          (allocationTypesMap.get(project.allocationType) || 0) + 1,
+        );
+
         for (const resource of project.resources) {
-          resourcesMap.set(resource.resourceName, (resourcesMap.get(resource.resourceName) || 0) + 1);
+          resourcesMap.set(
+            resource.resourceName,
+            (resourcesMap.get(resource.resourceName) || 0) + 1,
+          );
         }
       }
     }
@@ -523,17 +592,18 @@ export class AllocationsServer extends BaseAccessServer {
     const topFields = Array.from(fieldsMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
-    
+
     const topResources = Array.from(resourcesMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
-    
+
     const topInstitutions = Array.from(institutionsMap.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
 
-    const allocationTypes = Array.from(allocationTypesMap.entries())
-      .sort((a, b) => b[1] - a[1]);
+    const allocationTypes = Array.from(allocationTypesMap.entries()).sort(
+      (a, b) => b[1] - a[1],
+    );
 
     let statsText = `📊 **ACCESS-CI Allocation Statistics**\n`;
     statsText += `*(Analysis of ${projects.length} projects from ${pagesToAnalyze} pages)*\n\n`;
@@ -568,7 +638,11 @@ export class AllocationsServer extends BaseAccessServer {
     };
   }
 
-  private async findSimilarProjects(projectId?: number, keywords?: string, limit: number = 10) {
+  private async findSimilarProjects(
+    projectId?: number,
+    keywords?: string,
+    limit: number = 10,
+  ) {
     let referenceProject: Project | null = null;
     let searchTerms: string = "";
 
@@ -579,7 +653,8 @@ export class AllocationsServer extends BaseAccessServer {
 
       while (currentPage <= maxPages && !referenceProject) {
         const data = await this.fetchProjects(currentPage);
-        referenceProject = data.projects.find(p => p.projectId === projectId) || null;
+        referenceProject =
+          data.projects.find((p) => p.projectId === projectId) || null;
         currentPage++;
       }
 
@@ -595,7 +670,10 @@ export class AllocationsServer extends BaseAccessServer {
       }
 
       // Extract key terms from reference project
-      searchTerms = [referenceProject.fos, ...referenceProject.abstract.split(' ').slice(0, 5)].join(' ');
+      searchTerms = [
+        referenceProject.fos,
+        ...referenceProject.abstract.split(" ").slice(0, 5),
+      ].join(" ");
     } else if (keywords) {
       searchTerms = keywords;
     } else {
@@ -616,16 +694,25 @@ export class AllocationsServer extends BaseAccessServer {
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
-      
+
       for (const project of data.projects) {
         if (results.length >= limit) break;
-        
+
         // Skip the reference project itself
-        if (referenceProject && project.projectId === referenceProject.projectId) continue;
+        if (
+          referenceProject &&
+          project.projectId === referenceProject.projectId
+        )
+          continue;
 
         // Check similarity based on field of science and abstract keywords
-        const similarity = this.calculateProjectSimilarity(project, searchTerms, referenceProject?.fos);
-        if (similarity > 0.3) { // Threshold for similarity
+        const similarity = this.calculateProjectSimilarity(
+          project,
+          searchTerms,
+          referenceProject?.fos,
+        );
+        if (similarity > 0.3) {
+          // Threshold for similarity
           results.push(project);
         }
       }
@@ -634,7 +721,7 @@ export class AllocationsServer extends BaseAccessServer {
       if (currentPage > data.pages) break;
     }
 
-    const header = referenceProject 
+    const header = referenceProject
       ? `Projects similar to "${referenceProject.requestTitle}" (${referenceProject.pi})`
       : `Projects similar to keywords: "${keywords}"`;
 
@@ -648,19 +735,35 @@ export class AllocationsServer extends BaseAccessServer {
     };
   }
 
-  private calculateProjectSimilarity(project: Project, searchTerms: string, referenceField?: string): number {
+  private calculateProjectSimilarity(
+    project: Project,
+    searchTerms: string,
+    referenceField?: string,
+  ): number {
     let score = 0;
-    
+
     // Field of science match
-    if (referenceField && project.fos.toLowerCase() === referenceField.toLowerCase()) {
+    if (
+      referenceField &&
+      project.fos.toLowerCase() === referenceField.toLowerCase()
+    ) {
       score += 0.5;
     }
 
     // Abstract keyword matching
-    const projectText = (project.abstract + ' ' + project.requestTitle).toLowerCase();
-    const keywords = searchTerms.toLowerCase().split(' ').filter(word => word.length > 3);
-    
-    const matchingKeywords = keywords.filter(keyword => projectText.includes(keyword));
+    const projectText = (
+      project.abstract +
+      " " +
+      project.requestTitle
+    ).toLowerCase();
+    const keywords = searchTerms
+      .toLowerCase()
+      .split(" ")
+      .filter((word) => word.length > 3);
+
+    const matchingKeywords = keywords.filter((keyword) =>
+      projectText.includes(keyword),
+    );
     score += (matchingKeywords.length / keywords.length) * 0.5;
 
     return score;
@@ -670,7 +773,7 @@ export class AllocationsServer extends BaseAccessServer {
   private async getNSFAward(awardNumber: string) {
     try {
       const nsfData = await this.fetchNSFAwardData(awardNumber);
-      
+
       return {
         content: [
           {
@@ -699,7 +802,7 @@ export class AllocationsServer extends BaseAccessServer {
 
     while (currentPage <= maxPages && !project) {
       const data = await this.fetchProjects(currentPage);
-      project = data.projects.find(p => p.projectId === projectId) || null;
+      project = data.projects.find((p) => p.projectId === projectId) || null;
       currentPage++;
     }
 
@@ -717,13 +820,17 @@ export class AllocationsServer extends BaseAccessServer {
     // Try to find NSF awards by searching for the PI
     try {
       const nsfAwards = await this.searchNSFAwardsByPI(project.pi, 5);
-      
+
       if (nsfAwards.length === 0) {
         return {
           content: [
             {
               type: "text",
-              text: this.formatProjectWithNSF(project, null, `No NSF awards found for PI: ${project.pi}`),
+              text: this.formatProjectWithNSF(
+                project,
+                null,
+                `No NSF awards found for PI: ${project.pi}`,
+              ),
             },
           ],
         };
@@ -731,7 +838,7 @@ export class AllocationsServer extends BaseAccessServer {
 
       // Use the first matching award (could be enhanced with better matching logic)
       const bestMatch = nsfAwards[0];
-      
+
       return {
         content: [
           {
@@ -745,7 +852,11 @@ export class AllocationsServer extends BaseAccessServer {
         content: [
           {
             type: "text",
-            text: this.formatProjectWithNSF(project, null, `Error searching for NSF awards: ${error instanceof Error ? error.message : String(error)}`),
+            text: this.formatProjectWithNSF(
+              project,
+              null,
+              `Error searching for NSF awards: ${error instanceof Error ? error.message : String(error)}`,
+            ),
           },
         ],
       };
@@ -755,15 +866,16 @@ export class AllocationsServer extends BaseAccessServer {
   private async findNSFAwardsByPI(piName: string, limit: number = 10) {
     try {
       const awards = await this.searchNSFAwardsByPI(piName, limit);
-      
+
       if (awards.length === 0) {
         return {
           content: [
             {
               type: "text",
-              text: `No NSF awards found for PI: ${piName}\n\n` +
-                   `**Tip:** Try searching with different name formats or check spelling. ` +
-                   `You can also try \`find_nsf_awards_by_personnel\` to search across all roles.`,
+              text:
+                `No NSF awards found for PI: ${piName}\n\n` +
+                `**Tip:** Try searching with different name formats or check spelling. ` +
+                `You can also try \`find_nsf_awards_by_personnel\` to search across all roles.`,
             },
           ],
         };
@@ -773,7 +885,10 @@ export class AllocationsServer extends BaseAccessServer {
         content: [
           {
             type: "text",
-            text: this.formatNSFAwardsList(awards, `NSF Awards for PI: ${piName}`),
+            text: this.formatNSFAwardsList(
+              awards,
+              `NSF Awards for PI: ${piName}`,
+            ),
           },
         ],
       };
@@ -789,20 +904,23 @@ export class AllocationsServer extends BaseAccessServer {
     }
   }
 
-
-  private async findNSFAwardsByPersonnel(personName: string, limit: number = 10) {
+  private async findNSFAwardsByPersonnel(
+    personName: string,
+    limit: number = 10,
+  ) {
     try {
       const awards = await this.searchNSFAwardsByPI(personName, limit);
-      
+
       if (awards.length === 0) {
         return {
           content: [
             {
               type: "text",
-              text: `No NSF awards found for ${personName} as Principal Investigator.\n\n` +
-                   `**Searched:** Principal Investigator role only\n` +
-                   `**Note:** Co-PI and Program Officer searches are not reliable in the NSF API\n` +
-                   `**Tip:** Check spelling or try searching for specific award numbers.`,
+              text:
+                `No NSF awards found for ${personName} as Principal Investigator.\n\n` +
+                `**Searched:** Principal Investigator role only\n` +
+                `**Note:** Co-PI and Program Officer searches are not reliable in the NSF API\n` +
+                `**Tip:** Check spelling or try searching for specific award numbers.`,
             },
           ],
         };
@@ -812,7 +930,10 @@ export class AllocationsServer extends BaseAccessServer {
         content: [
           {
             type: "text",
-            text: this.formatNSFAwardsList(awards, `NSF Awards for PI: ${personName}`),
+            text: this.formatNSFAwardsList(
+              awards,
+              `NSF Awards for PI: ${personName}`,
+            ),
           },
         ],
       };
@@ -830,7 +951,7 @@ export class AllocationsServer extends BaseAccessServer {
 
   private formatNSFAwardsList(awards: NSFAward[], title: string): string {
     let result = `🏆 **${title}**\n\n`;
-    result += `Found ${awards.length} award${awards.length > 1 ? 's' : ''}:\n\n`;
+    result += `Found ${awards.length} award${awards.length > 1 ? "s" : ""}:\n\n`;
 
     awards.forEach((award, index) => {
       result += `**${index + 1}. ${award.title}**\n`;
@@ -842,7 +963,7 @@ export class AllocationsServer extends BaseAccessServer {
       result += `\n`;
       result += `• **PI:** ${award.principalInvestigator}\n`;
       if (award.coPIs.length > 0) {
-        result += `• **Co-PIs:** ${award.coPIs.join(', ')}\n`;
+        result += `• **Co-PIs:** ${award.coPIs.join(", ")}\n`;
       }
       result += `• **Total Award:** ${award.totalIntendedAward}\n`;
       result += `• **Period:** ${award.startDate} to ${award.endDate}\n`;
@@ -864,132 +985,142 @@ export class AllocationsServer extends BaseAccessServer {
   // NSF Data Fetching Methods
   private async fetchNSFAwardData(awardNumber: string): Promise<NSFAward> {
     // Use the NSF API instead of HTML parsing for better reliability
-    const printFields = 'id,agency,awardee,awardeeName,startDate,expDate,estimatedTotalAmt,fundsObligatedAmt,poName,title,abstractText,piFirstName,piLastName,coPDPI,awardeeCity,awardeeCountryCode,awardeeDistrictCode,awardeeStateCode,primaryProgram,transType';
+    const printFields =
+      "id,agency,awardee,awardeeName,startDate,expDate,estimatedTotalAmt,fundsObligatedAmt,poName,title,abstractText,piFirstName,piLastName,coPDPI,awardeeCity,awardeeCountryCode,awardeeDistrictCode,awardeeStateCode,primaryProgram,transType";
     const apiUrl = `https://www.research.gov/awardapi-service/v1/awards.json?id=${awardNumber}&printFields=${printFields}`;
-    
+
     try {
       const response = await fetch(apiUrl);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
       const awards = this.parseNSFAPIResponse(data, 1);
-      
+
       if (awards.length === 0) {
         throw new Error(`Award ${awardNumber} not found`);
       }
-      
+
       return awards[0];
     } catch (error) {
-      throw new Error(`Failed to fetch NSF award ${awardNumber}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to fetch NSF award ${awardNumber}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
-
-  private async searchNSFAwardsByPI(piName: string, limit: number): Promise<NSFAward[]> {
+  private async searchNSFAwardsByPI(
+    piName: string,
+    limit: number,
+  ): Promise<NSFAward[]> {
     try {
       // Try multiple search formats, prioritizing last name (most effective)
       const searchVariations = [
-        piName.split(' ').pop() || piName, // "Smith" (last name only) - MOST EFFECTIVE
+        piName.split(" ").pop() || piName, // "Smith" (last name only) - MOST EFFECTIVE
         piName.trim(), // "John Smith" (full name with space)
-        piName.trim().replace(/\s+/g, '+'), // "John+Smith" (full name with plus)
-        piName.split(' ')[0] || piName // "John" (first name only) - least precise
+        piName.trim().replace(/\s+/g, "+"), // "John+Smith" (full name with plus)
+        piName.split(" ")[0] || piName, // "John" (first name only) - least precise
       ];
-      
+
       for (const searchTerm of searchVariations) {
         // Construct NSF API URL with comprehensive field list
-        const printFields = 'id,agency,awardee,awardeeName,startDate,expDate,estimatedTotalAmt,fundsObligatedAmt,poName,title,abstractText,piFirstName,piLastName,coPDPI,awardeeCity,awardeeCountryCode,awardeeDistrictCode,awardeeStateCode,primaryProgram,transType';
+        const printFields =
+          "id,agency,awardee,awardeeName,startDate,expDate,estimatedTotalAmt,fundsObligatedAmt,poName,title,abstractText,piFirstName,piLastName,coPDPI,awardeeCity,awardeeCountryCode,awardeeDistrictCode,awardeeStateCode,primaryProgram,transType";
         const apiUrl = `https://www.research.gov/awardapi-service/v1/awards.json?pdPIName=${encodeURIComponent(searchTerm)}&rpp=${Math.min(limit * 4, 100)}&printFields=${printFields}`;
-        
+
         const response = await fetch(apiUrl);
         if (!response.ok) {
           continue; // Try next variation
         }
-        
+
         const data = await response.json();
         const allResults = this.parseNSFAPIResponse(data, limit * 4); // Get more results to filter
-        
+
         // Filter results to match the searched PI name more precisely
-        const filteredResults = allResults.filter(award => {
+        const filteredResults = allResults.filter((award) => {
           return this.nameMatches(award.principalInvestigator, piName);
         });
-        
+
         if (filteredResults.length > 0) {
           return filteredResults.slice(0, limit); // Return filtered results up to limit
         }
-        
+
         // Continue to next search variation instead of returning unfiltered results
       }
-      
+
       return []; // No results found with any variation
-      
     } catch (error) {
       console.warn(`Failed to search NSF awards for ${piName}:`, error);
       return [];
     }
   }
 
-
-
-
   private parseNSFAPIResponse(data: any, limit: number): NSFAward[] {
     const awards: NSFAward[] = [];
-    
+
     try {
       // NSF API response structure: data.response.award[]
       const apiAwards = data?.response?.award || [];
-      
+
       for (let i = 0; i < Math.min(apiAwards.length, limit); i++) {
         const award = apiAwards[i];
-        
+
         // Extract award information from API response based on actual structure
-        const awardNumber = award.id || 'Unknown';
+        const awardNumber = award.id || "Unknown";
         const title = award.title || `NSF Award ${awardNumber}`;
-        const institution = award.awardee || award.awardeeName || 'Institution not available';
-        
+        const institution =
+          award.awardee || award.awardeeName || "Institution not available";
+
         // Extract PI name from API response
-        const pi = award.piFirstName && award.piLastName 
-          ? `${award.piFirstName} ${award.piLastName}`.trim()
-          : award.piFirstName || award.piLastName || 'PI not available';
-        
+        const pi =
+          award.piFirstName && award.piLastName
+            ? `${award.piFirstName} ${award.piLastName}`.trim()
+            : award.piFirstName || award.piLastName || "PI not available";
+
         // Extract dates (API uses startDate and expDate)
-        const startDate = award.startDate || 'Date not available';
-        const endDate = award.expDate || 'End date not available';
-        
+        const startDate = award.startDate || "Date not available";
+        const endDate = award.expDate || "End date not available";
+
         // Extract funding amount
-        let amount = 'Amount not available';
+        let amount = "Amount not available";
         if (award.estimatedTotalAmt) {
           amount = `$${Number(award.estimatedTotalAmt).toLocaleString()}`;
         } else if (award.fundsObligatedAmt) {
           amount = `$${Number(award.fundsObligatedAmt).toLocaleString()}`;
         }
-        
+
         // Extract geographic information
-        const location = this.formatLocation(award.awardeeCity, award.awardeeStateCode, award.awardeeCountryCode);
-        
+        const location = this.formatLocation(
+          award.awardeeCity,
+          award.awardeeStateCode,
+          award.awardeeCountryCode,
+        );
+
         // Extract program information
-        const programOfficer = award.poName || 'Program Officer not available';
-        const awardType = award.transType || 'Award type not available';
-        const primaryProgram = award.primaryProgram && award.primaryProgram.length > 0 
-          ? award.primaryProgram[0] 
-          : 'Program not available';
-        
+        const programOfficer = award.poName || "Program Officer not available";
+        const awardType = award.transType || "Award type not available";
+        const primaryProgram =
+          award.primaryProgram && award.primaryProgram.length > 0
+            ? award.primaryProgram[0]
+            : "Program not available";
+
         // Extract abstract
-        const abstract = award.abstractText || award.abstract || 'Abstract not available';
-        
+        const abstract =
+          award.abstractText || award.abstract || "Abstract not available";
+
         // Extract Co-PIs if available (structure may vary)
         const coPIs: string[] = [];
         if (award.coPDPI && Array.isArray(award.coPDPI)) {
           award.coPDPI.forEach((copi: any) => {
-            if (typeof copi === 'string') {
+            if (typeof copi === "string") {
               coPIs.push(copi);
             } else if (copi.firstName && copi.lastName) {
               coPIs.push(`${copi.firstName} ${copi.lastName}`.trim());
             }
           });
         }
-        
+
         awards.push({
           awardNumber,
           title,
@@ -1005,45 +1136,54 @@ export class AllocationsServer extends BaseAccessServer {
           programOfficer,
           awardType,
           primaryProgram,
-          fundingHistory: []
+          fundingHistory: [],
         });
       }
     } catch (error) {
-      console.warn('Failed to parse NSF API response:', error);
+      console.warn("Failed to parse NSF API response:", error);
     }
-    
+
     return awards;
   }
 
-
   // Helper Methods
-  private formatLocation(city?: string, state?: string, country?: string): string {
+  private formatLocation(
+    city?: string,
+    state?: string,
+    country?: string,
+  ): string {
     const parts = [];
     if (city) parts.push(city);
     if (state) parts.push(state);
-    if (country && country !== 'US') parts.push(country);
-    return parts.length > 0 ? parts.join(', ') : 'Location not available';
+    if (country && country !== "US") parts.push(country);
+    return parts.length > 0 ? parts.join(", ") : "Location not available";
   }
 
   private nameMatches(fullName: string, searchName: string): boolean {
-    const searchWords = searchName.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    const nameWords = fullName.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    
+    const searchWords = searchName
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+    const nameWords = fullName
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
     // For exact matching, we want either:
     // 1. All search words appear as complete words in the name
     // 2. If searching for "First Last", check if first name matches and last name matches
-    
+
     if (searchWords.length === 1) {
       // Single word search - should match any word in the name
-      return nameWords.some(word => word === searchWords[0]);
+      return nameWords.some((word) => word === searchWords[0]);
     } else if (searchWords.length === 2) {
       // Two word search - likely "First Last" - check for exact first/last match
       const [searchFirst, searchLast] = searchWords;
       return nameWords.includes(searchFirst) && nameWords.includes(searchLast);
     } else {
       // Multi-word search - all words must be present as complete words
-      return searchWords.every(searchWord => 
-        nameWords.some(nameWord => nameWord === searchWord)
+      return searchWords.every((searchWord) =>
+        nameWords.some((nameWord) => nameWord === searchWord),
       );
     }
   }
@@ -1054,29 +1194,33 @@ export class AllocationsServer extends BaseAccessServer {
     result += `**Award Number:** ${award.awardNumber}\n`;
     result += `**Title:** ${award.title}\n`;
     result += `**Institution:** ${award.institution}\n\n`;
-    
+
     result += `**Principal Investigator:** ${award.principalInvestigator}\n`;
     if (award.coPIs.length > 0) {
-      result += `**Co-Principal Investigators:** ${award.coPIs.join(', ')}\n`;
+      result += `**Co-Principal Investigators:** ${award.coPIs.join(", ")}\n`;
     }
     result += `\n`;
-    
+
     result += `**Funding Information:**\n`;
     result += `• Total Intended Award: ${award.totalIntendedAward}\n`;
     result += `• Total Awarded to Date: ${award.totalAwardedToDate}\n\n`;
-    
+
     result += `**Project Timeline:**\n`;
     result += `• Start Date: ${award.startDate}\n`;
     result += `• End Date: ${award.endDate}\n\n`;
-    
+
     result += `**Abstract:**\n${award.abstract}\n`;
-    
+
     return result;
   }
 
-  private formatProjectWithNSF(project: Project, nsfAward: NSFAward | null, errorMessage?: string): string {
+  private formatProjectWithNSF(
+    project: Project,
+    nsfAward: NSFAward | null,
+    errorMessage?: string,
+  ): string {
     let result = `🔬 **ACCESS Project with NSF Award Context**\n\n`;
-    
+
     // ACCESS Project Information
     result += `**ACCESS Project:**\n`;
     result += `• **Title:** ${project.requestTitle}\n`;
@@ -1084,15 +1228,21 @@ export class AllocationsServer extends BaseAccessServer {
     result += `• **PI:** ${project.pi} (${project.piInstitution})\n`;
     result += `• **Field:** ${project.fos}\n`;
     result += `• **Period:** ${project.beginDate} to ${project.endDate}\n\n`;
-    
+
     if (project.resources.length > 0) {
-      const resourceSummaries = project.resources.map(r => {
-        const allocation = this.formatAllocation(r.allocation || 0, r.units, r.resourceName);
-        return allocation ? `${r.resourceName} (${allocation})` : r.resourceName;
+      const resourceSummaries = project.resources.map((r) => {
+        const allocation = this.formatAllocation(
+          r.allocation || 0,
+          r.units,
+          r.resourceName,
+        );
+        return allocation
+          ? `${r.resourceName} (${allocation})`
+          : r.resourceName;
       });
-      result += `• **ACCESS Resources:** ${resourceSummaries.join(', ')}\n\n`;
+      result += `• **ACCESS Resources:** ${resourceSummaries.join(", ")}\n\n`;
     }
-    
+
     // NSF Award Information
     if (nsfAward) {
       result += `**🏆 Related NSF Award:**\n`;
@@ -1100,7 +1250,7 @@ export class AllocationsServer extends BaseAccessServer {
       result += `• **Title:** ${nsfAward.title}\n`;
       result += `• **Total Award:** ${nsfAward.totalIntendedAward}\n`;
       result += `• **NSF Period:** ${nsfAward.startDate} to ${nsfAward.endDate}\n\n`;
-      
+
       result += `**💰 Funding vs Resources Analysis:**\n`;
       result += `This ACCESS allocation supports computational work funded by NSF award ${nsfAward.awardNumber} (${nsfAward.totalIntendedAward}). `;
       result += `The project spans ${project.beginDate} to ${project.endDate} on ACCESS resources.\n\n`;
@@ -1109,39 +1259,45 @@ export class AllocationsServer extends BaseAccessServer {
     } else {
       result += `**NSF Award:** No matching NSF awards found for this project.\n\n`;
     }
-    
+
     result += `**ACCESS Project Abstract:**\n${project.abstract}\n`;
-    
+
     return result;
   }
 
   // Formatting helpers
-  private formatAllocation(allocation: number, units: string | null, resourceName: string): string {
+  private formatAllocation(
+    allocation: number,
+    units: string | null,
+    resourceName: string,
+  ): string {
     // Smart formatting for different resource types
     // IMPORTANT: ACCESS Credits are computational credits, NOT monetary values
     // They should never be displayed with dollar signs or currency formatting
     if (!allocation || !units) {
-      return '';
+      return "";
     }
 
     // ACCESS Credits should never have dollar signs
-    if (units.toLowerCase().includes('access credits') || 
-        resourceName.toLowerCase().includes('access credits')) {
+    if (
+      units.toLowerCase().includes("access credits") ||
+      resourceName.toLowerCase().includes("access credits")
+    ) {
       return `${allocation.toLocaleString()} ACCESS Credits`;
     }
 
     // Handle specific unit types
     switch (units.toLowerCase()) {
-      case 'su':
-      case 'sus':
+      case "su":
+      case "sus":
         return `${allocation.toLocaleString()} SUs (Service Units)`;
-      case 'gpu hours':
+      case "gpu hours":
         return `${allocation.toLocaleString()} GPU Hours`;
-      case 'core-hours':
+      case "core-hours":
         return `${allocation.toLocaleString()} Core-Hours`;
-      case 'gb':
+      case "gb":
         return `${allocation.toLocaleString()} GB`;
-      case 'tb':
+      case "tb":
         return `${allocation.toLocaleString()} TB`;
       default:
         // For unknown units, avoid currency formatting
@@ -1155,7 +1311,7 @@ export class AllocationsServer extends BaseAccessServer {
     }
 
     let result = `${title}\n\n`;
-    result += `Found ${projects.length} project${projects.length > 1 ? 's' : ''}:\n\n`;
+    result += `Found ${projects.length} project${projects.length > 1 ? "s" : ""}:\n\n`;
 
     projects.forEach((project, index) => {
       result += `**${index + 1}. ${project.requestTitle}**\n`;
@@ -1164,19 +1320,26 @@ export class AllocationsServer extends BaseAccessServer {
       result += `• **Type:** ${project.allocationType}\n`;
       result += `• **Period:** ${project.beginDate} to ${project.endDate}\n`;
       result += `• **Project ID:** ${project.projectId}\n`;
-      
+
       if (project.resources.length > 0) {
-        const resourceSummaries = project.resources.map(r => {
-          const allocation = this.formatAllocation(r.allocation || 0, r.units, r.resourceName);
-          return allocation ? `${r.resourceName} (${allocation})` : r.resourceName;
+        const resourceSummaries = project.resources.map((r) => {
+          const allocation = this.formatAllocation(
+            r.allocation || 0,
+            r.units,
+            r.resourceName,
+          );
+          return allocation
+            ? `${r.resourceName} (${allocation})`
+            : r.resourceName;
         });
-        result += `• **Resources:** ${resourceSummaries.join(', ')}\n`;
+        result += `• **Resources:** ${resourceSummaries.join(", ")}\n`;
       }
-      
+
       // Show first 150 characters of abstract
-      const abstractPreview = project.abstract.length > 150 
-        ? project.abstract.substring(0, 150) + '...'
-        : project.abstract;
+      const abstractPreview =
+        project.abstract.length > 150
+          ? project.abstract.substring(0, 150) + "..."
+          : project.abstract;
       result += `• **Abstract:** ${abstractPreview}\n\n`;
     });
 
@@ -1188,21 +1351,25 @@ export class AllocationsServer extends BaseAccessServer {
     result += `**Title:** ${project.requestTitle}\n`;
     result += `**Project ID:** ${project.projectId}\n`;
     result += `**Request Number:** ${project.requestNumber}\n\n`;
-    
+
     result += `**Principal Investigator:** ${project.pi}\n`;
     result += `**Institution:** ${project.piInstitution}\n`;
     result += `**Field of Science:** ${project.fos}\n`;
     result += `**Allocation Type:** ${project.allocationType}\n\n`;
-    
+
     result += `**Project Period:**\n`;
     result += `• Start: ${project.beginDate}\n`;
     result += `• End: ${project.endDate}\n\n`;
-    
+
     if (project.resources.length > 0) {
       result += `**Allocated Resources:**\n`;
-      project.resources.forEach(resource => {
+      project.resources.forEach((resource) => {
         result += `• **${resource.resourceName}**`;
-        const allocation = this.formatAllocation(resource.allocation || 0, resource.units, resource.resourceName);
+        const allocation = this.formatAllocation(
+          resource.allocation || 0,
+          resource.units,
+          resource.resourceName,
+        );
         if (allocation) {
           result += `: ${allocation}`;
         }
@@ -1210,9 +1377,9 @@ export class AllocationsServer extends BaseAccessServer {
       });
       result += `\n`;
     }
-    
+
     result += `**Abstract:**\n${project.abstract}\n`;
-    
+
     return result;
   }
 }

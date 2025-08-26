@@ -19,7 +19,6 @@ interface XDMoDStatistic {
   leaf?: boolean;
 }
 
-
 // NSF Award interfaces
 interface NSFAward {
   awardNumber: string;
@@ -61,18 +60,18 @@ class XDMoDMetricsServer extends BaseAccessServer {
 
   constructor() {
     super("xdmod-metrics", "0.4.0", "https://xdmod.access-ci.org");
-    
+
     // Get API token from environment variable OR process arguments
     this.apiToken = process.env.XDMOD_API_TOKEN;
-    
+
     // Also check for token in command line arguments (for Claude Desktop config)
     const args = process.argv;
-    const tokenArgIndex = args.findIndex(arg => arg === '--api-token');
+    const tokenArgIndex = args.findIndex((arg) => arg === "--api-token");
     if (tokenArgIndex !== -1 && tokenArgIndex + 1 < args.length) {
       this.apiToken = args[tokenArgIndex + 1];
       // console.log(`[XDMoD] Using API token from command line argument`);
     }
-    
+
     // Debug logging (commented out for production)
     // console.log(`[XDMoD] API Token present: ${!!this.apiToken}`);
     // console.log(`[XDMoD] Token source: ${process.env.XDMOD_API_TOKEN ? 'environment' : (tokenArgIndex !== -1 ? 'command-line' : 'none')}`);
@@ -86,12 +85,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
     const headers: Record<string, string> = {
       "Content-Type": "application/x-www-form-urlencoded",
     };
-    
+
     if (this.apiToken) {
       // XDMoD uses "Token" header (not Authorization)
       headers["Token"] = this.apiToken;
     }
-    
+
     return headers;
   }
 
@@ -148,7 +147,8 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             statistic: {
               type: "string",
-              description: 'The statistic name (e.g., "total_cpu_hours", "gpu_time")',
+              description:
+                'The statistic name (e.g., "total_cpu_hours", "gpu_time")',
             },
             start_date: {
               type: "string",
@@ -171,14 +171,15 @@ class XDMoDMetricsServer extends BaseAccessServer {
               default: "line",
             },
             combine_type: {
-              type: "string", 
+              type: "string",
               description: 'How to combine data (default: "side")',
               enum: ["side", "stack", "percent"],
               default: "side",
             },
             limit: {
               type: "number",
-              description: "Maximum number of data series to return (default: 10)",
+              description:
+                "Maximum number of data series to return (default: 10)",
               default: 10,
             },
             offset: {
@@ -194,10 +195,11 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             filters: {
               type: "object",
-              description: "Optional filters to apply (e.g., {resource: 'delta.ncsa.xsede.org'})",
+              description:
+                "Optional filters to apply (e.g., {resource: 'delta.ncsa.xsede.org'})",
               additionalProperties: {
-                type: "string"
-              }
+                type: "string",
+              },
             },
           },
           required: [
@@ -226,7 +228,8 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             statistic: {
               type: "string",
-              description: 'The statistic name (e.g., "total_cpu_hours", "gpu_time")',
+              description:
+                'The statistic name (e.g., "total_cpu_hours", "gpu_time")',
             },
             start_date: {
               type: "string",
@@ -265,14 +268,15 @@ class XDMoDMetricsServer extends BaseAccessServer {
               default: "line",
             },
             combine_type: {
-              type: "string", 
+              type: "string",
               description: 'How to combine data (default: "side")',
               enum: ["side", "stack", "percent"],
               default: "side",
             },
             limit: {
               type: "number",
-              description: "Maximum number of data series to return (default: 10)",
+              description:
+                "Maximum number of data series to return (default: 10)",
               default: 10,
             },
             offset: {
@@ -288,10 +292,11 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             filters: {
               type: "object",
-              description: "Optional filters to apply (e.g., {resource: 'delta.ncsa.xsede.org'})",
+              description:
+                "Optional filters to apply (e.g., {resource: 'delta.ncsa.xsede.org'})",
               additionalProperties: {
-                type: "string"
-              }
+                type: "string",
+              },
             },
           },
           required: [
@@ -319,7 +324,8 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             statistic: {
               type: "string",
-              description: 'The statistic name (e.g., "total_cpu_hours", "gpu_time")',
+              description:
+                'The statistic name (e.g., "total_cpu_hours", "gpu_time")',
             },
           },
           required: ["realm", "group_by", "statistic"],
@@ -333,13 +339,15 @@ class XDMoDMetricsServer extends BaseAccessServer {
     tools.push(
       {
         name: "get_usage_with_nsf_context",
-        description: "Get XDMoD usage data enriched with NSF funding context for a researcher or institution",
+        description:
+          "Get XDMoD usage data enriched with NSF funding context for a researcher or institution",
         inputSchema: {
           type: "object",
           properties: {
             researcher_name: {
               type: "string",
-              description: "Researcher name to analyze (will search both XDMoD usage and NSF awards)",
+              description:
+                "Researcher name to analyze (will search both XDMoD usage and NSF awards)",
             },
             realm: {
               type: "string",
@@ -347,7 +355,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
               default: "Jobs",
             },
             start_date: {
-              type: "string", 
+              type: "string",
               description: "Start date for usage analysis in YYYY-MM-DD format",
             },
             end_date: {
@@ -356,7 +364,8 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             limit: {
               type: "number",
-              description: "Maximum number of NSF awards to include (default: 5)",
+              description:
+                "Maximum number of NSF awards to include (default: 5)",
               default: 5,
             },
           },
@@ -365,7 +374,8 @@ class XDMoDMetricsServer extends BaseAccessServer {
       },
       {
         name: "analyze_funding_vs_usage",
-        description: "Compare NSF funding amounts with actual XDMoD computational usage patterns",
+        description:
+          "Compare NSF funding amounts with actual XDMoD computational usage patterns",
         inputSchema: {
           type: "object",
           properties: {
@@ -375,7 +385,8 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             usage_metric: {
               type: "string",
-              description: 'XDMoD metric to analyze (e.g., "total_cpu_hours", "gpu_time")',
+              description:
+                'XDMoD metric to analyze (e.g., "total_cpu_hours", "gpu_time")',
               default: "total_cpu_hours",
             },
             start_date: {
@@ -383,7 +394,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
               description: "Start date for analysis in YYYY-MM-DD format",
             },
             end_date: {
-              type: "string", 
+              type: "string",
               description: "End date for analysis in YYYY-MM-DD format",
             },
           },
@@ -392,17 +403,19 @@ class XDMoDMetricsServer extends BaseAccessServer {
       },
       {
         name: "institutional_research_profile",
-        description: "Generate a comprehensive research profile combining XDMoD usage patterns with NSF funding for an institution",
+        description:
+          "Generate a comprehensive research profile combining XDMoD usage patterns with NSF funding for an institution",
         inputSchema: {
           type: "object",
           properties: {
             institution_name: {
               type: "string",
-              description: "Institution name to analyze (e.g., 'University of Colorado Boulder')",
+              description:
+                "Institution name to analyze (e.g., 'University of Colorado Boulder')",
             },
             start_date: {
               type: "string",
-              description: "Start date for analysis in YYYY-MM-DD format", 
+              description: "Start date for analysis in YYYY-MM-DD format",
             },
             end_date: {
               type: "string",
@@ -410,13 +423,14 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             top_researchers: {
               type: "number",
-              description: "Number of top researchers to highlight (default: 10)",
+              description:
+                "Number of top researchers to highlight (default: 10)",
               default: 10,
             },
           },
           required: ["institution_name", "start_date", "end_date"],
         },
-      }
+      },
     );
 
     // Always add debug tool
@@ -490,26 +504,30 @@ class XDMoDMetricsServer extends BaseAccessServer {
         });
 
       case "get_chart_link":
-        return await this.getChartLink(args.realm, args.group_by, args.statistic);
+        return await this.getChartLink(
+          args.realm,
+          args.group_by,
+          args.statistic,
+        );
 
       case "debug_auth_status":
         return await this.debugAuthStatus();
 
       case "get_usage_with_nsf_context":
         return await this.getUsageWithNSFContext(
-          args.researcher_name, 
+          args.researcher_name,
           args.realm || "Jobs",
           args.start_date,
           args.end_date,
-          args.limit || 5
+          args.limit || 5,
         );
 
       case "analyze_funding_vs_usage":
         return await this.analyzeFundingVsUsage(
           args.nsf_award_number,
-          args.usage_metric || "total_cpu_hours", 
+          args.usage_metric || "total_cpu_hours",
           args.start_date,
-          args.end_date
+          args.end_date,
         );
 
       case "institutional_research_profile":
@@ -517,7 +535,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
           args.institution_name,
           args.start_date,
           args.end_date,
-          args.top_researchers || 10
+          args.top_researchers || 10,
         );
 
       // Data Analytics Framework cases removed
@@ -811,8 +829,8 @@ class XDMoDMetricsServer extends BaseAccessServer {
       if (params.format === "png") {
         // For PNG, get binary data and convert to base64
         const imageBuffer = await response.arrayBuffer();
-        const base64Data = Buffer.from(imageBuffer).toString('base64');
-        
+        const base64Data = Buffer.from(imageBuffer).toString("base64");
+
         // Return with MCP-compliant image format that was working
         return {
           content: [
@@ -836,30 +854,31 @@ class XDMoDMetricsServer extends BaseAccessServer {
       } else {
         // For SVG and other text formats
         const imageData = await response.text();
-        
+
         if (params.format === "svg") {
           // For SVG, provide helpful message about using PNG instead
           return {
             content: [
               {
                 type: "text",
-                text: `SVG Chart for ${params.statistic} (${params.realm})\n\n` +
-                      `⚠️ SVG format doesn't display directly in Claude Desktop.\n\n` +
-                      `**Recommended:** Use PNG format for direct image display:\n` +
-                      `\`\`\`\n` +
-                      `format: "png"\n` +
-                      `\`\`\`\n\n` +
-                      `**Chart Details:**\n` +
-                      `- Statistic: ${params.statistic}\n` +
-                      `- Realm: ${params.realm}\n` +
-                      `- Group By: ${params.group_by}\n` +
-                      `- Date Range: ${params.start_date} to ${params.end_date}\n` +
-                      `- Size: ${params.width}x${params.height} pixels\n\n` +
-                      `**To view this SVG chart:**\n` +
-                      `1. Copy the SVG code below\n` +
-                      `2. Save it to a .svg file and open in your browser\n\n` +
-                      `\`\`\`svg\n${imageData}\n\`\`\``
-              }
+                text:
+                  `SVG Chart for ${params.statistic} (${params.realm})\n\n` +
+                  `⚠️ SVG format doesn't display directly in Claude Desktop.\n\n` +
+                  `**Recommended:** Use PNG format for direct image display:\n` +
+                  `\`\`\`\n` +
+                  `format: "png"\n` +
+                  `\`\`\`\n\n` +
+                  `**Chart Details:**\n` +
+                  `- Statistic: ${params.statistic}\n` +
+                  `- Realm: ${params.realm}\n` +
+                  `- Group By: ${params.group_by}\n` +
+                  `- Date Range: ${params.start_date} to ${params.end_date}\n` +
+                  `- Size: ${params.width}x${params.height} pixels\n\n` +
+                  `**To view this SVG chart:**\n` +
+                  `1. Copy the SVG code below\n` +
+                  `2. Save it to a .svg file and open in your browser\n\n` +
+                  `\`\`\`svg\n${imageData}\n\`\`\``,
+              },
             ],
           };
         } else {
@@ -889,18 +908,23 @@ class XDMoDMetricsServer extends BaseAccessServer {
     }
   }
 
-  private async getChartLink(realm: string, groupBy: string, statistic: string) {
+  private async getChartLink(
+    realm: string,
+    groupBy: string,
+    statistic: string,
+  ) {
     // Construct the URL parameters for XDMoD portal
     const urlParams = new URLSearchParams({
-      node: 'statistic',
+      node: "statistic",
       realm: realm,
       group_by: groupBy,
-      statistic: statistic
+      statistic: statistic,
     });
 
     const chartUrl = `https://xdmod.access-ci.org/index.php#tg_usage?${urlParams.toString()}`;
 
-    const responseText = `Direct link to view chart in XDMoD portal:\n\n${chartUrl}\n\n` +
+    const responseText =
+      `Direct link to view chart in XDMoD portal:\n\n${chartUrl}\n\n` +
       `**Chart Parameters:**\n` +
       `- Realm: ${realm}\n` +
       `- Group By: ${groupBy}\n` +
@@ -921,54 +945,59 @@ class XDMoDMetricsServer extends BaseAccessServer {
   private async debugAuthStatus() {
     const envToken = process.env.XDMOD_API_TOKEN;
     const args = process.argv;
-    const tokenArgIndex = args.findIndex(arg => arg === '--api-token');
-    const argToken = tokenArgIndex !== -1 && tokenArgIndex + 1 < args.length ? args[tokenArgIndex + 1] : null;
-    
+    const tokenArgIndex = args.findIndex((arg) => arg === "--api-token");
+    const argToken =
+      tokenArgIndex !== -1 && tokenArgIndex + 1 < args.length
+        ? args[tokenArgIndex + 1]
+        : null;
+
     // Get all environment variables that might be relevant
-    const allEnvVars = Object.keys(process.env).filter(key => 
-      key.includes('XDMOD') || key.includes('TOKEN') || key.includes('API')
+    const allEnvVars = Object.keys(process.env).filter(
+      (key) =>
+        key.includes("XDMOD") || key.includes("TOKEN") || key.includes("API"),
     );
-    
+
     return {
       content: [
         {
           type: "text",
-          text: `🔍 **XDMoD Authentication Debug Information**\n\n` +
-                `**Environment Variables:**\n` +
-                `- XDMOD_API_TOKEN present: ${!!envToken}\n` +
-                `- Token length: ${envToken ? envToken.length : 'N/A'}\n` +
-                `- Token preview: ${envToken ? envToken.substring(0, 10) + '...' : 'N/A'}\n` +
-                `- All relevant env vars: ${allEnvVars.join(', ') || 'none'}\n\n` +
-                `**Command Line Arguments:**\n` +
-                `- Process argv: ${JSON.stringify(args)}\n` +
-                `- --api-token argument: ${!!argToken}\n` +
-                `- Arg token length: ${argToken ? argToken.length : 'N/A'}\n` +
-                `- Arg token preview: ${argToken ? argToken.substring(0, 10) + '...' : 'N/A'}\n\n` +
-                `**Current Configuration:**\n` +
-                `- API Token active: ${this.isAuthenticated()}\n` +
-                `- Active token length: ${this.apiToken ? this.apiToken.length : 'N/A'}\n` +
-                `- Active token preview: ${this.apiToken ? this.apiToken.substring(0, 10) + '...' : 'N/A'}\n` +
-                `- Token source: ${this.apiToken === envToken ? 'environment' : (this.apiToken === argToken ? 'command-line' : 'unknown')}\n\n` +
-                `**Available Tools:**\n` +
-                `- get_dimensions: ✅\n` +
-                `- get_statistics: ✅\n` +
-                `- get_chart_data: ✅\n` +
-                `- get_chart_image: ✅\n` +
-                `- get_chart_link: ✅\n` +
-                `- get_nsf_award: ✅\n` +
-                `- find_nsf_awards_by_pi: ✅\n` +
-                `- find_nsf_awards_by_personnel: ✅\n` +
-                `- get_usage_with_nsf_context: ✅ (NSF-enhanced)\n` +
-                `- analyze_funding_vs_usage: ✅ (NSF-enhanced)\n` +
-                `- institutional_research_profile: ✅ (NSF-enhanced)\n` +
-                `- debug_auth_status: ✅\n` +
-                `- get_current_user: ❌ (moved to user-specific.ts)\n` +
-                `- get_my_usage: ❌ (moved to user-specific.ts)\n\n` +
-                `**Troubleshooting:**\n` +
-                `Environment variable should be set in Claude Desktop config under "env" section.\n` +
-                `If still not working, the environment variable might not be passed correctly by Claude Desktop.`
-        }
-      ]
+          text:
+            `🔍 **XDMoD Authentication Debug Information**\n\n` +
+            `**Environment Variables:**\n` +
+            `- XDMOD_API_TOKEN present: ${!!envToken}\n` +
+            `- Token length: ${envToken ? envToken.length : "N/A"}\n` +
+            `- Token preview: ${envToken ? envToken.substring(0, 10) + "..." : "N/A"}\n` +
+            `- All relevant env vars: ${allEnvVars.join(", ") || "none"}\n\n` +
+            `**Command Line Arguments:**\n` +
+            `- Process argv: ${JSON.stringify(args)}\n` +
+            `- --api-token argument: ${!!argToken}\n` +
+            `- Arg token length: ${argToken ? argToken.length : "N/A"}\n` +
+            `- Arg token preview: ${argToken ? argToken.substring(0, 10) + "..." : "N/A"}\n\n` +
+            `**Current Configuration:**\n` +
+            `- API Token active: ${this.isAuthenticated()}\n` +
+            `- Active token length: ${this.apiToken ? this.apiToken.length : "N/A"}\n` +
+            `- Active token preview: ${this.apiToken ? this.apiToken.substring(0, 10) + "..." : "N/A"}\n` +
+            `- Token source: ${this.apiToken === envToken ? "environment" : this.apiToken === argToken ? "command-line" : "unknown"}\n\n` +
+            `**Available Tools:**\n` +
+            `- get_dimensions: ✅\n` +
+            `- get_statistics: ✅\n` +
+            `- get_chart_data: ✅\n` +
+            `- get_chart_image: ✅\n` +
+            `- get_chart_link: ✅\n` +
+            `- get_nsf_award: ✅\n` +
+            `- find_nsf_awards_by_pi: ✅\n` +
+            `- find_nsf_awards_by_personnel: ✅\n` +
+            `- get_usage_with_nsf_context: ✅ (NSF-enhanced)\n` +
+            `- analyze_funding_vs_usage: ✅ (NSF-enhanced)\n` +
+            `- institutional_research_profile: ✅ (NSF-enhanced)\n` +
+            `- debug_auth_status: ✅\n` +
+            `- get_current_user: ❌ (moved to user-specific.ts)\n` +
+            `- get_my_usage: ❌ (moved to user-specific.ts)\n\n` +
+            `**Troubleshooting:**\n` +
+            `Environment variable should be set in Claude Desktop config under "env" section.\n` +
+            `If still not working, the environment variable might not be passed correctly by Claude Desktop.`,
+        },
+      ],
     };
   }
 
@@ -984,12 +1013,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
     realm: string,
     startDate: string,
     endDate: string,
-    limit: number
+    limit: number,
   ) {
     try {
       // Search for NSF awards for this researcher
       const nsfAwards = await this.searchNSFAwardsByPI(researcherName, limit);
-      
+
       // Get XDMoD usage statistics for the same period
       // Note: This would ideally filter by user, but public XDMoD API doesn't support user filtering
       // So we provide general usage context instead
@@ -1006,7 +1035,13 @@ class XDMoDMetricsServer extends BaseAccessServer {
         content: [
           {
             type: "text",
-            text: this.formatUsageWithNSFContext(researcherName, nsfAwards, usageData, startDate, endDate),
+            text: this.formatUsageWithNSFContext(
+              researcherName,
+              nsfAwards,
+              usageData,
+              startDate,
+              endDate,
+            ),
           },
         ],
       };
@@ -1026,12 +1061,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
     awardNumber: string,
     usageMetric: string,
     startDate: string,
-    endDate: string
+    endDate: string,
   ) {
     try {
       // Get NSF award details
       const nsfAward = await this.fetchNSFAwardData(awardNumber);
-      
+
       // Get corresponding XDMoD usage data
       const usageData = await this.getChartData({
         realm: "Jobs", // Default to Jobs realm
@@ -1046,7 +1081,13 @@ class XDMoDMetricsServer extends BaseAccessServer {
         content: [
           {
             type: "text",
-            text: this.formatFundingVsUsageAnalysis(nsfAward, usageData, usageMetric, startDate, endDate),
+            text: this.formatFundingVsUsageAnalysis(
+              nsfAward,
+              usageData,
+              usageMetric,
+              startDate,
+              endDate,
+            ),
           },
         ],
       };
@@ -1066,12 +1107,15 @@ class XDMoDMetricsServer extends BaseAccessServer {
     institutionName: string,
     startDate: string,
     endDate: string,
-    topResearchers: number
+    topResearchers: number,
   ) {
     try {
       // Search for NSF awards by institution (using institution name as keyword)
-      const institutionAwards = await this.searchNSFAwardsByInstitution(institutionName, topResearchers * 2);
-      
+      const institutionAwards = await this.searchNSFAwardsByInstitution(
+        institutionName,
+        topResearchers * 2,
+      );
+
       // Get XDMoD aggregate usage data for the period
       const usageData = await this.getChartData({
         realm: "Jobs",
@@ -1086,7 +1130,14 @@ class XDMoDMetricsServer extends BaseAccessServer {
         content: [
           {
             type: "text",
-            text: this.formatInstitutionalProfile(institutionName, institutionAwards, usageData, topResearchers, startDate, endDate),
+            text: this.formatInstitutionalProfile(
+              institutionName,
+              institutionAwards,
+              usageData,
+              topResearchers,
+              startDate,
+              endDate,
+            ),
           },
         ],
       };
@@ -1104,64 +1155,69 @@ class XDMoDMetricsServer extends BaseAccessServer {
 
   // Enhanced formatting methods for integrated NSF-XDMoD analysis
   private formatUsageWithNSFContext(
-    researcherName: string, 
-    nsfAwards: NSFAward[], 
+    researcherName: string,
+    nsfAwards: NSFAward[],
     usageData: any,
     startDate: string,
-    endDate: string
+    endDate: string,
   ): string {
     let result = `🔬 **Research Profile: ${researcherName}**\n\n`;
-    
+
     let totalFunding = 0;
-    
+
     // NSF Funding Context
     if (nsfAwards.length > 0) {
-      result += `🏆 **NSF Funding Portfolio** (${nsfAwards.length} award${nsfAwards.length === 1 ? '' : 's'}):\n\n`;
+      result += `🏆 **NSF Funding Portfolio** (${nsfAwards.length} award${nsfAwards.length === 1 ? "" : "s"}):\n\n`;
       for (const award of nsfAwards) {
         result += `• **${award.awardNumber}**: ${award.title}\n`;
         result += `  - Amount: ${award.totalIntendedAward}\n`;
         result += `  - Period: ${award.startDate} to ${award.endDate}\n`;
         result += `  - Institution: ${award.institution}\n\n`;
-        
+
         // Try to extract numeric amount for totaling
         if (award.totalIntendedAward) {
           const match = award.totalIntendedAward.match(/[\d,]+/);
           if (match) {
-            const amount = parseFloat(match[0].replace(/,/g, ''));
+            const amount = parseFloat(match[0].replace(/,/g, ""));
             if (!isNaN(amount)) totalFunding += amount;
           }
         }
       }
-      
+
       if (totalFunding > 0) {
         result += `**Total NSF Funding**: $${totalFunding.toLocaleString()}\n\n`;
       }
     } else {
       result += `**NSF Funding**: No recent NSF awards found for ${researcherName}\n\n`;
     }
-    
+
     // XDMoD Usage Context
     result += `📊 **ACCESS-CI Usage Context** (${startDate} to ${endDate}):\n\n`;
     result += `*Note: XDMoD public API provides system-wide metrics. Individual user usage*\n`;
     result += `*data requires authentication and is not available in this analysis.*\n\n`;
-    
+
     if (usageData?.content?.[0]?.text) {
       // Extract key metrics from usage data
       const usageText = usageData.content[0].text;
-      if (usageText.includes('CPU hours')) {
+      if (usageText.includes("CPU hours")) {
         result += `**System-wide CPU Usage**: Available in detailed XDMoD analysis above\n`;
       }
     }
-    
+
     // Integration insights
     result += `\n---\n**🔗 Research Integration Insights:**\n\n`;
-    
+
     if (nsfAwards.length > 0 && totalFunding > 0) {
       result += `• ${researcherName} has received $${totalFunding.toLocaleString()} in NSF funding\n`;
-      result += `• Research areas: ${nsfAwards.map(a => a.primaryProgram).filter(p => p).join(', ') || 'Various'}\n`;
+      result += `• Research areas: ${
+        nsfAwards
+          .map((a) => a.primaryProgram)
+          .filter((p) => p)
+          .join(", ") || "Various"
+      }\n`;
       result += `• This funding likely supports computational work on ACCESS-CI resources\n`;
-      result += `• Use XDMoD institutional analysis to see usage patterns at ${nsfAwards[0]?.institution || 'their institution'}\n\n`;
-      
+      result += `• Use XDMoD institutional analysis to see usage patterns at ${nsfAwards[0]?.institution || "their institution"}\n\n`;
+
       result += `**💡 Recommendations:**\n`;
       result += `• Cross-reference award periods with XDMoD usage spikes\n`;
       result += `• Analyze computational requirements vs. funding amounts\n`;
@@ -1171,7 +1227,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
       result += `• Consider searching variations of the researcher name\n`;
       result += `• Institutional analysis may reveal collaborative usage patterns\n`;
     }
-    
+
     return result;
   }
 
@@ -1180,10 +1236,10 @@ class XDMoDMetricsServer extends BaseAccessServer {
     usageData: any,
     usageMetric: string,
     startDate: string,
-    endDate: string
+    endDate: string,
   ): string {
     let result = `💰 **Funding vs. Usage Analysis**\n\n`;
-    
+
     // NSF Award Summary
     result += `🏆 **NSF Award ${nsfAward.awardNumber}**\n`;
     result += `• **Title**: ${nsfAward.title}\n`;
@@ -1191,54 +1247,60 @@ class XDMoDMetricsServer extends BaseAccessServer {
     result += `• **Institution**: ${nsfAward.institution}\n`;
     result += `• **Award Amount**: ${nsfAward.totalIntendedAward}\n`;
     result += `• **Award Period**: ${nsfAward.startDate} to ${nsfAward.endDate}\n\n`;
-    
+
     // Usage Analysis Period
     result += `📊 **Computational Usage Analysis** (${startDate} to ${endDate}):\n`;
     result += `• **Metric Analyzed**: ${usageMetric}\n`;
     result += `• **Analysis Period**: ${startDate} to ${endDate}\n\n`;
-    
+
     // Usage Data Context
     if (usageData?.content?.[0]?.text) {
       result += `**System-wide Usage During Analysis Period:**\n`;
       result += `*Note: Individual project usage requires authentication*\n\n`;
-      
+
       // Try to extract meaningful metrics from the usage data
       const usageText = usageData.content[0].text;
-      if (usageText.includes('CPU hours') || usageText.includes('total_cpu_hours')) {
+      if (
+        usageText.includes("CPU hours") ||
+        usageText.includes("total_cpu_hours")
+      ) {
         result += `• ACCESS-CI systems show active computational usage during this period\n`;
         result += `• Detailed metrics available through authenticated XDMoD access\n`;
       }
     }
-    
+
     result += `\n---\n**🔍 Analysis Insights:**\n\n`;
-    
+
     // Temporal Analysis
     const awardStartYear = new Date(nsfAward.startDate).getFullYear();
     const awardEndYear = new Date(nsfAward.endDate).getFullYear();
     const analysisStartYear = new Date(startDate).getFullYear();
     const analysisEndYear = new Date(endDate).getFullYear();
-    
-    if (analysisStartYear >= awardStartYear && analysisEndYear <= awardEndYear) {
+
+    if (
+      analysisStartYear >= awardStartYear &&
+      analysisEndYear <= awardEndYear
+    ) {
       result += `• ✅ Analysis period falls within NSF award timeframe\n`;
       result += `• This computational usage likely relates to funded research activities\n`;
     } else {
       result += `• ⚠️  Analysis period extends beyond NSF award timeframe\n`;
       result += `• Usage may include follow-up work or other funding sources\n`;
     }
-    
-    result += `• **Research Domain**: ${nsfAward.primaryProgram || 'General NSF research'}\n`;
+
+    result += `• **Research Domain**: ${nsfAward.primaryProgram || "General NSF research"}\n`;
     result += `• **Computational Focus**: ${nsfAward.abstract.substring(0, 200)}...\n\n`;
-    
+
     result += `**💡 Research Impact Indicators:**\n`;
     result += `• NSF investment of ${nsfAward.totalIntendedAward} supports computational research\n`;
     result += `• ACCESS-CI provides the cyberinfrastructure platform for this work\n`;
     result += `• Usage patterns can indicate research productivity and impact\n\n`;
-    
+
     result += `**🔧 Deeper Analysis Recommendations:**\n`;
     result += `• Use authenticated XDMoD access for specific user/project metrics\n`;
     result += `• Correlate usage spikes with publication dates or milestones\n`;
     result += `• Compare similar awards to benchmark computational intensity\n`;
-    
+
     return result;
   }
 
@@ -1248,21 +1310,20 @@ class XDMoDMetricsServer extends BaseAccessServer {
     usageData: any,
     topResearchers: number,
     startDate: string,
-    endDate: string
+    endDate: string,
   ): string {
     let result = `🏛️ **Institutional Research Profile: ${institutionName}**\n\n`;
-    
+
     // NSF Funding Overview
     result += `🏆 **NSF Research Portfolio** (${startDate} to ${endDate}):\n\n`;
-    
+
     let totalFunding = 0;
     const researchAreas = new Set<string>();
     const topPIs = new Map<string, number>();
-    
+
     if (awards.length > 0) {
-      
       result += `**Active NSF Awards**: ${awards.length}\n\n`;
-      
+
       // Analyze awards
       for (const award of awards.slice(0, topResearchers)) {
         result += `• **${award.awardNumber}**: ${award.title}\n`;
@@ -1273,32 +1334,32 @@ class XDMoDMetricsServer extends BaseAccessServer {
           researchAreas.add(award.primaryProgram);
         }
         result += `\n`;
-        
+
         // Track PI activity
         const piCount = topPIs.get(award.principalInvestigator) || 0;
         topPIs.set(award.principalInvestigator, piCount + 1);
-        
+
         // Sum funding
         if (award.totalIntendedAward) {
           const match = award.totalIntendedAward.match(/[\d,]+/);
           if (match) {
-            const amount = parseFloat(match[0].replace(/,/g, ''));
+            const amount = parseFloat(match[0].replace(/,/g, ""));
             if (!isNaN(amount)) totalFunding += amount;
           }
         }
       }
-      
+
       result += `**Research Portfolio Summary:**\n`;
       result += `• **Total NSF Funding**: $${totalFunding.toLocaleString()}\n`;
-      result += `• **Research Areas**: ${Array.from(researchAreas).join(', ') || 'Various disciplines'}\n`;
-      
+      result += `• **Research Areas**: ${Array.from(researchAreas).join(", ") || "Various disciplines"}\n`;
+
       // Top researchers
       const sortedPIs = Array.from(topPIs.entries())
         .sort((a, b) => b[1] - a[1])
         .slice(0, 5);
-      
+
       if (sortedPIs.length > 0) {
-        result += `• **Most Active PIs**: ${sortedPIs.map(([pi, count]) => `${pi} (${count} award${count > 1 ? 's' : ''})`).join(', ')}\n`;
+        result += `• **Most Active PIs**: ${sortedPIs.map(([pi, count]) => `${pi} (${count} award${count > 1 ? "s" : ""})`).join(", ")}\n`;
       }
     } else {
       result += `**No recent NSF awards found** for "${institutionName}"\n\n`;
@@ -1308,39 +1369,39 @@ class XDMoDMetricsServer extends BaseAccessServer {
       result += `• Search for specific researchers instead using other tools\n`;
       result += `• Recent awards (2024+) may not be indexed yet\n`;
     }
-    
+
     result += `\n📊 **ACCESS-CI Usage Profile** (${startDate} to ${endDate}):\n\n`;
-    
+
     if (usageData?.content?.[0]?.text) {
       result += `**Computational Resource Utilization:**\n`;
       result += `*System-wide usage metrics for the analysis period*\n\n`;
-      
+
       // Extract resource usage patterns
       const usageText = usageData.content[0].text;
-      if (usageText.includes('resource')) {
+      if (usageText.includes("resource")) {
         result += `• Multiple ACCESS-CI resources show active usage\n`;
         result += `• Detailed resource breakdowns available in XDMoD analysis\n`;
       }
-      
+
       result += `• Usage data indicates active computational research\n`;
       result += `• Institution likely has established ACCESS-CI user community\n`;
     }
-    
+
     result += `\n---\n**🔬 Institutional Research Analysis:**\n\n`;
-    
+
     if (awards.length > 0 && totalFunding > 0) {
       result += `**Research Impact Metrics:**\n`;
       result += `• **NSF Investment**: $${totalFunding.toLocaleString()} in computational research\n`;
       result += `• **Research Breadth**: ${researchAreas.size} distinct NSF program areas\n`;
       result += `• **PI Diversity**: ${topPIs.size} unique principal investigators\n`;
       result += `• **Computational Focus**: Strong NSF-funded research requiring HPC resources\n\n`;
-      
+
       result += `**Strategic Insights:**\n`;
       result += `• Institution demonstrates significant computational research capacity\n`;
       result += `• NSF funding supports diverse scientific computing applications\n`;
       result += `• ACCESS-CI provides critical cyberinfrastructure for research mission\n`;
       result += `• Cross-disciplinary computational research environment\n\n`;
-      
+
       result += `**🎯 Recommendations:**\n`;
       result += `• Analyze usage patterns by research domain for strategic planning\n`;
       result += `• Identify opportunities for cross-disciplinary collaboration\n`;
@@ -1352,21 +1413,22 @@ class XDMoDMetricsServer extends BaseAccessServer {
       result += `• Institution may have computational activity not captured in this analysis\n`;
       result += `• Authenticated XDMoD access may reveal additional usage patterns\n`;
     }
-    
+
     return result;
   }
-
 
   // NSF Data Fetching Methods
   private async fetchNSFAwardData(awardNumber: string): Promise<NSFAward> {
     // Use the NSF API instead of HTML parsing for better reliability
     try {
-      const cleanAwardNumber = awardNumber.replace(/[^\d]/g, '');
+      const cleanAwardNumber = awardNumber.replace(/[^\d]/g, "");
       const apiUrl = `https://api.nsf.gov/services/v1/awards.json?id=${cleanAwardNumber}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName`;
-      
+
       const response = await fetch(apiUrl);
       if (!response.ok) {
-        throw new Error(`NSF API request failed: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `NSF API request failed: ${response.status} ${response.statusText}`,
+        );
       }
 
       const data = await response.json();
@@ -1374,45 +1436,64 @@ class XDMoDMetricsServer extends BaseAccessServer {
       if (awards.length === 0) {
         throw new Error(`No award found with number ${awardNumber}`);
       }
-      
+
       return awards[0];
     } catch (error) {
-      throw new Error(`Failed to fetch NSF award ${awardNumber}: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `Failed to fetch NSF award ${awardNumber}: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
-  private async searchNSFAwardsByPI(piName: string, limit: number): Promise<NSFAward[]> {
+  private async searchNSFAwardsByPI(
+    piName: string,
+    limit: number,
+  ): Promise<NSFAward[]> {
     try {
       const nameParts = piName.trim().split(/\s+/);
       const firstName = nameParts[0];
       const lastName = nameParts[nameParts.length - 1];
-      
+
       // Try multiple search strategies to find PI awards
       const searchStrategies = [
         // Strategy 1: Direct PI searches (if they work)
-        { type: 'pi', params: `piFirstName=${encodeURIComponent(firstName)}&piLastName=${encodeURIComponent(lastName)}` },
-        { type: 'pi', params: `piLastName=${encodeURIComponent(lastName)}` },
-        
+        {
+          type: "pi",
+          params: `piFirstName=${encodeURIComponent(firstName)}&piLastName=${encodeURIComponent(lastName)}`,
+        },
+        { type: "pi", params: `piLastName=${encodeURIComponent(lastName)}` },
+
         // Strategy 2: Combined institution + name searches (more reliable)
-        { type: 'combined', params: `keyword=${encodeURIComponent(lastName)}+${encodeURIComponent(firstName)}` },
-        { type: 'combined', params: `keyword=${encodeURIComponent(`"${lastName}, ${firstName}"`)}` },
-        
+        {
+          type: "combined",
+          params: `keyword=${encodeURIComponent(lastName)}+${encodeURIComponent(firstName)}`,
+        },
+        {
+          type: "combined",
+          params: `keyword=${encodeURIComponent(`"${lastName}, ${firstName}"`)}`,
+        },
+
         // Strategy 3: Broad keyword searches
-        { type: 'keyword', params: `keyword=${encodeURIComponent(`"${piName}"`)}` },
-        { type: 'keyword', params: `keyword=${encodeURIComponent(lastName)}` }
+        {
+          type: "keyword",
+          params: `keyword=${encodeURIComponent(`"${piName}"`)}`,
+        },
+        { type: "keyword", params: `keyword=${encodeURIComponent(lastName)}` },
       ];
 
       let allAwards: NSFAward[] = [];
-      
+
       for (const strategy of searchStrategies) {
         if (allAwards.length >= limit) break;
-        
+
         // Construct NSF API URL with comprehensive field list
         const apiUrl = `https://api.nsf.gov/services/v1/awards.json?${strategy.params}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName&offset=1&rpp=100`;
-        
+
         const response = await fetch(apiUrl);
         if (!response.ok) {
-          console.warn(`NSF API request failed for "${strategy.type}" search: ${response.status}`);
+          console.warn(
+            `NSF API request failed for "${strategy.type}" search: ${response.status}`,
+          );
           continue;
         }
 
@@ -1421,27 +1502,28 @@ class XDMoDMetricsServer extends BaseAccessServer {
 
         // Apply name matching logic for all search types to ensure accuracy
         let matches: NSFAward[] = [];
-        if (strategy.type === 'pi') {
+        if (strategy.type === "pi") {
           // PI searches should be pre-filtered, but double-check with name matching
-          matches = results.filter(award => 
-            this.nameMatches(award.principalInvestigator, piName)
+          matches = results.filter((award) =>
+            this.nameMatches(award.principalInvestigator, piName),
           );
         } else {
           // For keyword and combined searches, filter for matching PI names
-          matches = results.filter(award => 
-            this.nameMatches(award.principalInvestigator, piName)
+          matches = results.filter((award) =>
+            this.nameMatches(award.principalInvestigator, piName),
           );
         }
 
         allAwards.push(...matches);
-        
+
         if (matches.length > 0) {
         }
       }
 
       // Remove duplicates based on award number
-      const uniqueAwards = allAwards.filter((award, index, arr) => 
-        arr.findIndex(a => a.awardNumber === award.awardNumber) === index
+      const uniqueAwards = allAwards.filter(
+        (award, index, arr) =>
+          arr.findIndex((a) => a.awardNumber === award.awardNumber) === index,
       );
 
       return uniqueAwards.slice(0, limit);
@@ -1451,128 +1533,160 @@ class XDMoDMetricsServer extends BaseAccessServer {
     }
   }
 
-  private async searchNSFAwardsByInstitution(institutionName: string, limit: number): Promise<NSFAward[]> {
+  private async searchNSFAwardsByInstitution(
+    institutionName: string,
+    limit: number,
+  ): Promise<NSFAward[]> {
     try {
       // Search for awards using awardee (institution) parameter for more accurate results
       // Try both full name and simplified versions
       const searchTerms = [
         institutionName,
-        institutionName.replace(/University of |The |State |College of /gi, '').trim(),
-        institutionName.replace(/ University| College| Institute| School/gi, '').trim()
+        institutionName
+          .replace(/University of |The |State |College of /gi, "")
+          .trim(),
+        institutionName
+          .replace(/ University| College| Institute| School/gi, "")
+          .trim(),
       ];
-      
+
       let allAwards: NSFAward[] = [];
-      
+
       for (const term of searchTerms) {
         if (allAwards.length >= limit) break;
-        
+
         const apiUrl = `https://api.nsf.gov/services/v1/awards.json?awardeeName=${encodeURIComponent(term)}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName&offset=1&rpp=${Math.min(limit, 100)}`;
-        
+
         const response = await fetch(apiUrl);
         if (!response.ok) {
-          console.warn(`NSF API request failed for institution "${term}": ${response.status}`);
+          console.warn(
+            `NSF API request failed for institution "${term}": ${response.status}`,
+          );
           continue;
         }
 
         const data = await response.json();
-        const results = this.parseNSFAPIResponse(data, limit - allAwards.length);
-        
+        const results = this.parseNSFAPIResponse(
+          data,
+          limit - allAwards.length,
+        );
+
         // Filter for awards that actually match the original institution name
-        const institutionMatches = results.filter(award => {
+        const institutionMatches = results.filter((award) => {
           const awardInst = award.institution.toLowerCase();
           const searchInst = institutionName.toLowerCase();
-          return awardInst.includes(searchInst) || 
-                 searchInst.includes(awardInst) ||
-                 awardInst.includes(term.toLowerCase());
+          return (
+            awardInst.includes(searchInst) ||
+            searchInst.includes(awardInst) ||
+            awardInst.includes(term.toLowerCase())
+          );
         });
-        
+
         allAwards.push(...institutionMatches);
       }
-      
+
       // Remove duplicates based on award number
-      const uniqueAwards = allAwards.filter((award, index, arr) => 
-        arr.findIndex(a => a.awardNumber === award.awardNumber) === index
+      const uniqueAwards = allAwards.filter(
+        (award, index, arr) =>
+          arr.findIndex((a) => a.awardNumber === award.awardNumber) === index,
       );
 
       return uniqueAwards.slice(0, limit);
     } catch (error) {
-      console.warn(`Failed to search NSF awards for institution ${institutionName}:`, error);
+      console.warn(
+        `Failed to search NSF awards for institution ${institutionName}:`,
+        error,
+      );
       return [];
     }
   }
 
   private nameMatches(fullName: string, searchName: string): boolean {
     if (!fullName || !searchName) return false;
-    
-    const searchWords = searchName.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    const nameWords = fullName.toLowerCase().split(/\s+/).filter(word => word.length > 0);
-    
+
+    const searchWords = searchName
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+    const nameWords = fullName
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((word) => word.length > 0);
+
     // All search words must be found in the full name
-    return searchWords.every(searchWord => 
-      nameWords.some(nameWord => nameWord.includes(searchWord) || searchWord.includes(nameWord))
+    return searchWords.every((searchWord) =>
+      nameWords.some(
+        (nameWord) =>
+          nameWord.includes(searchWord) || searchWord.includes(nameWord),
+      ),
     );
   }
 
   private parseNSFAPIResponse(data: any, limit: number): NSFAward[] {
     const awards: NSFAward[] = [];
-    
+
     try {
       // NSF API response structure: data.response.award[]
       const apiAwards = data?.response?.award || [];
-      
+
       for (const award of apiAwards.slice(0, limit)) {
-        const awardNumber = award.id || 'Unknown';
+        const awardNumber = award.id || "Unknown";
         const title = award.title || `NSF Award ${awardNumber}`;
-        
+
         // Handle PI name (can be separate firstName/lastName or combined)
-        let principalInvestigator = 'Unknown PI';
+        let principalInvestigator = "Unknown PI";
         if (award.piFirstName && award.piLastName) {
-          principalInvestigator = `${award.piFirstName} ${award.piLastName}`.trim();
+          principalInvestigator =
+            `${award.piFirstName} ${award.piLastName}`.trim();
         } else if (award.piLastName) {
           principalInvestigator = award.piLastName;
         } else if (award.piFirstName) {
           principalInvestigator = award.piFirstName;
         }
-        
+
         // Handle institution name - try awardeeName first, fall back to combinations
-        let institution = 'Unknown Institution';
+        let institution = "Unknown Institution";
         if (award.awardeeName) {
           institution = award.awardeeName;
         }
-        
+
         // Add location context if available
         if (award.awardeeCity && award.awardeeStateCode) {
           institution += ` (${award.awardeeCity}, ${award.awardeeStateCode})`;
         } else if (award.awardeeStateCode) {
           institution += ` (${award.awardeeStateCode})`;
         }
-        
+
         // Parse funding amounts with better formatting
         const formatAmount = (amount: any) => {
-          if (!amount) return '$0';
-          const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-          if (isNaN(numAmount)) return '$0';
-          return new Intl.NumberFormat('en-US', {
-            style: 'currency',
-            currency: 'USD',
+          if (!amount) return "$0";
+          const numAmount =
+            typeof amount === "string" ? parseFloat(amount) : amount;
+          if (isNaN(numAmount)) return "$0";
+          return new Intl.NumberFormat("en-US", {
+            style: "currency",
+            currency: "USD",
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
           }).format(numAmount);
         };
-        
-        const totalIntendedAward = formatAmount(award.estimatedTotalAmt || award.fundsObligatedAmt);
+
+        const totalIntendedAward = formatAmount(
+          award.estimatedTotalAmt || award.fundsObligatedAmt,
+        );
         const totalAwardedToDate = formatAmount(award.fundsObligatedAmt);
-        
+
         // Handle Co-PIs - NSF API uses coPDPI field
         let coPIs: string[] = [];
         if (award.coPDPI && Array.isArray(award.coPDPI)) {
           coPIs = award.coPDPI.map((copi: any) => {
-            if (typeof copi === 'string') return copi;
-            if (copi.firstName && copi.lastName) return `${copi.firstName} ${copi.lastName}`;
-            return copi.lastName || copi.firstName || 'Unknown Co-PI';
+            if (typeof copi === "string") return copi;
+            if (copi.firstName && copi.lastName)
+              return `${copi.firstName} ${copi.lastName}`;
+            return copi.lastName || copi.firstName || "Unknown Co-PI";
           });
         }
-        
+
         awards.push({
           awardNumber,
           title,
@@ -1581,49 +1695,50 @@ class XDMoDMetricsServer extends BaseAccessServer {
           coPIs,
           totalIntendedAward,
           totalAwardedToDate,
-          startDate: award.startDate || 'Unknown',
-          endDate: award.expDate || 'Unknown', 
-          abstract: award.abstractText || 'No abstract available',
+          startDate: award.startDate || "Unknown",
+          endDate: award.expDate || "Unknown",
+          abstract: award.abstractText || "No abstract available",
           programOfficer: award.poName || undefined,
-          primaryProgram: award.primaryProgram || award.fundProgramName || undefined,
-          fundingHistory: [] // NSF API doesn't provide detailed history in this format
+          primaryProgram:
+            award.primaryProgram || award.fundProgramName || undefined,
+          fundingHistory: [], // NSF API doesn't provide detailed history in this format
         });
       }
     } catch (error) {
-      console.warn('Failed to parse NSF API response:', error);
+      console.warn("Failed to parse NSF API response:", error);
     }
-    
+
     return awards;
   }
 
-  // NSF Formatting Methods  
+  // NSF Formatting Methods
   private formatNSFAward(award: NSFAward): string {
     let result = `🏆 **NSF Award Details**\n\n`;
-    
+
     result += `**Award Number:** ${award.awardNumber}\n`;
     result += `**Title:** ${award.title}\n\n`;
-    
+
     result += `**Principal Investigator:** ${award.principalInvestigator}\n`;
     result += `**Institution:** ${award.institution}\n\n`;
-    
+
     if (award.coPIs && award.coPIs.length > 0) {
-      result += `**Co-Principal Investigators:** ${award.coPIs.join(', ')}\n\n`;
+      result += `**Co-Principal Investigators:** ${award.coPIs.join(", ")}\n\n`;
     }
-    
+
     result += `**Award Amount:** ${award.totalIntendedAward}\n`;
     result += `**Period:** ${award.startDate} to ${award.endDate}\n\n`;
-    
+
     if (award.programOfficer) {
       result += `**Program Officer:** ${award.programOfficer}\n`;
     }
     if (award.primaryProgram) {
       result += `**Program:** ${award.primaryProgram}\n`;
     }
-    
+
     result += `\n**Abstract:**\n${award.abstract}\n\n`;
-    
+
     result += `---\n**XDMoD Integration:** You can now search XDMoD metrics for computational\nusage related to "${award.principalInvestigator}" or "${award.institution}" to find\nrelated ACCESS-CI resource utilization patterns.`;
-    
+
     return result;
   }
 }

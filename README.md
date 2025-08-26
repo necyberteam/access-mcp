@@ -13,7 +13,6 @@ This repository contains MCP servers that provide programmatic access to:
 - **Allocations** - Active research projects and resource allocation discovery
 - **Affinity Groups** - Community groups, events, and knowledge base
 
-
 ## Quick Start
 
 ```bash

@@ -1,7 +1,6 @@
 # MCP Servers Overview
 
-ACCESS-CI provides 6 MCP servers for different aspects of cyberinfrastructure:
-
+ACCESS-CI provides 7 MCP servers for different aspects of cyberinfrastructure:
 
 ## MCP server for ACCESS-CI Affinity Groups API
 
@@ -147,17 +146,42 @@ npm install -g @access-mcp/allocations
 }
 ```
 
+## ACCESS-CI Events MCP Server
+
+**Package:** `@access-mcp/events`  
+**Version:** v0.1.0
+
+ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events
+
+[View Details](/servers/events){.btn-primary}
+
+```bash
+# Install
+npm install -g @access-mcp/events
+
+# Configure
+{
+  "mcpServers": {
+    "access-events": {
+      "command": "npx",
+      "args": ["@access-mcp/events"]
+    }
+  }
+}
+```
 
 ## Installation Methods
 
 Choose the method that works best for you:
 
 ### 📥 Download & Run (Recommended for end users)
+
 - Pre-built executables
-- No Node.js knowledge required  
+- No Node.js knowledge required
 - [Download latest release](https://github.com/necyberteam/access-mcp/releases)
 
 ### 🔧 npm Packages (For developers)
+
 - Install individual servers
 - Integrate into your applications
 - Full development workflow

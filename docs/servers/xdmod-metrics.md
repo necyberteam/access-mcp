@@ -5,6 +5,7 @@ MCP server for XDMoD Metrics and Usage Analytics API
 ## Installation
 
 ### Download & Run
+
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `xdmod-metrics/index.js` file
 3. Add to Claude Desktop config:
@@ -20,6 +21,7 @@ MCP server for XDMoD Metrics and Usage Analytics API
 ```
 
 ### npm Package
+
 ```bash
 npm install -g @access-mcp/xdmod-metrics
 ```
@@ -171,7 +173,7 @@ Compare NSF funding amounts with actual XDMoD computational usage patterns.
 **Parameters:**
 
 - `nsf_award_number` (string): Specific NSF award number to analyze
-- `start_date` (string): Start date in YYYY-MM-DD format  
+- `start_date` (string): Start date in YYYY-MM-DD format
 - `end_date` (string): End date in YYYY-MM-DD format
 
 **Returns:** Comparative analysis of funding allocation versus computational resource consumption
@@ -196,8 +198,9 @@ Check authentication status and debug information.
 **Parameters:** None
 
 **Returns:** Comprehensive debugging information including:
+
 - API token status and configuration
-- Available tools and their authentication requirements  
+- Available tools and their authentication requirements
 - Troubleshooting guidance for authentication issues
 - Environment variable and command-line argument detection
 
@@ -296,14 +299,14 @@ const chartData = await get_chart_data({
 
 ```typescript
 const gpuData = await get_chart_data({
-  realm: "SUPREMM",  // Use SUPREMM for GPU metrics!
+  realm: "SUPREMM", // Use SUPREMM for GPU metrics!
   group_by: "resource",
   statistic: "gpu_time", // or "avg_percent_gpu_usage"
   start_date: "2024-01-01",
   end_date: "2024-12-31",
   filters: {
-    resource: "Bridges 2 GPU"
-  }
+    resource: "Bridges 2 GPU",
+  },
 });
 ```
 
@@ -348,14 +351,14 @@ const pngChart = await get_chart_image({
 const chartLink = await get_chart_link({
   realm: "Jobs",
   group_by: "none",
-  statistic: "total_cpu_hours"
+  statistic: "total_cpu_hours",
 });
 
 // GPU usage chart link grouped by resource
 const gpuChartLink = await get_chart_link({
   realm: "SUPREMM",
-  group_by: "resource", 
-  statistic: "gpu_time"
+  group_by: "resource",
+  statistic: "gpu_time",
 });
 ```
 
@@ -372,7 +375,7 @@ const researchAnalysis = await get_usage_with_nsf_context({
   researcher_name: "John Smith",
   start_date: "2024-01-01",
   end_date: "2024-12-31",
-  limit: 5
+  limit: 5,
 });
 ```
 
@@ -388,7 +391,7 @@ const researchAnalysis = await get_usage_with_nsf_context({
 const fundingAnalysis = await analyze_funding_vs_usage({
   nsf_award_number: "2138259",
   start_date: "2024-01-01",
-  end_date: "2024-12-31"
+  end_date: "2024-12-31",
 });
 ```
 
@@ -403,9 +406,9 @@ const fundingAnalysis = await analyze_funding_vs_usage({
 ```typescript
 const institutionProfile = await institutional_research_profile({
   institution_name: "University of Illinois",
-  start_date: "2024-01-01", 
+  start_date: "2024-01-01",
   end_date: "2024-12-31",
-  limit: 15
+  limit: 15,
 });
 ```
 
@@ -415,8 +418,10 @@ const institutionProfile = await institutional_research_profile({
 
 XDMoD organizes metrics into different **realms** that provide different types of data:
 
-### **Jobs Realm** 
+### **Jobs Realm**
+
 Basic job accounting and resource usage metrics:
+
 - `total_cpu_hours` - Total CPU Hours
 - `job_count` - Number of Jobs Ended
 - `avg_cpu_hours` - Average CPU Hours per Job
@@ -426,8 +431,10 @@ Basic job accounting and resource usage metrics:
 - `total_ace` - ACCESS Credit Equivalents Charged: Total
 - `utilization` - ACCESS CPU Utilization
 
-### **SUPREMM Realm** 
+### **SUPREMM Realm**
+
 Detailed performance analytics and system metrics:
+
 - `gpu_time` - **GPU Hours: Total** 🎯
 - `avg_percent_gpu_usage` - **Avg GPU usage: weighted by GPU hour** 🎯
 - `wall_time` - CPU Hours: Total
@@ -439,7 +446,7 @@ Detailed performance analytics and system metrics:
 
 **💡 For GPU metrics, always use the SUPREMM realm!**
 
-## Authentication 
+## Authentication
 
 The server supports optional API token authentication for enhanced debugging and troubleshooting. The current release focuses on system-wide public metrics data from XDMoD.
 
@@ -516,9 +523,11 @@ All date parameters must be in `YYYY-MM-DD` format:
 ## Authentication
 
 ### **Public Access (Default)**
+
 By default, this server uses public access to XDMoD APIs and provides general usage statistics and metrics.
 
 ### **Authenticated Access (Personal Data)**
+
 For access to personal usage data like "show me my credit usage in the last 3 months", you can set up authentication using an XDMoD API token.
 
 #### **Setting Up Authentication:**
@@ -532,12 +541,14 @@ For access to personal usage data like "show me my credit usage in the last 3 mo
 2. **Configure Authentication (Choose One):**
 
    **Option A: Environment Variable**
+
    ```bash
    export XDMOD_API_TOKEN="your-token-here"
    npm start
    ```
 
-   **Option B: Claude Desktop Config** *(Recommended)*
+   **Option B: Claude Desktop Config** _(Recommended)_
+
    ```json
    {
      "mcpServers": {
@@ -554,14 +565,16 @@ For access to personal usage data like "show me my credit usage in the last 3 mo
    ```
 
 3. **Test Authentication:**
-   Ask Claude: *"Debug my XDMoD authentication status"* to verify setup
+   Ask Claude: _"Debug my XDMoD authentication status"_ to verify setup
 
 #### **Authentication Features:**
+
 When authenticated, you get enhanced debugging capabilities:
 
 - `debug_auth_status` - Comprehensive authentication status and troubleshooting
 
 #### **Example Authentication Queries:**
+
 - "Debug my XDMoD authentication status"
 - "Check if my API token is working"
 - "Help me troubleshoot authentication issues"
@@ -584,7 +597,6 @@ npm start
 ```
 
 The server runs on stdio transport and can be integrated with MCP-compatible clients.
-
 
 ---
 
