@@ -7,6 +7,7 @@ export interface UserSpecificParams {
   start_date: string;
   end_date: string;
   username_filter?: string;
+  person_id?: string; // ACCESS person ID for direct filtering
 }
 
 export class XDMoDUserSpecific {
@@ -22,6 +23,443 @@ export class XDMoDUserSpecific {
     return {
       "Token": this.apiToken,
       "Content-Type": "application/x-www-form-urlencoded",
+    };
+  }
+
+  async getUserGroupBys(realm: string = "Jobs") {
+    try {
+      // First get all available group_bys for the realm
+      const response = await fetch(
+        `${this.baseURL}/controllers/user_interface.php`,
+        {
+          method: "POST",
+          headers: this.getAuthHeaders(),
+          body: new URLSearchParams({
+            operation: "get_menus",
+            public_user: "false", // Authenticated to see all options
+            category: realm,
+            node: `${realm}_`,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      // Filter for user-related group_bys
+      const userGroupBys = data.filter((item: any) => {
+        const groupBy = item.group_by?.toLowerCase() || "";
+        const text = item.text?.toLowerCase() || "";
+        return groupBy.includes("user") || 
+               groupBy.includes("person") || 
+               text.includes("user") || 
+               text.includes("person") ||
+               groupBy === "pi"; // Principal Investigator
+      });
+
+      return {
+        realm,
+        allGroupBys: data.map((item: any) => ({
+          id: item.id,
+          text: item.text,
+          group_by: item.group_by,
+        })),
+        userRelatedGroupBys: userGroupBys.map((item: any) => ({
+          id: item.id,
+          text: item.text,
+          group_by: item.group_by,
+        })),
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to enumerate user group_bys: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  async discoverPersonIds() {
+    try {
+      // Try multiple approaches to discover person IDs and their formats
+      const approaches = [
+        {
+          name: "Public person-grouped data",
+          params: {
+            operation: "get_data",
+            format: "jsonstore",
+            public_user: "true",
+            realm: "Jobs",
+            group_by: "person",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+            limit: "20",
+          } as Record<string, string>
+        },
+        {
+          name: "Public person-grouped charts",
+          params: {
+            operation: "get_charts",
+            format: "hc_jsonstore",
+            public_user: "true",
+            realm: "Jobs",
+            group_by: "person",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+            dataset_type: "aggregate",
+            limit: "20",
+          } as Record<string, string>
+        },
+        {
+          name: "Authenticated person-grouped data",
+          params: {
+            operation: "get_data",
+            format: "jsonstore",
+            public_user: "false",
+            realm: "Jobs",
+            group_by: "person",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+            limit: "20",
+          } as Record<string, string>
+        }
+      ];
+
+      const results = [];
+
+      for (const approach of approaches) {
+        try {
+          const response = await fetch(
+            `${this.baseURL}/controllers/user_interface.php`,
+            {
+              method: "POST",
+              headers: this.getAuthHeaders(),
+              body: new URLSearchParams(approach.params),
+            }
+          );
+
+          let result = {
+            approach: approach.name,
+            status: response.status,
+            success: response.ok,
+            persons: [] as any[],
+            rawDataStructure: {},
+            error: null as string | null
+          };
+
+          if (response.ok) {
+            const data = await response.json();
+            
+            // Analyze data structure
+            result.rawDataStructure = {
+              hasData: !!data.data,
+              dataType: typeof data.data,
+              dataLength: Array.isArray(data.data) ? data.data.length : 'not array',
+              sampleKeys: data.data && data.data[0] ? Object.keys(data.data[0]) : [],
+              chartSeries: data.data && data.data[0]?.chart?.series ? data.data[0].chart.series.length : 'none',
+              hasChart: data.data && data.data[0] && !!data.data[0].chart,
+              chartStructure: data.data && data.data[0]?.chart ? Object.keys(data.data[0].chart) : []
+            };
+
+            // Extract person information
+            if (data.data) {
+              if (Array.isArray(data.data)) {
+                // jsonstore format - direct data array
+                result.persons = data.data.map((item: any) => ({
+                  name: item.name || 'Unknown',
+                  id: item.id || item.person_id || 'No ID',
+                  value: item.value || 'No value'
+                })).slice(0, 10);
+              } else if (data.data[0]?.chart?.series) {
+                // hc_jsonstore format - chart series
+                result.persons = data.data[0].chart.series.map((series: any) => ({
+                  name: series.name || 'Unknown',
+                  id: series.id || series.person_id || 'No ID',
+                  dataPoints: series.data ? series.data.length : 0,
+                  allFields: Object.keys(series) // Show what fields are available
+                })).slice(0, 10);
+              } else {
+                // No standard format found - show raw structure sample
+                result.persons = [{
+                  name: 'Raw data sample',
+                  id: 'N/A',
+                  rawSample: JSON.stringify(data.data, null, 2).substring(0, 500)
+                }];
+              }
+            }
+          } else {
+            const errorText = await response.text();
+            result.error = `HTTP ${response.status}: ${errorText}`;
+          }
+
+          results.push(result);
+        } catch (error) {
+          results.push({
+            approach: approach.name,
+            status: 0,
+            success: false,
+            persons: [],
+            rawDataStructure: {},
+            error: `Exception: ${error instanceof Error ? error.message : String(error)}`
+          });
+        }
+      }
+
+      return {
+        summary: `Tested ${approaches.length} approaches to discover person IDs`,
+        results,
+        recommendations: this.generatePersonIdRecommendations(results)
+      };
+
+    } catch (error) {
+      throw new Error(`Person ID discovery failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private generatePersonIdRecommendations(results: any[]): string[] {
+    const recommendations = [];
+    
+    const successfulResults = results.filter(r => r.success);
+    if (successfulResults.length === 0) {
+      recommendations.push("❌ No successful API calls - check authentication or API availability");
+      return recommendations;
+    }
+
+    const withPersons = successfulResults.filter(r => r.persons.length > 0);
+    if (withPersons.length === 0) {
+      recommendations.push("⚠️ API calls successful but no person data returned");
+      recommendations.push("💡 Try different date ranges or check if person grouping is available");
+      return recommendations;
+    }
+
+    recommendations.push("✅ Found person data! Next steps:");
+    
+    // Check if we have actual person IDs
+    const withIds = withPersons.filter(r => 
+      r.persons.some((p: any) => p.id && p.id !== 'No ID')
+    );
+    
+    if (withIds.length > 0) {
+      recommendations.push("🎯 Person IDs are available - you can use them for filtering");
+      recommendations.push("📝 Use the 'person_id' parameter in get_my_usage calls");
+    } else {
+      recommendations.push("⚠️ Person names available but IDs may not be in API response");
+      recommendations.push("💡 Try using person names with 'username_filter' parameter instead");
+    }
+
+    return recommendations;
+  }
+
+  async lookupPersonIdPublic(searchTerm: string) {
+    try {
+      // Try public access first to see if we can get any user data
+      const response = await fetch(
+        `${this.baseURL}/controllers/user_interface.php`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            operation: "get_charts",
+            public_user: "true", // Public access
+            format: "hc_jsonstore",
+            realm: "Jobs",
+            group_by: "person",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+            dataset_type: "aggregate",
+            limit: "100",
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        return {
+          searchTerm,
+          error: `Public lookup failed: HTTP ${response.status}: ${response.statusText}. Response: ${errorText}`,
+          matches: [],
+          note: "Public access to user data may be restricted. Authentication likely required.",
+        };
+      }
+
+      const data = await response.json();
+      
+      // Add some diagnostic information
+      const result = this.extractPersonIds(data, searchTerm);
+      
+      // Enhanced result with API response info
+      return {
+        ...result,
+        diagnostic: {
+          responseStructure: {
+            hasData: !!data.data,
+            dataLength: data.data ? data.data.length : 0,
+            dataType: data.data ? typeof data.data : 'undefined',
+            sampleFields: data.data && data.data[0] ? Object.keys(data.data[0]) : [],
+          },
+          rawDataSample: data.data ? JSON.stringify(data.data.slice(0, 2), null, 2) : 'No data',
+        }
+      };
+    } catch (error) {
+      return {
+        searchTerm,
+        error: `Exception during public lookup: ${error instanceof Error ? error.message : String(error)}`,
+        matches: [],
+        note: "Public access failed - authentication required for user data access.",
+      };
+    }
+  }
+
+  async lookupPersonId(searchTerm: string) {
+    try {
+      // Try to find person ID by searching for users in the data
+      // First, get data grouped by person to see all users
+      const response = await fetch(
+        `${this.baseURL}/controllers/user_interface.php`,
+        {
+          method: "POST",
+          headers: this.getAuthHeaders(),
+          body: new URLSearchParams({
+            operation: "get_data",
+            format: "jsonstore",
+            realm: "Jobs",
+            group_by: "person",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01", // Use recent date range
+            end_date: "2024-12-31",
+            limit: "100", // Get more users to search through
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const initialErrorText = await response.text();
+        console.log(`Initial get_data request failed: HTTP ${response.status}: ${response.statusText}. Response: ${initialErrorText}`);
+        
+        // Fallback to get_charts if get_data doesn't work
+        const fallbackResponse = await fetch(
+          `${this.baseURL}/controllers/user_interface.php`,
+          {
+            method: "POST",
+            headers: this.getAuthHeaders(),
+            body: new URLSearchParams({
+              operation: "get_charts",
+              public_user: "false",
+              format: "hc_jsonstore",
+              realm: "Jobs",
+              group_by: "person",
+              statistic: "total_cpu_hours",
+              start_date: "2024-01-01",
+              end_date: "2024-12-31",
+              dataset_type: "aggregate",
+              limit: "100",
+            }),
+          }
+        );
+
+        if (!fallbackResponse.ok) {
+          const errorText = await fallbackResponse.text();
+          throw new Error(`Unable to retrieve user list for person ID lookup. HTTP ${fallbackResponse.status}: ${fallbackResponse.statusText}. Response: ${errorText}`);
+        }
+
+        const data = await fallbackResponse.json();
+        return this.extractPersonIds(data, searchTerm);
+      }
+
+      const data = await response.json();
+      return this.extractPersonIds(data, searchTerm);
+    } catch (error) {
+      throw new Error(
+        `Failed to lookup person ID: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private extractPersonIds(data: any, searchTerm: string) {
+    const searchLower = searchTerm.toLowerCase();
+    const matches: Array<{ name: string; id?: string; match_score: number }> = [];
+
+    // Handle jsonstore format
+    if (data.data && Array.isArray(data.data)) {
+      for (const item of data.data) {
+        if (item.name) {
+          const nameLower = item.name.toLowerCase();
+          let score = 0;
+          
+          // Exact match
+          if (nameLower === searchLower) score = 100;
+          // Contains full search term
+          else if (nameLower.includes(searchLower)) score = 75;
+          // Search term contains name (for partial matches)
+          else if (searchLower.includes(nameLower)) score = 50;
+          // Word-by-word matching
+          else {
+            const searchWords = searchLower.split(/\s+/);
+            const nameWords = nameLower.split(/\s+/);
+            const matchingWords = searchWords.filter((sw: string) => 
+              nameWords.some((nw: string) => nw.includes(sw) || sw.includes(nw))
+            );
+            score = (matchingWords.length / searchWords.length) * 40;
+          }
+
+          if (score > 0) {
+            matches.push({
+              name: item.name,
+              id: item.id || item.person_id,
+              match_score: score,
+            });
+          }
+        }
+      }
+    }
+
+    // Handle hc_jsonstore format (chart data)
+    if (data.data && data.data[0]?.chart?.series) {
+      const series = data.data[0].chart.series;
+      for (const seriesItem of series) {
+        if (seriesItem.name) {
+          const nameLower = seriesItem.name.toLowerCase();
+          let score = 0;
+          
+          if (nameLower === searchLower) score = 100;
+          else if (nameLower.includes(searchLower)) score = 75;
+          else if (searchLower.includes(nameLower)) score = 50;
+          else {
+            const searchWords = searchLower.split(/\s+/);
+            const nameWords = nameLower.split(/\s+/);
+            const matchingWords = searchWords.filter((sw: string) => 
+              nameWords.some((nw: string) => nw.includes(sw) || sw.includes(nw))
+            );
+            score = (matchingWords.length / searchWords.length) * 40;
+          }
+
+          if (score > 0) {
+            matches.push({
+              name: seriesItem.name,
+              id: seriesItem.id || seriesItem.person_id,
+              match_score: score,
+            });
+          }
+        }
+      }
+    }
+
+    // Sort by match score
+    matches.sort((a, b) => b.match_score - a.match_score);
+
+    return {
+      searchTerm,
+      matches: matches.slice(0, 10), // Return top 10 matches
+      note: matches.length === 0 
+        ? "No matching users found. Try a different search term or check if the user has activity in the specified date range."
+        : `Found ${matches.length} potential matches. Person IDs may not be available in all response formats.`,
     };
   }
 
@@ -84,14 +522,11 @@ export class XDMoDUserSpecific {
       // Use the working controllers/user_interface.php endpoint for personal data
       const url = `${this.baseURL}/controllers/user_interface.php`;
       
-      // Try to get user-specific data by grouping by "person" which should give us individual users
+      // Primary approach: Use get_data operation with jsonstore format as recommended
       const urlParams = new URLSearchParams({
-        operation: "get_charts",
+        operation: "get_data", // Using get_data for raw data as recommended
         public_user: "false", // Use authenticated request to access personal data
-        dataset_type: "aggregate", // Use aggregate to get total usage values
-        format: "hc_jsonstore",
-        width: "916",
-        height: "484",
+        format: "jsonstore", // Easier to parse than hc_jsonstore
         realm: params.realm,
         group_by: "person", // Group by person to get individual user data
         statistic: params.statistic,
@@ -101,8 +536,11 @@ export class XDMoDUserSpecific {
         offset: "0",
       });
 
-      // Add username filter if provided - use person_filter for user filtering
-      if (params.username_filter) {
+      // Use person_id if provided (preferred), otherwise try username filter
+      if (params.person_id) {
+        urlParams.append("person_id", params.person_id);
+      } else if (params.username_filter) {
+        // Fallback to person_filter if person_id not available
         urlParams.append("person_filter", params.username_filter);
       }
 
@@ -113,20 +551,28 @@ export class XDMoDUserSpecific {
       });
       
       if (!response.ok) {
-        // If person grouping fails, try alternative approaches
+        // If get_data fails, try get_charts with same parameters
         const fallbackParams = new URLSearchParams({
           operation: "get_charts",
-          public_user: "true", // Fallback to public with token
+          public_user: "false", // Still try authenticated
           dataset_type: "aggregate",
           format: "hc_jsonstore",
           width: "916",
           height: "484",
           realm: params.realm,
-          group_by: "none", // Try aggregate data first
+          group_by: "person", // Keep trying person grouping
           statistic: params.statistic,
           start_date: params.start_date,
           end_date: params.end_date,
+          limit: "50",
         });
+        
+        // Add filtering parameters to fallback too
+        if (params.person_id) {
+          fallbackParams.append("person_id", params.person_id);
+        } else if (params.username_filter) {
+          fallbackParams.append("person_filter", params.username_filter);
+        }
 
         const fallbackResponse = await fetch(url, {
           method: "POST",

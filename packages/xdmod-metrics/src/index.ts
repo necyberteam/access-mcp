@@ -430,7 +430,103 @@ class XDMoDMetricsServer extends BaseAccessServer {
       },
     });
 
-    // User-specific tools removed - see user-specific.ts for experimental user functionality
+    // Public lookup tool (always available)
+    tools.push({
+      name: "lookup_person_id_public",
+      description: "Test person ID lookup using public access (may be limited)",
+      inputSchema: {
+        type: "object",
+        properties: {
+          search_term: {
+            type: "string",
+            description: "Name to search for (e.g., 'John Smith')",
+          },
+        },
+        required: ["search_term"],
+      },
+    });
+
+    // Person ID discovery tool (always available)
+    tools.push({
+      name: "discover_person_ids",
+      description: "Discover available person IDs and test API access patterns",
+      inputSchema: {
+        type: "object",
+        properties: {},
+        required: [],
+      },
+    });
+
+    // User-specific tools - available when authenticated
+    if (this.isAuthenticated()) {
+      tools.push(
+        {
+          name: "get_user_group_bys",
+          description: "Enumerate available user-related group_by options for a realm",
+          inputSchema: {
+            type: "object",
+            properties: {
+              realm: {
+                type: "string",
+                description: 'The realm to check (default: "Jobs")',
+                default: "Jobs",
+              },
+            },
+            required: [],
+          },
+        },
+        {
+          name: "lookup_person_id",
+          description: "Search for ACCESS person IDs by name to use in filtering",
+          inputSchema: {
+            type: "object",
+            properties: {
+              search_term: {
+                type: "string",
+                description: "Name or partial name to search for (e.g., 'Smith', 'John Smith')",
+              },
+            },
+            required: ["search_term"],
+          },
+        },
+        {
+          name: "get_my_usage",
+          description: "Get personal usage data (requires authentication)",
+          inputSchema: {
+            type: "object",
+            properties: {
+              realm: {
+                type: "string",
+                description: 'The realm (e.g., "Jobs", "SUPREMM")',
+                default: "Jobs",
+              },
+              statistic: {
+                type: "string",
+                description: 'The statistic (e.g., "total_cpu_hours", "job_count")',
+                default: "total_cpu_hours",
+              },
+              start_date: {
+                type: "string",
+                description: "Start date in YYYY-MM-DD format",
+              },
+              end_date: {
+                type: "string",
+                description: "End date in YYYY-MM-DD format",
+              },
+              person_id: {
+                type: "string",
+                description: "ACCESS person ID (use lookup_person_id to find)",
+              },
+              username_filter: {
+                type: "string",
+                description: "Alternative: filter by username/name (less reliable than person_id)",
+              },
+            },
+            required: ["start_date", "end_date"],
+          },
+        }
+      );
+    }
 
     return tools;
   }
@@ -495,6 +591,68 @@ class XDMoDMetricsServer extends BaseAccessServer {
       case "debug_auth_status":
         return await this.debugAuthStatus();
 
+      case "lookup_person_id_public":
+        const { XDMoDUserSpecific: PublicUserService } = await import("./user-specific.js");
+        const publicService = new PublicUserService(this.baseURL, "dummy-token");
+        const publicResult = await publicService.lookupPersonIdPublic(args.search_term);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `🔍 **Public Person ID Lookup Results for "${publicResult.searchTerm}"**\n\n` +
+                    ('error' in publicResult 
+                      ? `**Error:** ${publicResult.error}\n\n`
+                      : '') +
+                    (publicResult.matches && publicResult.matches.length > 0 
+                      ? `**Matches Found:**\n` +
+                        publicResult.matches.map((match: any, idx: number) => 
+                          `${idx + 1}. **${match.name}**\n` +
+                          `   - Match Score: ${match.match_score}%\n` +
+                          (match.id ? `   - Person ID: ${match.id}\n` : `   - Person ID: Not available\n`)
+                        ).join('\n') + '\n\n'
+                      : `**No matches found.**\n\n`) +
+                    `**Note:** ${publicResult.note}\n\n` +
+                    ('diagnostic' in publicResult 
+                      ? `**Diagnostic Information:**\n` +
+                        `- Response has data: ${publicResult.diagnostic.responseStructure.hasData}\n` +
+                        `- Data length: ${publicResult.diagnostic.responseStructure.dataLength}\n` +
+                        `- Sample fields: ${publicResult.diagnostic.responseStructure.sampleFields.join(', ')}\n` +
+                        `- Raw data sample: \`\`\`json\n${publicResult.diagnostic.rawDataSample}\n\`\`\`\n\n`
+                      : '') +
+                    `**This is a diagnostic tool to test API access patterns.**`,
+            },
+          ],
+        };
+
+      case "discover_person_ids":
+        const { XDMoDUserSpecific: DiscoveryService } = await import("./user-specific.js");
+        const discoveryService = new DiscoveryService(this.baseURL, this.apiToken || "dummy-token");
+        const discoveryResult = await discoveryService.discoverPersonIds();
+        return {
+          content: [
+            {
+              type: "text",
+              text: `🔍 **Person ID Discovery Results**\n\n` +
+                    `${discoveryResult.summary}\n\n` +
+                    `**Recommendations:**\n${discoveryResult.recommendations.map(r => `${r}`).join('\n')}\n\n` +
+                    `**Detailed Results:**\n` +
+                    discoveryResult.results.map((result: any, idx: number) => 
+                      `\n**${idx + 1}. ${result.approach}**\n` +
+                      `- Status: ${result.success ? '✅ Success' : '❌ Failed'} (HTTP ${result.status})\n` +
+                      (result.error ? `- Error: ${result.error}\n` : '') +
+                      `- Data Structure: ${JSON.stringify(result.rawDataStructure, null, 2)}\n` +
+                      (result.persons.length > 0 
+                        ? `- Sample Persons Found:\n${result.persons.map((p: any) => `  • ${p.name} (ID: ${p.id})`).join('\n')}\n`
+                        : `- No persons found\n`)
+                    ).join('\n') +
+                    `\n**💡 Use this information to:**\n` +
+                    `1. Identify your person ID from the list above\n` +
+                    `2. Choose the best API approach (authenticated vs public)\n` +
+                    `3. Test person_id filtering with get_my_usage tool`,
+            },
+          ],
+        };
+
       case "get_usage_with_nsf_context":
         return await this.getUsageWithNSFContext(
           args.researcher_name, 
@@ -522,7 +680,74 @@ class XDMoDMetricsServer extends BaseAccessServer {
 
       // Data Analytics Framework cases removed
 
-      // User-specific cases removed - see user-specific.ts
+      // User-specific tools (when authenticated)
+      case "get_user_group_bys":
+        if (!this.isAuthenticated()) {
+          throw new Error("Authentication required for user-specific features");
+        }
+        const { XDMoDUserSpecific: UserSpecificService1 } = await import("./user-specific.js");
+        const userService1 = new UserSpecificService1(this.baseURL, this.apiToken!);
+        const groupBys = await userService1.getUserGroupBys(args.realm || "Jobs");
+        return {
+          content: [
+            {
+              type: "text",
+              text: `🔍 **User Group-By Options for ${groupBys.realm} Realm**\n\n` +
+                    `**User-Related Group-Bys Found:**\n` +
+                    groupBys.userRelatedGroupBys.map((gb: any) => 
+                      `• ${gb.text} (group_by: ${gb.group_by})`
+                    ).join('\n') + '\n\n' +
+                    `**All Available Group-Bys:**\n` +
+                    groupBys.allGroupBys.map((gb: any) => 
+                      `• ${gb.text} (group_by: ${gb.group_by})`
+                    ).join('\n'),
+            },
+          ],
+        };
+
+      case "lookup_person_id":
+        if (!this.isAuthenticated()) {
+          throw new Error("Authentication required for user-specific features");
+        }
+        const { XDMoDUserSpecific: UserSpecificService2 } = await import("./user-specific.js");
+        const userService2 = new UserSpecificService2(this.baseURL, this.apiToken!);
+        const lookupResult = await userService2.lookupPersonId(args.search_term);
+        return {
+          content: [
+            {
+              type: "text",
+              text: `🔍 **Person ID Lookup Results for "${lookupResult.searchTerm}"**\n\n` +
+                    (lookupResult.matches.length > 0 
+                      ? `**Matches Found:**\n` +
+                        lookupResult.matches.map((match: any, idx: number) => 
+                          `${idx + 1}. **${match.name}**\n` +
+                          `   - Match Score: ${match.match_score}%\n` +
+                          (match.id ? `   - Person ID: ${match.id}\n` : `   - Person ID: Not available in response\n`)
+                        ).join('\n') + '\n\n'
+                      : `**No matches found.**\n\n`) +
+                    `**Note:** ${lookupResult.note}\n\n` +
+                    `**Next Steps:**\n` +
+                    `• If person ID is available, use it with get_my_usage tool\n` +
+                    `• If not, try using the name as username_filter in get_my_usage\n` +
+                    `• Check if the user has recent activity in the system`,
+            },
+          ],
+        };
+
+      case "get_my_usage":
+        if (!this.isAuthenticated()) {
+          throw new Error("Authentication required for user-specific features");
+        }
+        const { XDMoDUserSpecific: UserSpecificService3 } = await import("./user-specific.js");
+        const userService3 = new UserSpecificService3(this.baseURL, this.apiToken!);
+        return await userService3.getMyUsage({
+          realm: args.realm || "Jobs",
+          statistic: args.statistic || "total_cpu_hours",
+          start_date: args.start_date,
+          end_date: args.end_date,
+          person_id: args.person_id,
+          username_filter: args.username_filter,
+        });
 
       default:
         throw new Error(`Unknown tool: ${name}`);
@@ -962,8 +1187,13 @@ class XDMoDMetricsServer extends BaseAccessServer {
                 `- analyze_funding_vs_usage: ✅ (NSF-enhanced)\n` +
                 `- institutional_research_profile: ✅ (NSF-enhanced)\n` +
                 `- debug_auth_status: ✅\n` +
-                `- get_current_user: ❌ (moved to user-specific.ts)\n` +
-                `- get_my_usage: ❌ (moved to user-specific.ts)\n\n` +
+                (this.isAuthenticated() 
+                  ? `- get_user_group_bys: ✅ (authenticated)\n` +
+                    `- lookup_person_id: ✅ (authenticated)\n` +
+                    `- get_my_usage: ✅ (authenticated)\n\n`
+                  : `- get_user_group_bys: ❌ (requires authentication)\n` +
+                    `- lookup_person_id: ❌ (requires authentication)\n` +
+                    `- get_my_usage: ❌ (requires authentication)\n\n`) +
                 `**Troubleshooting:**\n` +
                 `Environment variable should be set in Claude Desktop config under "env" section.\n` +
                 `If still not working, the environment variable might not be passed correctly by Claude Desktop.`
