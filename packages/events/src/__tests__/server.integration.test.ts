@@ -164,6 +164,88 @@ describe("EventsServer Integration Tests", () => {
         });
       }
     }, 10000);
+
+    it("should handle timezone parameter with relative dates", async () => {
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "get_events",
+          arguments: {
+            beginning_date_relative: "today",
+            timezone: "America/New_York",
+            limit: 5,
+          },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+
+      expect(responseData).toHaveProperty("events");
+      expect(responseData).toHaveProperty("total_events");
+      expect(responseData).toHaveProperty("api_info");
+      
+      // Should successfully handle timezone parameter (v2.1 API feature)
+      expect(typeof responseData.total_events).toBe("number");
+      expect(responseData.api_info.timezone_used).toBe("America/New_York");
+      expect(responseData.api_info.endpoint_version).toBe("2.1");
+    }, 10000);
+
+    it("should handle upcoming events with timezone", async () => {
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "get_upcoming_events",
+          arguments: {
+            timezone: "Europe/London",
+            limit: 3,
+          },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+
+      expect(responseData).toHaveProperty("events");
+      expect(responseData).toHaveProperty("api_info");
+      expect(responseData.api_info.timezone_used).toBe("Europe/London");
+    }, 10000);
+
+    it("should handle search with Pacific timezone", async () => {
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_events",
+          arguments: {
+            query: "office",
+            timezone: "America/Los_Angeles",
+            limit: 2,
+          },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+
+      expect(responseData).toHaveProperty("search_query");
+      expect(responseData.search_query).toBe("office");
+      expect(responseData).toHaveProperty("total_matches");
+    }, 10000);
+
+    it("should handle events by tag with timezone", async () => {
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "get_events_by_tag",
+          arguments: {
+            tag: "ai",
+            time_range: "this_week",
+            timezone: "Asia/Tokyo",
+            limit: 3,
+          },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+
+      expect(responseData).toHaveProperty("tag");
+      expect(responseData.tag).toBe("ai");
+      expect(responseData).toHaveProperty("time_range");
+      expect(responseData.time_range).toBe("this_week");
+    }, 10000);
   });
 
   describe("Error Handling with Real API", () => {

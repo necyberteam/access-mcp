@@ -13,6 +13,7 @@ dist/
 # IDE
 .vscode/
 .idea/
+CLAUDE.md
 
 # OS
 .DS_Store

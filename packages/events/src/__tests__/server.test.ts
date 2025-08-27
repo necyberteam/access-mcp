@@ -32,7 +32,7 @@ describe("EventsServer", () => {
     it("should initialize with correct server name and version", () => {
       expect(server).toBeDefined();
       expect(server["serverName"]).toBe("access-mcp-events");
-      expect(server["version"]).toBe("0.1.0");
+      expect(server["version"]).toBe("0.2.0");
       expect(server["baseURL"]).toBe("https://support.access-ci.org");
     });
 
@@ -64,6 +64,11 @@ describe("EventsServer", () => {
   });
 
   describe("URL Building", () => {
+    it("should build correct URLs with v2.1 endpoint", () => {
+      const url = server["buildEventsUrl"]({});
+      expect(url).toContain("/api/2.1/events");
+    });
+
     it("should build correct URLs with relative date filters", () => {
       const url = server["buildEventsUrl"]({
         beginning_date_relative: "today",
@@ -72,6 +77,16 @@ describe("EventsServer", () => {
 
       expect(url).toContain("beginning_date_relative=today");
       expect(url).toContain("end_date_relative=%2B1week");
+    });
+
+    it("should build correct URLs with timezone parameter", () => {
+      const url = server["buildEventsUrl"]({
+        beginning_date_relative: "today",
+        timezone: "America/New_York",
+      });
+
+      expect(url).toContain("beginning_date_relative=today");
+      expect(url).toContain("timezone=America%2FNew_York");
     });
 
     it("should build correct URLs with absolute date filters", () => {
@@ -110,6 +125,66 @@ describe("EventsServer", () => {
       expect(url).toContain("end_date=2024-12-31");
       expect(url).toContain("f%5B0%5D=custom_event_type%3Awebinar");
       expect(url).toContain("f%5B1%5D=skill_level%3Aintermediate");
+    });
+
+    it("should build correct URLs with timezone and mixed parameters", () => {
+      const url = server["buildEventsUrl"]({
+        beginning_date_relative: "today",
+        end_date_relative: "+1month",
+        timezone: "Europe/Berlin",
+        event_type: "workshop",
+      });
+
+      expect(url).toContain("beginning_date_relative=today");
+      expect(url).toContain("end_date_relative=%2B1month");
+      expect(url).toContain("timezone=Europe%2FBerlin");
+      expect(url).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
+    });
+
+    it("should not include timezone parameter when not provided", () => {
+      const url = server["buildEventsUrl"]({
+        beginning_date_relative: "today",
+      });
+
+      expect(url).toContain("beginning_date_relative=today");
+      expect(url).not.toContain("timezone=");
+    });
+
+    it("should handle various timezone formats", () => {
+      const timezones = [
+        "UTC",
+        "America/New_York",
+        "America/Los_Angeles", 
+        "Europe/London",
+        "Asia/Tokyo"
+      ];
+
+      timezones.forEach(tz => {
+        const url = server["buildEventsUrl"]({
+          beginning_date_relative: "today",
+          timezone: tz,
+        });
+        expect(url).toContain(`timezone=${encodeURIComponent(tz)}`);
+      });
+    });
+
+    it("should include search_api_fulltext parameter", () => {
+      const url = server["buildEventsUrl"]({
+        search_api_fulltext: "python machine learning",
+        beginning_date_relative: "today",
+      });
+
+      expect(url).toContain("search_api_fulltext=python+machine+learning");
+      expect(url).toContain("beginning_date_relative=today");
+    });
+
+    it("should not include search parameter when not provided", () => {
+      const url = server["buildEventsUrl"]({
+        beginning_date_relative: "today",
+      });
+
+      expect(url).not.toContain("search_api_fulltext");
+      expect(url).toContain("beginning_date_relative=today");
     });
   });
 
@@ -273,6 +348,68 @@ describe("EventsServer", () => {
         expect(responseData.popular_tags).toContain("python");
         expect(responseData.popular_tags).toContain("machine-learning");
       });
+
+      it("should include timezone parameter in URL when provided", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: mockEventsData,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "get_events",
+            arguments: {
+              beginning_date_relative: "today",
+              timezone: "America/New_York",
+            },
+          },
+        });
+
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("timezone=America%2FNew_York");
+        expect(calledUrl).toContain("beginning_date_relative=today");
+      });
+
+      it("should include API info with timezone used", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: mockEventsData,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "get_events",
+            arguments: {
+              beginning_date_relative: "today",
+              timezone: "Europe/London",
+            },
+          },
+        });
+
+        const responseData = JSON.parse(result.content[0].text);
+        expect(responseData.api_info).toBeDefined();
+        expect(responseData.api_info.endpoint_version).toBe("2.1");
+        expect(responseData.api_info.timezone_used).toBe("Europe/London");
+      });
+
+      it("should default to UTC timezone when not specified", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: mockEventsData,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "get_events",
+            arguments: {
+              beginning_date_relative: "today",
+            },
+          },
+        });
+
+        const responseData = JSON.parse(result.content[0].text);
+        expect(responseData.api_info.timezone_used).toBe("UTC");
+      });
     });
 
     describe("get_upcoming_events", () => {
@@ -314,6 +451,27 @@ describe("EventsServer", () => {
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
         expect(calledUrl).toContain("custom_event_type%3Awebinar");
       });
+
+      it("should pass timezone parameter to get_events", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: mockEventsData,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "get_upcoming_events",
+            arguments: {
+              timezone: "America/Chicago",
+              limit: 5,
+            },
+          },
+        });
+
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("beginning_date_relative=today");
+        expect(calledUrl).toContain("timezone=America%2FChicago");
+      });
     });
 
     describe("search_events", () => {
@@ -338,7 +496,7 @@ describe("EventsServer", () => {
         expect(responseData.events[0].title).toContain("Python");
       });
 
-      it("should search events by query in description", async () => {
+      it("should use API native search instead of client-side filtering", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: mockEventsData,
@@ -353,12 +511,16 @@ describe("EventsServer", () => {
           },
         });
 
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("search_api_fulltext=ML");
+        
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_matches).toBe(1);
-        expect(responseData.events[0].description).toContain("ML");
+        expect(responseData.search_query).toBe("ML");
+        expect(responseData.search_method).toBe("API native full-text search");
+        expect(responseData.total_matches).toBe(mockEventsData.length); // API returns raw count
       });
 
-      it("should search events by query in tags", async () => {
+      it("should include search scope information", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: mockEventsData,
@@ -373,8 +535,11 @@ describe("EventsServer", () => {
           },
         });
 
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("search_api_fulltext=machine-learning");
+        
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_matches).toBe(1);
+        expect(responseData.search_scope).toBe("titles, descriptions, speakers, tags, location, event type");
       });
 
       it("should search with custom date range", async () => {
@@ -396,6 +561,27 @@ describe("EventsServer", () => {
 
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
         expect(calledUrl).toContain("beginning_date_relative=-1month");
+      });
+
+      it("should include timezone parameter in search", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: mockEventsData,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "search_events",
+            arguments: {
+              query: "python",
+              timezone: "Asia/Tokyo",
+            },
+          },
+        });
+
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("timezone=Asia%2FTokyo");
+        expect(calledUrl).toContain("beginning_date_relative=today");
       });
     });
 
@@ -486,6 +672,30 @@ describe("EventsServer", () => {
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
         expect(calledUrl).not.toContain("beginning_date_relative");
         expect(calledUrl).not.toContain("end_date_relative");
+      });
+
+      it("should include timezone parameter for time-based ranges", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: mockEventsData,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "get_events_by_tag",
+            arguments: {
+              tag: "ai",
+              time_range: "this_week",
+              timezone: "Australia/Sydney",
+            },
+          },
+        });
+
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("custom_event_tags%3Aai");
+        expect(calledUrl).toContain("beginning_date_relative=today");
+        expect(calledUrl).toContain("end_date_relative=%2B1week");
+        expect(calledUrl).toContain("timezone=Australia%2FSydney");
       });
     });
 

@@ -5,7 +5,6 @@ ACCESS-CI Software Discovery Service MCP server
 ## Installation
 
 ### Download & Run
-
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `software-discovery/index.js` file
 3. Add to Claude Desktop config:
@@ -21,7 +20,6 @@ ACCESS-CI Software Discovery Service MCP server
 ```
 
 ### npm Package
-
 ```bash
 npm install -g @access-mcp/software-discovery
 ```
@@ -243,6 +241,7 @@ This server connects to the ACCESS-CI Software Discovery Service at `https://ara
 ## License
 
 MIT
+
 
 ---
 

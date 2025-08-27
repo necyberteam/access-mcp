@@ -8,7 +8,7 @@ A Model Context Protocol server providing access to ACCESS-CI events data includ
 
 - **`get_events`** - Get ACCESS-CI events with comprehensive filtering
 - **`get_upcoming_events`** - Get upcoming events (today onward)
-- **`search_events`** - Search events by keywords in title/description
+- **`search_events`** - **Enhanced!** Search events using API's native full-text search across all content
 - **`get_events_by_tag`** - Get events filtered by specific tags
 
 ### 📊 Resources
@@ -49,10 +49,12 @@ Add to your Claude Desktop configuration:
 What events are coming up in the next week?
 ```
 
-**Search for specific topics:**
+**Search for specific topics (now much more powerful!):**
 
 ```
 Find upcoming Python workshops
+Show me machine learning events
+Search for "office hours" this week
 ```
 
 **Filter by skill level:**
@@ -64,8 +66,32 @@ Show me beginner-level events this month
 **Get events by tags:**
 
 ```
-Find all machine learning events
+Find all GPU computing events
 ```
+
+## Key Improvements
+
+### 🚀 Enhanced Search (v2.1)
+
+**Native API Full-Text Search:**
+- Searches across titles, descriptions, speakers, tags, location, and event type
+- Supports multi-word queries (e.g., "machine learning", "office hours")
+- Much more comprehensive results than previous tag-only filtering
+- Server-side indexing for better performance
+
+**Search Examples:**
+- `"python"` - Find Python programming events
+- `"machine learning"` - Find ML-related content in any field
+- `"gpu computing"` - Find GPU-related events
+- `"office hours"` - Find all office hours sessions
+
+### 🌍 Timezone Support (v2.1)
+
+**Smart Timezone Handling:**
+- All timestamps returned in UTC (ISO 8601 format with Z suffix)
+- Timezone parameter controls relative date calculations
+- Common timezone examples: `America/New_York`, `Europe/London`, `Asia/Tokyo`
+- Default: UTC calculations
 
 ## Filtering Capabilities
 
@@ -144,16 +170,26 @@ The server adds these computed fields:
 }
 ```
 
-### Search Events
+### Search Events (Enhanced API Search)
 
 ```typescript
-// Search for GPU-related events
+// Search for GPU-related events using native API search
 {
   "tool": "search_events",
   "arguments": {
     "query": "GPU computing",
     "beginning_date_relative": "today",
+    "timezone": "America/New_York",
     "limit": 10
+  }
+}
+
+// Multi-word search examples
+{
+  "tool": "search_events",
+  "arguments": {
+    "query": "machine learning",
+    "beginning_date_relative": "-1month"
   }
 }
 ```
@@ -187,10 +223,17 @@ npm test
 
 ## Base URL
 
-The server connects to: `https://support.access-ci.org/api/2.0/events`
+The server connects to: `https://support.access-ci.org/api/2.1/events` (v2.1 with UTC timestamps and enhanced search)
 
 ## Technical Notes
 
+### API Version 2.1 Features
+- **UTC timestamps**: All dates returned in UTC with Z suffix (e.g., `2024-08-30T13:00:00Z`)
+- **Native search**: Uses `search_api_fulltext` parameter for comprehensive searching
+- **Timezone support**: Relative dates calculated using specified timezone
+- **Enhanced metadata**: Responses include API version and timezone info
+
+### General
 - All date comparisons use the event's start date (`date` field)
 - Results include both upcoming and past events unless date filtered
 - Faceted search filters use AND logic when combined

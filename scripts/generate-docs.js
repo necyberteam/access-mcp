@@ -169,6 +169,7 @@ async function main() {
     "compute-resources",
     "system-status",
     "software-discovery",
+    "events",
     "xdmod-metrics",
     "allocations",
   ];

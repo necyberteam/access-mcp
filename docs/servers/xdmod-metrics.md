@@ -5,7 +5,6 @@ MCP server for XDMoD Metrics and Usage Analytics API
 ## Installation
 
 ### Download & Run
-
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `xdmod-metrics/index.js` file
 3. Add to Claude Desktop config:
@@ -21,7 +20,6 @@ MCP server for XDMoD Metrics and Usage Analytics API
 ```
 
 ### npm Package
-
 ```bash
 npm install -g @access-mcp/xdmod-metrics
 ```
@@ -597,6 +595,7 @@ npm start
 ```
 
 The server runs on stdio transport and can be integrated with MCP-compatible clients.
+
 
 ---
 

@@ -5,7 +5,6 @@ MCP server for ACCESS-CI Allocations and Research Projects API
 ## Installation
 
 ### Download & Run
-
 1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
 2. Extract and locate the `allocations/index.js` file
 3. Add to Claude Desktop config:
@@ -21,7 +20,6 @@ MCP server for ACCESS-CI Allocations and Research Projects API
 ```
 
 ### npm Package
-
 ```bash
 npm install -g @access-mcp/allocations
 ```
@@ -332,6 +330,7 @@ This server connects to:
 ## License
 
 MIT
+
 
 ---
 

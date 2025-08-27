@@ -5,7 +5,7 @@ export class EventsServer extends BaseAccessServer {
   private _eventsHttpClient?: AxiosInstance;
 
   constructor() {
-    super("access-mcp-events", "0.1.0", "https://support.access-ci.org");
+    super("access-mcp-events", "0.2.0", "https://support.access-ci.org");
   }
 
   protected get httpClient(): AxiosInstance {
@@ -35,7 +35,7 @@ export class EventsServer extends BaseAccessServer {
       {
         name: "get_events",
         description:
-          "Get ACCESS-CI events with comprehensive filtering capabilities",
+          "Get ACCESS-CI events with comprehensive filtering capabilities. Returns events in UTC timezone with enhanced metadata.",
         inputSchema: {
           type: "object",
           properties: {
@@ -43,7 +43,7 @@ export class EventsServer extends BaseAccessServer {
             beginning_date_relative: {
               type: "string",
               description:
-                "Start date using relative values (today, +1week, -1month, etc.)",
+                "Start date using relative values. Calculated in UTC by default, or use 'timezone' parameter for local calculations.",
               enum: [
                 "today",
                 "+1week",
@@ -59,7 +59,7 @@ export class EventsServer extends BaseAccessServer {
             end_date_relative: {
               type: "string",
               description:
-                "End date using relative values (today, +1week, -1month, etc.)",
+                "End date using relative values. Calculated in UTC by default, or use 'timezone' parameter for local calculations.",
               enum: [
                 "today",
                 "+1week",
@@ -76,12 +76,19 @@ export class EventsServer extends BaseAccessServer {
             beginning_date: {
               type: "string",
               description:
-                "Start date in YYYY-MM-DD or YYYY-MM-DD HH:MM:SS format",
+                "Start date in YYYY-MM-DD or YYYY-MM-DD HH:MM:SS format. Always interpreted as provided (no timezone conversion).",
             },
             end_date: {
               type: "string",
               description:
-                "End date in YYYY-MM-DD or YYYY-MM-DD HH:MM:SS format",
+                "End date in YYYY-MM-DD or YYYY-MM-DD HH:MM:SS format. Always interpreted as provided (no timezone conversion).",
+            },
+            // Timezone parameter for relative date calculations
+            timezone: {
+              type: "string",
+              description:
+                "Timezone for relative date calculations (default: UTC). Common values: UTC, America/New_York (Eastern), America/Chicago (Central), America/Denver (Mountain), America/Los_Angeles (Pacific), Europe/London (British), Europe/Berlin (CET). Only affects relative dates, not absolute dates. Invalid timezones default to UTC.",
+              default: "UTC",
             },
             // Faceted search filters
             event_type: {
@@ -116,7 +123,7 @@ export class EventsServer extends BaseAccessServer {
       },
       {
         name: "get_upcoming_events",
-        description: "Get upcoming ACCESS-CI events (today onward)",
+        description: "Get upcoming ACCESS-CI events (from today onward in UTC). Convenient shortcut for get_events with beginning_date_relative=today.",
         inputSchema: {
           type: "object",
           properties: {
@@ -128,7 +135,12 @@ export class EventsServer extends BaseAccessServer {
             },
             event_type: {
               type: "string",
-              description: "Filter by event type (workshop, webinar, etc.)",
+              description: "Filter by event type (workshop, webinar, Office Hours, Training, etc.)",
+            },
+            timezone: {
+              type: "string",
+              description: "Timezone for 'today' calculation (default: UTC). Use user's local timezone for better relevance.",
+              default: "UTC",
             },
           },
           required: [],
@@ -136,18 +148,23 @@ export class EventsServer extends BaseAccessServer {
       },
       {
         name: "search_events",
-        description: "Search events by keywords in title and description",
+        description: "Search events using API's native full-text search. Searches across titles, descriptions, speakers, tags, location, and event type. Much more powerful than tag filtering.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Search query for event titles and descriptions",
+              description: "Search query (case-insensitive). Use spaces for multiple words (e.g., 'machine learning', 'office hours'). Searches across all event content including descriptions.",
             },
             beginning_date_relative: {
               type: "string",
-              description: "Start date using relative values (default: today)",
+              description: "Start date using relative values (default: today). Use '-1month' or '-1year' to search past events, or omit for all-time search.",
               default: "today",
+            },
+            timezone: {
+              type: "string",
+              description: "Timezone for relative date calculation (default: UTC)",
+              default: "UTC",
             },
             limit: {
               type: "number",
@@ -161,20 +178,25 @@ export class EventsServer extends BaseAccessServer {
       },
       {
         name: "get_events_by_tag",
-        description: "Get events filtered by specific tags",
+        description: "Get events filtered by specific tags. Useful for finding events on topics like 'python', 'ai', 'machine-learning', 'gpu', etc.",
         inputSchema: {
           type: "object",
           properties: {
             tag: {
               type: "string",
               description:
-                "Event tag to filter by (e.g., python, machine-learning, gpu)",
+                "Event tag to filter by. Common tags: python, ai, machine-learning, gpu, deep-learning, neural-networks, big-data, hpc, jetstream, neocortex",
             },
             time_range: {
               type: "string",
-              description: "Time range for events",
+              description: "Time range for events (upcoming=today onward, this_week=next 7 days, this_month=next 30 days, all=no date filter)",
               enum: ["upcoming", "this_week", "this_month", "all"],
               default: "upcoming",
+            },
+            timezone: {
+              type: "string",
+              description: "Timezone for time_range calculations (default: UTC)",
+              default: "UTC",
             },
             limit: {
               type: "number",
@@ -301,7 +323,12 @@ export class EventsServer extends BaseAccessServer {
   }
 
   private buildEventsUrl(params: any): string {
-    const url = new URL("/api/2.0/events", this.baseURL);
+    const url = new URL("/api/2.1/events", this.baseURL);
+
+    // Add full-text search parameter (API native search)
+    if (params.search_api_fulltext) {
+      url.searchParams.set("search_api_fulltext", params.search_api_fulltext);
+    }
 
     // Add date filtering parameters
     if (params.beginning_date_relative) {
@@ -318,6 +345,11 @@ export class EventsServer extends BaseAccessServer {
     }
     if (params.end_date) {
       url.searchParams.set("end_date", params.end_date);
+    }
+
+    // Add timezone parameter for relative date calculations
+    if (params.timezone) {
+      url.searchParams.set("timezone", params.timezone);
     }
 
     // Add faceted search filters
@@ -405,6 +437,11 @@ export class EventsServer extends BaseAccessServer {
       events_this_week: enhancedEvents.filter(
         (e: any) => e.starts_in_hours <= 168 && e.starts_in_hours >= 0,
       ).length,
+      api_info: {
+        endpoint_version: "2.1",
+        timezone_handling: "All timestamps in UTC (Z suffix). Relative dates calculated using timezone parameter (default: UTC).",
+        timezone_used: params.timezone || "UTC",
+      },
       event_types: [
         ...new Set(
           enhancedEvents.map((e: any) => e.event_type).filter(Boolean),
@@ -439,35 +476,34 @@ export class EventsServer extends BaseAccessServer {
       ...params,
       beginning_date_relative: "today",
       limit: params.limit || 50,
+      // Pass through timezone if provided
+      ...(params.timezone && { timezone: params.timezone }),
     };
 
     return this.getEvents(upcomingParams);
   }
 
   private async searchEvents(params: any) {
+    // Use API's native full-text search instead of client-side filtering
     const searchParams = {
+      search_api_fulltext: params.query,
       beginning_date_relative: params.beginning_date_relative || "today",
       limit: params.limit || 25,
+      // Pass through timezone if provided
+      ...(params.timezone && { timezone: params.timezone }),
     };
 
-    // Get events and filter by search query
+    // Use the API's native search capabilities
     const eventsResponse = await this.getEvents(searchParams);
     const eventsData = JSON.parse(eventsResponse.content[0].text);
 
-    const query = params.query.toLowerCase();
-    const filteredEvents = eventsData.events.filter(
-      (event: any) =>
-        event.title?.toLowerCase().includes(query) ||
-        event.description?.toLowerCase().includes(query) ||
-        event.speakers?.toLowerCase().includes(query) ||
-        event.tags?.some((tag: string) => tag.toLowerCase().includes(query)),
-    );
-
+    // API returns already filtered results, no need for client-side filtering
     const summary = {
       search_query: params.query,
-      total_matches: filteredEvents.length,
-      searched_in: eventsData.total_events,
-      events: filteredEvents,
+      total_matches: eventsData.total_events,
+      search_method: "API native full-text search",
+      search_scope: "titles, descriptions, speakers, tags, location, event type",
+      events: eventsData.events,
     };
 
     return {
@@ -481,7 +517,7 @@ export class EventsServer extends BaseAccessServer {
   }
 
   private async getEventsByTag(params: any) {
-    const { tag, time_range = "upcoming", limit = 25 } = params;
+    const { tag, time_range = "upcoming", limit = 25, timezone } = params;
 
     let dateParams: any = {};
     switch (time_range) {
@@ -505,6 +541,8 @@ export class EventsServer extends BaseAccessServer {
       ...dateParams,
       event_tags: tag,
       limit,
+      // Pass through timezone if provided
+      ...(timezone && { timezone }),
     };
 
     const eventsResponse = await this.getEvents(taggedParams);
