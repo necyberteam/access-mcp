@@ -54,7 +54,7 @@ npm install -g @access-mcp/compute-resources
 ## MCP server for ACCESS-CI System Status and Outages API
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.3.0
+**Version:** v0.4.0
 
 MCP server for ACCESS-CI System Status and Outages API
 

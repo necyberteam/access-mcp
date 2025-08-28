@@ -16,6 +16,11 @@ Get current system outages and issues affecting ACCESS-CI resources.
 
 - `resource_filter` (string, optional): Filter by specific resource name or ID
 
+**Returns:**
+- Total outages count and severity breakdown
+- Affected resources list
+- Enhanced outage details with severity levels
+
 ### get_scheduled_maintenance
 
 Get scheduled maintenance and future outages for ACCESS-CI resources.
@@ -24,21 +29,51 @@ Get scheduled maintenance and future outages for ACCESS-CI resources.
 
 - `resource_filter` (string, optional): Filter by specific resource name or ID
 
+**Returns:**
+- Scheduled maintenance sorted by start time
+- Time until maintenance starts
+- Duration calculations for planned windows
+
+### get_past_outages
+
+Get historical outages and past incidents affecting ACCESS-CI resources.
+
+**Parameters:**
+
+- `resource_filter` (string, optional): Filter by specific resource name or ID
+- `limit` (number, optional): Maximum number of past outages to return (default: 100)
+
+**Returns:**
+- Historical outage data with duration analysis
+- Recent outages (last 30 days) summary
+- Outage type categorization
+
 ### get_system_announcements
 
-Get all system announcements (current and scheduled).
+Get comprehensive system announcements combining current, scheduled, and recent past outages.
 
 **Parameters:**
 
 - `limit` (number, optional): Maximum number of announcements to return (default: 50)
 
-### get_resource_status
+**Returns:**
+- Unified view of current outages, scheduled maintenance, and recent past incidents
+- Categorized announcements for better organization
+- Timeline-based sorting
 
-Get the current operational status of a specific resource.
+### check_resource_status
+
+Check the operational status of specific ACCESS-CI resources.
 
 **Parameters:**
 
-- `resource_id` (string): The resource ID to check status for
+- `resource_ids` (array): List of resource IDs or names to check status for
+- `use_group_api` (boolean, optional): Use resource group API for more efficient querying (default: false)
+
+**Returns:**
+- Operational status for each requested resource
+- Active outage details with severity levels
+- API method used (direct vs group-specific)
 
 ## Resources
 
