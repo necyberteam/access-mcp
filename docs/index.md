@@ -11,7 +11,6 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/necyberteam/access-mcp
-
 ---
 
 ## What is MCP?
