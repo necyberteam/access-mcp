@@ -18,9 +18,7 @@ hero:
 The Model Context Protocol (MCP) is an open standard and open-source framework introduced by Anthropic that allows AI assistants to securely interact with external tools, systems, and data sources. It provides a universal interface for reading files, executing functions, and handling contextual prompts, creating a standardized way for large language models (LLMs) to integrate and share data. MCP has been widely adopted by major AI providers and the broader community.
 
 
-## ACCESS MCP Servers
-
-ACCESS-CI MCP servers offer structured access to:
+## ACCESS MCP Servers offer structured access to:
 
 - **Infrastructure Resources** Query hardware specifications, system capabilities, and availability across ACCESS resources.
 - **System Status** Track outages, maintenance schedules, and system announcements in real time.
