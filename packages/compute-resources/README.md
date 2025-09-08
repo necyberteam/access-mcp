@@ -1,10 +1,32 @@
 # Compute Resources MCP Server
 
-MCP server providing access to ACCESS-CI compute resources information.
+MCP server providing access to ACCESS-CI compute resources information including hardware specifications, resource status, and detailed configurations. Get comprehensive information about supercomputers, clusters, and their technical capabilities.
 
-## Overview
+## Usage Examples
 
-This server provides comprehensive information about compute resources available through ACCESS-CI, including hardware specifications, resource status, and detailed configurations.
+### **Discover Resources**
+
+```
+"What compute resources are available on ACCESS-CI?"
+"List all available supercomputers and clusters"
+"Show me information about high-performance computing resources"
+```
+
+### **Get Resource Details**
+
+```
+"Tell me about the Expanse supercomputer"
+"What are the specifications of Delta?"
+"Show me details about Bridges-2"
+```
+
+### **Hardware Specifications**
+
+```
+"What are the hardware specs for Anvil?"
+"How many GPUs does Delta have?"
+"What's the memory configuration on Frontera?"
+```
 
 ## Tools
 

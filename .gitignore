@@ -30,3 +30,13 @@ yarn.lock
 # Test coverage
 coverage/
 .nyc_output/
+
+# Python virtual environments
+venv/
+__pycache__/
+*.pyc
+
+# Backup files
+*.backup
+*.bak
+*.tmp

@@ -1,0 +1,50 @@
+# Multi-stage build for Node.js MCP servers
+FROM node:18-alpine AS builder
+
+# Build argument for package name
+ARG PACKAGE
+
+WORKDIR /app
+
+# Copy root package files
+COPY package*.json ./
+COPY tsconfig.json ./
+
+# Copy packages
+COPY packages/shared ./packages/shared
+COPY packages/${PACKAGE} ./packages/${PACKAGE}
+
+# Install all dependencies (including dev dependencies for building)
+RUN npm ci
+
+# Build shared first, then the specific package
+RUN cd packages/shared && npm run build
+RUN cd packages/${PACKAGE} && npm run build
+
+# Production stage
+FROM node:18-alpine AS production
+
+ARG PACKAGE
+ENV PACKAGE=${PACKAGE}
+
+WORKDIR /app
+
+# Create non-root user
+RUN addgroup -g 1001 -S mcp && \
+    adduser -S mcp -u 1001
+
+# Copy built application
+COPY --from=builder --chown=mcp:mcp /app/packages/shared ./packages/shared
+COPY --from=builder --chown=mcp:mcp /app/packages/${PACKAGE} ./packages/${PACKAGE}
+COPY --from=builder --chown=mcp:mcp /app/node_modules ./node_modules
+
+USER mcp
+
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+    CMD node -e "console.log('Server healthy')" || exit 1
+
+# Start the server
+CMD ["sh", "-c", "node packages/${PACKAGE}/dist/index.js"]

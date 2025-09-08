@@ -1,11 +1,11 @@
 {
-  "name": "@access-mcp/xdmod-metrics",
+  "name": "@access-mcp/xdmod-charts",
   "version": "0.4.0",
-  "description": "MCP server for XDMoD Metrics and Usage Analytics API",
+  "description": "MCP server for XDMoD Charts and Visualizations",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "access-xdmod-metrics": "dist/index.js"
+    "access-xdmod-charts": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -17,23 +17,23 @@
     "server",
     "access-ci",
     "xdmod",
-    "metrics",
-    "analytics",
-    "usage"
+    "charts",
+    "visualizations",
+    "analytics"
   ],
   "author": "ACCESS-CI",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/necyberteam/access-mcp.git",
-    "directory": "packages/xdmod-metrics"
+    "directory": "packages/xdmod-charts"
   },
-  "homepage": "https://github.com/necyberteam/access-mcp/tree/main/packages/xdmod-metrics",
+  "homepage": "https://github.com/necyberteam/access-mcp/tree/main/packages/xdmod-charts",
   "bugs": {
     "url": "https://github.com/necyberteam/access-mcp/issues"
   },
   "dependencies": {
-    "@access-mcp/shared": "^0.2.3"
+    "@access-mcp/shared": "file:../shared"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

@@ -11,6 +11,7 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/necyberteam/access-mcp
+
 ---
 
 ## What is MCP?
@@ -41,16 +42,32 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 - Installed ML frameworks and libraries
 - Current system status and availability
 
-## Installation
+## Getting Started
 
-Install all ACCESS-CI MCP servers with one command (requires Node.js 18+):
+Ready to explore ACCESS-CI resources with AI assistance? Get started in just a few minutes:
 
+### What You'll Need
+- **Claude Desktop** - Free AI assistant app with MCP support
+- **npm** (Node Package Manager) - Comes with Node.js for easy installation
+
+### Quick Install
 ```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/events
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/xdmod-data @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/events
 ```
 
-Then add to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+### Quick Setup
+1. **Install Prerequisites** - Claude Desktop and npm
+2. **Install MCP Servers** - One command installs all ACCESS-CI servers  
+3. **Configure Claude** - Add servers to your configuration file
+4. **Start Exploring** - Ask Claude about ACCESS-CI resources
 
+### Authentication
+- **Most servers work immediately** with no setup required
+- **Some servers** may need API keys for full functionality
+- Get started right away and add API keys as needed
+
+### Docker Deployment
+For production deployments, Docker containers are available:
 ```json
 {
   "mcpServers": {
@@ -92,13 +109,7 @@ Then add to your Claude Desktop config file (`~/Library/Application Support/Clau
 }
 ```
 
-### 🔧 For Developers
-
-Install locally for custom integrations:
-
-```bash
-npm install @access-mcp/affinity-groups
-```
+[**📖 Complete Installation Guide →**](/getting-started)
 
 ## Supported by ACCESS-CI
 

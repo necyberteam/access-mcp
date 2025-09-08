@@ -1,0 +1,2 @@
+[console_scripts]
+xdmod-data = xdmod_python.server:main

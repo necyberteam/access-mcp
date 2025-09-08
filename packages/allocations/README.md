@@ -1,23 +1,75 @@
 # Allocations MCP Server
 
-MCP server providing access to ACCESS-CI allocations and research projects data with NSF Awards integration.
+Advanced research project discovery with NSF funding integration and enterprise-grade search capabilities. Provides comprehensive access to active research projects and allocations across the ACCESS-CI ecosystem with boolean search operators, smart similarity matching, cross-platform funding analysis, and institutional research profiling.
 
-## Overview
+## Usage Examples
 
-This server provides comprehensive access to active research projects and allocations across the ACCESS-CI ecosystem, enabling project discovery, collaboration opportunities, and resource allocation analysis. Enhanced with NSF Awards data for complete research funding context.
+### **Advanced Project Search**
+
+```
+"Find machine learning projects on ACCESS"
+"Search for GPU computing research projects"
+"Show me quantum computing allocations from 2024"
+"Find projects using 'deep learning' but not 'computer vision'"
+```
+
+### **Smart Discovery**
+
+```
+"Find projects similar to machine learning on GPU clusters"
+"Show me research projects related to climate modeling"
+"Discover bioinformatics projects with large allocations"
+"What projects are similar to NSF award 2138259?"
+```
+
+### **Institution Analysis**
+
+```
+"Analyze NSF funding for ACCESS project 54321"
+"Generate a funding profile for University of Illinois"
+"Show me all projects from Stanford with their NSF awards"
+"Compare computational resources with research funding"
+```
+
+### **Researcher Profiles**
+
+```
+"Find all projects by Dr. Smith with NSF funding context"
+"Show me computational usage patterns for this research team"
+"Analyze funding efficiency across different research groups"
+"What NSF awards correlate with high ACCESS usage?"
+```
 
 ## Tools
 
 ### search_projects
 
-Search ACCESS-CI research projects by keyword, PI name, or institution.
+Advanced search for ACCESS-CI research projects with operators, filters, and sorting.
 
 **Parameters:**
 
-- `query` (string): Search query for project titles, abstracts, PI names, or institutions
-- `field_of_science` (string, optional): Filter by field of science
-- `allocation_type` (string, optional): Filter by allocation type
-- `limit` (number, optional): Maximum number of results to return (default: 20)
+- `query` (string, **REQUIRED**): Search query supporting operators: `"term1 AND term2"`, `"term1 OR term2"`, `"term1 NOT term2"`, exact phrases with quotes
+- `field_of_science` (string, optional): Filter by field of science (e.g., 'Computer Science', 'Physics')
+- `allocation_type` (string, optional): Filter by allocation type (e.g., 'Discover', 'Explore', 'Accelerate')
+- `date_range` (object, optional): Filter by project date range with `start_date` and `end_date` in YYYY-MM-DD format
+- `min_allocation` (number, optional): Minimum allocation amount filter
+- `sort_by` (string, optional): Sort results by 'relevance', 'date_desc', 'date_asc', 'allocation_desc', 'allocation_asc', 'pi_name' (default: relevance)
+- `limit` (number, optional): Maximum results (default: 20, max: 100)
+
+**Example:**
+```typescript
+// User: "Find machine learning projects with GPU but not TensorFlow from 2024"
+const projects = await search_projects({
+  query: '"machine learning" AND gpu NOT tensorflow',
+  field_of_science: "Computer Science",
+  date_range: { start_date: "2024-01-01", end_date: "2024-12-31" },
+  min_allocation: 10000,
+  sort_by: "allocation_desc",
+  limit: 10
+});
+```
+
+**Returns**: List of projects with titles, abstracts, PI information, institution details, resource allocations (ACCESS Credits), and grant numbers.
 
 ### get_project_details
 
@@ -55,13 +107,30 @@ Get statistics about resource allocations and research trends.
 
 ### find_similar_projects
 
-Find projects with similar research focus or abstracts.
+Find projects with similar research focus using advanced semantic matching.
 
 **Parameters:**
 
 - `project_id` (number, optional): Reference project ID to find similar projects
-- `keywords` (string, optional): Keywords to find similar projects
-- `limit` (number, optional): Maximum number of similar projects to return (default: 10)
+- `keywords` (string, optional): Keywords or research terms to find similar projects (alternative to project_id)
+- `similarity_threshold` (number, optional): Minimum similarity score (0.0-1.0, default: 0.3)
+- `include_same_field` (boolean, optional): Whether to prioritize projects in the same field of science (default: true)
+- `show_similarity_scores` (boolean, optional): Whether to display similarity scores in results (default: true)
+- `limit` (number, optional): Maximum number of results (default: 10, max: 50)
+
+**Example:**
+```typescript
+// User: "Find projects similar to project 12345 with 80% similarity"
+const similar = await find_similar_projects({
+  project_id: 12345,
+  similarity_threshold: 0.8,
+  show_similarity_scores: true,
+  include_same_field: true,
+  limit: 5
+});
+```
+
+**Returns**: Related projects with similarity percentages, multi-tier groupings (High 70%+, Moderate 40-70%), research domain overlap analysis, and collaboration potential assessment.
 
 ### get_nsf_award
 
@@ -71,13 +140,13 @@ Get NSF award details for a specific award number.
 
 - `award_number` (string): NSF award number (e.g., '2138259')
 
-### enrich_project_with_nsf
+### analyze_project_funding
 
-Enrich an ACCESS project with NSF award data by searching for matching PI and institution.
+Comprehensive funding analysis with advanced PI name matching and institution validation.
 
 **Parameters:**
 
-- `project_id` (number): ACCESS project ID to enrich with NSF data
+- `project_id` (number, **REQUIRED**): ACCESS project ID to analyze for NSF funding connections
 
 ### find_nsf_awards_by_pi
 
@@ -90,7 +159,7 @@ Find NSF awards for a specific Principal Investigator.
 
 ### find_nsf_awards_by_personnel
 
-Search NSF awards by Principal Investigator name.
+Search NSF awards by Principal Investigator name. 
 
 **Note:** Co-PI and Program Officer searches are not reliable in the NSF API and have been removed.
 
@@ -99,17 +168,73 @@ Search NSF awards by Principal Investigator name.
 - `person_name` (string): Principal Investigator name to search for
 - `limit` (number, optional): Maximum number of awards to return (default: 10)
 
+### find_funded_projects
+
+Find ACCESS projects that have corresponding NSF funding with real cross-referencing.
+
+**Parameters:**
+
+- `pi_name` (string, optional): Principal investigator name
+- `institution_name` (string, optional): Institution name
+- `field_of_science` (string, optional): Field of science filter
+- `limit` (number, optional): Maximum number of results (default: 10)
+
+### institutional_funding_profile
+
+Generate comprehensive funding profile for an institution with advanced name matching.
+
+**Parameters:**
+
+- `institution_name` (string, **REQUIRED**): Institution name to analyze
+- `limit` (number, optional): Maximum number of projects per source (default: 20)
+
+**Example:**
+```typescript
+// User: "Generate a funding profile for University of Illinois"
+const profile = await institutional_funding_profile({
+  institution_name: "University of Illinois at Urbana-Champaign",
+  limit: 20
+});
+```
+
 ## Resources
 
 - `accessci://allocations`: ACCESS-CI Research Projects and Allocations data
+
+## Advanced Search Syntax
+
+### Boolean Operators
+- **AND**: `"machine learning AND gpu"` - Both terms must be present
+- **OR**: `"climate OR weather"` - Either term can be present  
+- **NOT**: `"modeling NOT simulation"` - First term present, second absent
+
+### Exact Phrases
+- **Quoted strings**: `"deep learning"` - Exact phrase match
+- **Complex queries**: `"neural networks" AND gpu NOT tensorflow`
+
+### Filters & Sorting
+- **Date ranges**: `date_range: {start_date: "2024-01-01", end_date: "2024-12-31"}`
+- **Allocation threshold**: `min_allocation: 50000`
+- **Sort options**: `sort_by: "allocation_desc"` for largest allocations first
+
+## API Integration
+
+This server connects to:
+- **ACCESS-CI Allocations portal**: `https://allocations.access-ci.org`
+- **NSF Awards MCP server**: HTTP communication for enriched funding data
+- **Inter-server architecture**: Enables complex cross-platform analysis
+
+**Important Note:** ACCESS Credits are computational resource credits, NOT monetary currency.
+
+## License
+
+MIT
 
 ## Installation
 
 ```bash
 npm install -g @access-mcp/allocations
 ```
-
-## Configuration
 
 Add to your Claude Desktop configuration:
 
@@ -123,167 +248,3 @@ Add to your Claude Desktop configuration:
   }
 }
 ```
-
-## Usage Examples
-
-### 🔬 **Discover Research Projects**
-
-- "Find projects in computational biology"
-- "What research is being done on climate modeling?"
-- "Show me projects using machine learning"
-
-### 👥 **Find Collaborations**
-
-- "Who is working on quantum computing research?"
-- "Find projects at MIT using GPU resources"
-- "Show me similar projects to TG-BIO210042"
-
-### 💰 **Analyze Allocations**
-
-- "What's the total allocation for genomics research?"
-- "Show allocation statistics across different fields"
-- "Which resources are most used for AI research?"
-
-### 🏛️ **NSF Award Integration**
-
-- "Find NSF award details for project 2138259"
-- "Show me all NSF awards for Stephen Deems"
-- "Enrich this ACCESS project with NSF funding data"
-
-## Detailed Usage Examples
-
-### Searching Research Projects
-
-**Natural Language**: "Find active projects in machine learning"
-
-**Tool Call**:
-
-```typescript
-const projects = await search_projects({
-  query: "machine learning",
-  limit: 10,
-});
-```
-
-**Returns**: List of projects with:
-
-- Project titles and abstracts
-- Principal Investigator information
-- Institution details
-- Resource allocations (in ACCESS Credits or compute hours)
-- Grant numbers
-
-### Getting Project Details
-
-**Natural Language**: "Tell me about project TG-BIO210042"
-
-**Tool Call**:
-
-```typescript
-const details = await get_project_details({
-  project_id: "TG-BIO210042",
-});
-```
-
-**Returns**: Comprehensive project information:
-
-- Full abstract and research goals
-- PI and Co-PI details
-- Allocated resources and usage
-- Start/end dates
-- Publications and outcomes
-
-### Finding Similar Research
-
-**Natural Language**: "Find projects similar to this genomics project"
-
-**Tool Call**:
-
-```typescript
-const similar = await find_similar_projects({
-  project_id: "TG-BIO210042",
-  limit: 5,
-});
-```
-
-**Returns**: Related projects based on:
-
-- Research domain overlap
-- Methodology similarities
-- Resource usage patterns
-- Institutional connections
-
-### Analyzing Resource Allocations
-
-**Natural Language**: "Show me allocation statistics for computational chemistry"
-
-**Tool Call**:
-
-```typescript
-const stats = await get_allocation_statistics({
-  pages_to_analyze: 10,
-});
-```
-
-**Returns**: Statistical analysis including:
-
-- Total ACCESS Credits allocated
-- Distribution by field of science
-- Top institutions and PIs
-- Resource utilization trends
-- Average allocation sizes
-
-### NSF Award Lookup
-
-**Natural Language**: "Get details for NSF award 2138259"
-
-**Tool Call**:
-
-```typescript
-const award = await get_nsf_award({
-  award_number: "2138259",
-});
-```
-
-**Returns**: NSF award information:
-
-- Award title and abstract
-- Principal Investigator
-- Award amount
-- Start and end dates
-- Program officer
-- Funded institution
-
-### Finding NSF Awards by PI
-
-**Natural Language**: "Show me NSF awards for Shelley Knuth"
-
-**Tool Call**:
-
-```typescript
-const awards = await find_nsf_awards_by_pi({
-  pi_name: "Shelley Knuth",
-  limit: 10,
-});
-```
-
-**Returns**: List of NSF awards including:
-
-- Award numbers and titles
-- Funding amounts
-- Award dates
-- Institutions
-- Co-PIs (when available)
-
-## API Endpoints
-
-This server connects to:
-
-- ACCESS-CI Allocations portal at `https://allocations.access-ci.org`
-- NSF Awards Search at `https://www.nsf.gov/awardsearch/`
-
-**Important Note:** ACCESS Credits are computational resource credits, NOT monetary currency.
-
-## License
-
-MIT

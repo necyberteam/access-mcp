@@ -1,21 +1,86 @@
 # Software Discovery MCP Server
 
-MCP server providing software discovery and search capabilities for ACCESS-CI resources.
+MCP server for discovering software packages across ACCESS-CI compute resources. Features global software search across all resources, resource-specific browsing, and detailed package information using the Software Discovery Service (SDS) API.
 
-## Overview
+## Usage Examples
 
-This server enables searching and discovering software packages available across ACCESS-CI compute resources using the Software Discovery Service (SDS) API.
+### **Global Software Search**
+
+```
+"Is TensorFlow available on ACCESS-CI resources?"
+"Find Python across all ACCESS systems"
+"What versions of GROMACS are available?"
+"Search for MATLAB on ACCESS-CI"
+```
+
+### **Browse by Resource**
+
+```
+"What software is available on Expanse?"
+"List all bioinformatics tools on Bridges-2"
+"Show me GPU-optimized software on Delta"
+"What modules are available on Anvil?"
+```
+
+### **Category-Based Discovery**
+
+```
+"Find all chemistry software packages"
+"What machine learning frameworks are available?"
+"Show me computational fluid dynamics tools"
+"List physics simulation software"
+```
+
+### **Software Details**
+
+```
+"Tell me about the PyTorch installation on Delta"
+"What modules do I need to load for VASP on Expanse?"
+"How do I use MATLAB on Anvil?"
+"Show me installation details for GROMACS on Bridges-2"
+```
+
+## Installation & Configuration
+
+```bash
+npm install -g @access-mcp/software-discovery
+```
+
+Add to Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "access-software-discovery": {
+      "command": "npx",
+      "args": ["@access-mcp/software-discovery"],
+      "env": {
+        "SDS_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**Environment Variables:**
+- `SDS_API_KEY`: API key for the Software Discovery Service (required)
+
+**Resource ID Compatibility:** Supports both ACCESS-CI format (`anvil.purdue.access-ci.org`) and legacy XSEDE format (automatically converted).
 
 ## Tools
 
 ### search_software
 
-Search for software packages across ACCESS-CI resources.
+Search for software packages across ACCESS-CI resources. Supports both global search (across all resources) and resource-specific search.
 
 **Parameters:**
 
-- `query` (string): Search query for software names or descriptions
-- `resource_filter` (string, optional): Filter results by specific resource ID
+- `query` (string): Search query for software names (e.g., 'python', 'tensorflow', 'gromacs')
+- `resource_filter` (string, optional): Filter results by specific resource ID. If omitted, searches across all ACCESS-CI resources.
+
+**Examples:**
+- Global search: `search_software({query: "tensorflow"})` - finds TensorFlow across all resources
+- Resource-specific: `search_software({query: "python", resource_filter: "delta.ncsa.access-ci.org"})` - finds Python packages only on Delta
 
 ### list_software_by_resource
 
@@ -35,161 +100,18 @@ Get detailed information about a specific software package on a resource.
 - `software_name` (string): Name of the software package
 - `resource_id` (string): The resource ID where the software is installed
 
-### search_software_by_category
+### get_software_categories
 
-Search for software packages by category or domain.
+Get available software categories and domains.
 
 **Parameters:**
 
-- `category` (string): Software category (e.g., "bioinformatics", "chemistry", "physics")
-- `resource_filter` (string, optional): Filter by specific resource
+- `resource_id` (string, optional): Filter categories by specific resource
 
 ## Resources
 
-- `accessci://software-catalog`: Comprehensive catalog of available software across all resources
-
-## Installation
-
-```bash
-npm install -g @access-mcp/software-discovery
-```
-
-## Configuration
-
-Add to your Claude Desktop configuration:
-
-```json
-{
-  "mcpServers": {
-    "access-software-discovery": {
-      "command": "npx",
-      "args": ["@access-mcp/software-discovery"],
-      "env": {
-        "SDS_API_KEY": "your-api-key-here"
-      }
-    }
-  }
-}
-```
-
-## Environment Variables
-
-- `SDS_API_KEY`: API key for the Software Discovery Service (required)
-
-## Resource ID Compatibility
-
-This server supports both current ACCESS-CI format and legacy XSEDE format resource IDs:
-
-- **Preferred format**: `anvil.purdue.access-ci.org`
-- **Legacy XSEDE format**: `anvil.purdue.xsede.org` (automatically converted)
-- **Other legacy formats**: `delta.ncsa.illinois.edu` (automatically converted)
-
-## Usage Examples
-
-### 🔍 **Search for Software**
-
-- "Is TensorFlow available on ACCESS-CI resources?"
-- "Find all Python packages on Delta"
-- "What versions of GROMACS are available?"
-
-### 📦 **Browse by Resource**
-
-- "What software is available on Expanse?"
-- "List all bioinformatics tools on Bridges-2"
-- "Show me GPU-optimized software on Delta"
-
-### 🏷️ **Category-Based Discovery**
-
-- "Find all chemistry software packages"
-- "What machine learning frameworks are available?"
-- "Show me computational fluid dynamics tools"
-
-### 📋 **Software Details**
-
-- "Tell me about the PyTorch installation on Delta"
-- "What modules do I need to load for VASP on Expanse?"
-- "How do I use MATLAB on Anvil?"
-
-## Detailed Usage Examples
-
-### Searching for Specific Software
-
-**Natural Language**: "Is PyTorch available on any ACCESS resources?"
-
-**Tool Call**:
-
-```typescript
-const results = await search_software({
-  query: "PyTorch",
-});
-```
-
-**Returns**: List of resources with PyTorch installed, including:
-
-- Available versions
-- Module names
-- Installation paths
-- Dependencies
-
-### Listing Software on a Resource
-
-**Natural Language**: "What software is available on Delta?"
-
-**Tool Call**:
-
-```typescript
-const software = await list_software_by_resource({
-  resource_id: "delta.ncsa.access-ci.org",
-  limit: 50,
-});
-```
-
-**Returns**: Comprehensive software inventory including:
-
-- Application names and versions
-- Module load commands
-- Software categories
-- License information
-
-### Getting Software Details
-
-**Natural Language**: "How do I use GROMACS on Expanse?"
-
-**Tool Call**:
-
-```typescript
-const details = await get_software_details({
-  software_name: "GROMACS",
-  resource_id: "expanse.sdsc.access-ci.org",
-});
-```
-
-**Returns**: Detailed usage information:
-
-- Module load commands
-- Environment setup
-- Example job scripts
-- Documentation links
-- Performance tips
-
-### Searching by Category
-
-**Natural Language**: "What bioinformatics tools are available?"
-
-**Tool Call**:
-
-```typescript
-const biotools = await search_software_by_category({
-  category: "bioinformatics",
-});
-```
-
-**Returns**: Category-specific software across all resources:
-
-- Popular packages in the domain
-- Resource availability
-- Version compatibility
-- Community usage statistics
+- `accessci://software-discovery`: ACCESS-CI Software Discovery Service
+- `accessci://software/categories`: Browse software by category and domain
 
 ## API Endpoints
 

@@ -1,0 +1,149 @@
+version: '3.8'
+
+services:
+  # TypeScript MCP Servers
+  mcp-affinity-groups:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: affinity-groups
+    ports:
+      - "3011:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-compute-resources:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: compute-resources
+    ports:
+      - "3002:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-system-status:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: system-status
+    ports:
+      - "3003:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-software-discovery:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: software-discovery
+    ports:
+      - "3004:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SDS_API_KEY=${SDS_API_KEY}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-xdmod-charts:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: xdmod-charts
+    ports:
+      - "3005:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-allocations:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: allocations
+    ports:
+      - "3006:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-nsf-awards:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: nsf-awards
+    ports:
+      - "3007:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # Python MCP Server
+  mcp-xdmod-data:
+    build:
+      context: .
+      dockerfile: Dockerfile.python
+    ports:
+      - "3008:3000"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - XDMOD_API_TOKEN=${XDMOD_API_TOKEN}
+      - PORT=3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+networks:
+  default:
+    name: mcp-network

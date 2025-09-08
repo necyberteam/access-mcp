@@ -1,6 +1,6 @@
 # MCP Servers Overview
 
-ACCESS-CI provides 7 MCP servers for different aspects of cyberinfrastructure:
+ACCESS-CI provides 8 MCP servers for different aspects of cyberinfrastructure:
 
 
 ## MCP server for ACCESS-CI Affinity Groups API
@@ -54,7 +54,7 @@ npm install -g @access-mcp/compute-resources
 ## MCP server for ACCESS-CI System Status and Outages API
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.4.0
+**Version:** v0.3.0
 
 MCP server for ACCESS-CI System Status and Outages API
 
@@ -99,49 +99,49 @@ npm install -g @access-mcp/software-discovery
 }
 ```
 
-## ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events
+## MCP server for XDMoD Charts and Visualizations
 
-**Package:** `@access-mcp/events`  
-**Version:** v0.2.0
+**Package:** `@access-mcp/xdmod-charts`  
+**Version:** v0.4.0
 
-ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events
+MCP server for XDMoD Charts and Visualizations
 
-[View Details](/servers/events){.btn-primary}
+[View Details](/servers/xdmod-charts){.btn-primary}
 
 ```bash
 # Install
-npm install -g @access-mcp/events
+npm install -g @access-mcp/xdmod-charts
 
 # Configure
 {
   "mcpServers": {
-    "events": {
+    "xdmod-charts": {
       "command": "npx",
-      "args": ["@access-mcp/events"]
+      "args": ["@access-mcp/xdmod-charts"]
     }
   }
 }
 ```
 
-## MCP server for XDMoD Metrics and Usage Analytics API
+## Python MCP server for XDMoD data access and analytics
 
-**Package:** `@access-mcp/xdmod-metrics`  
-**Version:** v0.4.0
+**Package:** `xdmod-mcp-data`  
+**Version:** v0.1.0
 
-MCP server for XDMoD Metrics and Usage Analytics API
+Python MCP server for XDMoD data access and analytics
 
-[View Details](/servers/xdmod-metrics){.btn-primary}
+[View Details](/servers/xdmod-data){.btn-primary}
 
 ```bash
 # Install
-npm install -g @access-mcp/xdmod-metrics
+npm install -g xdmod-mcp-data
 
 # Configure
 {
   "mcpServers": {
-    "xdmod-metrics": {
+    "xdmod-data": {
       "command": "npx",
-      "args": ["@access-mcp/xdmod-metrics"]
+      "args": ["xdmod-mcp-data"]
     }
   }
 }
@@ -171,19 +171,29 @@ npm install -g @access-mcp/allocations
 }
 ```
 
+## MCP server for NSF awards and funding integration
 
-## Installation Methods
+**Package:** `@access-mcp/nsf-awards`  
+**Version:** v0.1.0
 
-Choose the method that works best for you:
+MCP server for NSF awards and funding integration
 
-### 📥 Download & Run (Recommended for end users)
-- Pre-built executables
-- No Node.js knowledge required  
-- [Download latest release](https://github.com/necyberteam/access-mcp/releases)
+[View Details](/servers/nsf-awards){.btn-primary}
 
-### 🔧 npm Packages (For developers)
-- Install individual servers
-- Integrate into your applications
-- Full development workflow
+```bash
+# Install
+npm install -g @access-mcp/nsf-awards
+
+# Configure
+{
+  "mcpServers": {
+    "nsf-awards": {
+      "command": "npx",
+      "args": ["@access-mcp/nsf-awards"]
+    }
+  }
+}
+```
+
 
 [Get Started →](/getting-started)

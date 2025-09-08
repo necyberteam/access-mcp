@@ -15,13 +15,49 @@ console.log("📚 Generating VitePress documentation from MCP servers...\n");
  */
 async function extractServerMetadata(packageName) {
   try {
-    const pkgJsonPath = join(rootDir, "packages", packageName, "package.json");
-    const packageJson = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+    const packagePath = join(rootDir, "packages", packageName);
+    let metadata = {};
+
+    // Try to read package.json first (Node.js projects)
+    try {
+      const pkgJsonPath = join(packagePath, "package.json");
+      const packageJson = JSON.parse(readFileSync(pkgJsonPath, "utf-8"));
+      metadata = {
+        name: packageJson.name,
+        version: packageJson.version,
+        description: packageJson.description,
+        main: packageJson.main,
+        bin: packageJson.bin,
+      };
+    } catch (err) {
+      // Try pyproject.toml (Python projects)
+      try {
+        const pyprojectPath = join(packagePath, "pyproject.toml");
+        const pyprojectContent = readFileSync(pyprojectPath, "utf-8");
+        
+        // Basic TOML parsing for our needs
+        const nameMatch = pyprojectContent.match(/name = "(.+?)"/);
+        const versionMatch = pyprojectContent.match(/version = "(.+?)"/);
+        const descriptionMatch = pyprojectContent.match(/description = "(.+?)"/);
+        
+        metadata = {
+          name: nameMatch ? nameMatch[1] : `@access-mcp/${packageName}`,
+          version: versionMatch ? versionMatch[1] : "0.1.0", 
+          description: descriptionMatch ? descriptionMatch[1] : `MCP server for ${packageName}`,
+          main: "src/server.py",
+          bin: {
+            [nameMatch ? nameMatch[1] : packageName]: nameMatch ? nameMatch[1] : packageName
+          },
+        };
+      } catch (err2) {
+        throw new Error(`No package.json or pyproject.toml found for ${packageName}`);
+      }
+    }
 
     // Read README for additional details
     let readmeContent = "";
     try {
-      const readmePath = join(rootDir, "packages", packageName, "README.md");
+      const readmePath = join(packagePath, "README.md");
       readmeContent = readFileSync(readmePath, "utf-8");
     } catch (err) {
       // README doesn't exist, that's ok
@@ -29,13 +65,8 @@ async function extractServerMetadata(packageName) {
 
     return {
       id: packageName,
-      name: packageJson.name,
-      version: packageJson.version,
-      description: packageJson.description,
+      ...metadata,
       readme: readmeContent,
-      // Extract additional metadata that could be useful
-      main: packageJson.main,
-      bin: packageJson.bin,
     };
   } catch (error) {
     console.warn(
@@ -84,20 +115,6 @@ npm install -g ${server.name}
   )
   .join("")}
 
-## Installation Methods
-
-Choose the method that works best for you:
-
-### 📥 Download & Run (Recommended for end users)
-- Pre-built executables
-- No Node.js knowledge required  
-- [Download latest release](https://github.com/necyberteam/access-mcp/releases)
-
-### 🔧 npm Packages (For developers)
-- Install individual servers
-- Integrate into your applications
-- Full development workflow
-
 [Get Started →](/getting-started)
 `;
 }
@@ -107,32 +124,43 @@ Choose the method that works best for you:
  */
 function generateServerPage(server) {
   const serverTitle = server.description || server.name;
+  
+  // Extract usage examples, enhanced description, and remaining content from README
+  const { usageExamples, enhancedDescription, remainingContent } = extractUsageExamples(server.readme || "");
 
-  return `# ${serverTitle}
+  // Detect if this is a Python package (has .py main file)
+  const isPythonPackage = server.main && server.main.endsWith('.py');
+  
+  let installationSection, configurationSection;
+  
+  if (isPythonPackage) {
+    // Python package - use pipx
+    installationSection = `## Installation
 
-${server.description}
+\`\`\`bash
+pipx install ${server.name}
+\`\`\`
 
-## Installation
-
-### Download & Run
-1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
-2. Extract and locate the \`${server.id}/index.js\` file
-3. Add to Claude Desktop config:
+Add to your Claude Desktop configuration:
 
 \`\`\`json
 {
   "mcpServers": {
     "${server.id}": {
-      "command": "/path/to/${server.id}/index.js"
+      "command": "${server.name}"
     }
   }
 }
-\`\`\`
+\`\`\``;
+  } else {
+    // TypeScript package - use npm
+    installationSection = `## Installation
 
-### npm Package
 \`\`\`bash
 npm install -g ${server.name}
 \`\`\`
+
+Add to your Claude Desktop configuration:
 
 \`\`\`json
 {
@@ -143,15 +171,18 @@ npm install -g ${server.name}
     }
   }
 }
-\`\`\`
+\`\`\``;
+  }
 
-## Usage Examples
+  return `# ${serverTitle}
 
-<!-- TODO: Extract examples from server code -->
+${enhancedDescription || server.description}
 
-## Development
+${usageExamples}
 
-${server.readme || "See the package README for development information."}
+${installationSection}
+
+${remainingContent}
 
 ---
 
@@ -161,17 +192,66 @@ ${server.readme || "See the package README for development information."}
 `;
 }
 
+/**
+ * Extract content from README, splitting at Installation section
+ */
+function extractUsageExamples(readmeContent) {
+  if (!readmeContent) {
+    return {
+      usageExamples: "## Usage Examples\n\n<!-- TODO: Extract examples from server code -->",
+      enhancedDescription: null,
+      remainingContent: ""
+    };
+  }
+
+  // Extract everything up to ## Installation (or end of file)
+  const beforeInstallation = readmeContent.match(/^([\s\S]*?)(?=\n## Installation|\n## License|$)/);
+  let contentBeforeInstallation = beforeInstallation ? beforeInstallation[1] : readmeContent;
+  
+  // Extract the enhanced description (everything between title and Usage Examples)
+  let enhancedDescription = null;
+  const titleMatch = contentBeforeInstallation.match(/^# .*?\n\n([\s\S]*?)(?=\n## Usage Examples|\n## |$)/);
+  if (titleMatch && titleMatch[1]) {
+    enhancedDescription = titleMatch[1].trim();
+  }
+  
+  // Extract Usage Examples section
+  const usageMatch = contentBeforeInstallation.match(/## Usage Examples[\s\S]*?(?=\n## (?!Usage Examples)|\n# |$)/);
+  let usageExamples = "";
+  if (usageMatch) {
+    usageExamples = usageMatch[0];
+  } else {
+    usageExamples = "## Usage Examples\n\n<!-- TODO: Extract examples from server code -->";
+  }
+  
+  // Extract remaining content (everything after Usage Examples, before Installation)
+  let remainingContent = contentBeforeInstallation;
+  
+  // Remove title and description
+  remainingContent = remainingContent.replace(/^# .*?\n\n[\s\S]*?(?=\n## Usage Examples|\n## |$)/, "");
+  
+  // Remove Usage Examples
+  if (usageMatch) {
+    remainingContent = remainingContent.replace(usageMatch[0], "");
+  }
+  
+  remainingContent = remainingContent.trim();
+  
+  return { usageExamples, enhancedDescription, remainingContent };
+}
+
 // Main execution
 async function main() {
   const servers = [];
   const serverPackages = [
     "affinity-groups",
-    "compute-resources",
+    "compute-resources", 
     "system-status",
     "software-discovery",
-    "events",
-    "xdmod-metrics",
+    "xdmod-charts",
+    "xdmod-data",
     "allocations",
+    "nsf-awards",
   ];
 
   // Extract metadata from all server packages

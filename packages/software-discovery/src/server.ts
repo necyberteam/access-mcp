@@ -53,17 +53,17 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     return [
       {
         name: "search_software",
-        description: "Search for software packages across ACCESS-CI resources",
+        description: "Search for software packages across ACCESS-CI resources. Supports global search (without resource_filter) to find software across all resources, or resource-specific search (with resource_filter).",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Search query for software names or descriptions",
+              description: "Search query for software names (e.g., 'python', 'tensorflow', 'gromacs')",
             },
             resource_filter: {
               type: "string",
-              description: "Optional: filter results by specific resource ID",
+              description: "Optional: filter results by specific resource ID (e.g., 'delta.ncsa.access-ci.org'). If omitted, searches across all ACCESS-CI resources.",
             },
           },
           required: ["query"],
@@ -230,29 +230,102 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       };
     }
 
-    // For search, we'll need to query multiple resources or use a search endpoint
-    // For now, implement basic search by getting software for a specific resource if provided
+    // If resourceFilter is provided, use the old resource-specific search
     if (resourceFilter) {
       return await this.listSoftwareByResource(resourceFilter, 100, query);
     }
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
+    // Use the new global software search API format
+    try {
+      const apiFields = [
+        "software_name",
+        "software_description", 
+        "software_web_page",
+        "software_documentation",
+        "software_use_link",
+        "software_versions",
+        "rp_name",
+        "rp_group_id"
+      ];
+
+      const response = await this.sdsClient.get(
+        `/API_0.1/${apiKey}/software=${encodeURIComponent(query)},include=${apiFields.join("+")}`
+      );
+
+      if (response.status !== 200) {
+        return {
+          content: [
             {
-              message:
-                "Global software search requires a resource_filter parameter for now. Use list_software_by_resource with a specific resource ID.",
-              query,
-              results: [],
+              type: "text",
+              text: JSON.stringify(
+                {
+                  query,
+                  error: `SDS API error: ${response.status} ${response.statusText}`,
+                  results: [],
+                },
+                null,
+                2,
+              ),
             },
-            null,
-            2,
-          ),
-        },
-      ],
-    };
+          ],
+        };
+      }
+
+      const results = Array.isArray(response.data) ? response.data : [];
+      
+      // Transform results to show which resources have the software
+      const transformedResults = results.map((item: any) => {
+        const resources = Array.isArray(item.rp_name) ? item.rp_name : [item.rp_name];
+        const resourceIds = Array.isArray(item.rp_group_id) ? item.rp_group_id : [item.rp_group_id];
+        
+        return {
+          name: item.software_name,
+          description: item.software_description,
+          versions: item.software_versions || [],
+          documentation: item.software_documentation,
+          website: item.software_web_page,
+          usage_link: item.software_use_link,
+          available_on_resources: resources.filter(Boolean),
+          resource_ids: resourceIds.filter(Boolean),
+        };
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                query,
+                search_type: "global",
+                total_matches: transformedResults.length,
+                software: transformedResults,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    } catch (error: any) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                query,
+                error: `Global search failed: ${error.message}`,
+                fallback: "Try using list_software_by_resource with a specific resource ID",
+                results: [],
+              },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    }
   }
 
   private async listSoftwareByResource(
@@ -295,7 +368,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     ];
 
     const response = await this.sdsClient.get(
-      `/api=API_0/${apiKey}/rp=${normalizedResourceId}?include=${apiFields.join(",")}`,
+      `/API_0.1/${apiKey}/rp=${normalizedResourceId},include=${apiFields.join("+")}`,
     );
 
     if (response.status !== 200) {
