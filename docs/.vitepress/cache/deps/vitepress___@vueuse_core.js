@@ -280,7 +280,7 @@ import {
   watchThrottled,
   watchTriggerable,
   watchWithFilter,
-  whenever
+  whenever,
 } from "./chunk-AKQBXH3S.js";
 import "./chunk-EAEFJUV4.js";
 export {
@@ -578,6 +578,6 @@ export {
   watchThrottled,
   watchTriggerable,
   watchWithFilter,
-  whenever
+  whenever,
 };
 //# sourceMappingURL=vitepress___@vueuse_core.js.map

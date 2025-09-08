@@ -122,7 +122,7 @@ onMounted(() => {
   --access-ci-teal-light: #48c0b9; /* Light teal */
   --access-ci-teal-medium: #008597; /* Medium teal */
   --access-ci-teal-dark: #1a5b6e; /* Dark teal for hover */
-  --access-ci-yellow: #FFC42D; /* Primary yellow color */
+  --access-ci-yellow: #ffc42d; /* Primary yellow color */
   --black: #232323; /* Black color for borders/text */
 
   /* Typography */
@@ -138,7 +138,6 @@ onMounted(() => {
   --access-ci-spacing-lg: 2rem;
   --access-ci-spacing-xl: 3rem;
   --access-ci-spacing-2xl: 5.06rem;
-
 
   /* Override VitePress variables */
   --vp-c-brand-1: var(--access-ci-yellow);

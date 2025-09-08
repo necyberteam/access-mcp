@@ -1,0 +1,292 @@
+# ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events
+
+ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events
+
+## Installation
+
+### Download & Run
+1. Download the [latest release](https://github.com/necyberteam/access-mcp/releases)
+2. Extract and locate the `events/index.js` file
+3. Add to Claude Desktop config:
+
+```json
+{
+  "mcpServers": {
+    "events": {
+      "command": "/path/to/events/index.js"
+    }
+  }
+}
+```
+
+### npm Package
+```bash
+npm install -g @access-mcp/events
+```
+
+```json
+{
+  "mcpServers": {
+    "events": {
+      "command": "npx",
+      "args": ["@access-mcp/events"]
+    }
+  }
+}
+```
+
+## Usage Examples
+
+<!-- TODO: Extract examples from server code -->
+
+## Development
+
+# ACCESS-CI Events MCP Server
+
+A Model Context Protocol server providing access to ACCESS-CI events data including workshops, webinars, and training sessions with comprehensive filtering capabilities.
+
+## Features
+
+### 🔧 Tools
+
+- **`get_events`** - Get ACCESS-CI events with comprehensive filtering
+- **`get_upcoming_events`** - Get upcoming events (today onward)
+- **`search_events`** - **Enhanced!** Search events using API's native full-text search across all content
+- **`get_events_by_tag`** - Get events filtered by specific tags
+
+### 📊 Resources
+
+- **`accessci://events`** - All events data
+- **`accessci://events/upcoming`** - Upcoming events only
+- **`accessci://events/workshops`** - Workshop events only
+- **`accessci://events/webinars`** - Webinar events only
+
+## Installation
+
+```bash
+npm install -g @access-mcp/events
+```
+
+## Usage
+
+### Claude Desktop Configuration
+
+Add to your Claude Desktop configuration:
+
+```json
+{
+  "mcpServers": {
+    "access-events": {
+      "command": "npx",
+      "args": ["@access-mcp/events"]
+    }
+  }
+}
+```
+
+### Example Queries
+
+**Get upcoming events:**
+
+```
+What events are coming up in the next week?
+```
+
+**Search for specific topics (now much more powerful!):**
+
+```
+Find upcoming Python workshops
+Show me machine learning events
+Search for "office hours" this week
+```
+
+**Filter by skill level:**
+
+```
+Show me beginner-level events this month
+```
+
+**Get events by tags:**
+
+```
+Find all GPU computing events
+```
+
+## Key Improvements
+
+### 🚀 Enhanced Search (v2.1)
+
+**Native API Full-Text Search:**
+- Searches across titles, descriptions, speakers, tags, location, and event type
+- Supports multi-word queries (e.g., "machine learning", "office hours")
+- Much more comprehensive results than previous tag-only filtering
+- Server-side indexing for better performance
+
+**Search Examples:**
+- `"python"` - Find Python programming events
+- `"machine learning"` - Find ML-related content in any field
+- `"gpu computing"` - Find GPU-related events
+- `"office hours"` - Find all office hours sessions
+
+### 🌍 Timezone Support (v2.1)
+
+**Smart Timezone Handling:**
+- All timestamps returned in UTC (ISO 8601 format with Z suffix)
+- Timezone parameter controls relative date calculations
+- Common timezone examples: `America/New_York`, `Europe/London`, `Asia/Tokyo`
+- Default: UTC calculations
+
+## Filtering Capabilities
+
+### Date Filtering
+
+**Relative Dates (Dynamic):**
+
+- `today` - Current date
+- `+1week`, `+2week` - Future weeks
+- `+1month`, `+2month` - Future months
+- `+1year` - Future year
+- `-1week`, `-1month` - Past periods
+
+**Absolute Dates (Fixed):**
+
+- `YYYY-MM-DD` format (e.g., "2024-08-30")
+- `YYYY-MM-DD HH:MM:SS` format with time
+
+**Mixed Filtering:**
+You can combine relative and absolute dates in the same query.
+
+### Faceted Search Filters
+
+- **Event Type:** workshop, webinar, etc.
+- **Event Affiliation:** Community, ACCESS, etc.
+- **Skill Level:** beginner, intermediate, advanced
+- **Event Tags:** python, big-data, machine-learning, gpu, etc.
+
+## API Details
+
+### Event Object Structure
+
+Each event contains:
+
+- `id` - Unique identifier
+- `title` - Event title
+- `description` - Event description
+- `date` - Start date/time (ISO 8601)
+- `date_1` - End date/time (ISO 8601)
+- `location` - Event location
+- `event_type` - Type of event
+- `event_affiliation` - Organizational affiliation
+- `custom_event_tags` - Comma-separated tags
+- `skill_level` - Required skill level
+- `speakers` - Event speakers
+- `contact` - Contact information
+- `registration` - Registration URL/info
+- `created` - Creation timestamp
+- `changed` - Last modified timestamp
+
+### Enhanced Fields
+
+The server adds these computed fields:
+
+- `start_date` - Parsed start date object
+- `end_date` - Parsed end date object
+- `tags` - Tags split into array
+- `duration_hours` - Calculated event duration
+- `starts_in_hours` - Hours until event starts
+
+## Examples
+
+### Get Events with Multiple Filters
+
+```typescript
+// Get Python workshops for beginners in the next month
+{
+  "tool": "get_events",
+  "arguments": {
+    "beginning_date_relative": "today",
+    "end_date_relative": "+1month",
+    "event_type": "workshop",
+    "skill_level": "beginner",
+    "event_tags": "python"
+  }
+}
+```
+
+### Search Events (Enhanced API Search)
+
+```typescript
+// Search for GPU-related events using native API search
+{
+  "tool": "search_events",
+  "arguments": {
+    "query": "GPU computing",
+    "beginning_date_relative": "today",
+    "timezone": "America/New_York",
+    "limit": 10
+  }
+}
+
+// Multi-word search examples
+{
+  "tool": "search_events",
+  "arguments": {
+    "query": "machine learning",
+    "beginning_date_relative": "-1month"
+  }
+}
+```
+
+### Get Events by Tag
+
+```typescript
+// Get all machine learning events this month
+{
+  "tool": "get_events_by_tag",
+  "arguments": {
+    "tag": "machine-learning",
+    "time_range": "this_month",
+    "limit": 20
+  }
+}
+```
+
+## Development
+
+```bash
+# Build the server
+npm run build
+
+# Run in development
+npm run dev
+
+# Test the server
+npm test
+```
+
+## Base URL
+
+The server connects to: `https://support.access-ci.org/api/2.1/events` (v2.1 with UTC timestamps and enhanced search)
+
+## Technical Notes
+
+### API Version 2.1 Features
+- **UTC timestamps**: All dates returned in UTC with Z suffix (e.g., `2024-08-30T13:00:00Z`)
+- **Native search**: Uses `search_api_fulltext` parameter for comprehensive searching
+- **Timezone support**: Relative dates calculated using specified timezone
+- **Enhanced metadata**: Responses include API version and timezone info
+
+### General
+- All date comparisons use the event's start date (`date` field)
+- Results include both upcoming and past events unless date filtered
+- Faceted search filters use AND logic when combined
+- Response times are typically under 5 seconds
+- No pagination - all matching events are returned
+- URL encoding is handled automatically for special characters
+
+
+---
+
+**Package:** `@access-mcp/events`  
+**Version:** v0.2.0  
+**Main:** `dist/index.js`

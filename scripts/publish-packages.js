@@ -10,7 +10,9 @@ const PACKAGES = [
   "compute-resources",
   "system-status",
   "software-discovery",
+  "events",
   "xdmod-metrics",
+  "allocations",
 ];
 
 function runCommand(command, options = {}) {

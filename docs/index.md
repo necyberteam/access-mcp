@@ -13,7 +13,6 @@ hero:
       link: https://github.com/necyberteam/access-mcp
 
 features:
-
   - title: Compute Resources
     details: Query hardware specifications, capabilities, and availability across ACCESS resources
   - title: System Status
@@ -26,11 +25,13 @@ features:
     details: Connect with ACCESS-CI communities, discover events, and access knowledge base resources
   - title: Research Allocations
     details: Discover active research projects, find collaborations, and analyze resource allocation trends
+  - title: Events
+    details: Find workshops, webinars, and training events with comprehensive filtering by date, type, skill level, and tags
 ---
 
 ## What is MCP?
 
-The Model Context Protocol (MCP) allows AI assistants to securely interact with external data sources.  
+The Model Context Protocol (MCP) allows AI assistants to securely interact with external data sources.
 
 ACCESS-CI MCP servers offer structured access to:
 
@@ -38,8 +39,9 @@ ACCESS-CI MCP servers offer structured access to:
 - **Real-time status** of system health and maintenance
 - **Software catalogs** across different ACCESS resources
 - **Usage analytics** and computational resource utilization metrics
-- **Community data** from affinity groups and events
+- **Community data** from affinity groups and knowledge bases
 - **Research projects** and allocation data for collaboration discovery
+- **Training events** with workshops, webinars, and learning opportunities
 
 ## Quick Example
 
@@ -62,6 +64,11 @@ Ready to explore ACCESS-CI resources with AI assistance? Get started in just a f
 - **Claude Desktop** - Free AI assistant app with MCP support
 - **npm** (Node Package Manager) - Comes with Node.js for easy installation
 
+### Quick Install
+```bash
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/xdmod-data @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/events
+```
+
 ### Quick Setup
 1. **Install Prerequisites** - Claude Desktop and npm
 2. **Install MCP Servers** - One command installs all ACCESS-CI servers  
@@ -69,9 +76,52 @@ Ready to explore ACCESS-CI resources with AI assistance? Get started in just a f
 4. **Start Exploring** - Ask Claude about ACCESS-CI resources
 
 ### Authentication
-- **7 servers work immediately** with no setup required
-- **1 server** needs an API key to function
-- Most users can get started right away and add API keys later
+- **Most servers work immediately** with no setup required
+- **Some servers** may need API keys for full functionality
+- Get started right away and add API keys as needed
+
+### Docker Deployment
+For production deployments, Docker containers are available:
+```json
+{
+  "mcpServers": {
+    "access-affinity-groups": {
+      "command": "npx",
+      "args": ["@access-mcp/affinity-groups"]
+    },
+    "access-compute-resources": {
+      "command": "npx",
+      "args": ["@access-mcp/compute-resources"]
+    },
+    "access-system-status": {
+      "command": "npx",
+      "args": ["@access-mcp/system-status"]
+    },
+    "access-software-discovery": {
+      "command": "npx",
+      "args": ["@access-mcp/software-discovery"],
+      "env": {
+        "SDS_API_KEY": "your-api-key"
+      }
+    },
+    "access-xdmod-metrics": {
+      "command": "npx",
+      "args": ["@access-mcp/xdmod-metrics"],
+      "env": {
+        "XDMOD_API_TOKEN": "your-xdmod-api-token"
+      }
+    },
+    "access-allocations": {
+      "command": "npx",
+      "args": ["@access-mcp/allocations"]
+    },
+    "access-events": {
+      "command": "npx",
+      "args": ["@access-mcp/events"]
+    }
+  }
+}
+```
 
 [**📖 Complete Installation Guide →**](/getting-started)
 

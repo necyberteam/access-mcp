@@ -9,12 +9,32 @@ This repository contains MCP servers that provide programmatic access to:
 - **Compute Resources** - Hardware specifications and resource information
 - **System Status** - Outages, maintenance, and announcements
 - **Software Discovery** - Available software packages across resources
+- **Events** - Workshops, webinars, training events, and office hours
 - **XDMoD Metrics** - Usage analytics, computational resource utilization, and NSF funding integration
 - **Allocations** - Active research projects and resource allocation discovery
 - **Affinity Groups** - Community groups, events, and knowledge base
 
-
 ## Quick Start
+
+### For End Users
+
+Install individual MCP servers:
+
+```bash
+# Install specific servers
+npm install -g @access-mcp/events
+npm install -g @access-mcp/compute-resources
+npm install -g @access-mcp/system-status
+npm install -g @access-mcp/software-discovery
+npm install -g @access-mcp/xdmod-metrics
+npm install -g @access-mcp/allocations
+npm install -g @access-mcp/affinity-groups
+
+# Or install all at once
+npm install -g @access-mcp/events @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/affinity-groups
+```
+
+### For Developers
 
 ```bash
 # Clone and install
@@ -41,6 +61,7 @@ access_mcp/
 │   ├── compute-resources/   # Compute Resources API server
 │   ├── system-status/       # System Status API server
 │   ├── software-discovery/  # Software Discovery API server
+│   ├── events/              # Events API server (workshops, training)
 │   ├── xdmod-metrics/       # XDMoD Usage Analytics and NSF integration
 │   ├── allocations/         # Research Allocations API server
 │   └── affinity-groups/     # Affinity Groups API server
@@ -71,6 +92,7 @@ Use the MCP Inspector for interactive testing:
 
 ```bash
 # Test any server
+npx @modelcontextprotocol/inspector packages/events/dist/index.js
 npx @modelcontextprotocol/inspector packages/xdmod-metrics/dist/index.js
 npx @modelcontextprotocol/inspector packages/allocations/dist/index.js
 npx @modelcontextprotocol/inspector packages/affinity-groups/dist/index.js
@@ -86,7 +108,7 @@ npx @modelcontextprotocol/inspector packages/affinity-groups/dist/index.js
 
 ## Documentation
 
-Full documentation is available at [docs-site-url] and includes:
+Full documentation is available at [https://access-mcp.netlify.app](https://access-mcp.netlify.app) and includes:
 
 - Installation guides for end users and developers
 - API reference for each server
@@ -125,11 +147,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
 
 ## License
 
-[Your license here]
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Links
 
-- **Documentation**: [Full documentation site]
+- **Documentation**: [https://access-mcp.netlify.app](https://access-mcp.netlify.app)
 - **Issues**: [GitHub Issues](https://github.com/necyberteam/access-mcp/issues)
 - **ACCESS-CI**: [https://access-ci.org](https://access-ci.org)
 - **MCP Protocol**: [https://modelcontextprotocol.io](https://modelcontextprotocol.io)
