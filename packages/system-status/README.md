@@ -1,10 +1,44 @@
 # System Status MCP Server
 
-MCP server providing real-time system status information for ACCESS-CI resources.
+MCP server providing real-time system status information for ACCESS-CI resources. Provides critical operational information about ACCESS-CI systems, including current outages, scheduled maintenance, and system-wide announcements.
 
-## Overview
+## Usage Examples
 
-This server provides critical operational information about ACCESS-CI systems, including current outages, scheduled maintenance, and system-wide announcements.
+### **Monitor Current Issues**
+
+```
+"Are there any current outages on ACCESS-CI?"
+"Is Delta currently operational?"
+"What systems are experiencing issues right now?"
+"Show me all systems that are down"
+```
+
+### **Track Maintenance Windows**
+
+```
+"When is the next maintenance for Expanse?"
+"Show me all scheduled maintenance for this week"
+"Is there upcoming maintenance on Bridges-2?"
+"What maintenance is planned for GPU systems?"
+```
+
+### **System Announcements**
+
+```
+"What are the latest system announcements?"
+"Are there any important notices for ACCESS users?"
+"Show me recent updates about system changes"
+"Any policy updates I should know about?"
+```
+
+### **Check Resource Status**
+
+```
+"What's the current status of Anvil?"
+"Is Frontera available for job submission?"
+"Check if all GPU systems are operational"
+"Get status for all TACC resources"
+```
 
 ## Tools
 
@@ -15,6 +49,14 @@ Get current system outages and issues affecting ACCESS-CI resources.
 **Parameters:**
 
 - `resource_filter` (string, optional): Filter by specific resource name or ID
+
+**Example:**
+```typescript
+// User: "Are there any current outages on Delta?"
+const outages = await get_current_outages({
+  resource_filter: "delta"
+});
+```
 
 ### get_scheduled_maintenance
 

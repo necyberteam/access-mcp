@@ -3,9 +3,18 @@
 import { AllocationsServer } from "./server.js";
 
 async function main() {
-  // Running in MCP mode (stdio)
+  // Check if we should run as HTTP server (for deployment)
+  const port = process.env.PORT;
+
   const server = new AllocationsServer();
-  await server.start();
+  
+  if (port) {
+    // Running in HTTP mode (deployment)
+    await (server as any).start({ httpPort: parseInt(port) });
+  } else {
+    // Running in MCP mode (stdio)
+    await server.start();
+  }
 }
 
 main().catch((error) => {

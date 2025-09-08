@@ -1,0 +1,39 @@
+{
+  "name": "@access-mcp/nsf-awards",
+  "version": "0.1.0",
+  "description": "MCP server for NSF awards and funding integration",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "access-mcp-nsf-awards": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:all": "vitest run && vitest run --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [
+    "mcp",
+    "nsf",
+    "awards",
+    "funding",
+    "research"
+  ],
+  "author": "ACCESS-CI",
+  "license": "MIT",
+  "dependencies": {
+    "@access-mcp/shared": "file:../shared",
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "axios": "^1.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

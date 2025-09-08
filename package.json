@@ -4,7 +4,7 @@
   "description": "MCP servers for ACCESS-CI APIs",
   "type": "module",
   "scripts": {
-    "build": "npm run build --workspace=@access-mcp/shared && npm run build --workspace=@access-mcp/affinity-groups && npm run build --workspace=@access-mcp/compute-resources && npm run build --workspace=@access-mcp/system-status && npm run build --workspace=@access-mcp/software-discovery && npm run build --workspace=@access-mcp/xdmod-metrics && npm run build --workspace=@access-mcp/allocations",
+    "build": "npm run build --workspace=@access-mcp/shared && npm run build --workspace=@access-mcp/affinity-groups && npm run build --workspace=@access-mcp/compute-resources && npm run build --workspace=@access-mcp/system-status && npm run build --workspace=@access-mcp/software-discovery && npm run build --workspace=@access-mcp/xdmod-charts && npm run build --workspace=@access-mcp/allocations && npm run build --workspace=@access-mcp/nsf-awards",
     "build:clean": "npm run clean && npm run build",
     "clean": "rm -rf packages/*/dist",
     "build:all": "node scripts/build-all.js",

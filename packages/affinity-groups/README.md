@@ -1,12 +1,32 @@
 # Affinity Groups MCP Server
 
-MCP server providing access to ACCESS-CI Affinity Groups API endpoints.
+MCP server providing access to ACCESS-CI Affinity Groups API endpoints. Access community resources, events and trainings, and knowledge base content for affinity groups across the ACCESS-CI ecosystem.
 
-## API Endpoints Covered
+## Usage Examples
 
-- **Affinity Groups**: `/api/1.0/affinity_groups/{group_id}`
-- **Events & Trainings**: `/api/1.1/events/ag/{group_id}`
-- **Knowledge Base**: `/api/1.0/kb/{group_id}`
+### **Discover Community Resources**
+
+```
+"What affinity groups are available for machine learning?"
+"Show me information about the GPU computing affinity group"
+"Find affinity groups related to bioinformatics"
+```
+
+### **Find Events and Trainings**
+
+```
+"What upcoming events are there for the bridges2.psc.access-ci.org group?"
+"Show me training opportunities for GPU computing"
+"Find workshops about parallel computing"
+```
+
+### **Access Knowledge Base**
+
+```
+"Get knowledge base resources for quantum computing"
+"What documentation is available for the Anvil cluster?"
+"Find tutorials for the Delta GPU system"
+```
 
 ## Tools
 
@@ -55,25 +75,6 @@ Add to your Claude Desktop configuration:
 }
 ```
 
-## Usage Examples
-
-### 🔍 **Discover Community Resources**
-
-- "What affinity groups are available for machine learning?"
-- "Show me information about the GPU computing affinity group"
-- "Find affinity groups related to bioinformatics"
-
-### 📅 **Find Events and Trainings**
-
-- "What upcoming events are there for the bridges2.psc.access-ci.org group?"
-- "Show me training opportunities for GPU computing"
-- "Find workshops about parallel computing"
-
-### 📚 **Access Knowledge Base**
-
-- "Get knowledge base resources for quantum computing"
-- "What documentation is available for the Anvil cluster?"
-- "Find tutorials for the Delta GPU system"
 
 ## Detailed Usage Examples
 

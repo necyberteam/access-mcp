@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
 import { SystemStatusServer } from "./server.js";
-import { startWebServer } from "./web-server.js";
 
 async function main() {
-  // Check if we should run as web server (for deployment)
+  // Check if we should run as HTTP server (for deployment)
   const port = process.env.PORT;
 
+  const server = new SystemStatusServer();
+  
   if (port) {
-    // Running in web mode (deployment)
-    startWebServer(parseInt(port));
+    // Running in HTTP mode (deployment)
+    await server.start({ httpPort: parseInt(port) });
   } else {
     // Running in MCP mode (stdio)
-    const server = new SystemStatusServer();
     await server.start();
   }
 }

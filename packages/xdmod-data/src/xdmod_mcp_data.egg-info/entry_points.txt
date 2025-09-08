@@ -1,0 +1,2 @@
+[console_scripts]
+xdmod-mcp-data = xdmod_python.server:main

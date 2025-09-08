@@ -20,7 +20,7 @@ features:
     details: Monitor outages, maintenance schedules, and system announcements in real-time
   - title: Software Discovery
     details: Search and explore software packages available on ACCESS-CI resources
-  - title: XDMoD Metrics
+  - title: XDMoD Charts
     details: Access usage analytics, generate charts, and explore computational resource utilization data
   - title: Affinity Groups
     details: Connect with ACCESS-CI communities, discover events, and access knowledge base resources
@@ -54,60 +54,26 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 - Installed ML frameworks and libraries
 - Current system status and availability
 
-## Installation
+## Getting Started
 
-Install all ACCESS-CI MCP servers with one command (requires Node.js 18+):
+Ready to explore ACCESS-CI resources with AI assistance? Get started in just a few minutes:
 
-```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations
-```
+### What You'll Need
+- **Claude Desktop** - Free AI assistant app with MCP support
+- **npm** (Node Package Manager) - Comes with Node.js for easy installation
 
-Then add to your Claude Desktop config file (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
+### Quick Setup
+1. **Install Prerequisites** - Claude Desktop and npm
+2. **Install MCP Servers** - One command installs all ACCESS-CI servers  
+3. **Configure Claude** - Add servers to your configuration file
+4. **Start Exploring** - Ask Claude about ACCESS-CI resources
 
-```json
-{
-  "mcpServers": {
-    "access-affinity-groups": {
-      "command": "npx",
-      "args": ["@access-mcp/affinity-groups"]
-    },
-    "access-compute-resources": {
-      "command": "npx",
-      "args": ["@access-mcp/compute-resources"]
-    },
-    "access-system-status": {
-      "command": "npx",
-      "args": ["@access-mcp/system-status"]
-    },
-    "access-software-discovery": {
-      "command": "npx",
-      "args": ["@access-mcp/software-discovery"],
-      "env": {
-        "SDS_API_KEY": "your-api-key"
-      }
-    },
-    "access-xdmod-metrics": {
-      "command": "npx",
-      "args": ["@access-mcp/xdmod-metrics"],
-      "env": {
-        "XDMOD_API_TOKEN": "your-xdmod-api-token"
-      }
-    },
-    "access-allocations": {
-      "command": "npx",
-      "args": ["@access-mcp/allocations"]
-    }
-  }
-}
-```
+### Authentication
+- **7 servers work immediately** with no setup required
+- **1 server** needs an API key to function
+- Most users can get started right away and add API keys later
 
-### 🔧 For Developers
-
-Install locally for custom integrations:
-
-```bash
-npm install @access-mcp/affinity-groups
-```
+[**📖 Complete Installation Guide →**](/getting-started)
 
 ## Supported by ACCESS-CI
 
