@@ -12,36 +12,22 @@ hero:
       text: View on GitHub
       link: https://github.com/necyberteam/access-mcp
 
-features:
-  - title: Compute Resources
-    details: Query hardware specifications, capabilities, and availability across ACCESS resources
-  - title: System Status
-    details: Monitor outages, maintenance schedules, and system announcements in real-time
-  - title: Software Discovery
-    details: Search and explore software packages available on ACCESS-CI resources
-  - title: XDMoD Charts
-    details: Access usage analytics, generate charts, and explore computational resource utilization data
-  - title: Affinity Groups
-    details: Connect with ACCESS-CI communities, discover events, and access knowledge base resources
-  - title: Research Allocations
-    details: Discover active research projects, find collaborations, and analyze resource allocation trends
-  - title: Events
-    details: Find workshops, webinars, and training events with comprehensive filtering by date, type, skill level, and tags
 ---
 
 ## What is MCP?
 
-The Model Context Protocol (MCP) allows AI assistants to securely interact with external data sources.
+The Model Context Protocol (MCP) is an open standard and open-source framework introduced by Anthropic that allows AI assistants to securely interact with external tools, systems, and data sources. It provides a universal interface for reading files, executing functions, and handling contextual prompts, creating a standardized way for large language models (LLMs) to integrate and share data. MCP has been widely adopted by major AI providers and the broader community.
 
-ACCESS-CI MCP servers offer structured access to:
 
-- **Resource information** about compute systems and capabilities
-- **Real-time status** of system health and maintenance
-- **Software catalogs** across different ACCESS resources
-- **Usage analytics** and computational resource utilization metrics
-- **Community data** from affinity groups and knowledge bases
-- **Research projects** and allocation data for collaboration discovery
-- **Training events** with workshops, webinars, and learning opportunities
+## ACCESS MCP Servers offer structured access to:
+
+- **Infrastructure Resources** Query hardware specifications, system capabilities, and availability across ACCESS resources.
+- **System Status** Track outages, maintenance schedules, and system announcements in real time.
+- **Software Discovery** Search and browse software packages available on ACCESS-CI resources.
+- **XDMoD Metrics** Access usage analytics, visualize trends with charts, and review resource utilization data.
+- **Affinity Groups** Connect with communities, discover events, and access knowledge base resources.
+- **Allocations** Browse active research projects, identify collaboration opportunities, and analyze allocation trends.
+- **Events** Find workshops, webinars, and training sessions, with filters for date, type, skill level, and topic.
 
 ## Quick Example
 
