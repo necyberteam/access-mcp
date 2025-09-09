@@ -210,7 +210,7 @@ export abstract class BaseAccessServer {
 
     // Start HTTP server
     return new Promise<void>((resolve, reject) => {
-      this._httpServer!.listen(this._httpPort, () => {
+      this._httpServer!.listen(this._httpPort!, '0.0.0.0', () => {
         resolve();
       }).on('error', reject);
     });
