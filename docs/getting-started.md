@@ -4,7 +4,7 @@ Complete installation guide for ACCESS-CI MCP servers with Claude Desktop.
 
 ## Prerequisites
 
-You'll need two things to get started:
+You need two things to get started:
 
 1. **Claude Desktop** - AI assistant application with MCP support
 2. **npm** - Package manager for installing the MCP servers
@@ -102,7 +102,7 @@ pipx --version
 6. Run: `python -m pipx ensurepath`
 7. Restart your computer
 
-### Verify Installation
+# Verify Installation
 
 After installation, open a new terminal/command prompt and run:
 
@@ -123,13 +123,12 @@ Once you have npm and pipx installed, install all ACCESS-CI MCP servers:
 ```bash
 npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/allocations @access-mcp/nsf-awards
 ```
+_Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation._
 
 **Python Server:**
 ```bash
 pipx install xdmod-mcp-data
 ```
-
-_Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation._
 
 ## Step 4: Configure Claude Desktop
 
