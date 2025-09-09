@@ -141,11 +141,13 @@ export abstract class BaseAccessServer {
     if (options?.httpPort) {
       this._httpPort = options.httpPort;
       await this.startHttpService();
+      console.log(`${this.serverName} HTTP server running on port ${this._httpPort}`);
+    } else {
+      // Only connect stdio transport when NOT in HTTP mode
+      await this.server.connect(this.transport);
+      // MCP servers should not output anything to stderr/stdout when running
+      // as it interferes with JSON-RPC communication
     }
-
-    await this.server.connect(this.transport);
-    // MCP servers should not output anything to stderr/stdout when running
-    // as it interferes with JSON-RPC communication
   }
 
   /**
