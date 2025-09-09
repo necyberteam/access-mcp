@@ -51,10 +51,10 @@ export class AllocationsServer extends BaseAccessServer {
       "https://allocations.access-ci.org",
     );
     
-    // Set up periodic cache cleanup
-    setInterval(() => {
-      this.cleanupExpiredCache();
-    }, 10 * 60 * 1000); // Clean up every 10 minutes
+    // Set up periodic cache cleanup - TEMPORARILY DISABLED FOR DEBUGGING
+    // setInterval(() => {
+    //   this.cleanupExpiredCache();
+    // }, 10 * 60 * 1000); // Clean up every 10 minutes
   }
 
   protected getTools() {

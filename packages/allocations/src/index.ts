@@ -11,6 +11,13 @@ async function main() {
   if (port) {
     // Running in HTTP mode (deployment)
     await (server as any).start({ httpPort: parseInt(port) });
+    // Keep the process running in HTTP mode
+    process.on('SIGINT', () => {
+      console.log('Shutting down server...');
+      process.exit(0);
+    });
+    // Keep the event loop alive
+    setInterval(() => {}, 1000 * 60 * 60); // Heartbeat every hour
   } else {
     // Running in MCP mode (stdio)
     await server.start();

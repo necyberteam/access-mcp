@@ -209,7 +209,7 @@ export abstract class BaseAccessServer {
     });
 
     // Start HTTP server
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       this._httpServer!.listen(this._httpPort, () => {
         resolve();
       }).on('error', reject);
