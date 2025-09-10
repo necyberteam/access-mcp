@@ -6,6 +6,7 @@ Model Context Protocol (MCP) servers for ACCESS-CI APIs, enabling AI assistants 
 
 This repository contains MCP servers that provide programmatic access to:
 
+- **Announcements** - Community news, training opportunities, and ACCESS support announcements
 - **Compute Resources** - Hardware specifications and resource information
 - **System Status** - Outages, maintenance, and announcements
 - **Software Discovery** - Available software packages across resources
@@ -22,6 +23,7 @@ Install individual MCP servers:
 
 ```bash
 # Install specific servers
+npm install -g @access-mcp/announcements
 npm install -g @access-mcp/events
 npm install -g @access-mcp/compute-resources
 npm install -g @access-mcp/system-status
@@ -31,7 +33,7 @@ npm install -g @access-mcp/allocations
 npm install -g @access-mcp/affinity-groups
 
 # Or install all at once
-npm install -g @access-mcp/events @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/affinity-groups
+npm install -g @access-mcp/announcements @access-mcp/events @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/affinity-groups
 ```
 
 ### For Developers
@@ -58,6 +60,7 @@ npm run release
 access_mcp/
 ├── packages/
 │   ├── shared/              # Shared base classes and utilities
+│   ├── announcements/       # ACCESS Support Announcements API server
 │   ├── compute-resources/   # Compute Resources API server
 │   ├── system-status/       # System Status API server
 │   ├── software-discovery/  # Software Discovery API server
@@ -92,6 +95,7 @@ Use the MCP Inspector for interactive testing:
 
 ```bash
 # Test any server
+npx @modelcontextprotocol/inspector packages/announcements/dist/index.js
 npx @modelcontextprotocol/inspector packages/events/dist/index.js
 npx @modelcontextprotocol/inspector packages/xdmod-metrics/dist/index.js
 npx @modelcontextprotocol/inspector packages/allocations/dist/index.js
