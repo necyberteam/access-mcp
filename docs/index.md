@@ -28,6 +28,7 @@ The Model Context Protocol (MCP) is an open standard and open-source framework i
 - **Affinity Groups** Connect with communities, discover events, and access knowledge base resources.
 - **Allocations** Browse active research projects, identify collaboration opportunities, and analyze allocation trends.
 - **Events** Find workshops, webinars, and training sessions, with filters for date, type, skill level, and topic.
+- **Announcements** Announcements from the community.
 
 ## Quick Example
 
@@ -52,7 +53,7 @@ Ready to explore ACCESS-CI resources with AI assistance? Get started in just a f
 
 ### Quick Install
 ```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/xdmod-data @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/events
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/xdmod-data @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/events @access-mcp/announcements
 ```
 
 ### Quick Setup

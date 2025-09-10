@@ -50,6 +50,7 @@ function initializeAccessCI() {
     '      { name: "Overview", href: "/servers/" },',
     '      { name: "Affinity Groups", href: "/servers/affinity-groups" },',
     '      { name: "Allocations", href: "/servers/allocations" },',
+    '      { name: "Announcements", href: "/servers/announcements" },',
     '      { name: "Compute Resources", href: "/servers/compute-resources" },',
     '      { name: "NSF Awards", href: "/servers/nsf-awards" },',
     '      { name: "Software Discovery", href: "/servers/software-discovery" },',

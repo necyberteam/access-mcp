@@ -252,6 +252,7 @@ async function main() {
     "xdmod-data",
     "allocations",
     "nsf-awards",
+    "announcements",
   ];
 
   // Extract metadata from all server packages

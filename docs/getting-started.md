@@ -121,7 +121,7 @@ Once you have npm and pipx installed, install all ACCESS-CI MCP servers:
 
 **TypeScript Servers:**
 ```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/allocations @access-mcp/nsf-awards
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/announcements
 ```
 _Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation._
 
@@ -189,6 +189,10 @@ Open the config file in a text editor and add:
       "command": "npx",
       "args": ["@access-mcp/nsf-awards"]
     },
+    "access-announcements": {
+      "command": "npx",
+      "args": ["@access-mcp/announcements"]
+    },
     "xdmod-mcp-data": {
       "command": "xdmod-mcp-data",
       "env": {
@@ -221,6 +225,7 @@ These servers work without any authentication:
 - ✅ **System Status** - Outages and maintenance
 - ✅ **Allocations** - Research projects and allocations
 - ✅ **NSF Awards** - Funding information
+- ✅ **Announcements** - Support announcements and service updates
 - ✅ **XDMoD Charts** - System-wide usage statistics and public metrics
 - ✅ **XDMoD MCP Data** - XDMoD data access with Python analytics
 

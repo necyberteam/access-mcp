@@ -1,6 +1,6 @@
 # MCP Servers Overview
 
-ACCESS-CI provides 8 MCP servers for different aspects of cyberinfrastructure:
+ACCESS-CI provides 9 MCP servers for different aspects of cyberinfrastructure:
 
 
 ## MCP server for ACCESS-CI Affinity Groups API
@@ -54,7 +54,7 @@ npm install -g @access-mcp/compute-resources
 ## MCP server for ACCESS-CI System Status and Outages API
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.3.0
+**Version:** v0.4.0
 
 MCP server for ACCESS-CI System Status and Outages API
 
@@ -150,7 +150,7 @@ npm install -g xdmod-mcp-data
 ## MCP server for ACCESS-CI Allocations and Research Projects API
 
 **Package:** `@access-mcp/allocations`  
-**Version:** v0.3.0
+**Version:** v0.3.1
 
 MCP server for ACCESS-CI Allocations and Research Projects API
 
@@ -190,6 +190,30 @@ npm install -g @access-mcp/nsf-awards
     "nsf-awards": {
       "command": "npx",
       "args": ["@access-mcp/nsf-awards"]
+    }
+  }
+}
+```
+
+## MCP server for ACCESS Support Announcements API
+
+**Package:** `@access-mcp/announcements`  
+**Version:** v0.1.0
+
+MCP server for ACCESS Support Announcements API
+
+[View Details](/servers/announcements){.btn-primary}
+
+```bash
+# Install
+npm install -g @access-mcp/announcements
+
+# Configure
+{
+  "mcpServers": {
+    "announcements": {
+      "command": "npx",
+      "args": ["@access-mcp/announcements"]
     }
   }
 }
