@@ -105,6 +105,10 @@ For production deployments, Docker containers are available:
     "access-events": {
       "command": "npx",
       "args": ["@access-mcp/events"]
+    },
+    "access-announcements": {
+      "command": "npx",
+      "args": ["@access-mcp/announcements"]
     }
   }
 }
