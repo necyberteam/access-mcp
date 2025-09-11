@@ -140,6 +140,23 @@ services:
         limits:
           memory: 128M
 
+  mcp-events:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: events
+    ports:
+      - "3010:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
   # Python MCP Server
   mcp-xdmod-data:
     build:
