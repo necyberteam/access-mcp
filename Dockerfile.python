@@ -10,7 +10,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy Python package
-COPY packages/xdmod-data/ .
+COPY packages/xdmod-mcp-data/ .
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash mcp

@@ -49,11 +49,19 @@ Ready to explore ACCESS-CI resources with AI assistance? Get started in just a f
 
 ### What You'll Need
 - **Claude Desktop** - Free AI assistant app with MCP support
-- **npm** (Node Package Manager) - Comes with Node.js for easy installation
+- **npm** (Node Package Manager) - Comes with Node.js for TypeScript servers
+- **pipx** - Python package installer for the Python MCP server
 
 ### Quick Install
+
+**TypeScript Servers:**
 ```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/xdmod-data @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/events @access-mcp/announcements
+npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/events @access-mcp/announcements
+```
+
+**Python Server:**
+```bash
+pipx install xdmod-mcp-data
 ```
 
 ### Quick Setup
@@ -67,8 +75,8 @@ npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access
 - **Some servers** may need API keys for full functionality
 - Get started right away and add API keys as needed
 
-### Docker Deployment
-For production deployments, Docker containers are available:
+### Example Configuration
+Here's a complete configuration example for Claude Desktop:
 ```json
 {
   "mcpServers": {
@@ -91,16 +99,17 @@ For production deployments, Docker containers are available:
         "SDS_API_KEY": "your-api-key"
       }
     },
-    "access-xdmod-metrics": {
+    "access-xdmod-charts": {
       "command": "npx",
-      "args": ["@access-mcp/xdmod-metrics"],
-      "env": {
-        "XDMOD_API_TOKEN": "your-xdmod-api-token"
-      }
+      "args": ["@access-mcp/xdmod-charts"]
     },
     "access-allocations": {
       "command": "npx",
       "args": ["@access-mcp/allocations"]
+    },
+    "access-nsf-awards": {
+      "command": "npx",
+      "args": ["@access-mcp/nsf-awards"]
     },
     "access-events": {
       "command": "npx",
@@ -109,6 +118,12 @@ For production deployments, Docker containers are available:
     "access-announcements": {
       "command": "npx",
       "args": ["@access-mcp/announcements"]
+    },
+    "xdmod-mcp-data": {
+      "command": "xdmod-mcp-data",
+      "env": {
+        "XDMOD_API_TOKEN": "your-xdmod-token-here"
+      }
     }
   }
 }

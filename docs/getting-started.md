@@ -308,12 +308,81 @@ npm run build
 }
 ```
 
+## Docker Deployment (Advanced)
+
+For production deployments or isolated environments, Docker containers are available:
+
+### Quick Start with Docker Compose
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/necyberteam/access-mcp.git
+   cd access-mcp
+   ```
+
+2. **Set up environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
+
+3. **Start all services:**
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Configure Claude Desktop for Docker:**
+   ```json
+   {
+     "mcpServers": {
+       "access-affinity-groups": {
+         "command": "curl",
+         "args": ["-X", "POST", "http://localhost:3011/mcp"]
+       },
+       "xdmod-mcp-data": {
+         "command": "curl", 
+         "args": ["-X", "POST", "http://localhost:3008/mcp"]
+       }
+     }
+   }
+   ```
+
+### Available Services
+
+The Docker deployment exposes all MCP servers on different ports:
+- **Affinity Groups**: `http://localhost:3011`
+- **Compute Resources**: `http://localhost:3002`
+- **System Status**: `http://localhost:3003`
+- **Software Discovery**: `http://localhost:3004`
+- **XDMoD Charts**: `http://localhost:3005`
+- **Allocations**: `http://localhost:3006`
+- **NSF Awards**: `http://localhost:3007`
+- **XDMoD MCP Data**: `http://localhost:3008` (Python)
+- **Announcements**: `http://localhost:3009`
+- **Events**: `http://localhost:3010`
+
+### Environment Variables
+
+Required variables in `.env` file:
+```bash
+# Required for software discovery
+SDS_API_KEY=your-sds-api-key-here
+
+# Optional for enhanced XDMoD functionality
+XDMOD_API_TOKEN=your-xdmod-api-token-here
+
+# Docker service endpoints
+ACCESS_MCP_SERVICES=nsf-awards=http://localhost:3007
+```
+
 ## Next Steps
 
 - [Learn about available servers](/servers/)
 
-## Prerequisites
+## Development Prerequisites
 
 - Node.js 18+ with npm
+- Python 3.11+ with pipx (for xdmod-mcp-data)
+- Docker and Docker Compose (for containerized deployment)
 - Claude Desktop or MCP-compatible client
 - SDS API key (for software discovery server only)

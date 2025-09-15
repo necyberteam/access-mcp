@@ -6,4 +6,4 @@ data using Python's data analytics framework for better data manipulation
 and user-specific queries.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

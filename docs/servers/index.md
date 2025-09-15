@@ -126,22 +126,21 @@ npm install -g @access-mcp/xdmod-charts
 ## Python MCP server for XDMoD data access and analytics
 
 **Package:** `xdmod-mcp-data`  
-**Version:** v0.1.0
+**Version:** v0.2.0
 
 Python MCP server for XDMoD data access and analytics
 
-[View Details](/servers/xdmod-data){.btn-primary}
+[View Details](/servers/xdmod-mcp-data){.btn-primary}
 
 ```bash
 # Install
-npm install -g xdmod-mcp-data
+pipx install xdmod-mcp-data
 
 # Configure
 {
   "mcpServers": {
-    "xdmod-data": {
-      "command": "npx",
-      "args": ["xdmod-mcp-data"]
+    "xdmod-mcp-data": {
+      "command": "xdmod-mcp-data"
     }
   }
 }

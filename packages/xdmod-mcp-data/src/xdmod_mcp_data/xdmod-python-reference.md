@@ -14,7 +14,7 @@ Basic job accounting and resource usage metrics from job schedulers.
 - `resource` - Compute resources/systems
 - `institution` - User institutions
 - `pi` - Principal investigators
-- `field_of_science` - Research fields
+- `fieldofscience` - Research fields
 - `project` - Research projects
 - `queue` - Job queues
 - `jobsize` - Job size categories
@@ -41,7 +41,7 @@ Detailed performance analytics and system metrics from job monitoring data.
 - `resource` - Compute resources/systems
 - `institution` - User institutions
 - `pi` - Principal investigators
-- `field_of_science` - Research fields
+- `fieldofscience` - Research fields
 - `project` - Research projects
 - `queue` - Job queues
 - `jobsize` - Job size categories

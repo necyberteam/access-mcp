@@ -87,7 +87,25 @@ ACCESS-CI provides ${servers.length} MCP servers for different aspects of cyberi
 
 ${servers
   .map(
-    (server) => `
+    (server) => {
+      // Detect if this is a Python package
+      const isPythonPackage = server.main && server.main.endsWith('.py');
+      
+      let installCommand, configCommand, configArgs;
+      
+      if (isPythonPackage) {
+        // Python package - use pipx
+        installCommand = `pipx install ${server.name}`;
+        configCommand = server.name;
+        configArgs = `"command": "${server.name}"`;
+      } else {
+        // TypeScript package - use npm
+        installCommand = `npm install -g ${server.name}`;
+        configCommand = "npx";
+        configArgs = `"command": "npx",\n      "args": ["${server.name}"]`;
+      }
+      
+      return `
 ## ${server.description}
 
 **Package:** \`${server.name}\`  
@@ -99,19 +117,19 @@ ${server.description}
 
 \`\`\`bash
 # Install
-npm install -g ${server.name}
+${installCommand}
 
 # Configure
 {
   "mcpServers": {
     "${server.id}": {
-      "command": "npx",
-      "args": ["${server.name}"]
+      ${configArgs}
     }
   }
 }
 \`\`\`
-`,
+`;
+    }
   )
   .join("")}
 
@@ -249,7 +267,7 @@ async function main() {
     "system-status",
     "software-discovery",
     "xdmod-charts",
-    "xdmod-data",
+    "xdmod-mcp-data",
     "allocations",
     "nsf-awards",
     "announcements",

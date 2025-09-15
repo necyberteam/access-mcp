@@ -1,4 +1,4 @@
-version: '3.8'
+# Docker Compose file for ACCESS-CI MCP Servers
 
 services:
   # TypeScript MCP Servers

@@ -1,2 +1,0 @@
-[console_scripts]
-xdmod-python = xdmod_python.server:main
