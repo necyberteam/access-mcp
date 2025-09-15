@@ -56,7 +56,7 @@ function initializeAccessCI() {
     '      { name: "Software Discovery", href: "/servers/software-discovery" },',
     '      { name: "System Status", href: "/servers/system-status" },',
     '      { name: "XDMoD Charts", href: "/servers/xdmod-charts" },',
-    '      { name: "XDMoD Data", href: "/servers/xdmod-data" },',
+    '      { name: "XDMoD Data", href: "/servers/xdmod-mcp-data" },',
     "    ],",
     "  },",
     "];",
