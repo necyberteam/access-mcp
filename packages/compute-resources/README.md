@@ -10,6 +10,9 @@ MCP server providing access to ACCESS-CI compute resources information including
 "What compute resources are available on ACCESS-CI?"
 "List all available supercomputers and clusters"
 "Show me information about high-performance computing resources"
+"Search for GPU resources on ACCESS-CI"
+"Find resources at NCSA"
+"Show me cloud computing resources"
 ```
 
 ### **Get Resource Details**
@@ -51,6 +54,17 @@ Get hardware specifications for a compute resource.
 **Parameters:**
 
 - `resource_id` (string): The resource ID or info_groupid
+
+### search_resources
+
+**CRITICAL TOOL**: Search for compute resources and discover resource IDs needed by other ACCESS-CI services.
+
+**Parameters:**
+
+- `query` (string, optional): Search term to match against resource names, descriptions, and organizations
+- `resource_type` (string, optional): Filter by resource type (compute, storage, cloud, gpu, cpu)
+- `has_gpu` (boolean, optional): Filter for resources with GPU capabilities
+- `include_resource_ids` (boolean): Include resource IDs needed for other ACCESS-CI services (set to true for cross-service workflows)
 
 ## Resources
 
