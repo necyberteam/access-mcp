@@ -261,8 +261,6 @@ export class SystemStatusServer extends BaseAccessServer {
       return {
         ...outage,
         severity,
-        posted_time: outage.CreationTime,
-        last_updated: outage.LastModificationTime,
       };
     });
 
@@ -306,8 +304,8 @@ export class SystemStatusServer extends BaseAccessServer {
 
     // Sort by scheduled start time
     maintenance.sort((a: any, b: any) => {
-      const dateA = new Date(a.OutageStartDateTime || a.CreationTime);
-      const dateB = new Date(b.OutageStartDateTime || b.CreationTime);
+      const dateA = new Date(a.OutageStart);
+      const dateB = new Date(b.OutageStart);
       return dateA.getTime() - dateB.getTime();
     });
 
@@ -322,11 +320,9 @@ export class SystemStatusServer extends BaseAccessServer {
         affectedResources.add(resource.ResourceName);
       });
 
-      // Check timing - only use OutageStartDateTime for scheduling, fallback shows warning
-      const hasScheduledTime = !!item.OutageStartDateTime;
-      const startTime = new Date(
-        item.OutageStartDateTime || item.CreationTime,
-      );
+      // Check timing - use OutageStart for scheduling
+      const hasScheduledTime = !!item.OutageStart;
+      const startTime = new Date(item.OutageStart);
       const now = new Date();
       const hoursUntil =
         (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
@@ -336,14 +332,14 @@ export class SystemStatusServer extends BaseAccessServer {
 
       return {
         ...item,
-        scheduled_start: item.OutageStartDateTime,
-        scheduled_end: item.OutageEndDateTime,
+        scheduled_start: item.OutageStart,
+        scheduled_end: item.OutageEnd,
         hours_until_start: Math.max(0, Math.round(hoursUntil)),
         duration_hours:
-          item.OutageEndDateTime && item.OutageStartDateTime
+          item.OutageEnd && item.OutageStart
             ? Math.round(
-                (new Date(item.OutageEndDateTime).getTime() -
-                  new Date(item.OutageStartDateTime).getTime()) /
+                (new Date(item.OutageEnd).getTime() -
+                  new Date(item.OutageStart).getTime()) /
                   (1000 * 60 * 60),
               )
             : null,
@@ -392,8 +388,8 @@ export class SystemStatusServer extends BaseAccessServer {
 
     // Sort by outage end time (most recent first)
     pastOutages.sort((a: any, b: any) => {
-      const dateA = new Date(a.OutageEndDateTime || a.LastModificationTime);
-      const dateB = new Date(b.OutageEndDateTime || b.LastModificationTime);
+      const dateA = new Date(a.OutageEnd);
+      const dateB = new Date(b.OutageEnd);
       return dateB.getTime() - dateA.getTime();
     });
 
@@ -406,7 +402,7 @@ export class SystemStatusServer extends BaseAccessServer {
     const affectedResources = new Set();
     const outageTypes = new Set();
     const recentOutages = pastOutages.filter((outage: any) => {
-      const endTime = new Date(outage.OutageEndDateTime || outage.LastModificationTime);
+      const endTime = new Date(outage.OutageEnd);
       const daysAgo = (Date.now() - endTime.getTime()) / (1000 * 60 * 60 * 24);
       return daysAgo <= 30; // Last 30 days
     });
@@ -424,8 +420,8 @@ export class SystemStatusServer extends BaseAccessServer {
       }
 
       // Calculate duration
-      const startTime = new Date(outage.OutageStartDateTime);
-      const endTime = new Date(outage.OutageEndDateTime);
+      const startTime = new Date(outage.OutageStart);
+      const endTime = new Date(outage.OutageEnd);
       const durationHours = Math.round(
         (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60),
       );
@@ -437,13 +433,11 @@ export class SystemStatusServer extends BaseAccessServer {
 
       return {
         ...outage,
-        outage_start: outage.OutageStartDateTime,
-        outage_end: outage.OutageEndDateTime,
+        outage_start: outage.OutageStart,
+        outage_end: outage.OutageEnd,
         duration_hours: durationHours,
         days_ago: daysAgo,
         outage_type: outage.OutageType,
-        posted_time: outage.CreationTime,
-        last_updated: outage.LastModificationTime,
       };
     });
 
@@ -493,7 +487,7 @@ export class SystemStatusServer extends BaseAccessServer {
 
     // Filter recent past outages (last 30 days) for announcements
     const recentPastOutages = pastOutages.filter((outage: any) => {
-      const endTime = new Date(outage.OutageEndDateTime || outage.LastModificationTime);
+      const endTime = new Date(outage.OutageEnd);
       const daysAgo = (Date.now() - endTime.getTime()) / (1000 * 60 * 60 * 24);
       return daysAgo <= 30;
     });
@@ -509,8 +503,8 @@ export class SystemStatusServer extends BaseAccessServer {
         if (a.category === 'current' && b.category !== 'current') return -1;
         if (b.category === 'current' && a.category !== 'current') return 1;
         
-        const dateA = new Date(a.OutageStartDateTime || a.CreationTime);
-        const dateB = new Date(b.OutageStartDateTime || b.CreationTime);
+        const dateA = new Date(a.OutageStart);
+        const dateB = new Date(b.OutageStart);
         return dateB.getTime() - dateA.getTime(); // Most recent first
       })
       .slice(0, limit);
@@ -590,8 +584,6 @@ export class SystemStatusServer extends BaseAccessServer {
         outage_details: affectedOutages.map((outage: any) => ({
           subject: outage.Subject,
           severity,
-          posted: outage.CreationTime,
-          last_updated: outage.LastModificationTime,
         })),
       };
     });
@@ -638,8 +630,6 @@ export class SystemStatusServer extends BaseAccessServer {
           active_outages: groupData.length,
           outage_details: groupData.map((outage: any) => ({
             subject: outage.Subject,
-            posted: outage.CreationTime,
-            last_updated: outage.LastModificationTime,
           })),
           api_method: "group_specific",
         };

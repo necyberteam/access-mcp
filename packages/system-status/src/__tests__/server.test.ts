@@ -13,8 +13,8 @@ describe("SystemStatusServer", () => {
       id: "1",
       Subject: "Emergency maintenance on Anvil",
       Content: "Critical issue requiring immediate attention",
-      CreationTime: "2024-08-27T10:00:00Z",
-      LastModificationTime: "2024-08-27T11:00:00Z",
+      OutageStart: "2024-08-27T10:00:00Z",
+      OutageEnd: "2024-08-27T11:00:00Z",
       AffectedResources: [
         { ResourceName: "Anvil", ResourceID: "anvil-1" }
       ]
@@ -23,8 +23,8 @@ describe("SystemStatusServer", () => {
       id: "2", 
       Subject: "Scheduled maintenance on Bridges-2",
       Content: "Regular maintenance window",
-      CreationTime: "2024-08-27T08:00:00Z",
-      LastModificationTime: "2024-08-27T08:30:00Z",
+      OutageStart: "2024-08-27T08:00:00Z",
+      OutageEnd: "2024-08-27T08:30:00Z",
       AffectedResources: [
         { ResourceName: "Bridges-2", ResourceID: "bridges2-1" }
       ]
@@ -36,10 +36,10 @@ describe("SystemStatusServer", () => {
       id: "3",
       Subject: "Scheduled Jetstream maintenance",
       Content: "Planned maintenance",
-      CreationTime: "2024-08-27T09:00:00Z",
-      LastModificationTime: "2024-08-27T09:00:00Z",
-      OutageStartDateTime: "2024-08-30T10:00:00Z",
-      OutageEndDateTime: "2024-08-30T14:00:00Z",
+      OutageStart: "2024-08-27T09:00:00Z",
+      OutageEnd: "2024-08-27T09:00:00Z",
+      OutageStart: "2024-08-30T10:00:00Z",
+      OutageEnd: "2024-08-30T14:00:00Z",
       AffectedResources: [
         { ResourceName: "Jetstream", ResourceID: "jetstream-1" }
       ]
@@ -51,10 +51,10 @@ describe("SystemStatusServer", () => {
       id: "4",
       Subject: "Past maintenance on Stampede3",
       Content: "Completed maintenance",
-      CreationTime: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
-      LastModificationTime: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-      OutageStartDateTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-      OutageEndDateTime: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000).toISOString(), // 3 days ago + 6 hours  
+      OutageStart: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
+      OutageEnd: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
+      OutageStart: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
+      OutageEnd: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000).toISOString(), // 3 days ago + 6 hours  
       OutageType: "Full",
       AffectedResources: [
         { ResourceName: "Stampede3", ResourceID: "stampede3-1" }
@@ -134,7 +134,6 @@ describe("SystemStatusServer", () => {
       expect(response.severity_counts).toHaveProperty("high", 1); // Emergency
       expect(response.severity_counts).toHaveProperty("low", 1);  // Scheduled maintenance
       expect(response.outages[0]).toHaveProperty("severity");
-      expect(response.outages[0]).toHaveProperty("posted_time");
     });
 
     it("should filter outages by resource", async () => {
@@ -196,8 +195,8 @@ describe("SystemStatusServer", () => {
     it("should handle missing scheduled times", async () => {
       const dataWithoutSchedule = [{
         ...mockFutureOutagesData[0],
-        OutageStartDateTime: null,
-        OutageEndDateTime: null
+        OutageStart: null,
+        OutageEnd: null
       }];
 
       mockHttpClient.get.mockResolvedValue({
@@ -218,12 +217,12 @@ describe("SystemStatusServer", () => {
       const multipleMaintenanceData = [
         {
           ...mockFutureOutagesData[0],
-          OutageStartDateTime: "2024-08-31T10:00:00Z", // Later
+          OutageStart: "2024-08-31T10:00:00Z", // Later
           Subject: "Later maintenance"
         },
         {
           ...mockFutureOutagesData[0], 
-          OutageStartDateTime: "2024-08-30T10:00:00Z", // Earlier
+          OutageStart: "2024-08-30T10:00:00Z", // Earlier
           Subject: "Earlier maintenance"
         }
       ];
