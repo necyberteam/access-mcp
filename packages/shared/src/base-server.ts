@@ -2,7 +2,9 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import {
   CallToolRequestSchema,
+  GetPromptRequestSchema,
   InitializeRequestSchema,
+  ListPromptsRequestSchema,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
@@ -36,6 +38,7 @@ export abstract class BaseAccessServer {
         capabilities: {
           resources: {},
           tools: {},
+          prompts: {},
         },
       },
     );
@@ -124,13 +127,102 @@ export abstract class BaseAccessServer {
         }
       },
     );
+
+    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      try {
+        return { prompts: this.getPrompts() };
+      } catch (error: unknown) {
+        // Silent error handling for MCP compatibility
+        return { prompts: [] };
+      }
+    });
+
+    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      try {
+        return await this.handleGetPrompt(request);
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error("Error getting prompt:", errorMessage);
+        throw error;
+      }
+    });
   }
 
   protected abstract getTools(): any[];
   protected abstract getResources(): any[];
   protected abstract handleToolCall(request: any): Promise<any>;
+
+  /**
+   * Get available prompts - override in subclasses to provide prompts
+   */
+  protected getPrompts(): any[] {
+    return [];
+  }
+
+  /**
+   * Handle resource read requests - override in subclasses
+   */
   protected async handleResourceRead(request: any): Promise<any> {
     throw new Error("Resource reading not supported by this server");
+  }
+
+  /**
+   * Handle get prompt requests - override in subclasses
+   */
+  protected async handleGetPrompt(request: any): Promise<any> {
+    throw new Error("Prompt not found");
+  }
+
+  /**
+   * Helper method to create a JSON resource response
+   * @param uri The resource URI
+   * @param data The data to return as JSON
+   */
+  protected createJsonResource(uri: string, data: any) {
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "application/json",
+          text: JSON.stringify(data, null, 2),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Helper method to create a Markdown resource response
+   * @param uri The resource URI
+   * @param markdown The markdown content
+   */
+  protected createMarkdownResource(uri: string, markdown: string) {
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "text/markdown",
+          text: markdown,
+        },
+      ],
+    };
+  }
+
+  /**
+   * Helper method to create a text resource response
+   * @param uri The resource URI
+   * @param text The plain text content
+   */
+  protected createTextResource(uri: string, text: string) {
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: "text/plain",
+          text: text,
+        },
+      ],
+    };
   }
 
   /**
