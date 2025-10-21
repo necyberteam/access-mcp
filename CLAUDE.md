@@ -247,10 +247,16 @@ describe("Server Integration Tests", () => {
 
 ### Documentation Updates
 
+**CRITICAL**: The VitePress documentation is generated from package READMEs, not from docs/ files directly.
+
+**To update documentation:**
+1. **First update the package README** - `packages/server-name/README.md`
+2. **Then regenerate docs** - `npm run docs:generate`
+3. **Never edit docs/servers/*.md directly** - they will be overwritten
+
 When adding servers, update:
-- `docs/servers/index.md` - Add server entry
-- `docs/servers/new-server.md` - Create dedicated page
-- `docs/getting-started.md` - Update installation commands
+- `packages/server-name/README.md` - Main documentation source
+- `docs/getting-started.md` - Update installation commands  
 - `docs/index.md` - Add to features list
 - `README.md` - Update overview and structure
 

@@ -6,13 +6,15 @@ import { join } from "path";
 
 const PACKAGES = [
   "shared",
-  "affinity-groups",
+  "affinity-groups", 
   "compute-resources",
   "system-status",
   "software-discovery",
   "events",
-  "xdmod-metrics",
   "allocations",
+  "nsf-awards",
+  "announcements",
+  "xdmod-charts",
 ];
 
 function runCommand(command, options = {}) {
