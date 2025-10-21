@@ -29,18 +29,18 @@ describe("AnnouncementsServer", () => {
             {
               title: "Scheduled Maintenance",
               body: "System will be down for maintenance",
-              field_published_date: "2024-03-15",
+              published_date: "2024-03-15",
               author: "ACCESS Support",
-              custom_announcement_tags: "maintenance, scheduled",
-              custom_announcement_ag: "123,456",
+              tags: ["maintenance", "scheduled"],
+              affinity_group: ["123", "456"],
             },
             {
               title: "New GPU Nodes Available",
               body: "Additional GPU resources added",
-              field_published_date: "2024-03-10",
+              published_date: "2024-03-10",
               author: "Resource Team",
-              custom_announcement_tags: "gpu, hardware",
-              custom_announcement_ag: "789",
+              tags: ["gpu", "hardware"],
+              affinity_group: ["789"],
             },
           ],
         };
@@ -59,7 +59,7 @@ describe("AnnouncementsServer", () => {
 
         expect(mockHttpClient.get).toHaveBeenCalled();
         const url = mockHttpClient.get.mock.calls[0][0];
-        expect(url).toContain("/api/2.1/announcements");
+        expect(url).toContain("/api/2.2/announcements");
         expect(url).toContain("tags=maintenance");
 
         const responseData = JSON.parse(result.content[0].text);
@@ -114,10 +114,10 @@ describe("AnnouncementsServer", () => {
             {
               title: "GPU Maintenance",
               body: "GPU nodes maintenance",
-              field_published_date: "2024-03-15",
+              published_date: "2024-03-15",
               author: "Support",
-              custom_announcement_tags: "gpu, maintenance",
-              custom_announcement_ag: "",
+              tags: ["gpu", "maintenance"],
+              affinity_group: [],
             },
           ],
         };
@@ -152,10 +152,10 @@ describe("AnnouncementsServer", () => {
             {
               title: "AI/ML Community Update",
               body: "New resources for AI/ML",
-              field_published_date: "2024-03-14",
+              published_date: "2024-03-14",
               author: "Community Team",
-              custom_announcement_tags: "ai, ml, community",
-              custom_announcement_ag: "ai-ml-123",
+              tags: ["ai", "ml", "community"],
+              affinity_group: ["ai-ml-123"],
             },
           ],
         };
@@ -190,10 +190,10 @@ describe("AnnouncementsServer", () => {
             {
               title: "Today's Update",
               body: "Important update",
-              date: new Date().toISOString(),
+              published_date: new Date().toISOString(),
               author: "Admin",
-              custom_support_tags: "urgent",
-              custom_affinity_groups: "",
+              tags: ["urgent"],
+              affinity_group: [],
             },
           ],
         };
@@ -292,9 +292,9 @@ describe("AnnouncementsServer", () => {
         data: [
           {
             title: "Test",
-            field_published_date: "2024-03-15",
-            custom_announcement_tags: "tag1, tag2,  tag3  ",
-            custom_announcement_ag: "",
+            published_date: "2024-03-15",
+            tags: ["tag1", "tag2", "tag3"],
+            affinity_group: [],
           },
         ],
       };
@@ -316,10 +316,10 @@ describe("AnnouncementsServer", () => {
       const mockResponse = {
         status: 200,
         data: [
-          { title: "1", field_published_date: "2024-03-15", custom_announcement_tags: "gpu, maintenance", custom_announcement_ag: "" },
-          { title: "2", field_published_date: "2024-03-14", custom_announcement_tags: "gpu, network", custom_announcement_ag: "" },
-          { title: "3", field_published_date: "2024-03-13", custom_announcement_tags: "gpu, storage", custom_announcement_ag: "" },
-          { title: "4", field_published_date: "2024-03-12", custom_announcement_tags: "maintenance", custom_announcement_ag: "" },
+          { title: "1", published_date: "2024-03-15", tags: ["gpu", "maintenance"], affinity_group: [] },
+          { title: "2", published_date: "2024-03-14", tags: ["gpu", "network"], affinity_group: [] },
+          { title: "3", published_date: "2024-03-13", tags: ["gpu", "storage"], affinity_group: [] },
+          { title: "4", published_date: "2024-03-12", tags: ["maintenance"], affinity_group: [] },
         ],
       };
 
@@ -343,9 +343,9 @@ describe("AnnouncementsServer", () => {
         data: [
           {
             title: "Test",
-            field_published_date: "2024-03-15",
-            custom_announcement_tags: "",
-            custom_announcement_ag: "",
+            published_date: "2024-03-15",
+            tags: [],
+            affinity_group: [],
           },
         ],
       };

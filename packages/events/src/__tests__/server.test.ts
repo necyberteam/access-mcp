@@ -32,7 +32,7 @@ describe("EventsServer", () => {
     it("should initialize with correct server name and version", () => {
       expect(server).toBeDefined();
       expect(server["serverName"]).toBe("access-mcp-events");
-      expect(server["version"]).toBe("0.2.0");
+      expect(server["version"]).toBe("0.3.0");
       expect(server["baseURL"]).toBe("https://support.access-ci.org");
     });
 
@@ -64,9 +64,9 @@ describe("EventsServer", () => {
   });
 
   describe("URL Building", () => {
-    it("should build correct URLs with v2.1 endpoint", () => {
+    it("should build correct URLs with v2.2 endpoint", () => {
       const url = server["buildEventsUrl"]({});
-      expect(url).toContain("/api/2.1/events");
+      expect(url).toContain("/api/2.2/events");
     });
 
     it("should build correct URLs with relative date filters", () => {
@@ -194,12 +194,12 @@ describe("EventsServer", () => {
         id: "1",
         title: "Python Workshop",
         description: "Learn Python basics",
-        date: "2024-08-30T09:00:00",
-        date_1: "2024-08-30T17:00:00",
+        start_date: "2024-08-30T09:00:00",
+        end_date: "2024-08-30T17:00:00",
         location: "Online",
         event_type: "workshop",
         event_affiliation: "ACCESS",
-        custom_event_tags: "python,programming,beginner",
+        tags: ["python", "programming", "beginner"],
         skill_level: "beginner",
         speakers: "Dr. Smith",
         contact: "events@example.com",
@@ -212,12 +212,12 @@ describe("EventsServer", () => {
         id: "2",
         title: "Machine Learning Webinar",
         description: "Introduction to ML",
-        date: "2024-09-01T14:00:00",
-        date_1: "2024-09-01T15:30:00",
+        start_date: "2024-09-01T14:00:00",
+        end_date: "2024-09-01T15:30:00",
         location: "Virtual",
         event_type: "webinar",
         event_affiliation: "Community",
-        custom_event_tags: "machine-learning,ai,python",
+        tags: ["machine-learning", "ai", "python"],
         skill_level: "intermediate",
         speakers: "Prof. Johnson",
         contact: "ml@example.com",
@@ -388,7 +388,7 @@ describe("EventsServer", () => {
 
         const responseData = JSON.parse(result.content[0].text);
         expect(responseData.api_info).toBeDefined();
-        expect(responseData.api_info.endpoint_version).toBe("2.1");
+        expect(responseData.api_info.endpoint_version).toBe("2.2");
         expect(responseData.api_info.timezone_used).toBe("Europe/London");
       });
 
@@ -749,9 +749,9 @@ describe("EventsServer", () => {
         id: "1",
         title: "Test Event",
         event_type: "workshop",
-        date: "2024-08-30T09:00:00",
-        date_1: "2024-08-30T17:00:00",
-        custom_event_tags: "test",
+        start_date: "2024-08-30T09:00:00",
+        end_date: "2024-08-30T17:00:00",
+        tags: ["test"],
       },
     ];
 

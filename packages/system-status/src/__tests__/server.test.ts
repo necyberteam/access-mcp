@@ -36,8 +36,6 @@ describe("SystemStatusServer", () => {
       id: "3",
       Subject: "Scheduled Jetstream maintenance",
       Content: "Planned maintenance",
-      OutageStart: "2024-08-27T09:00:00Z",
-      OutageEnd: "2024-08-27T09:00:00Z",
       OutageStart: "2024-08-30T10:00:00Z",
       OutageEnd: "2024-08-30T14:00:00Z",
       AffectedResources: [
@@ -51,10 +49,8 @@ describe("SystemStatusServer", () => {
       id: "4",
       Subject: "Past maintenance on Stampede3",
       Content: "Completed maintenance",
-      OutageStart: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
-      OutageEnd: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
       OutageStart: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago
-      OutageEnd: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000).toISOString(), // 3 days ago + 6 hours  
+      OutageEnd: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000 + 6 * 60 * 60 * 1000).toISOString(), // 3 days ago + 6 hours
       OutageType: "Full",
       AffectedResources: [
         { ResourceName: "Stampede3", ResourceID: "stampede3-1" }

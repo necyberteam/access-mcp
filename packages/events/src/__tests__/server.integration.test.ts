@@ -35,7 +35,7 @@ describe("EventsServer Integration Tests", () => {
         const event = responseData.events[0];
         expect(event).toHaveProperty("id");
         expect(event).toHaveProperty("title");
-        expect(event).toHaveProperty("date");
+        expect(event).toHaveProperty("start_date");
         expect(event).toHaveProperty("tags"); // Our enhanced field
         expect(event).toHaveProperty("duration_hours"); // Our calculated field
       }
@@ -134,7 +134,7 @@ describe("EventsServer Integration Tests", () => {
 
       // Check that events are within the specified date range
       responseData.events.forEach((event: any) => {
-        const eventDate = new Date(event.date);
+        const eventDate = new Date(event.start_date);
         expect(eventDate.getFullYear()).toBe(2025);
       });
     }, 10000);
@@ -191,10 +191,10 @@ describe("EventsServer Integration Tests", () => {
       expect(responseData).toHaveProperty("total_events");
       expect(responseData).toHaveProperty("api_info");
       
-      // Should successfully handle timezone parameter (v2.1 API feature)
+      // Should successfully handle timezone parameter (v2.2 API feature)
       expect(typeof responseData.total_events).toBe("number");
       expect(responseData.api_info.timezone_used).toBe("America/New_York");
-      expect(responseData.api_info.endpoint_version).toBe("2.1");
+      expect(responseData.api_info.endpoint_version).toBe("2.2");
     }, 10000);
 
     it("should handle upcoming events with timezone", async () => {
