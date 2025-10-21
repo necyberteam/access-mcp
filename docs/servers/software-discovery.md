@@ -1,6 +1,6 @@
 # ACCESS-CI Software Discovery Service MCP server
 
-MCP server for discovering software packages across ACCESS-CI compute resources. Features global software search across all resources, resource-specific browsing, and detailed package information using the Software Discovery Service (SDS) API.
+MCP server for discovering software packages across ACCESS-CI compute resources. Features global software search across all resources, resource-specific browsing, AI-enhanced metadata, advanced filtering capabilities, and detailed package information using the Software Discovery Service (SDS) API.
 
 ## Usage Examples
 
@@ -20,6 +20,15 @@ MCP server for discovering software packages across ACCESS-CI compute resources.
 "List all bioinformatics tools on Bridges-2"
 "Show me GPU-optimized software on Delta"
 "What modules are available on Anvil?"
+```
+
+### **Advanced Filtering with AI Metadata**
+
+```
+"Find machine learning software on Delta"
+"Show me quantum chemistry tools across all resources"
+"Filter software by computational biology research area"
+"What visualization tools are available?"
 ```
 
 ### **Category-Based Discovery**
@@ -65,5 +74,5 @@ Add to your Claude Desktop configuration:
 ---
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.3.0  
+**Version:** v0.4.0  
 **Main:** `dist/index.js`

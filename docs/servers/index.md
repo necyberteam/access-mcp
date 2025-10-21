@@ -30,7 +30,7 @@ npm install -g @access-mcp/affinity-groups
 ## MCP server for ACCESS-CI Compute Resources API
 
 **Package:** `@access-mcp/compute-resources`  
-**Version:** v0.3.0
+**Version:** v0.5.0
 
 MCP server for ACCESS-CI Compute Resources API
 
@@ -54,7 +54,7 @@ npm install -g @access-mcp/compute-resources
 ## MCP server for ACCESS-CI System Status and Outages API
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.4.0
+**Version:** v0.4.1
 
 MCP server for ACCESS-CI System Status and Outages API
 
@@ -78,7 +78,7 @@ npm install -g @access-mcp/system-status
 ## ACCESS-CI Software Discovery Service MCP server
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.3.0
+**Version:** v0.4.0
 
 ACCESS-CI Software Discovery Service MCP server
 
@@ -149,7 +149,7 @@ pipx install xdmod-mcp-data
 ## MCP server for ACCESS-CI Allocations and Research Projects API
 
 **Package:** `@access-mcp/allocations`  
-**Version:** v0.3.1
+**Version:** v0.4.0
 
 MCP server for ACCESS-CI Allocations and Research Projects API
 
