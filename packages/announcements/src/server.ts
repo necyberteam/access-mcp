@@ -14,10 +14,11 @@ interface AnnouncementFilters {
 interface Announcement {
   title: string;
   body: string;
-  field_published_date: string;
-  custom_announcement_ag: string;
-  custom_announcement_tags: string;
-  field_affiliation: string;
+  published_date: string;
+  affinity_group: string[];
+  tags: string[];
+  affiliation: string;
+  summary?: string;
 }
 
 export class AnnouncementsServer extends BaseAccessServer {
@@ -204,6 +205,9 @@ export class AnnouncementsServer extends BaseAccessServer {
   private buildAnnouncementsUrl(filters: AnnouncementFilters): string {
     const params = new URLSearchParams();
 
+    // Add required pagination parameter for 2.2 API
+    params.append("items_per_page", String(filters.limit || 50));
+
     if (filters.tags) {
       params.append("tags", filters.tags);
     }
@@ -226,7 +230,7 @@ export class AnnouncementsServer extends BaseAccessServer {
       params.append("end_date", filters.end_date);
     }
 
-    return `/api/2.1/announcements?${params.toString()}`;
+    return `/api/2.2/announcements?${params.toString()}`;
   }
 
   private async fetchAnnouncements(filters: AnnouncementFilters): Promise<Announcement[]> {
@@ -244,23 +248,20 @@ export class AnnouncementsServer extends BaseAccessServer {
   private enhanceAnnouncements(rawAnnouncements: any[]): Announcement[] {
     return rawAnnouncements.map(announcement => ({
       ...announcement,
-      date: announcement.field_published_date,
-      tags: announcement.custom_announcement_tags
-        ? announcement.custom_announcement_tags.split(',').map((t: string) => t.trim()).filter((t: string) => t)
-        : [],
-      formatted_date: announcement.field_published_date 
-        ? new Date(announcement.field_published_date).toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+      date: announcement.published_date,
+      tags: Array.isArray(announcement.tags) ? announcement.tags : [],
+      formatted_date: announcement.published_date
+        ? new Date(announcement.published_date).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
           })
         : '',
-      body_preview: announcement.body
-        ? announcement.body.replace(/<[^>]*>/g, '').substring(0, 200) + '...'
-        : '',
-      affinity_groups: announcement.custom_announcement_ag
-        ? announcement.custom_announcement_ag.split(',').map((g: string) => g.trim()).filter((g: string) => g)
-        : []
+      body_preview: announcement.summary ||
+        (announcement.body
+          ? announcement.body.replace(/<[^>]*>/g, '').substring(0, 200) + '...'
+          : ''),
+      affinity_groups: Array.isArray(announcement.affinity_group) ? announcement.affinity_group : []
     }));
   }
 

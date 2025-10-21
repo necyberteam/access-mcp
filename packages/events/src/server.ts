@@ -5,7 +5,7 @@ export class EventsServer extends BaseAccessServer {
   private _eventsHttpClient?: AxiosInstance;
 
   constructor() {
-    super("access-mcp-events", "0.2.0", "https://support.access-ci.org");
+    super("access-mcp-events", "0.3.0", "https://support.access-ci.org");
   }
 
   protected get httpClient(): AxiosInstance {
@@ -323,7 +323,16 @@ export class EventsServer extends BaseAccessServer {
   }
 
   private buildEventsUrl(params: any): string {
-    const url = new URL("/api/2.1/events", this.baseURL);
+    const url = new URL("/api/2.2/events", this.baseURL);
+
+    // Add pagination - 2.2 API requires specific values: 25, 50, 75, or 100
+    const limit = params.limit || 100;
+    let itemsPerPage = 25;
+    if (limit >= 100) itemsPerPage = 100;
+    else if (limit >= 75) itemsPerPage = 75;
+    else if (limit >= 50) itemsPerPage = 50;
+    else itemsPerPage = 25;
+    url.searchParams.set("items_per_page", String(itemsPerPage));
 
     // Add full-text search parameter (API native search)
     if (params.search_api_fulltext) {
@@ -406,18 +415,16 @@ export class EventsServer extends BaseAccessServer {
     // Enhance events with additional metadata
     const enhancedEvents = events.map((event: any) => ({
       ...event,
-      // Parse dates for better handling
-      start_date: new Date(event.date),
-      end_date: event.date_1 ? new Date(event.date_1) : null,
-      // Split tags into array
-      tags: event.custom_event_tags
-        ? event.custom_event_tags.split(",").map((tag: string) => tag.trim())
-        : [],
+      // Parse dates for better handling (2.2 API already uses start_date/end_date)
+      start_date_parsed: new Date(event.start_date),
+      end_date_parsed: event.end_date ? new Date(event.end_date) : null,
+      // Tags are already an array in 2.2 API
+      tags: Array.isArray(event.tags) ? event.tags : [],
       // Calculate duration if both dates present
-      duration_hours: event.date_1
+      duration_hours: event.end_date
         ? Math.round(
-            (new Date(event.date_1).getTime() -
-              new Date(event.date).getTime()) /
+            (new Date(event.end_date).getTime() -
+              new Date(event.start_date).getTime()) /
               (1000 * 60 * 60),
           )
         : null,
@@ -425,7 +432,7 @@ export class EventsServer extends BaseAccessServer {
       starts_in_hours: Math.max(
         0,
         Math.round(
-          (new Date(event.date).getTime() - Date.now()) / (1000 * 60 * 60),
+          (new Date(event.start_date).getTime() - Date.now()) / (1000 * 60 * 60),
         ),
       ),
     }));
@@ -438,9 +445,10 @@ export class EventsServer extends BaseAccessServer {
         (e: any) => e.starts_in_hours <= 168 && e.starts_in_hours >= 0,
       ).length,
       api_info: {
-        endpoint_version: "2.1",
+        endpoint_version: "2.2",
         timezone_handling: "All timestamps in UTC (Z suffix). Relative dates calculated using timezone parameter (default: UTC).",
         timezone_used: params.timezone || "UTC",
+        pagination: "API requires items_per_page in [25, 50, 75, 100]",
       },
       event_types: [
         ...new Set(
