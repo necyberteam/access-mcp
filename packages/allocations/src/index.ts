@@ -3,25 +3,9 @@
 import { AllocationsServer } from "./server.js";
 
 async function main() {
-  // Check if we should run as HTTP server (for deployment)
-  const port = process.env.PORT;
-
   const server = new AllocationsServer();
-  
-  if (port) {
-    // Running in HTTP mode (deployment)
-    await (server as any).start({ httpPort: parseInt(port) });
-    // Keep the process running in HTTP mode
-    process.on('SIGINT', () => {
-      console.log('Shutting down server...');
-      process.exit(0);
-    });
-    // Keep the event loop alive
-    setInterval(() => {}, 1000 * 60 * 60); // Heartbeat every hour
-  } else {
-    // Running in MCP mode (stdio)
-    await server.start();
-  }
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : undefined;
+  await server.start(port ? { httpPort: port } : undefined);
 }
 
 main().catch((error) => {

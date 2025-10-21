@@ -1,4 +1,10 @@
-import { BaseAccessServer, handleApiError } from "@access-mcp/shared";
+import {
+  BaseAccessServer,
+  handleApiError,
+  FIELDS_OF_SCIENCE,
+  ALLOCATION_TYPES,
+  getFieldNames,
+} from "@access-mcp/shared";
 
 /**
  * ACCESS-CI Allocations MCP Server
@@ -288,6 +294,27 @@ export class AllocationsServer extends BaseAccessServer {
         description: "Current research projects, allocations, and resource utilization data",
         mimeType: "application/json",
       },
+      {
+        uri: "accessci://allocations/field-taxonomy",
+        name: "Field of Science Taxonomy",
+        description:
+          "NSF field classification with typical resource requirements and allocation ranges for each field",
+        mimeType: "application/json",
+      },
+      {
+        uri: "accessci://allocations/allocation-types",
+        name: "Allocation Types and Tiers",
+        description:
+          "Definitions of Discover, Explore, Accelerate, and Maximize allocation tiers with credit ranges and eligibility",
+        mimeType: "application/json",
+      },
+      {
+        uri: "accessci://allocations/search-guide",
+        name: "Advanced Search Guide",
+        description:
+          "Guide for using boolean operators, exact phrases, and advanced search syntax",
+        mimeType: "text/markdown",
+      },
     ];
   }
 
@@ -347,6 +374,142 @@ export class AllocationsServer extends BaseAccessServer {
       } catch (error) {
         throw new Error(`Failed to fetch allocations data: ${handleApiError(error)}`);
       }
+    }
+
+    if (uri === "accessci://allocations/field-taxonomy") {
+      return this.createJsonResource(uri, {
+        fields_of_science: FIELDS_OF_SCIENCE,
+        available_fields: getFieldNames(),
+        usage_notes: {
+          purpose: "Understand typical resource requirements and allocation sizes for different research fields",
+          how_to_use: "Match your research area to a field to see typical resources, software, and allocation ranges",
+          allocation_ranges: "Values are in ACCESS Credits (computational resource units, not monetary)",
+        },
+      });
+    }
+
+    if (uri === "accessci://allocations/allocation-types") {
+      return this.createJsonResource(uri, {
+        allocation_types: ALLOCATION_TYPES,
+        quick_guide: {
+          "Discover (Startup)": "1K-400K credits - For exploration and code development",
+          "Explore (Standard)": "400K-1.5M credits - For established research projects",
+          "Accelerate (Advanced)": "1.5M-10M credits - For large-scale research",
+          "Maximize (Leadership)": "10M-50M credits - For transformative research",
+        },
+        choosing_a_tier: {
+          step_1: "Estimate your computational needs based on your research field",
+          step_2: "Check typical allocation ranges for your field in field-taxonomy",
+          step_3: "Start with Discover if you're new or testing feasibility",
+          step_4: "Move to higher tiers as your project scales and demonstrates need",
+        },
+      });
+    }
+
+    if (uri === "accessci://allocations/search-guide") {
+      const guide = `# Advanced Search Guide for ACCESS Allocations
+
+## Boolean Operators
+
+### AND Operator
+Requires **both** terms to be present in results.
+
+**Examples**:
+- \`machine learning AND gpu\` - Projects that mention both "machine learning" AND "gpu"
+- \`climate AND simulation AND data\` - All three terms must be present
+
+### OR Operator
+Returns results with **either** term (or both).
+
+**Examples**:
+- \`genomics OR bioinformatics\` - Projects with either term
+- \`tensorflow OR pytorch OR jax\` - Projects using any of these frameworks
+
+### NOT Operator
+Excludes results containing the specified term.
+
+**Examples**:
+- \`machine learning NOT tensorflow\` - ML projects that don't use TensorFlow
+- \`physics NOT particle\` - Physics projects except particle physics
+
+### Combining Operators
+You can combine multiple operators in one query.
+
+**Examples**:
+- \`(machine learning OR deep learning) AND gpu NOT tensorflow\`
+- \`climate AND (modeling OR simulation) NOT weather\`
+
+## Exact Phrases
+
+Use quotes for exact phrase matching.
+
+**Examples**:
+- \`"large language model"\` - Exact phrase match
+- \`"genome assembly" AND "high memory"\` - Both exact phrases required
+
+## Search Tips
+
+### By Research Domain
+- Use field-specific keywords from the field taxonomy
+- Example: For Computer Science → \`"machine learning" OR "data science" OR HPC\`
+
+### By Resource Type
+- \`gpu\` - GPU-using projects
+- \`"high memory"\` - Memory-intensive projects
+- \`storage\` - Storage-heavy projects
+
+### By Software
+- \`gromacs\` - Molecular dynamics with GROMACS
+- \`tensorflow OR pytorch\` - Deep learning frameworks
+- \`"quantum espresso"\` - Quantum chemistry software
+
+### By Allocation Size
+Use the \`min_allocation\` parameter instead of search terms:
+- \`min_allocation: 100000\` - Projects with ≥100K credits
+- Combined: \`query: "machine learning", min_allocation: 500000\`
+
+## Field of Science Filters
+
+Instead of searching, use the \`field_of_science\` parameter:
+- \`field_of_science: "Computer Science"\`
+- \`field_of_science: "Biological Sciences"\`
+
+Available fields: ${getFieldNames().join(", ")}
+
+## Sorting Results
+
+Use \`sort_by\` parameter:
+- \`relevance\` - Best match for search terms (default)
+- \`date_desc\` - Newest projects first
+- \`allocation_desc\` - Largest allocations first
+- \`pi_name\` - Alphabetical by PI
+
+## Example Workflows
+
+### Find Similar GPU Projects
+\`\`\`
+query: "(machine learning OR deep learning) AND gpu"
+field_of_science: "Computer Science"
+sort_by: "allocation_desc"
+limit: 20
+\`\`\`
+
+### Genomics Projects with High Memory
+\`\`\`
+query: "genome assembly" OR metagenomics
+min_allocation: 100000
+sort_by: "date_desc"
+\`\`\`
+
+### Recent Climate Modeling Projects
+\`\`\`
+field_of_science: "Earth Sciences"
+query: climate AND (modeling OR simulation)
+date_range: {start_date: "2024-01-01"}
+sort_by: "date_desc"
+\`\`\`
+`;
+      return this.createMarkdownResource(uri, guide);
     }
 
     throw new Error(`Unknown resource: ${uri}`);
@@ -1498,10 +1661,11 @@ export class AllocationsServer extends BaseAccessServer {
 
       for (const nameVariation of piNameVariations) {
         try {
-          const nsfResponse = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
+          const nsfData = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
             person_name: nameVariation,
             limit: 3
           });
+          const nsfResponse = this.formatNsfResponse(nsfData);
 
           if (nsfResponse && !nsfResponse.includes("Error") && !nsfResponse.includes("not available")) {
             nsfSearchResults.set(nameVariation, nsfResponse);
@@ -1607,38 +1771,133 @@ export class AllocationsServer extends BaseAccessServer {
     }
   }
 
-  // Generate PI name variations for better matching
+  /**
+   * Generate comprehensive PI name variations to handle different name formats.
+   * Handles: format variations, middle initials, hyphenated names, suffixes, etc.
+   *
+   * CRITICAL FIX: Enhanced to handle more name format variations
+   */
   private generatePINameVariations(piName: string): string[] {
     const variations = [piName];
-    
+
+    // Remove common suffixes for matching (Jr., Sr., II, III, etc.)
+    const suffixes = /\b(Jr\.?|Sr\.?|II|III|IV|PhD|Ph\.D\.)\s*$/i;
+    const nameWithoutSuffix = piName.trim().replace(suffixes, '').trim();
+    if (nameWithoutSuffix !== piName.trim()) {
+      variations.push(nameWithoutSuffix);
+    }
+
     // Handle common name formats
-    const parts = piName.trim().split(/\s+/);
+    const parts = nameWithoutSuffix.split(/\s+/);
+
     if (parts.length >= 2) {
       const firstName = parts[0];
       const lastName = parts[parts.length - 1];
-      const middleInitials = parts.slice(1, -1);
-      
-      // Various name format combinations
+      const middleParts = parts.slice(1, -1);
+
+      // Basic format variations
       variations.push(
         `${lastName}, ${firstName}`, // Last, First
         `${firstName} ${lastName}`, // First Last (no middle)
         `${lastName}, ${firstName[0]}.`, // Last, F.
         `${firstName[0]}. ${lastName}`, // F. Last
       );
-      
-      // Handle middle initials
-      if (middleInitials.length > 0) {
-        const middleInitial = middleInitials[0].charAt(0);
+
+      // Handle hyphenated last names (e.g., "Mary Smith-Jones")
+      if (lastName.includes('-')) {
+        const hyphenParts = lastName.split('-');
+        // Try each part separately
+        for (const part of hyphenParts) {
+          variations.push(
+            `${firstName} ${part}`,
+            `${part}, ${firstName}`,
+            `${firstName[0]}. ${part}`
+          );
+        }
+        // Try without hyphen
+        const lastNameNoHyphen = hyphenParts.join('');
+        variations.push(
+          `${firstName} ${lastNameNoHyphen}`,
+          `${lastNameNoHyphen}, ${firstName}`
+        );
+        // Try with space instead of hyphen
+        const lastNameWithSpace = hyphenParts.join(' ');
+        variations.push(
+          `${firstName} ${lastNameWithSpace}`,
+          `${lastNameWithSpace}, ${firstName}`
+        );
+      }
+
+      // Handle hyphenated first names (e.g., "Mary-Ann Smith")
+      if (firstName.includes('-')) {
+        const hyphenParts = firstName.split('-');
+        // Try each part separately
+        for (const part of hyphenParts) {
+          variations.push(
+            `${part} ${lastName}`,
+            `${lastName}, ${part}`,
+            `${part[0]}. ${lastName}`
+          );
+        }
+        // Try without hyphen
+        const firstNameNoHyphen = hyphenParts.join('');
+        variations.push(
+          `${firstNameNoHyphen} ${lastName}`,
+          `${lastName}, ${firstNameNoHyphen}`
+        );
+      }
+
+      // Handle middle names/initials
+      if (middleParts.length > 0) {
+        const middleInitial = middleParts[0].charAt(0);
+        const middleName = middleParts[0];
+
         variations.push(
           `${firstName} ${middleInitial}. ${lastName}`,
           `${firstName} ${middleInitial} ${lastName}`,
           `${lastName}, ${firstName} ${middleInitial}.`,
-          `${firstName[0]}. ${middleInitial}. ${lastName}`
+          `${lastName}, ${firstName} ${middleInitial}`,
+          `${firstName[0]}. ${middleInitial}. ${lastName}`,
+          `${firstName[0]}${middleInitial}. ${lastName}`,
+          // Full middle name variations
+          `${firstName} ${middleName} ${lastName}`,
+          `${lastName}, ${firstName} ${middleName}`,
+          // No middle name/initial
+          `${firstName} ${lastName}`,
+          `${lastName}, ${firstName}`
+        );
+
+        // If multiple middle names/initials
+        if (middleParts.length > 1) {
+          const allMiddleInitials = middleParts.map(p => p.charAt(0)).join('. ') + '.';
+          variations.push(
+            `${firstName} ${allMiddleInitials} ${lastName}`,
+            `${lastName}, ${firstName} ${allMiddleInitials}`
+          );
+        }
+      }
+
+      // Handle initials-only formats (e.g., "J.R. Smith" → "JR Smith", "J R Smith")
+      const firstInitial = firstName.charAt(0);
+      if (middleParts.length > 0) {
+        const middleInitial = middleParts[0].charAt(0);
+        variations.push(
+          `${firstInitial}${middleInitial} ${lastName}`,
+          `${firstInitial} ${middleInitial} ${lastName}`,
+          `${firstInitial}.${middleInitial}. ${lastName}`
         );
       }
+
+      // Common database format variations
+      variations.push(
+        `${lastName} ${firstName}`, // Last First (no comma)
+        `${lastName} ${firstName[0]}`, // Last F (no punctuation)
+        `${lastName}, ${firstName[0]}`, // Last, F (no period)
+      );
     }
-    
-    return [...new Set(variations)]; // Remove duplicates
+
+    // Remove duplicates and empty strings
+    return [...new Set(variations.filter(v => v && v.trim().length > 0))];
   }
 
   // Enhanced NSF response parsing with exact matching
@@ -1737,17 +1996,41 @@ export class AllocationsServer extends BaseAccessServer {
   }
 
   private async findFundedProjects(piName?: string, institutionName?: string, fieldOfScience?: string, limit: number = 10) {
+    // Input validation
+    if (limit < 1 || limit > 50) {
+      throw new Error("Limit must be between 1 and 50");
+    }
+
+    if (piName && piName.trim().length < 3) {
+      throw new Error("PI name must be at least 3 characters");
+    }
+
+    if (institutionName && institutionName.trim().length < 3) {
+      throw new Error("Institution name must be at least 3 characters");
+    }
+
     try {
       // Step 1: Get ACCESS projects
       let accessProjects: Project[] = [];
       let searchQuery = "";
+      let searchMetadata = {
+        piNameVariations: [] as string[],
+        institutionVariants: [] as string[]
+      };
 
       if (piName) {
+        // Generate name variations for better matching
+        searchMetadata.piNameVariations = this.generatePINameVariations(piName);
+
         // Search for projects by PI name, filtering by field if specified
         accessProjects = await this.searchProjectsByPIName(piName, fieldOfScience, limit * 2);
         searchQuery += `PI: ${piName}`;
         if (fieldOfScience) searchQuery += `, Field: ${fieldOfScience}`;
       } else if (institutionName) {
+        // Generate institution variants for better matching
+        const normalized = this.normalizeInstitutionName(institutionName);
+        searchMetadata.institutionVariants = this.getInstitutionVariants(normalized);
+
         // Search for projects by institution, filtering by field if specified
         accessProjects = await this.searchProjectsByInstitution(institutionName, fieldOfScience, limit * 2);
         searchQuery += `Institution: ${institutionName}`;
@@ -1767,17 +2050,35 @@ export class AllocationsServer extends BaseAccessServer {
       // Step 3: Build comprehensive result
       let result = `🎯 **Funded Projects Analysis**\n\n`;
       result += `**Search Criteria:** ${searchQuery}\n`;
-      result += `**Projects Found:** ${accessProjects.length} ACCESS projects\n\n`;
+      result += `**Projects Found:** ${accessProjects.length} ACCESS projects\n`;
+
+      // Add search metadata if available
+      if (searchMetadata.piNameVariations.length > 0) {
+        result += `**Name Variations Tried:** ${Math.min(searchMetadata.piNameVariations.length, 5)} format(s)\n`;
+      }
+      if (searchMetadata.institutionVariants.length > 0) {
+        result += `**Institution Variants:** ${searchMetadata.institutionVariants.slice(0, 3).join(', ')}\n`;
+      }
+      result += `\n`;
 
       if (fundedProjectCorrelations.length === 0) {
         result += `**🏛️ ACCESS Projects (${fieldOfScience || 'All Fields'}):**\n`;
         result += this.formatProjectSummaries(accessProjects.slice(0, limit));
-        result += `\n**🏆 NSF Funding Status:**\n`;
-        result += `No NSF awards found for these PIs. This could mean:\n`;
-        result += `• PIs may have NSF funding under different names/institutions\n`;
-        result += `• Projects may be funded by other federal agencies\n`;
-        result += `• Projects may be exploratory/startup allocations\n`;
-        result += `• Names may need exact matching (try specific PI names)\n`;
+        result += `\n\n**🏆 NSF Funding Status:**\n`;
+        result += `✅ **No NSF awards found** for these PIs after trying multiple name format variations.\n\n`;
+        result += `**💡 What this means:**\n`;
+        result += `• Advanced name matching tried multiple formats (First Last, Last First, with/without initials, etc.)\n`;
+        result += `• Results are filtered to primary institutions only (collaborations excluded)\n`;
+        result += `• If you expected to find awards, this could indicate:\n`;
+        result += `  - PIs may have NSF funding under different name spellings\n`;
+        result += `  - Projects funded by other federal agencies (DOE, NIH, NASA, etc.)\n`;
+        result += `  - Exploratory/startup allocations without federal grant backing\n`;
+        result += `  - Early-career researchers or industry collaborations\n`;
+        result += `  - Institution name changes or department-level variations\n\n`;
+        result += `**🔍 Troubleshooting Tips:**\n`;
+        result += `• Try searching by individual PI name for detailed matching\n`;
+        result += `• Use analyze_project_funding() with specific project ID for detailed analysis\n`;
+        result += `• Check if institution appears under different official names\n`;
       } else {
         result += `**🔗 Cross-Referenced Funded Projects:**\n\n`;
         fundedProjectCorrelations.forEach((correlation, index) => {
@@ -1879,10 +2180,11 @@ export class AllocationsServer extends BaseAccessServer {
       for (const project of batch) {
         try {
           // Search for NSF awards by PI name
-          const nsfResponse = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
+          const nsfData = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
             person_name: project.pi,
             limit: 3
           });
+          const nsfResponse = this.formatNsfResponse(nsfData);
 
           // Parse NSF response to extract award summaries
           const nsfAwards = this.parseNSFResponse(nsfResponse, project.pi, project.piInstitution);
@@ -1993,20 +2295,31 @@ export class AllocationsServer extends BaseAccessServer {
       }
 
       // Step 3: Get NSF awards using multiple institution variants
+      // CRITICAL FIX: Filter by primary institution only to avoid false positives
       const nsfAwardsByVariant = new Map<string, string>();
       let totalNSFAwards = 0;
-      
+
       for (const variant of institutionVariants.slice(0, 3)) { // Try top 3 variants
         try {
-          const nsfResponse = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_institution", {
+          const nsfData = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_institution", {
             institution_name: variant,
             limit: Math.ceil(limit / 2)
           });
-          
+          const nsfResponse = this.formatNsfResponse(nsfData);
+
           if (nsfResponse && !nsfResponse.includes("Error") && !nsfResponse.includes("not available")) {
-            nsfAwardsByVariant.set(variant, nsfResponse);
-            const awardCount = (nsfResponse.match(/Award Number:/g) || []).length;
-            totalNSFAwards += awardCount;
+            // CRITICAL: Filter to only include awards where this institution is PRIMARY recipient
+            const filteredResponse = this.filterNSFAwardsByPrimaryInstitution(
+              nsfResponse,
+              variant,
+              institutionVariants
+            );
+
+            if (filteredResponse && !filteredResponse.includes("No NSF awards found")) {
+              nsfAwardsByVariant.set(variant, filteredResponse);
+              const awardCount = (filteredResponse.match(/Award Number:/g) || []).length;
+              totalNSFAwards += awardCount;
+            }
           }
         } catch (error) {
           console.warn(`Error fetching NSF data for variant "${variant}":`, error);
@@ -2037,18 +2350,28 @@ export class AllocationsServer extends BaseAccessServer {
         result += `Try variations like "${institutionVariants.slice(1, 3).join('" or "')}"\n`;
       }
 
-      // NSF Awards Section
-      result += `\n**🏆 NSF Research Portfolio (${totalNSFAwards} awards found):**\n`;
+      // NSF Awards Section (CRITICAL FIX: Now filtered by primary institution only)
+      result += `\n**🏆 NSF Research Portfolio (${totalNSFAwards} primary awards found):**\n`;
+      result += `*Note: Only showing awards where ${institutionName} is the PRIMARY recipient institution*\n\n`;
+
       if (nsfAwardsByVariant.size > 0) {
         for (const [variant, awards] of nsfAwardsByVariant) {
           result += `\n*${variant}:*\n${awards}\n`;
         }
       } else {
-        result += `No NSF awards found for ${institutionName} variants.\n`;
-        result += `This could indicate:\n`;
-        result += `• Institution name needs different formatting\n`;
-        result += `• Awards may be under department/center names\n`;
-        result += `• Recent institutional name changes\n`;
+        result += `✅ **No NSF awards found where "${institutionName}" is the primary recipient.**\n\n`;
+        result += `**💡 What this means:**\n`;
+        result += `• These results are filtered to show ONLY awards where this institution is the primary recipient\n`;
+        result += `• Collaborations and co-PI mentions are excluded to ensure accuracy\n`;
+        result += `• If you expected to see awards, this could indicate:\n`;
+        result += `  - Institution name formatting differences (try: "${institutionVariants.slice(1, 3).join('", "')}")\n`;
+        result += `  - Awards under department/college names instead of university name\n`;
+        result += `  - Recent institutional name changes or mergers\n`;
+        result += `  - Awards may be under affiliated research centers\n\n`;
+        result += `**🔍 Alternative Search Options:**\n`;
+        result += `• Search by specific PI names from ACCESS projects\n`;
+        result += `• Try department-specific searches (e.g., "Computer Science Dept, ${institutionName}")\n`;
+        result += `• Check for institution name variations in NSF databases\n`;
       }
 
       // Cross-reference analysis
@@ -2219,9 +2542,17 @@ export class AllocationsServer extends BaseAccessServer {
     return variants;
   }
 
+  /**
+   * Get known institution variants with SAFE matching logic.
+   *
+   * CRITICAL FIX: Previous version had substring matching bug where "MIT" matched "UT"
+   * because "ut" is substring of "mit". Now uses word-boundary aware matching.
+   */
   private getKnownInstitutionVariants(name: string): string[] {
     const variants: string[] = [];
-    
+    const nameLower = name.toLowerCase().trim();
+    const nameWords = new Set(nameLower.split(/\s+/));
+
     // Comprehensive mapping of known institution variations
     const knownMappings: Record<string, string[]> = {
       // Major research universities
@@ -2233,13 +2564,13 @@ export class AllocationsServer extends BaseAccessServer {
       'California Institute of Technology': ['Caltech', 'CIT'],
       'Carnegie Mellon University': ['CMU'],
       'Georgia Institute of Technology': ['Georgia Tech', 'GIT', 'GT'],
-      
+
       // University of California system
       'University of California Berkeley': ['UC Berkeley', 'Berkeley', 'Cal'],
       'University of California Los Angeles': ['UCLA', 'UC Los Angeles'],
       'University of California San Diego': ['UCSD', 'UC San Diego'],
       'University of California Santa Barbara': ['UCSB', 'UC Santa Barbara'],
-      
+
       // University of Colorado system
       'University of Colorado Boulder': [
         'CU Boulder', 'UC Boulder', 'University of Colorado at Boulder',
@@ -2249,21 +2580,21 @@ export class AllocationsServer extends BaseAccessServer {
         'CU Denver', 'UC Denver', 'University of Colorado at Denver',
         'University of Colorado, Denver'
       ],
-      
+
       // Texas system
       'University of Texas at Austin': [
         'UT Austin', 'UT', 'University of Texas Austin',
         'University of Texas, Austin'
       ],
       'Texas A&M University': ['TAMU', 'Texas A and M University', 'Texas A&M'],
-      
+
       // State universities
       'Ohio State University': ['OSU', 'The Ohio State University'],
       'Pennsylvania State University': ['Penn State', 'PSU'],
       'Michigan State University': ['MSU'],
       'Arizona State University': ['ASU'],
       'Florida State University': ['FSU'],
-      
+
       // Private institutions
       'Stanford University': ['Stanford'],
       'Harvard University': ['Harvard'],
@@ -2271,30 +2602,87 @@ export class AllocationsServer extends BaseAccessServer {
       'Yale University': ['Yale'],
       'Columbia University': ['Columbia'],
       'University of Chicago': ['UChicago', 'Chicago'],
-      
+
       // International variations
       'University College London': ['UCL'],
       'Swiss Federal Institute of Technology': ['ETH Zurich', 'ETHZ']
     };
 
-    // Look for exact matches and partial matches
+    // Look for SAFE matches using word-boundary aware logic
     for (const [canonical, alternates] of Object.entries(knownMappings)) {
-      // Direct match
-      if (name.toLowerCase().includes(canonical.toLowerCase()) || 
-          canonical.toLowerCase().includes(name.toLowerCase())) {
+      const canonicalLower = canonical.toLowerCase();
+      let matched = false;
+
+      // 1. Exact match (highest confidence)
+      if (nameLower === canonicalLower) {
         variants.push(canonical, ...alternates);
+        continue;
       }
-      
-      // Alternate match
-      alternates.forEach(alt => {
-        if (name.toLowerCase().includes(alt.toLowerCase()) || 
-            alt.toLowerCase().includes(name.toLowerCase())) {
+
+      // 2. Safe substring match for long strings (15+ chars)
+      // Prevents "MIT" from matching "Committee" but allows "University of X" variations
+      if (name.length >= 15 && canonical.length >= 15) {
+        if (nameLower.includes(canonicalLower) || canonicalLower.includes(nameLower)) {
           variants.push(canonical, ...alternates);
+          continue;
         }
-      });
+      }
+
+      // 3. Check alternates with word-boundary aware logic
+      for (const alt of alternates) {
+        if (matched) break;
+
+        const altLower = alt.toLowerCase().trim();
+
+        // Exact match
+        if (nameLower === altLower) {
+          variants.push(canonical, ...alternates);
+          matched = true;
+          break;
+        }
+
+        // CRITICAL: Use word boundaries, not naive substring matching
+        // This prevents "MIT" from matching "UT" (substring) but allows "UT Austin" to match "UT" (word)
+
+        // For single-word abbreviations, require exact word match
+        if (!alt.includes(' ') && alt.length <= 6) {
+          // Check if abbreviation appears as complete word in name
+          const wordBoundaryRegex = new RegExp(`\\b${alt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          if (wordBoundaryRegex.test(name)) {
+            variants.push(canonical, ...alternates);
+            matched = true;
+            break;
+          }
+        }
+
+        // For multi-word matches, check significant word overlap
+        if (alt.includes(' ') && name.includes(' ')) {
+          const altWords = new Set(altLower.split(/\s+/));
+          const overlap = [...nameWords].filter(word =>
+            altWords.has(word) && word.length > 3
+          );
+
+          // Require at least 50% word overlap and minimum 2 matching words
+          const overlapRatio = overlap.length / Math.max(nameWords.size, altWords.size);
+          if (overlapRatio >= 0.5 && overlap.length >= 2) {
+            variants.push(canonical, ...alternates);
+            matched = true;
+            break;
+          }
+        }
+
+        // Long string safe substring (10+ chars each)
+        if (alt.length >= 10 && name.length >= 10) {
+          if (nameLower.includes(altLower) || altLower.includes(nameLower)) {
+            variants.push(canonical, ...alternates);
+            matched = true;
+            break;
+          }
+        }
+      }
     }
 
-    return variants;
+    return [...new Set(variants)]; // Remove duplicates
   }
 
   private async getProjectsByInstitution(institutionName: string, limit: number): Promise<Project[]> {
@@ -2308,60 +2696,6 @@ export class AllocationsServer extends BaseAccessServer {
       .slice(0, limit);
   }
 
-  // Enhanced institution matching with scoring
-  private matchesInstitution(projectInstitution: string, searchVariants: string[]): boolean {
-    const normalizedProject = this.normalizeInstitutionName(projectInstitution);
-    
-    // Direct exact match (highest priority)
-    if (searchVariants.some(variant => 
-        normalizedProject.toLowerCase() === variant.toLowerCase())) {
-      return true;
-    }
-    
-    // Strong partial matches (high priority)
-    // Both directions to handle cases like "MIT" matching "Massachusetts Institute of Technology"
-    if (searchVariants.some(variant => {
-      const variantLower = variant.toLowerCase();
-      const projectLower = normalizedProject.toLowerCase();
-      
-      // Skip very short matches to avoid false positives
-      if (variant.length < 4 && normalizedProject.length > 10) return false;
-      if (normalizedProject.length < 4 && variant.length > 10) return false;
-      
-      return projectLower.includes(variantLower) || variantLower.includes(projectLower);
-    })) {
-      return true;
-    }
-    
-    // Word-based matching for complex institution names
-    const projectWords = normalizedProject.toLowerCase().split(/\s+/);
-    const significantProjectWords = projectWords.filter(word => 
-      word.length > 3 && !['university', 'college', 'institute', 'school', 'center'].includes(word)
-    );
-    
-    return searchVariants.some(variant => {
-      const variantWords = variant.toLowerCase().split(/\s+/);
-      const significantVariantWords = variantWords.filter(word => 
-        word.length > 3 && !['university', 'college', 'institute', 'school', 'center'].includes(word)
-      );
-      
-      if (significantProjectWords.length === 0 || significantVariantWords.length === 0) {
-        return false;
-      }
-      
-      // Calculate word overlap percentage
-      const overlapCount = significantProjectWords.filter(projectWord =>
-        significantVariantWords.some(variantWord => 
-          projectWord.includes(variantWord) || variantWord.includes(projectWord)
-        )
-      ).length;
-      
-      const overlapRatio = overlapCount / Math.min(significantProjectWords.length, significantVariantWords.length);
-      
-      // Require at least 50% word overlap for a match
-      return overlapRatio >= 0.5;
-    });
-  }
 
   private formatInstitutionalAccessProjects(projects: Project[]): string {
     const grouped = new Map<string, Project[]>();
@@ -2418,10 +2752,11 @@ export class AllocationsServer extends BaseAccessServer {
 
     for (const project of accessProjects.slice(0, 10)) { // Limit to first 10 for performance
       try {
-        const nsfResponse = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
+        const nsfData = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
           person_name: project.pi,
           limit: 2
         });
+        const nsfResponse = this.formatNsfResponse(nsfData);
 
         if (nsfResponse && !nsfResponse.includes("Error") && !nsfResponse.includes("not available")) {
           const relevantAwards = this.parseNSFResponse(nsfResponse, project.pi, project.piInstitution);
@@ -2448,49 +2783,141 @@ export class AllocationsServer extends BaseAccessServer {
     return fields.size;
   }
 
-  // Helper method for NSF server communication
-  private async callRemoteServer(serviceName: string, toolName: string, args: Record<string, any> = {}): Promise<string> {
-    const serviceUrl = this.getServiceEndpoint(serviceName);
-    if (!serviceUrl) {
-      return `❌ **${serviceName} server not available**\nConfigure ACCESS_MCP_SERVICES environment variable to enable integration.`;
+  // Helper method to format NSF server responses
+  private formatNsfResponse(response: any): string {
+    if (response.content && response.content[0] && response.content[0].text) {
+      return response.content[0].text;
     }
-
-    try {
-      const response = await fetch(`${serviceUrl}/tools/${toolName}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ arguments: args }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.content && data.content[0] && data.content[0].text) {
-          return data.content[0].text;
-        }
-        return JSON.stringify(data);
-      } else {
-        const error = response.headers.get('content-type')?.includes('json') 
-          ? (await response.json()).error 
-          : await response.text();
-        return `❌ **${serviceName} Error (${response.status})**: ${error}`;
-      }
-    } catch (error) {
-      return `❌ **${serviceName} Integration Error**: ${error instanceof Error ? error.message : String(error)}`;
-    }
+    return JSON.stringify(response);
   }
 
-  private getServiceEndpoint(serviceName: string): string | null {
-    const services = process.env.ACCESS_MCP_SERVICES;
-    if (!services) return null;
+  /**
+   * Filter NSF awards to only include those where the specified institution
+   * is the PRIMARY institution (listed in "Institution:" field), not just
+   * mentioned in collaborations or other contexts.
+   *
+   * @param nsfResponse - Raw NSF response text with award details
+   * @param targetInstitution - Institution name to match (or variants)
+   * @param institutionVariants - Array of institution name variations to check
+   * @returns Filtered response containing only awards with matching primary institution
+   */
+  private filterNSFAwardsByPrimaryInstitution(
+    nsfResponse: string,
+    targetInstitution: string,
+    institutionVariants: string[] = []
+  ): string {
+    if (!nsfResponse || nsfResponse.includes("not available") || nsfResponse.includes("Error")) {
+      return nsfResponse;
+    }
 
-    const serviceMap: Record<string, string> = {};
-    services.split(',').forEach(service => {
-      const [name, url] = service.split('=');
-      if (name && url) {
-        serviceMap[name.trim()] = url.trim();
+    const allVariants = [targetInstitution, ...institutionVariants];
+    const normalizedVariants = allVariants.map(v => this.normalizeInstitutionName(v).toLowerCase());
+
+    const lines = nsfResponse.split('\n');
+    const filteredAwards: string[] = [];
+
+    let currentAward: string[] = [];
+    let currentAwardInstitution: string = '';
+    let isPrimaryInstitution = false;
+
+    for (const line of lines) {
+      // Start of a new award
+      if (line.includes('Award Number:') || line.includes('Title:')) {
+        // Check if previous award matched and save it
+        if (currentAward.length > 0 && isPrimaryInstitution) {
+          filteredAwards.push(currentAward.join('\n'));
+        }
+
+        // Start new award
+        currentAward = [line];
+        currentAwardInstitution = '';
+        isPrimaryInstitution = false;
+      } else if (currentAward.length > 0) {
+        // Continue building current award
+        currentAward.push(line);
+
+        // Check if this is the Institution field (primary institution)
+        if (line.trim().startsWith('Institution:')) {
+          currentAwardInstitution = line.toLowerCase();
+
+          // Check if any variant matches the primary institution
+          isPrimaryInstitution = normalizedVariants.some(variant => {
+            // Extract just the institution name part after "Institution:"
+            const institutionText = currentAwardInstitution.replace(/institution:/i, '').trim();
+            return this.matchesInstitution(institutionText, [variant]);
+          });
+        }
       }
-    });
+    }
 
-    return serviceMap[serviceName] || null;
+    // Don't forget the last award
+    if (currentAward.length > 0 && isPrimaryInstitution) {
+      filteredAwards.push(currentAward.join('\n'));
+    }
+
+    // Return filtered results
+    if (filteredAwards.length === 0) {
+      return `No NSF awards found where "${targetInstitution}" is the primary recipient institution.\n\n` +
+        `💡 **Note:** The NSF database may contain awards where this institution appears as a collaborator ` +
+        `or co-PI institution, but those are not included here. To see all mentions, use the optional ` +
+        `\`include_collaborations: true\` parameter.`;
+    }
+
+    return filteredAwards.join('\n\n');
+  }
+
+  /**
+   * Check if an institution name matches any of the search variants.
+   * Uses multi-tier matching strategy to avoid false positives.
+   *
+   * CRITICAL FIX: Excludes common institution words (university, institute, college)
+   * from word overlap matching to prevent false positives where "Stanford University"
+   * matches "Carnegie Mellon University" just because both contain "university".
+   */
+  private matchesInstitution(institutionText: string, searchVariants: string[]): boolean {
+    const normalizedText = this.normalizeInstitutionName(institutionText).toLowerCase();
+
+    // Common words that should be ignored in word overlap matching
+    // These appear in almost all institution names and cause false positives
+    const COMMON_INSTITUTION_WORDS = new Set([
+      'university', 'institute', 'college', 'school', 'center',
+      'academy', 'polytechnic', 'tech', 'state', 'national'
+    ]);
+
+    for (const variant of searchVariants) {
+      const normalizedVariant = variant.toLowerCase();
+
+      // Tier 1: Exact match (highest confidence)
+      if (normalizedText === normalizedVariant) {
+        return true;
+      }
+
+      // Tier 2: Full variant contained in text (with length check to avoid false positives)
+      if (normalizedVariant.length > 8 && normalizedText.includes(normalizedVariant)) {
+        return true;
+      }
+
+      // Tier 3: Check significant word overlap (FIXED: excludes common words)
+      // Extract all words > 3 chars and exclude common institution words
+      const textWords = new Set(
+        normalizedText.split(/\s+/)
+          .filter(w => w.length > 3 && !COMMON_INSTITUTION_WORDS.has(w))
+      );
+
+      const variantWords = normalizedVariant.split(/\s+/)
+        .filter(w => w.length > 3 && !COMMON_INSTITUTION_WORDS.has(w));
+
+      if (variantWords.length > 0 && textWords.size > 0) {
+        const matchingWords = variantWords.filter(word => textWords.has(word));
+        const overlapRatio = matchingWords.length / variantWords.length;
+
+        // CRITICAL: Require EITHER high overlap (75%+) OR at least 2 matching significant words
+        if (overlapRatio >= 0.75 || (matchingWords.length >= 2 && overlapRatio >= 0.5)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@access-mcp/allocations",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "MCP server for ACCESS-CI Allocations and Research Projects API",
   "type": "module",
   "main": "dist/index.js",
@@ -15,6 +15,10 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "tsc --watch",
+    "test": "vitest run --exclude '**/*.integration.test.ts'",
+    "test:watch": "vitest watch --exclude '**/*.integration.test.ts'",
+    "test:integration": "vitest run '**/*.integration.test.ts'",
+    "test:all": "vitest run",
     "prepublishOnly": "npm run build"
   },
   "keywords": [
@@ -49,6 +53,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vitest": "^2.1.9"
   }
 }

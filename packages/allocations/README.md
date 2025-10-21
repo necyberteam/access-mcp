@@ -248,3 +248,44 @@ Add to your Claude Desktop configuration:
   }
 }
 ```
+
+## NSF Integration
+
+The allocations server integrates with the NSF awards server to provide comprehensive funding analysis by cross-referencing ACCESS projects with NSF awards data.
+
+### How It Works
+
+The allocations server uses **cross-server communication** to fetch NSF awards:
+
+1. **Allocations Server** queries ACCESS projects from `allocations.access-ci.org`
+2. **Allocations Server** calls **NSF Awards Server** via HTTP to cross-reference
+3. **NSF Awards Server** queries the official NSF API at `api.nsf.gov`
+4. Results are combined into institutional funding profiles
+
+### Local Development Setup
+
+To enable NSF awards cross-referencing in local development, configure both servers in Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "nsf-awards": {
+      "command": "npx",
+      "args": ["-y", "@access-mcp/nsf-awards"]
+    },
+    "allocations": {
+      "command": "npx",
+      "args": ["-y", "@access-mcp/allocations"],
+      "env": {
+        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3001"
+      }
+    }
+  }
+}
+```
+
+**Note**: The allocations server works with or without NSF integration:
+- **With NSF server**: Shows comprehensive funding profile (ACCESS + NSF)
+- **Without NSF server**: Shows ACCESS projects only (gracefully degrades)
+
+Production server configuration will be documented in a future update.
