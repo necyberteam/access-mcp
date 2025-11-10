@@ -249,5 +249,5 @@ This server connects to:
 ---
 
 **Package:** `@access-mcp/allocations`  
-**Version:** v0.4.0  
+**Version:** v0.4.1  
 **Main:** `dist/index.js`

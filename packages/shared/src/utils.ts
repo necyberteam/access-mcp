@@ -1,4 +1,7 @@
 export function sanitizeGroupId(groupId: string): string {
+  if (!groupId) {
+    throw new Error("groupId parameter is required and cannot be null or undefined");
+  }
   return groupId.replace(/[^a-zA-Z0-9.-]/g, "");
 }
 

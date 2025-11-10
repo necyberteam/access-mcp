@@ -72,10 +72,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
             start_date: {
               type: "string",
               description: "Start date in YYYY-MM-DD format",
+              format: "date"
             },
             end_date: {
               type: "string",
               description: "End date in YYYY-MM-DD format",
+              format: "date"
             },
             dataset_type: {
               type: "string",
@@ -151,10 +153,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
             start_date: {
               type: "string",
               description: "Start date in YYYY-MM-DD format",
+              format: "date"
             },
             end_date: {
               type: "string",
               description: "End date in YYYY-MM-DD format",
+              format: "date"
             },
             format: {
               type: "string",
@@ -225,7 +229,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
       },
       {
         name: "get_chart_link",
-        description: "Generate a direct link to view the chart in XDMoD portal",
+        description: "Generate a direct URL to view an interactive chart in the XDMoD web portal. Use this when users want to explore data interactively, apply additional filters, or share charts with collaborators. The web interface provides more filtering options than the API.",
         inputSchema: {
           type: "object",
           properties: {

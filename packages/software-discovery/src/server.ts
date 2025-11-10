@@ -129,7 +129,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           properties: {
             resource_id: {
               type: "string",
-              description: "The resource ID (e.g., anvil.purdue.access-ci.org). **Finding Resource IDs**: If you don't know the exact resource ID, first use `access-compute-resources:search_resources` with `include_resource_ids: true` to discover available resources and their IDs.",
+              description: "The resource ID. Use list_compute_resources or search_resources to get valid IDs.",
+              examples: [
+                "delta.ncsa.access-ci.org",
+                "anvil.purdue.access-ci.org",
+                "bridges2.psc.access-ci.org"
+              ]
             },
             limit: {
               type: "number",
@@ -149,7 +154,14 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           properties: {
             software_name: {
               type: "string",
-              description: "Name of the software package",
+              description: "Name of the software package. Use search_software to discover available packages.",
+              examples: [
+                "python",
+                "gcc",
+                "tensorflow",
+                "gromacs",
+                "matlab"
+              ]
             },
             resource_id: {
               type: "string",

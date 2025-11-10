@@ -13,7 +13,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     return [
       {
         name: "list_affinity_groups",
-        description: "List all ACCESS-CI affinity groups",
+        description: "Retrieve a complete list of all ACCESS-CI affinity groups to discover available communities, special interest groups, and collaborative networks. Use this when users want to explore available communities or need to find a specific group ID.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -29,7 +29,12 @@ export class AffinityGroupsServer extends BaseAccessServer {
           properties: {
             group_id: {
               type: "string",
-              description: "The affinity group ID (e.g., aici.access-ci.org)",
+              description: "The affinity group ID. Use list_affinity_groups to get valid group IDs.",
+              examples: [
+                "cloudbank.access-ci.org",
+                "nairrpilot.access-ci.org",
+                "appverse-ag.ondemand.connectci.org"
+              ]
             },
           },
           required: ["group_id"],
@@ -44,7 +49,12 @@ export class AffinityGroupsServer extends BaseAccessServer {
           properties: {
             group_id: {
               type: "string",
-              description: "The affinity group ID (e.g., aici.access-ci.org)",
+              description: "The affinity group ID. Use list_affinity_groups to get valid group IDs.",
+              examples: [
+                "cloudbank.access-ci.org",
+                "nairrpilot.access-ci.org",
+                "classroom.ondemand.connectci.org"
+              ]
             },
           },
           required: ["group_id"],
@@ -59,7 +69,12 @@ export class AffinityGroupsServer extends BaseAccessServer {
           properties: {
             group_id: {
               type: "string",
-              description: "The affinity group ID (e.g., aici.access-ci.org)",
+              description: "The affinity group ID. Use list_affinity_groups to get valid group IDs.",
+              examples: [
+                "cloudbank.access-ci.org",
+                "nairrpilot.access-ci.org",
+                "ood-ags.ondemand.connectci.org"
+              ]
             },
           },
           required: ["group_id"],

@@ -6,7 +6,7 @@ ACCESS-CI provides 9 MCP servers for different aspects of cyberinfrastructure:
 ## MCP server for ACCESS-CI Affinity Groups API
 
 **Package:** `@access-mcp/affinity-groups`  
-**Version:** v0.3.0
+**Version:** v0.3.1
 
 MCP server for ACCESS-CI Affinity Groups API
 
@@ -30,7 +30,7 @@ npm install -g @access-mcp/affinity-groups
 ## MCP server for ACCESS-CI Compute Resources API
 
 **Package:** `@access-mcp/compute-resources`  
-**Version:** v0.5.0
+**Version:** v0.5.1
 
 MCP server for ACCESS-CI Compute Resources API
 
@@ -54,7 +54,7 @@ npm install -g @access-mcp/compute-resources
 ## MCP server for ACCESS-CI System Status and Outages API
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.4.1
+**Version:** v0.4.2
 
 MCP server for ACCESS-CI System Status and Outages API
 
@@ -78,7 +78,7 @@ npm install -g @access-mcp/system-status
 ## ACCESS-CI Software Discovery Service MCP server
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.4.0
+**Version:** v0.4.1
 
 ACCESS-CI Software Discovery Service MCP server
 
@@ -102,7 +102,7 @@ npm install -g @access-mcp/software-discovery
 ## MCP server for XDMoD Charts and Visualizations
 
 **Package:** `@access-mcp/xdmod-charts`  
-**Version:** v0.4.0
+**Version:** v0.4.1
 
 MCP server for XDMoD Charts and Visualizations
 
@@ -149,7 +149,7 @@ pipx install xdmod-mcp-data
 ## MCP server for ACCESS-CI Allocations and Research Projects API
 
 **Package:** `@access-mcp/allocations`  
-**Version:** v0.4.0
+**Version:** v0.4.1
 
 MCP server for ACCESS-CI Allocations and Research Projects API
 
@@ -173,7 +173,7 @@ npm install -g @access-mcp/allocations
 ## MCP server for NSF awards and funding integration
 
 **Package:** `@access-mcp/nsf-awards`  
-**Version:** v0.1.0
+**Version:** v0.1.1
 
 MCP server for NSF awards and funding integration
 
@@ -197,7 +197,7 @@ npm install -g @access-mcp/nsf-awards
 ## MCP server for ACCESS Support Announcements API
 
 **Package:** `@access-mcp/announcements`  
-**Version:** v0.1.0
+**Version:** v0.1.1
 
 MCP server for ACCESS Support Announcements API
 

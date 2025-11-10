@@ -109,5 +109,5 @@ Get the current operational status of a specific resource.
 ---
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.4.1  
+**Version:** v0.4.2  
 **Main:** `dist/index.js`

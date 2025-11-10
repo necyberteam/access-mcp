@@ -248,5 +248,5 @@ No authentication required. The server accesses publicly available system-wide m
 ---
 
 **Package:** `@access-mcp/xdmod-charts`  
-**Version:** v0.4.0  
+**Version:** v0.4.1  
 **Main:** `dist/index.js`

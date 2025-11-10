@@ -253,5 +253,5 @@ All tools return enhanced JSON responses with:
 ---
 
 **Package:** `@access-mcp/announcements`  
-**Version:** v0.1.0  
+**Version:** v0.1.1  
 **Main:** `dist/index.js`

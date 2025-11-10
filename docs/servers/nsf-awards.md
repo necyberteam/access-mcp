@@ -61,5 +61,5 @@ Add to your Claude Desktop configuration:
 ---
 
 **Package:** `@access-mcp/nsf-awards`  
-**Version:** v0.1.0  
+**Version:** v0.1.1  
 **Main:** `dist/index.js`

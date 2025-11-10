@@ -77,11 +77,13 @@ export class EventsServer extends BaseAccessServer {
               type: "string",
               description:
                 "Start date in YYYY-MM-DD or YYYY-MM-DD HH:MM:SS format. Always interpreted as provided (no timezone conversion).",
+              pattern: "^\\d{4}-\\d{2}-\\d{2}( \\d{2}:\\d{2}:\\d{2})?$"
             },
             end_date: {
               type: "string",
               description:
                 "End date in YYYY-MM-DD or YYYY-MM-DD HH:MM:SS format. Always interpreted as provided (no timezone conversion).",
+              pattern: "^\\d{4}-\\d{2}-\\d{2}( \\d{2}:\\d{2}:\\d{2})?$"
             },
             // Timezone parameter for relative date calculations
             timezone: {
@@ -154,7 +156,13 @@ export class EventsServer extends BaseAccessServer {
           properties: {
             query: {
               type: "string",
-              description: "Search query (case-insensitive). Use spaces for multiple words (e.g., 'machine learning', 'office hours'). Searches across all event content including descriptions.",
+              description: "Search query (case-insensitive). Searches across all event content including descriptions.",
+              examples: [
+                "machine learning",
+                "office hours",
+                "python workshop",
+                "GPU training"
+              ]
             },
             beginning_date_relative: {
               type: "string",
@@ -184,8 +192,16 @@ export class EventsServer extends BaseAccessServer {
           properties: {
             tag: {
               type: "string",
-              description:
-                "Event tag to filter by. Common tags: python, ai, machine-learning, gpu, deep-learning, neural-networks, big-data, hpc, jetstream, neocortex",
+              description: "Event tag to filter by",
+              examples: [
+                "python",
+                "ai",
+                "machine-learning",
+                "gpu",
+                "deep-learning",
+                "hpc",
+                "jetstream"
+              ]
             },
             time_range: {
               type: "string",

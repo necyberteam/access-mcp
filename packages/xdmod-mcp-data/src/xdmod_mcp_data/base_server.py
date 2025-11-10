@@ -82,13 +82,14 @@ class BaseAccessServer(ABC):
                 "timestamp": datetime.utcnow().isoformat() + "Z"
             })
         
-        # List tools endpoint  
+        # List tools endpoint
         async def list_tools(request: web_request.Request):
             tools = self.get_tools()
             tools_data = [
                 {
                     "name": tool.name,
-                    "description": tool.description
+                    "description": tool.description,
+                    "inputSchema": tool.inputSchema
                 }
                 for tool in tools
             ]

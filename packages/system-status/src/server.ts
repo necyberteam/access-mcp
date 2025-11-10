@@ -62,7 +62,7 @@ export class SystemStatusServer extends BaseAccessServer {
       },
       {
         name: "get_system_announcements",
-        description: "Get all system announcements (current and scheduled)",
+        description: "Retrieve all system announcements including current outages, scheduled maintenance, and recent past incidents. Use this when users want a comprehensive overview of system status across all ACCESS-CI resources or need to check for recent updates.",
         inputSchema: {
           type: "object",
           properties: {
@@ -85,7 +85,12 @@ export class SystemStatusServer extends BaseAccessServer {
             resource_ids: {
               type: "array",
               items: { type: "string" },
-              description: "List of resource IDs or names to check status for",
+              description: "List of resource IDs or names to check status for. Use list_compute_resources tool to get valid resource IDs.",
+              examples: [
+                ["delta.ncsa.access-ci.org", "bridges2.psc.access-ci.org"],
+                ["anvil.purdue.access-ci.org"],
+                ["stampede3.tacc.access-ci.org", "delta.ncsa.access-ci.org"]
+              ]
             },
             use_group_api: {
               type: "boolean",
@@ -533,6 +538,10 @@ export class SystemStatusServer extends BaseAccessServer {
   }
 
   private async checkResourceStatus(resourceIds: string[], useGroupApi: boolean = false) {
+    if (!resourceIds || !Array.isArray(resourceIds) || resourceIds.length === 0) {
+      throw new Error("resource_ids parameter is required and must be a non-empty array of resource IDs");
+    }
+
     if (useGroupApi) {
       return await this.checkResourceStatusViaGroups(resourceIds);
     }
@@ -613,6 +622,10 @@ export class SystemStatusServer extends BaseAccessServer {
   }
 
   private async checkResourceStatusViaGroups(resourceIds: string[]) {
+    if (!resourceIds || !Array.isArray(resourceIds) || resourceIds.length === 0) {
+      throw new Error("resource_ids parameter is required and must be a non-empty array of resource IDs");
+    }
+
     // Try to use the more efficient group-based API
     const statusPromises = resourceIds.map(async (resourceId) => {
       try {

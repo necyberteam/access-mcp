@@ -74,5 +74,5 @@ Add to your Claude Desktop configuration:
 ---
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.4.0  
+**Version:** v0.4.1  
 **Main:** `dist/index.js`

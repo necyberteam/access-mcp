@@ -93,5 +93,5 @@ Get hardware specifications for a compute resource.
 ---
 
 **Package:** `@access-mcp/compute-resources`  
-**Version:** v0.5.0  
+**Version:** v0.5.1  
 **Main:** `dist/index.js`

@@ -74,6 +74,12 @@ export class AllocationsServer extends BaseAccessServer {
             query: {
               type: "string",
               description: "Search query supporting operators: 'term1 AND term2', 'term1 OR term2', 'term1 NOT term2', exact phrases with quotes",
+              examples: [
+                "machine learning",
+                "climate AND modeling",
+                "genomics OR bioinformatics",
+                "\"deep learning\""
+              ]
             },
             field_of_science: {
               type: "string",
@@ -89,11 +95,13 @@ export class AllocationsServer extends BaseAccessServer {
               properties: {
                 start_date: {
                   type: "string",
-                  description: "Start date in YYYY-MM-DD format"
+                  description: "Start date in YYYY-MM-DD format",
+                  format: "date"
                 },
                 end_date: {
-                  type: "string", 
-                  description: "End date in YYYY-MM-DD format"
+                  type: "string",
+                  description: "End date in YYYY-MM-DD format",
+                  format: "date"
                 }
               }
             },
@@ -124,7 +132,8 @@ export class AllocationsServer extends BaseAccessServer {
           properties: {
             project_id: {
               type: "number",
-              description: "The project ID number",
+              description: "The project ID number. Use search_projects to find project IDs.",
+              examples: [12345, 67890, 11111]
             },
           },
           required: ["project_id"],
@@ -138,7 +147,14 @@ export class AllocationsServer extends BaseAccessServer {
           properties: {
             field_of_science: {
               type: "string",
-              description: "Field of science (e.g., 'Computer Science', 'Physics', 'Chemistry')",
+              description: "Field of science",
+              examples: [
+                "Computer Science",
+                "Physics",
+                "Chemistry",
+                "Biology",
+                "Mathematics"
+              ]
             },
             limit: {
               type: "number",
@@ -157,7 +173,14 @@ export class AllocationsServer extends BaseAccessServer {
           properties: {
             resource_name: {
               type: "string",
-              description: "Resource name (e.g., 'NCSA Delta GPU', 'Purdue Anvil', 'ACCESS Credits')",
+              description: "Resource name",
+              examples: [
+                "NCSA Delta GPU",
+                "Purdue Anvil",
+                "ACCESS Credits",
+                "PSC Bridges-2",
+                "TACC Stampede3"
+              ]
             },
             limit: {
               type: "number",
@@ -273,6 +296,13 @@ export class AllocationsServer extends BaseAccessServer {
             institution_name: {
               type: "string",
               description: "Institution name to analyze",
+              examples: [
+                "University of California",
+                "Stanford University",
+                "MIT",
+                "University of Illinois",
+                "Carnegie Mellon University"
+              ]
             },
             limit: {
               type: "number",

@@ -56,11 +56,13 @@ export class AnnouncementsServer extends BaseAccessServer {
             },
             start_date: {
               type: "string",
-              description: "Filter announcements from exact date onwards (YYYY-MM-DD). Use when users specify dates like 'since January 1st, 2024' or 'from March 15th'"
+              description: "Filter announcements from exact date onwards (YYYY-MM-DD). Use when users specify dates like 'since January 1st, 2024' or 'from March 15th'",
+              format: "date"
             },
             end_date: {
               type: "string",
-              description: "Filter announcements up to exact date (YYYY-MM-DD). Use when users specify dates like 'until December 31st, 2024' or 'before April 1st'"
+              description: "Filter announcements up to exact date (YYYY-MM-DD). Use when users specify dates like 'until December 31st, 2024' or 'before April 1st'",
+              format: "date"
             },
             limit: {
               type: "number",

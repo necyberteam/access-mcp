@@ -77,5 +77,5 @@ Get knowledge base resources for a specific affinity group.
 ---
 
 **Package:** `@access-mcp/affinity-groups`  
-**Version:** v0.3.0  
+**Version:** v0.3.1  
 **Main:** `dist/index.js`

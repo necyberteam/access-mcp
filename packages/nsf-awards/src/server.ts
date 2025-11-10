@@ -28,13 +28,18 @@ export class NSFAwardsServer extends BaseAccessServer {
     return [
       {
         name: "find_nsf_awards_by_pi",
-        description: "Find NSF awards by principal investigator name",
+        description: "Search for NSF awards where a specific person is listed as the Principal Investigator. Use this to find funding for a researcher's projects, track their grant history, or identify research they are leading.",
         inputSchema: {
           type: "object",
           properties: {
             pi_name: {
               type: "string",
               description: "Principal investigator name to search for",
+              examples: [
+                "John Smith",
+                "Jane Doe",
+                "Smith"
+              ]
             },
             limit: {
               type: "number",
@@ -47,13 +52,18 @@ export class NSFAwardsServer extends BaseAccessServer {
       },
       {
         name: "find_nsf_awards_by_personnel",
-        description: "Find NSF awards by any personnel (PI or Co-PI)",
+        description: "Search for NSF awards where a person is listed as either Principal Investigator or Co-PI. Use this when you want to find all projects someone is involved with, regardless of their role.",
         inputSchema: {
           type: "object",
           properties: {
             person_name: {
               type: "string",
-              description: "Person name to search for in award personnel",
+              description: "Person name to search for in award personnel (PI or Co-PI)",
+              examples: [
+                "John Smith",
+                "Jane Doe",
+                "Robert Johnson"
+              ]
             },
             limit: {
               type: "number",
@@ -66,13 +76,18 @@ export class NSFAwardsServer extends BaseAccessServer {
       },
       {
         name: "get_nsf_award",
-        description: "Get detailed information about a specific NSF award",
+        description: "Retrieve comprehensive details about a specific NSF award including full abstract, funding amounts, project dates, PI/Co-PI information, and program details. Use this when you have an award number and need complete project information.",
         inputSchema: {
           type: "object",
           properties: {
             award_number: {
               type: "string",
-              description: "NSF award number (e.g., '2138259')",
+              description: "NSF award number",
+              examples: [
+                "2138259",
+                "1948997",
+                "2229876"
+              ]
             },
           },
           required: ["award_number"],
@@ -80,13 +95,19 @@ export class NSFAwardsServer extends BaseAccessServer {
       },
       {
         name: "find_nsf_awards_by_institution",
-        description: "Find NSF awards by institution name",
+        description: "Search for all NSF awards granted to a specific institution. Use this to discover research funding at universities and research centers, track institutional portfolios, or find collaborators at specific organizations.",
         inputSchema: {
           type: "object",
           properties: {
             institution_name: {
               type: "string",
               description: "Institution name to search for",
+              examples: [
+                "Stanford University",
+                "MIT",
+                "University of California",
+                "Carnegie Mellon University"
+              ]
             },
             limit: {
               type: "number",
@@ -98,14 +119,20 @@ export class NSFAwardsServer extends BaseAccessServer {
         },
       },
       {
-        name: "find_nsf_awards_by_keywords", 
-        description: "Find NSF awards by keywords in title or abstract",
+        name: "find_nsf_awards_by_keywords",
+        description: "Search for NSF awards by keywords appearing in the project title or abstract. Use this to find research projects in specific domains, discover related work, or identify potential collaborators working on similar topics.",
         inputSchema: {
           type: "object",
           properties: {
             keywords: {
               type: "string",
               description: "Keywords to search for in award titles and abstracts",
+              examples: [
+                "machine learning",
+                "climate change",
+                "genomics",
+                "quantum computing"
+              ]
             },
             limit: {
               type: "number",

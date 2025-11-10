@@ -23,7 +23,7 @@ export class ComputeResourcesServer extends BaseAccessServer {
     return [
       {
         name: "list_compute_resources",
-        description: "List all ACCESS-CI compute resources",
+        description: "Retrieve a complete list of all ACCESS-CI compute resources including clusters, storage systems, and cloud resources. Use this to discover available systems, their capabilities (CPU/GPU/memory/storage), and organizations. Returns resource IDs needed for other ACCESS-CI tools.",
         inputSchema: {
           type: "object",
           properties: {},
@@ -39,7 +39,12 @@ export class ComputeResourcesServer extends BaseAccessServer {
           properties: {
             resource_id: {
               type: "string",
-              description: "The resource ID or info_groupid",
+              description: "The resource ID or info_groupid. Use list_compute_resources or search_resources to get valid IDs.",
+              examples: [
+                "delta.ncsa.access-ci.org",
+                "bridges2.psc.access-ci.org",
+                "stampede3.tacc.access-ci.org"
+              ]
             },
           },
           required: ["resource_id"],
@@ -47,13 +52,19 @@ export class ComputeResourcesServer extends BaseAccessServer {
       },
       {
         name: "get_resource_hardware",
-        description: "Get hardware specifications for a compute resource",
+        description:
+          "Retrieve detailed hardware specifications for a compute resource including CPU architecture, memory configuration, GPU types, storage capacity, and node counts. Use this when users need technical specs to determine if a resource meets their computational requirements or when planning resource allocation requests.",
         inputSchema: {
           type: "object",
           properties: {
             resource_id: {
               type: "string",
-              description: "The resource ID or info_groupid",
+              description: "The resource ID or info_groupid. Use list_compute_resources or search_resources to get valid IDs.",
+              examples: [
+                "delta.ncsa.access-ci.org",
+                "bridges2.psc.access-ci.org",
+                "anvil.purdue.access-ci.org"
+              ]
             },
           },
           required: ["resource_id"],
