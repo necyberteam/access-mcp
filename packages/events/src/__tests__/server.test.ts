@@ -39,11 +39,8 @@ describe("EventsServer", () => {
     it("should provide the correct tools", () => {
       const tools = server["getTools"]();
 
-      expect(tools).toHaveLength(4);
-      expect(tools.map((t) => t.name)).toContain("get_events");
-      expect(tools.map((t) => t.name)).toContain("get_upcoming_events");
-      expect(tools.map((t) => t.name)).toContain("search_events");
-      expect(tools.map((t) => t.name)).toContain("get_events_by_tag");
+      expect(tools).toHaveLength(1);
+      expect(tools[0].name).toBe("search_events");
     });
 
     it("should provide the correct resources", () => {
@@ -69,122 +66,82 @@ describe("EventsServer", () => {
       expect(url).toContain("/api/2.2/events");
     });
 
-    it("should build correct URLs with relative date filters", () => {
-      const url = server["buildEventsUrl"]({
-        beginning_date_relative: "today",
-        end_date_relative: "+1week",
-      });
+    it("should map 'date: today' to beginning_date_relative", () => {
+      const url = server["buildEventsUrl"]({ date: "today" });
+      expect(url).toContain("beginning_date_relative=today");
+    });
 
+    it("should map 'date: upcoming' to beginning_date_relative", () => {
+      const url = server["buildEventsUrl"]({ date: "upcoming" });
+      expect(url).toContain("beginning_date_relative=today");
+    });
+
+    it("should map 'date: past' to date range", () => {
+      const url = server["buildEventsUrl"]({ date: "past" });
+      expect(url).toContain("beginning_date_relative=-1year");
+      expect(url).toContain("end_date_relative=today");
+    });
+
+    it("should map 'date: this_week' to date range", () => {
+      const url = server["buildEventsUrl"]({ date: "this_week" });
       expect(url).toContain("beginning_date_relative=today");
       expect(url).toContain("end_date_relative=%2B1week");
     });
 
-    it("should build correct URLs with timezone parameter", () => {
-      const url = server["buildEventsUrl"]({
-        beginning_date_relative: "today",
-        timezone: "America/New_York",
-      });
-
-      expect(url).toContain("beginning_date_relative=today");
-      expect(url).toContain("timezone=America%2FNew_York");
-    });
-
-    it("should build correct URLs with absolute date filters", () => {
-      const url = server["buildEventsUrl"]({
-        beginning_date: "2024-01-01",
-        end_date: "2024-12-31",
-      });
-
-      expect(url).toContain("beginning_date=2024-01-01");
-      expect(url).toContain("end_date=2024-12-31");
-    });
-
-    it("should build correct URLs with faceted filters", () => {
-      const url = server["buildEventsUrl"]({
-        event_type: "workshop",
-        skill_level: "beginner",
-        event_tags: "python",
-        event_affiliation: "ACCESS",
-      });
-
-      expect(url).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
-      expect(url).toContain("f%5B1%5D=custom_event_affiliation%3AACCESS");
-      expect(url).toContain("f%5B2%5D=skill_level%3Abeginner");
-      expect(url).toContain("f%5B3%5D=custom_event_tags%3Apython");
-    });
-
-    it("should build correct URLs with mixed filters", () => {
-      const url = server["buildEventsUrl"]({
-        beginning_date_relative: "today",
-        end_date: "2024-12-31",
-        event_type: "webinar",
-        skill_level: "intermediate",
-      });
-
-      expect(url).toContain("beginning_date_relative=today");
-      expect(url).toContain("end_date=2024-12-31");
-      expect(url).toContain("f%5B0%5D=custom_event_type%3Awebinar");
-      expect(url).toContain("f%5B1%5D=skill_level%3Aintermediate");
-    });
-
-    it("should build correct URLs with timezone and mixed parameters", () => {
-      const url = server["buildEventsUrl"]({
-        beginning_date_relative: "today",
-        end_date_relative: "+1month",
-        timezone: "Europe/Berlin",
-        event_type: "workshop",
-      });
-
+    it("should map 'date: this_month' to date range", () => {
+      const url = server["buildEventsUrl"]({ date: "this_month" });
       expect(url).toContain("beginning_date_relative=today");
       expect(url).toContain("end_date_relative=%2B1month");
-      expect(url).toContain("timezone=Europe%2FBerlin");
+    });
+
+    it("should map 'type' to faceted filter", () => {
+      const url = server["buildEventsUrl"]({ type: "workshop" });
       expect(url).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
     });
 
-    it("should not include timezone parameter when not provided", () => {
-      const url = server["buildEventsUrl"]({
-        beginning_date_relative: "today",
-      });
-
-      expect(url).toContain("beginning_date_relative=today");
-      expect(url).not.toContain("timezone=");
+    it("should map 'tags' to faceted filter", () => {
+      const url = server["buildEventsUrl"]({ tags: "python" });
+      expect(url).toContain("f%5B0%5D=custom_event_tags%3Apython");
     });
 
-    it("should handle various timezone formats", () => {
-      const timezones = [
-        "UTC",
-        "America/New_York",
-        "America/Los_Angeles", 
-        "Europe/London",
-        "Asia/Tokyo"
-      ];
-
-      timezones.forEach(tz => {
-        const url = server["buildEventsUrl"]({
-          beginning_date_relative: "today",
-          timezone: tz,
-        });
-        expect(url).toContain(`timezone=${encodeURIComponent(tz)}`);
-      });
+    it("should map 'skill' to faceted filter", () => {
+      const url = server["buildEventsUrl"]({ skill: "beginner" });
+      expect(url).toContain("f%5B0%5D=skill_level%3Abeginner");
     });
 
-    it("should include search_api_fulltext parameter", () => {
+    it("should build URLs with multiple faceted filters", () => {
       const url = server["buildEventsUrl"]({
-        search_api_fulltext: "python machine learning",
-        beginning_date_relative: "today",
+        type: "workshop",
+        tags: "python",
+        skill: "beginner",
+      });
+
+      expect(url).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
+      expect(url).toContain("f%5B1%5D=custom_event_tags%3Apython");
+      expect(url).toContain("f%5B2%5D=skill_level%3Abeginner");
+    });
+
+    it("should include search_api_fulltext for query parameter", () => {
+      const url = server["buildEventsUrl"]({
+        query: "python machine learning",
       });
 
       expect(url).toContain("search_api_fulltext=python+machine+learning");
-      expect(url).toContain("beginning_date_relative=today");
     });
 
-    it("should not include search parameter when not provided", () => {
+    it("should build URLs with mixed universal parameters", () => {
       const url = server["buildEventsUrl"]({
-        beginning_date_relative: "today",
+        query: "gpu",
+        date: "this_week",
+        type: "webinar",
+        skill: "intermediate",
       });
 
-      expect(url).not.toContain("search_api_fulltext");
+      expect(url).toContain("search_api_fulltext=gpu");
       expect(url).toContain("beginning_date_relative=today");
+      expect(url).toContain("end_date_relative=%2B1week");
+      expect(url).toContain("f%5B0%5D=custom_event_type%3Awebinar");
+      expect(url).toContain("f%5B1%5D=skill_level%3Aintermediate");
     });
   });
 
@@ -228,7 +185,7 @@ describe("EventsServer", () => {
       },
     ];
 
-    describe("get_events", () => {
+    describe("search_events", () => {
       it("should get events with no filters", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
@@ -237,18 +194,18 @@ describe("EventsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_events",
+            name: "search_events",
             arguments: {},
           },
         });
 
         expect(mockHttpClient.get).toHaveBeenCalled();
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_events).toBe(2);
-        expect(responseData.events).toHaveLength(2);
+        expect(responseData.total).toBe(2);
+        expect(responseData.items).toHaveLength(2);
       });
 
-      it("should get events with date filters", async () => {
+      it("should get events with date filter", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: mockEventsData,
@@ -256,10 +213,9 @@ describe("EventsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_events",
+            name: "search_events",
             arguments: {
-              beginning_date_relative: "today",
-              end_date_relative: "+1month",
+              date: "this_month",
             },
           },
         });
@@ -269,7 +225,7 @@ describe("EventsServer", () => {
         expect(calledUrl).toContain("end_date_relative=%2B1month");
       });
 
-      it("should get events with faceted filters", async () => {
+      it("should get events with type filter", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: [mockEventsData[0]], // Only workshop
@@ -277,17 +233,53 @@ describe("EventsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_events",
+            name: "search_events",
             arguments: {
-              event_type: "workshop",
-              skill_level: "beginner",
+              type: "workshop",
             },
           },
         });
 
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("custom_event_type%3Aworkshop");
-        expect(calledUrl).toContain("skill_level%3Abeginner");
+        expect(calledUrl).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
+      });
+
+      it("should get events with skill filter", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: [mockEventsData[0]],
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "search_events",
+            arguments: {
+              skill: "beginner",
+            },
+          },
+        });
+
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("f%5B0%5D=skill_level%3Abeginner");
+      });
+
+      it("should get events with tags filter", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: mockEventsData,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "search_events",
+            arguments: {
+              tags: "python",
+            },
+          },
+        });
+
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("f%5B0%5D=custom_event_tags%3Apython");
       });
 
       it("should apply limit to events", async () => {
@@ -298,7 +290,7 @@ describe("EventsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_events",
+            name: "search_events",
             arguments: {
               limit: 1,
             },
@@ -306,7 +298,7 @@ describe("EventsServer", () => {
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.events).toHaveLength(1);
+        expect(responseData.items).toHaveLength(1);
       });
 
       it("should enhance events with calculated fields", async () => {
@@ -317,13 +309,13 @@ describe("EventsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_events",
+            name: "search_events",
             arguments: {},
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        const event = responseData.events[0];
+        const event = responseData.items[0];
 
         // Check enhanced fields
         expect(event.tags).toEqual(["python", "programming", "beginner"]);
@@ -331,151 +323,7 @@ describe("EventsServer", () => {
         expect(event.starts_in_hours).toBeDefined();
       });
 
-      it("should extract popular tags", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events",
-            arguments: {},
-          },
-        });
-
-        const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.popular_tags).toContain("python");
-        expect(responseData.popular_tags).toContain("machine-learning");
-      });
-
-      it("should include timezone parameter in URL when provided", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events",
-            arguments: {
-              beginning_date_relative: "today",
-              timezone: "America/New_York",
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("timezone=America%2FNew_York");
-        expect(calledUrl).toContain("beginning_date_relative=today");
-      });
-
-      it("should include API info with timezone used", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events",
-            arguments: {
-              beginning_date_relative: "today",
-              timezone: "Europe/London",
-            },
-          },
-        });
-
-        const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.api_info).toBeDefined();
-        expect(responseData.api_info.endpoint_version).toBe("2.2");
-        expect(responseData.api_info.timezone_used).toBe("Europe/London");
-      });
-
-      it("should default to UTC timezone when not specified", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events",
-            arguments: {
-              beginning_date_relative: "today",
-            },
-          },
-        });
-
-        const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.api_info.timezone_used).toBe("UTC");
-      });
-    });
-
-    describe("get_upcoming_events", () => {
-      it("should get upcoming events with default limit", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_upcoming_events",
-            arguments: {},
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("beginning_date_relative=today");
-        const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.events).toBeDefined();
-      });
-
-      it("should filter upcoming events by type", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: [mockEventsData[1]], // Only webinar
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_upcoming_events",
-            arguments: {
-              event_type: "webinar",
-              limit: 10,
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("custom_event_type%3Awebinar");
-      });
-
-      it("should pass timezone parameter to get_events", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_upcoming_events",
-            arguments: {
-              timezone: "America/Chicago",
-              limit: 5,
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("beginning_date_relative=today");
-        expect(calledUrl).toContain("timezone=America%2FChicago");
-      });
-    });
-
-    describe("search_events", () => {
-      it("should search events by query in title", async () => {
+      it("should search events by query", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: mockEventsData,
@@ -490,214 +338,41 @@ describe("EventsServer", () => {
           },
         });
 
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("search_api_fulltext=Python");
+
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.search_query).toBe("Python");
-        expect(responseData.total_matches).toBe(2); // Both events have 'python' in tags
-        expect(responseData.events[0].title).toContain("Python");
+        expect(responseData.total).toBe(2);
+        expect(responseData.items).toHaveLength(2);
       });
 
-      it("should use API native search instead of client-side filtering", async () => {
+      it("should combine multiple universal parameters", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
-          data: mockEventsData,
+          data: [mockEventsData[0]],
         });
 
         const result = await server["handleToolCall"]({
           params: {
             name: "search_events",
             arguments: {
-              query: "ML",
+              query: "Python",
+              date: "this_week",
+              type: "workshop",
+              skill: "beginner",
             },
           },
         });
 
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("search_api_fulltext=ML");
-        
-        const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.search_query).toBe("ML");
-        expect(responseData.search_method).toBe("API native full-text search");
-        expect(responseData.total_matches).toBe(mockEventsData.length); // API returns raw count
-      });
-
-      it("should include search scope information", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "search_events",
-            arguments: {
-              query: "machine-learning",
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("search_api_fulltext=machine-learning");
-        
-        const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.search_scope).toBe("titles, descriptions, speakers, tags, location, event type");
-      });
-
-      it("should search with custom date range", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "search_events",
-            arguments: {
-              query: "workshop",
-              beginning_date_relative: "-1month",
-              limit: 5,
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("beginning_date_relative=-1month");
-      });
-
-      it("should include timezone parameter in search", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "search_events",
-            arguments: {
-              query: "python",
-              timezone: "Asia/Tokyo",
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("timezone=Asia%2FTokyo");
+        expect(calledUrl).toContain("search_api_fulltext=Python");
         expect(calledUrl).toContain("beginning_date_relative=today");
+        expect(calledUrl).toContain("end_date_relative=%2B1week");
+        expect(calledUrl).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
+        expect(calledUrl).toContain("f%5B1%5D=skill_level%3Abeginner");
       });
     });
 
-    describe("get_events_by_tag", () => {
-      it("should get events by tag for upcoming time range", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events_by_tag",
-            arguments: {
-              tag: "python",
-              time_range: "upcoming",
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("custom_event_tags%3Apython");
-        expect(calledUrl).toContain("beginning_date_relative=today");
-
-        const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.tag).toBe("python");
-        expect(responseData.time_range).toBe("upcoming");
-      });
-
-      it("should get events by tag for this week", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events_by_tag",
-            arguments: {
-              tag: "ai",
-              time_range: "this_week",
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("beginning_date_relative=today");
-        expect(calledUrl).toContain("end_date_relative=%2B1week");
-      });
-
-      it("should get events by tag for this month", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events_by_tag",
-            arguments: {
-              tag: "programming",
-              time_range: "this_month",
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("beginning_date_relative=today");
-        expect(calledUrl).toContain("end_date_relative=%2B1month");
-      });
-
-      it("should get all events by tag", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events_by_tag",
-            arguments: {
-              tag: "beginner",
-              time_range: "all",
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).not.toContain("beginning_date_relative");
-        expect(calledUrl).not.toContain("end_date_relative");
-      });
-
-      it("should include timezone parameter for time-based ranges", async () => {
-        mockHttpClient.get.mockResolvedValue({
-          status: 200,
-          data: mockEventsData,
-        });
-
-        const result = await server["handleToolCall"]({
-          params: {
-            name: "get_events_by_tag",
-            arguments: {
-              tag: "ai",
-              time_range: "this_week",
-              timezone: "Australia/Sydney",
-            },
-          },
-        });
-
-        const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("custom_event_tags%3Aai");
-        expect(calledUrl).toContain("beginning_date_relative=today");
-        expect(calledUrl).toContain("end_date_relative=%2B1week");
-        expect(calledUrl).toContain("timezone=Australia%2FSydney");
-      });
-    });
 
     describe("Error Handling", () => {
       it("should handle API errors gracefully", async () => {
@@ -708,12 +383,12 @@ describe("EventsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_events",
+            name: "search_events",
             arguments: {},
           },
         });
 
-        expect(result.content[0].text).toContain("Error");
+        expect(result.content[0].text).toContain("error");
         expect(result.content[0].text).toContain("404");
       });
 
@@ -722,12 +397,12 @@ describe("EventsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_events",
+            name: "search_events",
             arguments: {},
           },
         });
 
-        expect(result.content[0].text).toContain("Error");
+        expect(result.content[0].text).toContain("error");
       });
 
       it("should handle unknown tools", async () => {
@@ -817,37 +492,4 @@ describe("EventsServer", () => {
     });
   });
 
-  describe("Utility Methods", () => {
-    it("should extract popular tags correctly", () => {
-      const events = [
-        { tags: ["python", "ai", "machine-learning"] },
-        { tags: ["python", "data-science"] },
-        { tags: ["ai", "gpu"] },
-        { tags: ["python"] },
-        { tags: ["machine-learning"] },
-      ];
-
-      const popularTags = server["getPopularTags"](events);
-      expect(popularTags[0]).toBe("python"); // Most frequent (3 times)
-      expect(popularTags[1]).toBe("ai"); // Second most frequent (2 times)
-      expect(popularTags[2]).toBe("machine-learning"); // Also 2 times
-      expect(popularTags).toHaveLength(Math.min(10, 5)); // Should return up to 10 tags
-    });
-
-    it("should handle empty events for popular tags", () => {
-      const popularTags = server["getPopularTags"]([]);
-      expect(popularTags).toEqual([]);
-    });
-
-    it("should handle events without tags", () => {
-      const events = [
-        { title: "Event 1" },
-        { title: "Event 2", tags: null },
-        { title: "Event 3", tags: undefined },
-      ];
-
-      const popularTags = server["getPopularTags"](events);
-      expect(popularTags).toEqual([]);
-    });
-  });
 });

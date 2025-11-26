@@ -6,10 +6,7 @@ A Model Context Protocol server providing access to ACCESS-CI events data includ
 
 ### 🔧 Tools
 
-- **`get_events`** - Get ACCESS-CI events with comprehensive filtering
-- **`get_upcoming_events`** - Get upcoming events (today onward)
-- **`search_events`** - **Enhanced!** Search events using API's native full-text search across all content
-- **`get_events_by_tag`** - Get events filtered by specific tags
+- **`search_events`** - Comprehensive event search and filtering with native full-text search, date filters, topic/tag filtering, and more
 
 ### 📊 Resources
 
@@ -41,32 +38,24 @@ Add to your Claude Desktop configuration:
 }
 ```
 
-### Example Queries
+## Usage Examples
 
-**Get upcoming events:**
-
-```
-What events are coming up in the next week?
-```
-
-**Search for specific topics (now much more powerful!):**
+### **Search & Discovery**
 
 ```
-Find upcoming Python workshops
-Show me machine learning events
-Search for "office hours" this week
+"Upcoming events next week"
+"Python workshops"
+"Machine learning events"
+"Office hours this week"
 ```
 
-**Filter by skill level:**
+### **Filtering**
 
 ```
-Show me beginner-level events this month
-```
-
-**Get events by tags:**
-
-```
-Find all GPU computing events
+"Beginner-level events this month"
+"GPU computing events"
+"Webinars in December"
+"Advanced training sessions"
 ```
 
 ## Key Improvements
@@ -152,60 +141,94 @@ The server adds these computed fields:
 - `duration_hours` - Calculated event duration
 - `starts_in_hours` - Hours until event starts
 
-## Examples
+## Tool Reference
 
-### Get Events with Multiple Filters
+### search_events
 
-```typescript
-// Get Python workshops for beginners in the next month
-{
-  "tool": "get_events",
-  "arguments": {
-    "beginning_date_relative": "today",
-    "end_date_relative": "+1month",
-    "event_type": "workshop",
-    "skill_level": "beginner",
-    "event_tags": "python"
-  }
-}
+Comprehensive event search and filtering with native full-text search, date filters, and topic/tag filtering.
+
+**Parameters:**
+- `query` (string, optional): Search titles, descriptions, speakers, and tags
+- `type` (string, optional): Filter by event type (workshop, webinar, training)
+- `tags` (string, optional): Filter by tags (python, gpu, hpc, ml)
+- `date` (string, optional): Filter by time period. Valid values: `today`, `upcoming`, `past`, `this_week`, `this_month`
+- `skill` (string, optional): Filter by skill level. Valid values: `beginner`, `intermediate`, `advanced`
+- `limit` (number, optional): Maximum results (default: 50, automatically rounded to API page sizes: 25, 50, 75, or 100)
+
+## Usage Examples
+
+### Full-Text Search
+
+```javascript
+// Upcoming Python events
+search_events({
+  query: "python",
+  date: "upcoming",
+  limit: 10
+})
+
+// Machine learning workshops this month
+search_events({
+  query: "machine learning",
+  date: "this_month",
+  type: "workshop",
+  limit: 25
+})
+
+// Past office hours
+search_events({
+  query: "office hours",
+  date: "past",
+  limit: 30
+})
 ```
 
-### Search Events (Enhanced API Search)
+### Filter by Tags and Type
 
-```typescript
-// Search for GPU-related events using native API search
-{
-  "tool": "search_events",
-  "arguments": {
-    "query": "GPU computing",
-    "beginning_date_relative": "today",
-    "timezone": "America/New_York",
-    "limit": 10
-  }
-}
+```javascript
+// All upcoming GPU events
+search_events({
+  tags: "gpu",
+  date: "upcoming",
+  limit: 20
+})
 
-// Multi-word search examples
-{
-  "tool": "search_events",
-  "arguments": {
-    "query": "machine learning",
-    "beginning_date_relative": "-1month"
-  }
-}
+// Beginner training sessions
+search_events({
+  type: "training",
+  skill: "beginner",
+  date: "upcoming",
+  limit: 15
+})
+
+// Python workshops for beginners
+search_events({
+  date: "this_month",
+  type: "workshop",
+  skill: "beginner",
+  tags: "python",
+  limit: 25
+})
 ```
 
-### Get Events by Tag
+### Timezone-Aware Searches
 
-```typescript
-// Get all machine learning events this month
-{
-  "tool": "get_events_by_tag",
-  "arguments": {
-    "tag": "machine-learning",
-    "time_range": "this_month",
-    "limit": 20
-  }
-}
+```javascript
+// Get events in New York timezone
+search_events({
+  beginning_date_relative: "today",
+  end_date_relative: "+1week",
+  timezone: "America/New_York",
+  limit: 30
+})
+
+// Get events in Europe/London timezone
+search_events({
+  query: "workshop",
+  beginning_date_relative: "today",
+  timezone: "Europe/London",
+  limit: 25
+})
 ```
 
 ## Development
@@ -223,14 +246,15 @@ npm test
 
 ## Base URL
 
-The server connects to: `https://support.access-ci.org/api/2.1/events` (v2.1 with UTC timestamps and enhanced search)
+The server connects to: `https://support.access-ci.org/api/2.2/events`
 
 ## Technical Notes
 
-### API Version 2.1 Features
+### API Version 2.2 Features
 - **UTC timestamps**: All dates returned in UTC with Z suffix (e.g., `2024-08-30T13:00:00Z`)
 - **Native search**: Uses `search_api_fulltext` parameter for comprehensive searching
 - **Timezone support**: Relative dates calculated using specified timezone
+- **Pagination**: API accepts specific page sizes (25, 50, 75, or 100). Requested limits are automatically rounded to nearest valid size.
 - **Enhanced metadata**: Responses include API version and timezone info
 
 ### General
