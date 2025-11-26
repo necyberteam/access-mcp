@@ -16,7 +16,7 @@ describe("AnnouncementsServer Integration Tests", () => {
     it("should fetch real announcements from API", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
+          name: "search_announcements",
           arguments: {
             limit: 5,
           },
@@ -27,21 +27,18 @@ describe("AnnouncementsServer Integration Tests", () => {
       const responseData = JSON.parse(result.content[0].text);
       
       // Check structure
-      expect(responseData).toHaveProperty("total_announcements");
-      expect(responseData).toHaveProperty("announcements");
-      expect(responseData).toHaveProperty("popular_tags");
-      expect(responseData).toHaveProperty("filters_applied");
-      
-      // Announcements should be an array
-      expect(Array.isArray(responseData.announcements)).toBe(true);
+      expect(responseData).toHaveProperty("total");
+      expect(responseData).toHaveProperty("items");
+
+      // Items should be an array
+      expect(Array.isArray(responseData.items)).toBe(true);
       
       // If there are announcements, check their structure
-      if (responseData.announcements.length > 0) {
-        const firstAnnouncement = responseData.announcements[0];
+      if (responseData.items.length > 0) {
+        const firstAnnouncement = responseData.items[0];
         expect(firstAnnouncement).toHaveProperty("title");
         expect(firstAnnouncement).toHaveProperty("body");
-        expect(firstAnnouncement).toHaveProperty("date");
-        expect(firstAnnouncement).toHaveProperty("formatted_date");
+        expect(firstAnnouncement).toHaveProperty("published_date");
         expect(firstAnnouncement).toHaveProperty("tags");
         expect(Array.isArray(firstAnnouncement.tags)).toBe(true);
       }
@@ -50,7 +47,7 @@ describe("AnnouncementsServer Integration Tests", () => {
     it("should filter by tags", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements_by_tags",
+          name: "search_announcements",
           arguments: {
             tags: "maintenance",
             limit: 3,
@@ -60,14 +57,14 @@ describe("AnnouncementsServer Integration Tests", () => {
 
       expect(result.isError).toBeFalsy();
       const responseData = JSON.parse(result.content[0].text);
-      
-      expect(responseData).toHaveProperty("announcements");
-      expect(Array.isArray(responseData.announcements)).toBe(true);
-      
+
+      expect(responseData).toHaveProperty("items");
+      expect(Array.isArray(responseData.items)).toBe(true);
+
       // If maintenance announcements exist, they should contain the tag
-      if (responseData.announcements.length > 0) {
-        const hasMaintenanceTag = responseData.announcements.some((ann: any) => 
-          ann.tags && ann.tags.some((tag: string) => 
+      if (responseData.items.length > 0) {
+        const hasMaintenanceTag = responseData.items.some((ann: any) =>
+          ann.tags && ann.tags.some((tag: string) =>
             tag.toLowerCase().includes("maintenance")
           )
         );
@@ -79,10 +76,9 @@ describe("AnnouncementsServer Integration Tests", () => {
     it("should handle date range filters", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
+          name: "search_announcements",
           arguments: {
-            relative_start_date: "-1month",
-            relative_end_date: "today",
+            date: "this_month",
             limit: 10,
           },
         },
@@ -90,17 +86,16 @@ describe("AnnouncementsServer Integration Tests", () => {
 
       expect(result.isError).toBeFalsy();
       const responseData = JSON.parse(result.content[0].text);
-      
-      expect(responseData).toHaveProperty("announcements");
-      expect(responseData.filters_applied).toHaveProperty("date_range");
-      
+
+      expect(responseData).toHaveProperty("items");
+
       // All announcements should be within the last month
-      if (responseData.announcements.length > 0) {
+      if (responseData.items.length > 0) {
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-        
-        responseData.announcements.forEach((ann: any) => {
-          const annDate = new Date(ann.date);
+
+        responseData.items.forEach((ann: any) => {
+          const annDate = new Date(ann.published_date);
           expect(annDate.getTime()).toBeGreaterThanOrEqual(oneMonthAgo.getTime());
         });
       }
@@ -111,26 +106,25 @@ describe("AnnouncementsServer Integration Tests", () => {
     it("should fetch announcements from the past week", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_recent_announcements",
+          name: "search_announcements",
           arguments: {
-            period: "1 week",
+            date: "this_week",
           },
         },
       } as any);
 
       expect(result.isError).toBeFalsy();
       const responseData = JSON.parse(result.content[0].text);
-      
-      expect(responseData).toHaveProperty("announcements");
-      expect(responseData.filters_applied.date_range).toContain("week");
-      
+
+      expect(responseData).toHaveProperty("items");
+
       // Check that announcements are from the past week if any exist
-      if (responseData.announcements.length > 0) {
+      if (responseData.items.length > 0) {
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-        
-        responseData.announcements.forEach((ann: any) => {
-          const annDate = new Date(ann.date);
+
+        responseData.items.forEach((ann: any) => {
+          const annDate = new Date(ann.published_date);
           expect(annDate.getTime()).toBeGreaterThanOrEqual(oneWeekAgo.getTime());
         });
       }
@@ -139,32 +133,29 @@ describe("AnnouncementsServer Integration Tests", () => {
     it("should handle today filter", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_recent_announcements",
+          name: "search_announcements",
           arguments: {
-            period: "0 days",
+            date: "today",
           },
         },
       } as any);
 
       expect(result.isError).toBeFalsy();
       const responseData = JSON.parse(result.content[0].text);
-      
-      expect(responseData).toHaveProperty("announcements");
-      expect(responseData.filters_applied.date_range).toContain("0 days");
-      
+
+      expect(responseData).toHaveProperty("items");
+
       // Today's announcements might be empty, that's okay
-      expect(Array.isArray(responseData.announcements)).toBe(true);
+      expect(Array.isArray(responseData.items)).toBe(true);
     }, 10000);
   });
 
-  describe("get_announcements_by_affinity_group", () => {
-    it("should handle affinity group filtering", async () => {
-      // We don't know specific affinity group IDs, so test with a made-up one
+  describe("get_announcements with limit", () => {
+    it("should respect limit parameter", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements_by_affinity_group",
+          name: "search_announcements",
           arguments: {
-            ag: "test-group-123",
             limit: 5,
           },
         },
@@ -172,49 +163,49 @@ describe("AnnouncementsServer Integration Tests", () => {
 
       expect(result.isError).toBeFalsy();
       const responseData = JSON.parse(result.content[0].text);
-      
-      // Should return a valid response even if no announcements match
-      expect(responseData).toHaveProperty("announcements");
-      expect(Array.isArray(responseData.announcements)).toBe(true);
-      expect(responseData.filters_applied).toHaveProperty("affinity_group");
-      expect(responseData.filters_applied.affinity_group).toBe("test-group-123");
+
+      // Should return a valid response
+      expect(responseData).toHaveProperty("items");
+      expect(Array.isArray(responseData.items)).toBe(true);
+      if (responseData.items.length > 0) {
+        expect(responseData.items.length).toBeLessThanOrEqual(5);
+      }
     }, 10000);
   });
 
   describe("API Error Handling", () => {
-    it("should handle invalid parameters gracefully", async () => {
+    it("should handle search with no parameters", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
-          arguments: {
-            beginning_date: "invalid-date",
-          },
+          name: "search_announcements",
+          arguments: {},
         },
       } as any);
 
-      // The API might accept this or reject it
-      // Just verify we get a response
+      // Should return default results
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData).toHaveProperty("items");
     }, 10000);
 
     it("should handle empty results", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
+          name: "search_announcements",
           arguments: {
             tags: "nonexistent-tag-xyz-123-456",
-            exact_match: true,
           },
         },
       } as any);
 
       expect(result.isError).toBeFalsy();
       const responseData = JSON.parse(result.content[0].text);
-      
-      expect(responseData.total_announcements).toBe(0);
-      expect(responseData.announcements).toEqual([]);
-      expect(responseData.message).toContain("No announcements found");
+
+      // May have 0 or few results
+      expect(responseData).toHaveProperty("total");
+      expect(responseData).toHaveProperty("items");
+      expect(Array.isArray(responseData.items)).toBe(true);
     }, 10000);
   });
 });

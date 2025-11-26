@@ -21,7 +21,7 @@ describe("AnnouncementsServer", () => {
   });
 
   describe("Tool Methods", () => {
-    describe("get_announcements", () => {
+    describe("search_announcements", () => {
       it("should fetch announcements with filters", async () => {
         const mockResponse = {
           status: 200,
@@ -49,7 +49,7 @@ describe("AnnouncementsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_announcements",
+            name: "search_announcements",
             arguments: {
               tags: "maintenance",
               limit: 10,
@@ -63,9 +63,9 @@ describe("AnnouncementsServer", () => {
         expect(url).toContain("tags=maintenance");
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_announcements).toBe(2);
-        expect(responseData.announcements).toHaveLength(2);
-        expect(responseData.announcements[0].tags).toEqual(["maintenance", "scheduled"]);
+        expect(responseData.total).toBe(2);
+        expect(responseData.items).toHaveLength(2);
+        expect(responseData.items[0].tags).toEqual(["maintenance", "scheduled"]);
       });
 
       it("should handle empty results", async () => {
@@ -76,7 +76,7 @@ describe("AnnouncementsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_announcements",
+            name: "search_announcements",
             arguments: {
               tags: "nonexistent",
             },
@@ -84,8 +84,8 @@ describe("AnnouncementsServer", () => {
         } as any);
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_announcements).toBe(0);
-        expect(responseData.announcements).toEqual([]);
+        expect(responseData.total).toBe(0);
+        expect(responseData.items).toEqual([]);
       });
 
       it("should handle API errors", async () => {
@@ -96,7 +96,7 @@ describe("AnnouncementsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_announcements",
+            name: "search_announcements",
             arguments: {},
           },
         } as any);
@@ -106,7 +106,7 @@ describe("AnnouncementsServer", () => {
       });
     });
 
-    describe("get_announcements_by_tags", () => {
+    describe("search by tags", () => {
       it("should fetch announcements by specific tags", async () => {
         const mockResponse = {
           status: 200,
@@ -126,7 +126,7 @@ describe("AnnouncementsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_announcements_by_tags",
+            name: "search_announcements",
             arguments: {
               tags: "gpu,maintenance",
               limit: 20,
@@ -136,26 +136,24 @@ describe("AnnouncementsServer", () => {
 
         const url = mockHttpClient.get.mock.calls[0][0];
         expect(url).toContain("tags=gpu%2Cmaintenance");
-        // Note: exact_match is not implemented in the server
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.announcements[0].tags).toContain("gpu");
-        expect(responseData.announcements[0].tags).toContain("maintenance");
+        expect(responseData.items[0].tags).toContain("gpu");
+        expect(responseData.items[0].tags).toContain("maintenance");
       });
     });
 
-    describe("get_announcements_by_affinity_group", () => {
-      it("should fetch announcements for affinity group", async () => {
+    describe("search with limit", () => {
+      it("should respect limit parameter", async () => {
         const mockResponse = {
           status: 200,
           data: [
             {
-              title: "AI/ML Community Update",
-              body: "New resources for AI/ML",
+              title: "Update 1",
+              body: "Body 1",
               published_date: "2024-03-14",
-              author: "Community Team",
-              tags: ["ai", "ml", "community"],
-              affinity_group: ["ai-ml-123"],
+              tags: ["ai"],
+              affinity_group: [],
             },
           ],
         };
@@ -164,26 +162,23 @@ describe("AnnouncementsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_announcements_by_affinity_group",
+            name: "search_announcements",
             arguments: {
-              ag: "ai-ml-123",
               limit: 5,
             },
           },
         } as any);
 
         const url = mockHttpClient.get.mock.calls[0][0];
-        expect(url).toContain("ag=ai-ml-123");
-        // Note: limit is handled in JavaScript, not in URL
+        expect(url).toContain("items_per_page=5");
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.announcements).toHaveLength(1);
-        expect(responseData.announcements[0].affinity_groups).toContain("ai-ml-123");
+        expect(responseData.items).toHaveLength(1);
       });
     });
 
-    describe("get_recent_announcements", () => {
-      it("should fetch recent announcements", async () => {
+    describe("recent announcements with date filters", () => {
+      it("should fetch announcements with date filter", async () => {
         const mockResponse = {
           status: 200,
           data: [
@@ -202,9 +197,9 @@ describe("AnnouncementsServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "get_recent_announcements",
+            name: "search_announcements",
             arguments: {
-              period: "1 week",
+              date: "this_week",
             },
           },
         } as any);
@@ -213,10 +208,10 @@ describe("AnnouncementsServer", () => {
         expect(url).toContain("relative_start_date=-1+week");
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.announcements).toHaveLength(1);
+        expect(responseData.items).toHaveLength(1);
       });
 
-      it("should default to past week if no time period specified", async () => {
+      it("should handle search with no date filter", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: [],
@@ -224,13 +219,14 @@ describe("AnnouncementsServer", () => {
 
         await server["handleToolCall"]({
           params: {
-            name: "get_recent_announcements",
+            name: "search_announcements",
             arguments: {},
           },
         } as any);
 
+        expect(mockHttpClient.get).toHaveBeenCalled();
         const url = mockHttpClient.get.mock.calls[0][0];
-        expect(url).toContain("relative_start_date=-1+month");
+        expect(url).toContain("/api/2.2/announcements");
       });
     });
   });
@@ -244,12 +240,10 @@ describe("AnnouncementsServer", () => {
 
       await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
+          name: "search_announcements",
           arguments: {
             tags: "gpu,maintenance",
-            ag: "123,456",
-            start_date: "2024-01-01",
-            end_date: "2024-12-31",
+            date: "this_month",
             limit: 20,
           },
         },
@@ -257,13 +251,10 @@ describe("AnnouncementsServer", () => {
 
       const url = mockHttpClient.get.mock.calls[0][0];
       expect(url).toContain("tags=gpu%2Cmaintenance");
-      expect(url).toContain("ag=123%2C456");
-      expect(url).toContain("start_date=2024-01-01");
-      expect(url).toContain("end_date=2024-12-31");
-      // Note: exact_match and limit are not URL parameters
+      expect(url).toContain("relative_start_date=-1+month");
     });
 
-    it("should handle relative date filters", async () => {
+    it("should handle date filters", async () => {
       mockHttpClient.get.mockResolvedValue({
         status: 200,
         data: [],
@@ -271,17 +262,15 @@ describe("AnnouncementsServer", () => {
 
       await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
+          name: "search_announcements",
           arguments: {
-            relative_start_date: "today",
-            relative_end_date: "+1month",
+            date: "today",
           },
         },
       } as any);
 
       const url = mockHttpClient.get.mock.calls[0][0];
       expect(url).toContain("relative_start_date=today");
-      expect(url).toContain("relative_end_date=%2B1month");
     });
   });
 
@@ -303,13 +292,13 @@ describe("AnnouncementsServer", () => {
 
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
+          name: "search_announcements",
           arguments: {},
         },
       } as any);
 
       const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.announcements[0].tags).toEqual(["tag1", "tag2", "tag3"]);
+      expect(responseData.items[0].tags).toEqual(["tag1", "tag2", "tag3"]);
     });
 
     it("should extract popular tags", async () => {
@@ -327,17 +316,17 @@ describe("AnnouncementsServer", () => {
 
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
+          name: "search_announcements",
           arguments: {},
         },
       } as any);
 
       const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.popular_tags).toContain("gpu");
-      expect(responseData.popular_tags).toContain("maintenance");
+      // Popular tags are in metadata, not in the universal {total, items} format
+      expect(responseData.items).toHaveLength(4);
     });
 
-    it("should format dates correctly", async () => {
+    it("should include published_date in items", async () => {
       const mockResponse = {
         status: 200,
         data: [
@@ -354,14 +343,13 @@ describe("AnnouncementsServer", () => {
 
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_announcements",
+          name: "search_announcements",
           arguments: {},
         },
       } as any);
 
       const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.announcements[0].formatted_date).toBeDefined();
-      expect(responseData.announcements[0].formatted_date).toContain("March");
+      expect(responseData.items[0].published_date).toBe("2024-03-15");
     });
   });
 });
