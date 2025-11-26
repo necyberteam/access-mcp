@@ -4,62 +4,138 @@ A Python-based Model Context Protocol server for accessing XDMoD (XD Metrics on 
 
 ## Usage Examples
 
-### **Authentication & Debug**
+### **Personal Usage**
 
 ```
-"Debug my XDMoD data authentication and check what frameworks are available"
-"Test if the official XDMoD data framework is working"
+"CPU hours for ACCESS ID 'deems' (Jan-Jun 2025)"
+"My computational usage trends (past 6 months)"
 ```
 
-### **Personal Usage Data**
+### **Data Extraction**
 
 ```
-"Get usage data for my ACCESS ID using the data server"
-"Show me CPU hours for my ACCESS ID from January to June 2025"
-"What's my computational usage for my ACCESS ID?"
+"GPU usage from SUPREMM realm (past month)"
+"Job counts by field of science with timeseries"
+"Raw data: institutions grouped, 2024, with progress tracking"
+"Delta OR Bridges-2 jobs with >1000 cores"
 ```
 
-### **Raw Data Extraction**
+### **Discovery (What's Available?)**
 
 ```
-"Get raw CPU hours data grouped by institution for 2024"
-"Extract timeseries data for all jobs on Delta with daily aggregation"
-"Show me raw GPU usage metrics from SUPREMM realm for the past month"
-"Get job counts by field of science with progress tracking"
+"List all available realms"
+"What dimensions and metrics exist in Jobs realm?"
+"What GPU resources can I filter by?"
+"Show me available queue types"
 ```
 
-### **Data Discovery**
+### **Templates (Pre-configured Analysis)**
 
 ```
-"What realms are available in XDMoD?"
-"Show me all dimensions and metrics available in the Jobs realm"
-"What fields can I filter by in the SUPREMM realm?"
-"List sample filter values for the resource dimension"
+"List all analysis templates"
+"Show me the queue analysis template"
+"Get allocation efficiency template configuration"
 ```
 
-### **Complex Filtering**
+## Tools
 
+### `get_user_data`
+Get user-specific usage data using Python's data manipulation capabilities with pandas integration.
+
+**Parameters:**
+- `access_id`: User's ACCESS ID (e.g., "deems")
+- `start_date`: Start date (YYYY-MM-DD)
+- `end_date`: End date (YYYY-MM-DD)
+- `realm`: XDMoD realm (default: "Jobs")
+- `statistic`: Statistic to retrieve (default: "total_cpu_hours")
+
+### `get_raw_data`
+Get raw data from XDMoD for detailed analysis with complex filtering and progress tracking.
+
+**Parameters:**
+- `realm`: XDMoD realm (Jobs, SUPREMM, Cloud, Storage, ResourceSpecifications)
+- `dimension`: Dimension for grouping data (e.g., person, resource, institution, pi, none)
+- `metric`: Metric to retrieve (e.g., total_cpu_hours, job_count, wall_hours)
+- `start_date`: Start date (YYYY-MM-DD)
+- `end_date`: End date (YYYY-MM-DD)
+- `filters`: Complex filter combinations (e.g., `{'resource': ['Delta', 'Bridges-2'], 'pi': 'Smith'}`)
+- `aggregation_unit`: Time aggregation (day, month, quarter, year, auto)
+- `dataset_type`: Dataset type (aggregate or timeseries)
+- `show_progress`: Show progress updates for large data retrievals
+
+**Example:**
 ```
-"Get raw data for jobs on Delta OR Bridges-2 with more than 1000 cores"
-"Extract usage data filtered by multiple PIs and institutions"
-"Show timeseries data for specific research groups across all resources"
+"Get raw CPU hours data grouped by resource for all Delta and Bridges-2 jobs in 2024"
+"Extract timeseries data for GPU usage in SUPREMM realm with daily aggregation"
 ```
 
-### **Data Analytics**
+### `describe_fields`
+Discover available fields and dimensions for a specific XDMoD realm with sample filter values.
 
+**Parameters:**
+- `realm`: XDMoD realm to describe (default: "Jobs")
+- `include_metrics`: Include available metrics in response (default: true)
+- `include_filter_values`: Include sample filter values for dimensions (default: false)
+
+**Example:**
 ```
-"Get my usage data using the official data framework instead of REST API"
-"Analyze the team's computational patterns using ACCESS IDs"
-"Show me my usage trends for my ACCESS ID over the past 6 months"
+"What fields and metrics are available in the SUPREMM realm?"
+"Show me all dimensions I can filter by in the Jobs realm with sample values"
 ```
 
-### **Framework Integration**
+### `describe_realms`
+Discover all available XDMoD realms and their capabilities with dimension and metric counts.
 
+**Parameters:**
+- `include_details`: Include detailed information about each realm (default: true)
+
+**Example:**
 ```
-"Test the XDMoD data analytics framework integration"
-"Use pandas to analyze my computational usage patterns"
-"Get clean structured data for my research usage"
+"What XDMoD realms are available for querying?"
+"List all data realms with their dimension and metric counts"
 ```
+
+### `get_smart_filters`
+**Discover available filter values** - Find what resources, queues, institutions, etc. you can filter by in `get_raw_data()`. Returns categorized lists of filter values (e.g., "GPU resources", "batch queues", "physical sciences").
+
+**When to use:** Before calling `get_raw_data()`, use this to discover what filter values are available.
+
+**Parameters:**
+- `realm`: XDMoD realm to query (default: "Jobs")
+- `dimension`: Dimension to get filters for (resource, queue, person, fieldofscience, institution, etc.)
+- `category`: Filter category (gpu, cpu, memory, storage, physical, life, engineering, all)
+- `search_prefix`: Filter values by prefix for autocomplete-style searching (e.g., 'univ' for universities)
+- `force_large_dimensions`: Override size limits for large dimensions (>1000 values)
+- `limit`: Max items to display per category (default: 20)
+
+**Example:**
+```
+"What GPU resources can I filter by?"
+"Show me available queue types"
+"Find institutions starting with 'california'"
+"What science field categories exist?"
+```
+
+**Workflow:** get_smart_filters() → get_raw_data() with discovered filter values
+
+### `get_analysis_template`
+**Get pre-configured analysis patterns** - Returns ready-to-use configurations for common analysis scenarios (queue analysis, allocation efficiency, etc.) with pre-defined metrics and semantic filters.
+
+**When to use:** When you want a standardized analysis pattern instead of building a custom query.
+
+**Parameters:**
+- `analysis_type`: Template name (queue_analysis, allocation_efficiency, performance_efficiency, etc.)
+- `list_templates`: Set to true to list all 14 available templates (default: false)
+
+**Example:**
+```
+"List all analysis templates"
+"Get the queue analysis template"
+"Show me allocation efficiency template configuration"
+```
+
+**Workflow:** get_analysis_template() → Use returned configuration with get_raw_data()
+
 
 ## Installation
 
@@ -102,110 +178,6 @@ Add to your Claude Desktop configuration:
 ```
 
 **Note:** After installing with pipx, restart Claude Desktop to detect the new command.
-
-## Tools
-
-### `debug_python_auth`
-Debug authentication status and check for XDMoD data analytics framework availability.
-
-### `get_user_data_python`
-Get user-specific usage data using Python's data manipulation capabilities.
-
-**Parameters:**
-- `access_id`: User's ACCESS ID (e.g., "deems")
-- `start_date`: Start date (YYYY-MM-DD)
-- `end_date`: End date (YYYY-MM-DD)
-- `realm`: XDMoD realm (default: "Jobs")
-- `statistic`: Statistic to retrieve (default: "total_cpu_hours")
-
-### `test_data_framework`
-Test integration with XDMoD's data analytics framework and check availability.
-
-### `get_raw_data`
-Get raw data from XDMoD for detailed analysis with complex filtering and progress tracking.
-
-**Parameters:**
-- `realm`: XDMoD realm (Jobs, SUPREMM, Cloud, Storage, ResourceSpecifications)
-- `dimension`: Dimension for grouping data (e.g., person, resource, institution, pi, none)
-- `metric`: Metric to retrieve (e.g., total_cpu_hours, job_count, wall_hours)
-- `start_date`: Start date (YYYY-MM-DD)
-- `end_date`: End date (YYYY-MM-DD)
-- `filters`: Complex filter combinations (e.g., `{'resource': ['Delta', 'Bridges-2'], 'pi': 'Smith'}`)
-- `aggregation_unit`: Time aggregation (day, month, quarter, year, auto)
-- `dataset_type`: Dataset type (aggregate or timeseries)
-- `show_progress`: Show progress updates for large data retrievals
-
-**Example:**
-```
-"Get raw CPU hours data grouped by resource for all Delta and Bridges-2 jobs in 2024"
-"Extract timeseries data for GPU usage in SUPREMM realm with daily aggregation"
-```
-
-### `describe_raw_fields`
-Discover available fields and dimensions for a specific XDMoD realm.
-
-**Parameters:**
-- `realm`: XDMoD realm to describe (default: "Jobs")
-- `include_metrics`: Include available metrics in response (default: true)
-- `include_filter_values`: Include sample filter values for dimensions (default: false)
-
-**Example:**
-```
-"What fields and metrics are available in the SUPREMM realm?"
-"Show me all dimensions I can filter by in the Jobs realm with sample values"
-```
-
-### `describe_raw_realms`
-Discover all available XDMoD realms and their capabilities.
-
-**Parameters:**
-- `include_details`: Include detailed information about each realm (default: true)
-
-**Example:**
-```
-"What XDMoD realms are available for querying?"
-"List all data realms with their dimension and metric counts"
-```
-
-### `get_analysis_template`
-Get pre-configured analysis templates with semantic filters and multi-metric support for common analysis scenarios.
-
-**Parameters:**
-- `analysis_type`: Template name (see Analysis Templates section below)
-- `list_templates`: Set to true to list all available templates (default: false)
-
-**Example:**
-```
-"Show me all available analysis templates"
-"Get the queue analysis template configuration"
-"Use the allocation efficiency template for resource optimization"
-```
-
-### `get_smart_filters`
-Get smart semantic filters using XDMoD's built-in dynamic filter discovery with autocomplete support - no maintenance required!
-
-**Parameters:**
-- `realm`: XDMoD realm to query (default: "Jobs")
-- `dimension`: Dimension to get filters for (resource, queue, person, fieldofscience, institution, etc.)
-- `category`: Filter category (gpu, cpu, memory, storage, physical, life, engineering, all)
-- `search_prefix`: Filter values by prefix for autocomplete-style searching (e.g., 'univ' for universities)
-- `force_large_dimensions`: Override size limits for large dimensions (>1000 values)
-- `limit`: Max items to display per category (default: 20)
-
-**Example:**
-```
-"Get smart filters for GPU resources"
-"Show me queue categories for queue analysis" 
-"Find institutions with prefix 'california'"
-"Get science field categories for research analysis"
-```
-
-**Key Features:**
-- **Always Current**: Pulls live data from XDMoD - no maintenance needed
-- **Smart Categorization**: Automatically groups resources (GPU/CPU), queues (batch/interactive), science fields (physical/life sciences)
-- **Autocomplete Support**: Use search_prefix for large dimensions like users or institutions
-- **Size Protection**: Warns about large dimensions and suggests alternatives
-- **Template Ready**: JSON output copies directly into get_raw_data() calls
 
 ## Analysis Templates
 

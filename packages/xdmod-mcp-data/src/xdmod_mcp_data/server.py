@@ -29,16 +29,7 @@ class XDMoDPythonServer(BaseAccessServer):
         """Return list of available tools"""
         return [
                 Tool(
-                    name="debug_python_auth",
-                    description="Debug authentication and framework availability",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                    },
-                ),
-                Tool(
-                    name="get_user_data_python",
+                    name="get_user_data",
                     description="Get user-specific usage data by exact user identifier. Use the COMPLETE user name exactly as provided.",
                     inputSchema={
                         "type": "object",
@@ -70,58 +61,8 @@ class XDMoDPythonServer(BaseAccessServer):
                     },
                 ),
                 Tool(
-                    name="test_data_framework",
-                    description="Test XDMoD data analytics framework integration",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {},
-                        "required": [],
-                    },
-                ),
-                Tool(
-                    name="get_chart_data",
-                    description="Get chart data for visualization and analysis. See xdmod-python-reference.md for comprehensive dimensions and metrics documentation.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "realm": {
-                                "type": "string",
-                                "description": "XDMoD realm: Jobs, SUPREMM (for GPU), Cloud, Storage",
-                                "default": "Jobs",
-                            },
-                            "dimension": {
-                                "type": "string", 
-                                "description": "REQUIRED: Dimension - person, resource, institution, pi, queue, jobsize, fieldofscience, project, none. See reference guide for complete list per realm.",
-                            },
-                            "metric": {
-                                "type": "string",
-                                "description": "Metric to analyze. Jobs: total_cpu_hours, job_count, total_ace. SUPREMM: gpu_time, avg_percent_gpu_usage. See reference guide for complete list per realm.", 
-                                "default": "total_cpu_hours",
-                            },
-                            "start_date": {
-                                "type": "string",
-                                "description": "Start date (YYYY-MM-DD)",
-                            },
-                            "end_date": {
-                                "type": "string",
-                                "description": "End date (YYYY-MM-DD)",
-                            },
-                            "filters": {
-                                "type": "object",
-                                "description": "Optional filters (e.g., {'resource': 'Bridges 2 GPU', 'System Username': ['user1']})",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Limit number of results (default: 20)",
-                                "default": 20,
-                            },
-                        },
-                        "required": ["start_date", "end_date", "dimension"],
-                    },
-                ),
-                Tool(
                     name="get_raw_data",
-                    description="Get raw data from XDMoD for detailed analysis. Supports complex filtering and large datasets with progress tracking.",
+                    description="Extract actual XDMoD metrics data with filtering. This is the PRIMARY data extraction tool. Use filters parameter with values discovered via get_smart_filters() or use configuration from get_analysis_template(). Supports complex boolean filters, timeseries/aggregate modes, and progress tracking for large datasets.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -149,7 +90,7 @@ class XDMoDPythonServer(BaseAccessServer):
                             },
                             "filters": {
                                 "type": "object",
-                                "description": "Complex filter combinations. Example: {'resource': ['Delta', 'Bridges-2'], 'pi': 'Smith', 'jobsize': '>1000'}",
+                                "description": "Complex filter combinations. Use get_smart_filters() first to discover valid filter values. Example: {'resource': ['Delta', 'Bridges-2'], 'pi': 'Smith', 'jobsize': '>1000'}. Supports boolean operators (AND/OR) and comparison operators (>, <, =).",
                             },
                             "aggregation_unit": {
                                 "type": "string",
@@ -171,8 +112,8 @@ class XDMoDPythonServer(BaseAccessServer):
                     },
                 ),
                 Tool(
-                    name="describe_raw_fields",
-                    description="Discover available fields/dimensions for a specific XDMoD realm. Use this to understand what data can be queried.",
+                    name="describe_fields",
+                    description="Discover what dimensions and metrics exist in a specific realm (e.g., Jobs, SUPREMM). Use this to learn what can be queried. For example: 'What dimensions are available in the Jobs realm?' Returns dimension names (resource, person, institution, etc.) and available metrics (total_cpu_hours, job_count, etc.).",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -196,8 +137,8 @@ class XDMoDPythonServer(BaseAccessServer):
                     },
                 ),
                 Tool(
-                    name="describe_raw_realms",
-                    description="Discover all available XDMoD realms and their capabilities. Use this to understand what types of data are available.",
+                    name="describe_realms",
+                    description="List all available XDMoD data realms (Jobs, SUPREMM, Cloud, Storage, etc.) with their capabilities. Use this when you need to know what data categories exist. For example: 'What realms are available?' or 'Where can I find GPU metrics?' (Answer: SUPREMM realm).",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -211,27 +152,8 @@ class XDMoDPythonServer(BaseAccessServer):
                     },
                 ),
                 Tool(
-                    name="get_analysis_template",
-                    description="Get pre-configured query templates for common XDMoD analyses. Use this to quickly set up standard research queries.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "analysis_type": {
-                                "type": "string",
-                                "description": "Type of analysis: 'institutional_comparison', 'field_trends', 'resource_usage', 'user_activity', 'job_size_analysis', 'gpu_usage'",
-                            },
-                            "list_templates": {
-                                "type": "boolean",
-                                "description": "List all available templates instead of getting a specific one",
-                                "default": False,
-                            },
-                        },
-                        "required": [],
-                    },
-                ),
-                Tool(
-                    name="get_smart_filters", 
-                    description="Get smart semantic filters using XDMoD's built-in dynamic filter discovery with autocomplete support",
+                    name="get_smart_filters",
+                    description="Discover what filter values are available for use with get_raw_data(). Use this BEFORE calling get_raw_data() to find valid resources, queues, institutions, etc. Returns categorized lists like 'GPU resources', 'batch queues', 'physical sciences'. Workflow: get_smart_filters() → get_raw_data() with discovered values.",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -270,111 +192,111 @@ class XDMoDPythonServer(BaseAccessServer):
                     },
                 ),
                 Tool(
-                    name="get_usage_with_nsf_context",
-                    description="Get XDMoD usage data enriched with NSF funding context for a researcher. Integrates data from both XDMoD and NSF servers.",
+                    name="get_analysis_template",
+                    description="Get pre-configured analysis patterns for common scenarios (queue analysis, allocation efficiency, performance analysis, etc.). Use this when you want a standardized analysis instead of building a custom query. Returns ready-to-use configuration with pre-defined metrics and semantic filters. Workflow: get_analysis_template() → Use returned config with get_raw_data().",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "researcher_name": {
+                            "analysis_type": {
                                 "type": "string",
-                                "description": "Researcher name to analyze (will search both XDMoD usage and NSF awards)",
+                                "description": "Type of analysis template. Common templates: queue_analysis, allocation_efficiency, performance_efficiency, multi_node_scaling, service_provider_comparison, grant_type_analysis, field_of_science_trends, institutional_comparison, resource_portfolio, user_cohort_analysis",
                             },
-                            "start_date": {
-                                "type": "string", 
-                                "description": "Start date for usage analysis in YYYY-MM-DD format",
-                            },
-                            "end_date": {
-                                "type": "string",
-                                "description": "End date for usage analysis in YYYY-MM-DD format",
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "Maximum number of NSF awards to include (default: 5)",
-                                "default": 5,
+                            "list_templates": {
+                                "type": "boolean",
+                                "description": "Set to true to list all 14 available analysis templates with descriptions",
+                                "default": False,
                             },
                         },
-                        "required": ["researcher_name", "start_date", "end_date"],
+                        "required": [],
                     },
                 ),
                 Tool(
-                    name="analyze_funding_vs_usage",
-                    description="Compare NSF funding amounts with actual XDMoD computational usage patterns. Integrates data from both NSF and XDMoD servers.",
+                    name="integrate_nsf_xdmod",
+                    description="Integrate NSF funding data with XDMoD computational usage patterns. Query by researcher, award, or institution to correlate funding with actual usage.",
                     inputSchema={
                         "type": "object",
                         "properties": {
-                            "nsf_award_number": {
+                            "query_type": {
                                 "type": "string",
-                                "description": "NSF award number to analyze (e.g., '2138259')",
+                                "description": "Type of integration query: 'researcher' (researcher-centric usage with NSF funding), 'award' (award-centric funding vs usage comparison), 'institution' (institutional research profile with funding and usage)",
+                                "enum": ["researcher", "award", "institution"],
+                            },
+                            "search_value": {
+                                "type": "string",
+                                "description": "Search value based on query_type: researcher name, NSF award number, or institution name",
                             },
                             "start_date": {
                                 "type": "string",
                                 "description": "Start date for analysis in YYYY-MM-DD format",
                             },
                             "end_date": {
-                                "type": "string", 
-                                "description": "End date for analysis in YYYY-MM-DD format",
-                            },
-                        },
-                        "required": ["nsf_award_number", "start_date", "end_date"],
-                    },
-                ),
-                Tool(
-                    name="institutional_research_profile",
-                    description="Generate comprehensive research profile combining XDMoD usage patterns with NSF funding for an institution. Integrates data from both servers.",
-                    inputSchema={
-                        "type": "object",
-                        "properties": {
-                            "institution_name": {
-                                "type": "string",
-                                "description": "Institution name to analyze (e.g., 'University of Colorado Boulder')",
-                            },
-                            "start_date": {
-                                "type": "string",
-                                "description": "Start date for analysis in YYYY-MM-DD format", 
-                            },
-                            "end_date": {
                                 "type": "string",
                                 "description": "End date for analysis in YYYY-MM-DD format",
+                            },
+                            "limit": {
+                                "type": "integer",
+                                "description": "Maximum number of NSF awards to include (default: 5 for researcher, 10 for institution)",
+                                "default": 5,
                             },
                             "top_researchers": {
                                 "type": "integer",
-                                "description": "Number of top researchers to highlight (default: 10)",
+                                "description": "Number of top researchers to highlight (only for query_type='institution', default: 10)",
                                 "default": 10,
                             },
                         },
-                        "required": ["institution_name", "start_date", "end_date"],
+                        "required": ["query_type", "search_value", "start_date", "end_date"],
                     },
                 ),
         ]
 
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> Any:
         """Handle tool execution"""
-        if name == "debug_python_auth":
-            return await self._debug_auth()
-        elif name == "get_user_data_python":
+        if name == "get_user_data":
             return await self._get_user_data_python(arguments)
-        elif name == "test_data_framework":
-            return await self._test_data_framework()
-        elif name == "get_chart_data":
-            return await self._get_chart_data(arguments)
         elif name == "get_raw_data":
             return await self._get_raw_data(arguments)
-        elif name == "describe_raw_fields":
+        elif name == "describe_fields":
             return await self._describe_raw_fields(arguments)
-        elif name == "describe_raw_realms":
+        elif name == "describe_realms":
             return await self._describe_raw_realms(arguments)
         elif name == "get_analysis_template":
             return await self._get_analysis_template(arguments)
         elif name == "get_smart_filters":
             return await self._get_smart_filters(arguments)
-        elif name == "get_usage_with_nsf_context":
-            return await self._get_usage_with_nsf_context(arguments)
-        elif name == "analyze_funding_vs_usage":
-            return await self._analyze_funding_vs_usage(arguments)
-        elif name == "institutional_research_profile":
-            return await self._institutional_research_profile(arguments)
+        elif name == "integrate_nsf_xdmod":
+            return await self._integrate_nsf_xdmod_router(arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
+
+    async def _integrate_nsf_xdmod_router(self, arguments: Dict[str, Any]) -> Any:
+        """Router for consolidated NSF+XDMoD integration tool"""
+        query_type = arguments.get("query_type")
+
+        if query_type == "researcher":
+            # Route to researcher-centric analysis
+            return await self._get_usage_with_nsf_context({
+                "researcher_name": arguments["search_value"],
+                "start_date": arguments["start_date"],
+                "end_date": arguments["end_date"],
+                "limit": arguments.get("limit", 5),
+            })
+        elif query_type == "award":
+            # Route to award-centric analysis
+            return await self._analyze_funding_vs_usage({
+                "nsf_award_number": arguments["search_value"],
+                "start_date": arguments["start_date"],
+                "end_date": arguments["end_date"],
+            })
+        elif query_type == "institution":
+            # Route to institutional profile
+            return await self._institutional_research_profile({
+                "institution_name": arguments["search_value"],
+                "start_date": arguments["start_date"],
+                "end_date": arguments["end_date"],
+                "top_researchers": arguments.get("top_researchers", 10),
+            })
+        else:
+            raise ValueError(f"Invalid query_type: {query_type}. Must be 'researcher', 'award', or 'institution'")
     
     async def _debug_auth(self) -> List[TextContent]:
         """Debug authentication and environment"""
@@ -910,11 +832,12 @@ class XDMoDPythonServer(BaseAccessServer):
         result += f"**Analysis Period:** {start_date} to {end_date}\n\n"
         
         try:
-            # Step 1: Get NSF awards for institution
+            # Step 1: Get NSF awards for institution (primary only to avoid collaborations)
             result += f"**Step 1: Analyzing NSF funding portfolio**\n"
-            nsf_data = await self._call_nsf_server("find_nsf_awards_by_institution", {
-                "institution_name": institution_name,
-                "limit": top_researchers * 2
+            nsf_data = await self._call_nsf_server("search_nsf_awards", {
+                "institution": institution_name,
+                "limit": top_researchers * 2,
+                "primary_only": True  # Only show awards where institution is primary recipient
             })
             
             # Step 2: Get XDMoD usage patterns
@@ -946,10 +869,10 @@ class XDMoDPythonServer(BaseAccessServer):
         if not nsf_service_url:
             return f"❌ **NSF Server not available**\n" \
                    f"Configure ACCESS_MCP_SERVICES environment variable:\n" \
-                   f"ACCESS_MCP_SERVICES=nsf-awards=http://localhost:3001\n\n" \
+                   f"ACCESS_MCP_SERVICES=nsf-awards=http://localhost:3007\n\n" \
                    f"**Alternative**: Start NSF server with HTTP port:\n" \
                    f"```bash\n" \
-                   f"ACCESS_MCP_NSF_HTTP_PORT=3001 npx @access-mcp/nsf-awards\n" \
+                   f"PORT=3007 npx @access-mcp/nsf-awards\n" \
                    f"```"
         
         try:
