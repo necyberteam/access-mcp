@@ -128,7 +128,8 @@ Here's a complete configuration example for Claude Desktop:
     "xdmod-mcp-data": {
       "command": "xdmod-mcp-data",
       "env": {
-        "XDMOD_API_TOKEN": "your-xdmod-token-here"
+        "XDMOD_API_TOKEN": "your-xdmod-token-here",
+        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3007"
       }
     }
   }
