@@ -67,23 +67,25 @@ export class AllocationsServer extends BaseAccessServer {
     return [
       {
         name: "search_projects",
-        description: "Advanced search for ACCESS-CI research projects with operators, filters, and sorting",
+        description: "Search ACCESS-CI research projects. Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Search query supporting operators: 'term1 AND term2', 'term1 OR term2', 'term1 NOT term2', exact phrases with quotes",
-              examples: [
-                "machine learning",
-                "climate AND modeling",
-                "genomics OR bioinformatics",
-                "\"deep learning\""
-              ]
+              description: "Search query supporting operators: 'term1 AND term2', 'term1 OR term2', 'term1 NOT term2', exact phrases with quotes. Omit when using project_id or similar_to parameters.",
+            },
+            project_id: {
+              type: "number",
+              description: "Get detailed information for a specific project ID. When provided, returns full project details including complete abstract.",
             },
             field_of_science: {
               type: "string",
               description: "Filter by field of science (e.g., 'Computer Science', 'Physics')",
+            },
+            resource_name: {
+              type: "string",
+              description: "Filter projects using specific computational resources (e.g., 'NCSA Delta GPU', 'Purdue Anvil', 'ACCESS Credits')",
             },
             allocation_type: {
               type: "string",
@@ -109,6 +111,31 @@ export class AllocationsServer extends BaseAccessServer {
               type: "number",
               description: "Minimum allocation amount filter"
             },
+            similar_to: {
+              type: "number",
+              description: "Find projects similar to this project ID using semantic matching. Omit query parameter when using this.",
+            },
+            similarity_keywords: {
+              type: "string",
+              description: "Find projects similar to these keywords/research terms. Alternative to similar_to parameter.",
+            },
+            similarity_threshold: {
+              type: "number",
+              description: "Minimum similarity score (0.0-1.0) when using similar_to or similarity_keywords. Default: 0.3",
+              default: 0.3,
+              minimum: 0.0,
+              maximum: 1.0
+            },
+            include_same_field: {
+              type: "boolean",
+              description: "Whether to prioritize projects in the same field of science for similarity search (default: true)",
+              default: true
+            },
+            show_similarity_scores: {
+              type: "boolean",
+              description: "Whether to display similarity scores in results (default: true)",
+              default: true
+            },
             sort_by: {
               type: "string",
               description: "Sort results by: 'relevance', 'date_desc', 'date_asc', 'allocation_desc', 'allocation_asc', 'pi_name'",
@@ -121,79 +148,114 @@ export class AllocationsServer extends BaseAccessServer {
               default: 20,
             },
           },
-          required: ["query"],
+          required: [],
+          examples: [
+            {
+              name: "Search for machine learning projects",
+              arguments: {
+                query: "machine learning",
+                limit: 10
+              }
+            },
+            {
+              name: "Get specific project details",
+              arguments: {
+                project_id: 12345
+              }
+            },
+            {
+              name: "List projects by field of science",
+              arguments: {
+                field_of_science: "Computer Science",
+                limit: 20
+              }
+            },
+            {
+              name: "Find projects using specific resource",
+              arguments: {
+                resource_name: "NCSA Delta GPU",
+                limit: 15
+              }
+            },
+            {
+              name: "Find similar projects",
+              arguments: {
+                similar_to: 12345,
+                similarity_threshold: 0.7,
+                limit: 10
+              }
+            }
+          ]
         },
       },
       {
-        name: "get_project_details",
-        description: "Get detailed information about a specific research project",
+        name: "analyze_funding",
+        description: "Analyze NSF funding for ACCESS projects/institutions. Returns detailed markdown analysis.",
         inputSchema: {
           type: "object",
           properties: {
             project_id: {
               type: "number",
-              description: "The project ID number. Use search_projects to find project IDs.",
-              examples: [12345, 67890, 11111]
+              description: "Analyze funding for a specific ACCESS project ID. Returns NSF awards connected to the project's PI and institution.",
             },
-          },
-          required: ["project_id"],
-        },
-      },
-      {
-        name: "list_projects_by_field",
-        description: "List projects by field of science",
-        inputSchema: {
-          type: "object",
-          properties: {
+            institution: {
+              type: "string",
+              description: "Generate comprehensive funding profile for an institution. Shows ACCESS allocations, NSF awards, top researchers, and funding trends.",
+            },
+            pi_name: {
+              type: "string",
+              description: "Find funded projects by principal investigator name. Cross-references ACCESS and NSF data.",
+            },
+            has_nsf_funding: {
+              type: "boolean",
+              description: "Filter to only show ACCESS projects with corresponding NSF funding. Combine with pi_name, institution, or field_of_science.",
+            },
             field_of_science: {
               type: "string",
-              description: "Field of science",
-              examples: [
-                "Computer Science",
-                "Physics",
-                "Chemistry",
-                "Biology",
-                "Mathematics"
-              ]
+              description: "Filter funded projects by field of science.",
             },
             limit: {
               type: "number",
-              description: "Maximum number of results to return (default: 20)",
-              default: 20,
+              description: "Maximum number of projects/awards to return (default: 20 for institution analysis, 10 for others)",
+              default: 10,
             },
           },
-          required: ["field_of_science"],
-        },
-      },
-      {
-        name: "list_projects_by_resource",
-        description: "Find projects using specific computational resources",
-        inputSchema: {
-          type: "object",
-          properties: {
-            resource_name: {
-              type: "string",
-              description: "Resource name",
-              examples: [
-                "NCSA Delta GPU",
-                "Purdue Anvil",
-                "ACCESS Credits",
-                "PSC Bridges-2",
-                "TACC Stampede3"
-              ]
+          required: [],
+          examples: [
+            {
+              name: "Analyze funding for specific project",
+              arguments: {
+                project_id: 12345
+              }
             },
-            limit: {
-              type: "number",
-              description: "Maximum number of results to return (default: 20)",
-              default: 20,
+            {
+              name: "Generate institutional funding profile",
+              arguments: {
+                institution: "University of Illinois",
+                limit: 20
+              }
             },
-          },
-          required: ["resource_name"],
+            {
+              name: "Find funded projects by PI",
+              arguments: {
+                pi_name: "John Smith",
+                has_nsf_funding: true
+              }
+            },
+            {
+              name: "Find NSF-funded projects in field",
+              arguments: {
+                field_of_science: "Computer Science",
+                has_nsf_funding: true,
+                limit: 15
+              }
+            }
+          ]
         },
       },
       {
         name: "get_allocation_statistics",
-        description: "Get statistics about resource allocations and research trends",
+        description: "Get allocation statistics (top fields, resources, institutions, types). Returns aggregate stats.",
         inputSchema: {
           type: "object",
           properties: {
@@ -204,113 +266,20 @@ export class AllocationsServer extends BaseAccessServer {
             },
           },
           required: [],
-        },
-      },
-      {
-        name: "find_similar_projects",
-        description: "Find projects with similar research focus using advanced semantic matching",
-        inputSchema: {
-          type: "object",
-          properties: {
-            project_id: {
-              type: "number",
-              description: "Reference project ID to find similar projects",
+          examples: [
+            {
+              name: "Get allocation statistics",
+              arguments: {
+                pages_to_analyze: 5
+              }
             },
-            keywords: {
-              type: "string",
-              description: "Keywords or research terms to find similar projects (alternative to project_id)",
-            },
-            similarity_threshold: {
-              type: "number",
-              description: "Minimum similarity score as decimal (0.0-1.0). Convert percentages: 80% = 0.8, 70% = 0.7, 50% = 0.5. Default: 0.3",
-              default: 0.3,
-              minimum: 0.0,
-              maximum: 1.0
-            },
-            include_same_field: {
-              type: "boolean",
-              description: "Whether to prioritize projects in the same field of science (default: true)",
-              default: true
-            },
-            show_similarity_scores: {
-              type: "boolean",
-              description: "Whether to display similarity scores in results (default: true)",
-              default: true
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of similar projects to return (default: 10, max: 50)",
-              default: 10,
-            },
-          },
-          required: [],
-        },
-      },
-      {
-        name: "analyze_project_funding",
-        description: "Analyze ACCESS project funding by cross-referencing with NSF awards data",
-        inputSchema: {
-          type: "object",
-          properties: {
-            project_id: {
-              type: "number",
-              description: "ACCESS project ID to analyze for NSF funding connections",
-            },
-          },
-          required: ["project_id"],
-        },
-      },
-      {
-        name: "find_funded_projects",
-        description: "Find ACCESS projects that have corresponding NSF funding",
-        inputSchema: {
-          type: "object",
-          properties: {
-            pi_name: {
-              type: "string",
-              description: "Principal investigator name to search for funded projects",
-            },
-            institution_name: {
-              type: "string", 
-              description: "Institution name to search for funded projects",
-            },
-            field_of_science: {
-              type: "string",
-              description: "Field of science to filter results",
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of results to return (default: 10)",
-              default: 10,
-            },
-          },
-          required: [],
-        },
-      },
-      {
-        name: "institutional_funding_profile",
-        description: "Generate comprehensive funding profile for an institution combining ACCESS allocations and NSF awards",
-        inputSchema: {
-          type: "object",
-          properties: {
-            institution_name: {
-              type: "string",
-              description: "Institution name to analyze",
-              examples: [
-                "University of California",
-                "Stanford University",
-                "MIT",
-                "University of Illinois",
-                "Carnegie Mellon University"
-              ]
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of projects to analyze per source (default: 20)",
-              default: 20,
-            },
-          },
-          required: ["institution_name"],
+            {
+              name: "Get comprehensive allocation statistics",
+              arguments: {
+                pages_to_analyze: 10
+              }
+            }
+          ]
         },
       }
     ];
@@ -354,23 +323,11 @@ export class AllocationsServer extends BaseAccessServer {
     try {
       switch (name) {
         case "search_projects":
-          return await this.searchProjects(args.query, args.field_of_science, args.allocation_type, args.limit, args.date_range, args.min_allocation, args.sort_by);
-        case "get_project_details":
-          return await this.getProjectDetails(args.project_id);
-        case "list_projects_by_field":
-          return await this.listProjectsByField(args.field_of_science, args.limit);
-        case "list_projects_by_resource":
-          return await this.listProjectsByResource(args.resource_name, args.limit);
+          return await this.searchProjectsRouter(args);
+        case "analyze_funding":
+          return await this.analyzeFundingRouter(args);
         case "get_allocation_statistics":
           return await this.getAllocationStatistics(args.pages_to_analyze || 5);
-        case "find_similar_projects":
-          return await this.findSimilarProjects(args.project_id, args.keywords, args.limit, args.similarity_threshold, args.include_same_field, args.show_similarity_scores);
-        case "analyze_project_funding":
-          return await this.analyzeProjectFunding(args.project_id);
-        case "find_funded_projects":
-          return await this.findFundedProjects(args.pi_name, args.institution_name, args.field_of_science, args.limit);
-        case "institutional_funding_profile":
-          return await this.institutionalFundingProfile(args.institution_name, args.limit);
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -614,6 +571,93 @@ sort_by: "date_desc"
     return results;
   }
 
+  /**
+   * Router for consolidated search_projects tool
+   * Routes to appropriate handler based on parameters
+   */
+  private async searchProjectsRouter(args: any) {
+    // Get specific project details
+    if (args.project_id) {
+      return await this.getProjectDetails(args.project_id);
+    }
+
+    // Find similar projects
+    if (args.similar_to || args.similarity_keywords) {
+      return await this.findSimilarProjects(
+        args.similar_to,
+        args.similarity_keywords,
+        args.limit,
+        args.similarity_threshold,
+        args.include_same_field,
+        args.show_similarity_scores
+      );
+    }
+
+    // List projects by resource
+    if (args.resource_name && !args.query) {
+      return await this.listProjectsByResource(args.resource_name, args.limit);
+    }
+
+    // List projects by field (when field provided without query)
+    if (args.field_of_science && !args.query && !args.resource_name && !args.allocation_type) {
+      return await this.listProjectsByField(args.field_of_science, args.limit);
+    }
+
+    // List/filter projects by allocation_type (when provided without query)
+    if (args.allocation_type && !args.query && !args.resource_name) {
+      return await this.listProjectsByAllocationType(args.allocation_type, args.field_of_science, args.limit);
+    }
+
+    // Standard search with optional filters
+    if (args.query) {
+      return await this.searchProjects(
+        args.query,
+        args.field_of_science,
+        args.allocation_type,
+        args.limit,
+        args.date_range,
+        args.min_allocation,
+        args.sort_by
+      );
+    }
+
+    // If no parameters provided, return error
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            error: "Please provide at least one search parameter: query, project_id, field_of_science, resource_name, allocation_type, similar_to, or similarity_keywords"
+          }, null, 2)
+        }
+      ]
+    };
+  }
+
+  /**
+   * Router for consolidated analyze_funding tool
+   * Routes to appropriate handler based on parameters
+   */
+  private async analyzeFundingRouter(args: any) {
+    // Analyze specific project funding
+    if (args.project_id) {
+      return await this.analyzeProjectFunding(args.project_id);
+    }
+
+    // Generate institutional funding profile
+    if (args.institution) {
+      return await this.institutionalFundingProfile(args.institution, args.limit || 20);
+    }
+
+    // Find funded projects (with or without filters)
+    return await this.findFundedProjects(
+      args.pi_name,
+      args.institution,
+      args.field_of_science,
+      args.limit || 10
+    );
+  }
+
   private async searchProjects(
     query: string, 
     fieldOfScience?: string, 
@@ -682,15 +726,21 @@ sort_by: "date_desc"
 
     // Apply sorting
     const sortedResults = this.applySorting(scoredResults, sortBy).slice(0, limit);
-    
-    // Format results with enhanced metadata
-    const searchSummary = this.buildSearchSummary(query, fieldOfScience, allocationType, dateRange, minAllocation, sortBy, scoredResults.length, sortedResults.length);
+
+    // Return in universal {total, items} format
+    const items = sortedResults.map(({project, score}) => ({
+      ...project,
+      relevance_score: score > 0 ? score : undefined
+    }));
 
     return {
       content: [
         {
           type: "text",
-          text: this.formatAdvancedSearchResults(sortedResults, searchSummary),
+          text: JSON.stringify({
+            total: items.length,
+            items: items
+          }, null, 2),
         },
       ],
     };
@@ -847,72 +897,6 @@ sort_by: "date_desc"
     }
   }
 
-  // Build search summary with metadata
-  private buildSearchSummary(
-    query: string, 
-    fieldOfScience?: string, 
-    allocationType?: string,
-    dateRange?: { start_date?: string; end_date?: string },
-    minAllocation?: number,
-    sortBy?: string,
-    totalMatches?: number,
-    returnedResults?: number
-  ): string {
-    let summary = `**Advanced Search Results**\n`;
-    summary += `• **Query:** ${query}\n`;
-    
-    if (fieldOfScience) summary += `• **Field:** ${fieldOfScience}\n`;
-    if (allocationType) summary += `• **Allocation Type:** ${allocationType}\n`;
-    if (dateRange?.start_date || dateRange?.end_date) {
-      summary += `• **Date Range:** ${dateRange.start_date || 'any'} to ${dateRange.end_date || 'any'}\n`;
-    }
-    if (minAllocation) summary += `• **Min Allocation:** ${minAllocation.toLocaleString()}\n`;
-    if (sortBy && sortBy !== 'relevance') summary += `• **Sorted By:** ${sortBy.replace('_', ' ')}\n`;
-    
-    summary += `• **Results:** ${returnedResults} of ${totalMatches} matches\n`;
-    
-    return summary;
-  }
-
-  // Enhanced formatting for advanced search results
-  private formatAdvancedSearchResults(
-    scoredResults: Array<{project: Project; score: number}>, 
-    searchSummary: string
-  ): string {
-    if (scoredResults.length === 0) {
-      return `${searchSummary}\n\nNo projects found matching the search criteria.\n\n**Search Tips:**\n• Try broader terms or different operators\n• Use quotes for exact phrases: "machine learning"\n• Use AND/OR/NOT operators: "AI AND physics"\n• Check spelling and try synonyms`;
-    }
-
-    let result = `${searchSummary}\n\n`;
-
-    scoredResults.forEach(({project, score}, index) => {
-      result += `**${index + 1}. ${project.requestTitle}** `;
-      if (score > 0) result += `(relevance: ${score.toFixed(1)})\n`;
-      else result += `\n`;
-      
-      result += `• **PI:** ${project.pi} (${project.piInstitution})\n`;
-      result += `• **Field:** ${project.fos}\n`;
-      result += `• **Type:** ${project.allocationType}\n`;
-      result += `• **Period:** ${project.beginDate} to ${project.endDate}\n`;
-      result += `• **Project ID:** ${project.projectId}\n`;
-      
-      if (project.resources.length > 0) {
-        const resourceSummaries = project.resources.map(r => {
-          const allocation = this.formatAllocation(r.allocation || 0, r.units, r.resourceName);
-          return allocation ? `${r.resourceName} (${allocation})` : r.resourceName;
-        });
-        result += `• **Resources:** ${resourceSummaries.join(', ')}\n`;
-      }
-      
-      // Show first 150 characters of abstract
-      const abstractPreview = project.abstract.length > 150 
-        ? project.abstract.substring(0, 150) + '...'
-        : project.abstract;
-      result += `• **Abstract:** ${abstractPreview}\n\n`;
-    });
-
-    return result;
-  }
 
   private calculateSearchScore(project: Project, query: string, fieldOfScience?: string, allocationType?: string): number {
     let score = 0;
@@ -979,7 +963,10 @@ sort_by: "date_desc"
           content: [
             {
               type: "text",
-              text: this.formatSingleProject(project),
+              text: JSON.stringify({
+                total: 1,
+                items: [project]
+              }, null, 2),
             },
           ],
         };
@@ -993,7 +980,9 @@ sort_by: "date_desc"
       content: [
         {
           type: "text",
-          text: `Project with ID ${projectId} not found in current allocations.`,
+          text: JSON.stringify({
+            error: `Project with ID ${projectId} not found in current allocations.`
+          }, null, 2),
         },
       ],
     };
@@ -1032,7 +1021,66 @@ sort_by: "date_desc"
       content: [
         {
           type: "text",
-          text: this.formatProjectResults(results, `Projects in ${fieldOfScience}`),
+          text: JSON.stringify({
+            total: results.length,
+            items: results
+          }, null, 2),
+        },
+      ],
+    };
+  }
+
+  /**
+   * List projects by allocation type, optionally filtered by field of science
+   */
+  private async listProjectsByAllocationType(allocationType: string, fieldOfScience?: string, limit: number = 20) {
+    // Input validation
+    if (!allocationType || typeof allocationType !== 'string' || allocationType.trim().length === 0) {
+      throw new Error("Allocation type must be a non-empty string");
+    }
+
+    if (limit < 1 || limit > 200) {
+      throw new Error("Limit must be between 1 and 200");
+    }
+
+    const results: Project[] = [];
+    let currentPage = 1;
+    const maxPages = 10;
+
+    while (results.length < limit && currentPage <= maxPages) {
+      const data = await this.fetchProjects(currentPage);
+
+      for (const project of data.projects) {
+        if (results.length >= limit) break;
+
+        // Match allocation type (case-insensitive)
+        const typeMatch = project.allocationType.toLowerCase().includes(allocationType.toLowerCase());
+
+        // If field is also specified, require both to match
+        const fieldMatch = !fieldOfScience ||
+          project.fos.toLowerCase().includes(fieldOfScience.toLowerCase());
+
+        if (typeMatch && fieldMatch) {
+          results.push(project);
+        }
+      }
+
+      currentPage++;
+      if (currentPage > data.pages) break;
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify({
+            total: results.length,
+            items: results,
+            filters_applied: {
+              allocation_type: allocationType,
+              ...(fieldOfScience && { field_of_science: fieldOfScience })
+            }
+          }, null, 2),
         },
       ],
     };
@@ -1043,7 +1091,7 @@ sort_by: "date_desc"
     if (!resourceName || typeof resourceName !== 'string' || resourceName.trim().length === 0) {
       throw new Error("Resource name must be a non-empty string");
     }
-    
+
     if (limit < 1 || limit > 200) {
       throw new Error("Limit must be between 1 and 200");
     }
@@ -1075,7 +1123,10 @@ sort_by: "date_desc"
       content: [
         {
           type: "text",
-          text: this.formatProjectResults(results, `Projects using ${resourceName}`),
+          text: JSON.stringify({
+            total: results.length,
+            items: results
+          }, null, 2),
         },
       ],
     };
@@ -1192,7 +1243,9 @@ sort_by: "date_desc"
           content: [
             {
               type: "text",
-              text: `Project with ID ${projectId} not found in current allocations database.`,
+              text: JSON.stringify({
+                error: `Project with ID ${projectId} not found in current allocations database.`
+              }, null, 2),
             },
           ],
         };
@@ -1209,7 +1262,9 @@ sort_by: "date_desc"
         content: [
           {
             type: "text",
-            text: "Please provide either a project_id or keywords to find similar projects.",
+            text: JSON.stringify({
+              error: "Please provide either a project_id or keywords to find similar projects."
+            }, null, 2),
           },
         ],
       };
@@ -1255,72 +1310,20 @@ sort_by: "date_desc"
     if (referenceField) result += `• **Reference Field:** ${referenceField}\n`;
     result += `\n`;
 
-    if (scoredResults.length === 0) {
-      result += `**No similar projects found above ${(similarityThreshold * 100).toFixed(0)}% threshold.**\n\n`;
-      result += `**💡 Try adjusting parameters:**\n`;
-      result += `• Lower similarity threshold (e.g., 0.2 or 0.1)\n`;
-      result += `• Broader keywords or different terms\n`;
-      result += `• Disable field prioritization for cross-disciplinary search\n`;
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: result,
-          },
-        ],
-      };
-    }
-
-    // Group similar projects by similarity ranges
-    const highSimilarity = scoredResults.filter(r => r.similarity >= 0.7);
-    const mediumSimilarity = scoredResults.filter(r => r.similarity >= 0.4 && r.similarity < 0.7);
-    const lowSimilarity = scoredResults.filter(r => r.similarity < 0.4);
-
-    if (highSimilarity.length > 0) {
-      result += `**🎯 High Similarity (70%+ match):**\n`;
-      highSimilarity.forEach((item, index) => {
-        result += this.formatSimilarProject(item.project, item.similarity, index + 1, showSimilarityScores);
-      });
-      result += `\n`;
-    }
-
-    if (mediumSimilarity.length > 0) {
-      result += `**🔍 Moderate Similarity (40-70% match):**\n`;
-      mediumSimilarity.forEach((item, index) => {
-        result += this.formatSimilarProject(item.project, item.similarity, index + 1, showSimilarityScores);
-      });
-      result += `\n`;
-    }
-
-    if (lowSimilarity.length > 0 && showSimilarityScores) {
-      result += `**📋 Lower Similarity (${(similarityThreshold * 100).toFixed(0)}-40% match):**\n`;
-      lowSimilarity.forEach((item, index) => {
-        result += this.formatSimilarProject(item.project, item.similarity, index + 1, showSimilarityScores);
-      });
-      result += `\n`;
-    }
-
-    // Analysis insights
-    result += `**📊 Similarity Analysis:**\n`;
-    const fieldMatches = scoredResults.filter(r => r.project.fos === referenceField).length;
-    if (referenceField) {
-      result += `• **Same Field Matches:** ${fieldMatches}/${scoredResults.length} (${Math.round(fieldMatches/scoredResults.length*100)}%)\n`;
-    }
-    
-    const avgSimilarity = scoredResults.reduce((sum, r) => sum + r.similarity, 0) / scoredResults.length;
-    result += `• **Average Similarity:** ${(avgSimilarity * 100).toFixed(1)}%\n`;
-    
-    const institutionDiversity = new Set(scoredResults.map(r => r.project.piInstitution)).size;
-    result += `• **Institution Diversity:** ${institutionDiversity} different institutions\n`;
-    
-    result += `• **Potential Collaborations:** High similarity indicates shared research interests\n`;
+    // Return in universal {total, items} format with similarity scores
+    const items = scoredResults.map(({project, similarity}) => ({
+      ...project,
+      similarity_score: similarity
+    }));
 
     return {
       content: [
         {
           type: "text",
-          text: result,
+          text: JSON.stringify({
+            total: items.length,
+            items: items
+          }, null, 2),
         },
       ],
     };
@@ -1456,31 +1459,6 @@ sort_by: "date_desc"
     return Math.min(resourceScore, 1.0);
   }
 
-  // Format individual similar project with optional similarity score
-  private formatSimilarProject(project: Project, similarity: number, index: number, showScore: boolean): string {
-    let result = `${index}. **${project.requestTitle}**`;
-    if (showScore) {
-      result += ` (${(similarity * 100).toFixed(1)}% similar)`;
-    }
-    result += `\n`;
-    
-    result += `   • **PI:** ${project.pi} (${project.piInstitution})\n`;
-    result += `   • **Field:** ${project.fos}\n`;
-    result += `   • **ID:** ${project.projectId}\n`;
-    
-    if (project.resources.length > 0) {
-      const resources = this.summarizeResources(project.resources);
-      result += `   • **Resources:** ${resources}\n`;
-    }
-    
-    // Show first 100 characters of abstract for context
-    const abstractPreview = project.abstract.length > 100 
-      ? project.abstract.substring(0, 100) + '...'
-      : project.abstract;
-    result += `   • **Focus:** ${abstractPreview}\n\n`;
-    
-    return result;
-  }
 
   private calculateProjectSimilarity(project: Project, searchTerms: string, referenceField?: string): number {
     let score = 0;
@@ -1589,72 +1567,6 @@ sort_by: "date_desc"
     }
   }
 
-  private formatProjectResults(projects: Project[], title: string): string {
-    if (projects.length === 0) {
-      return `${title}\n\nNo projects found matching the criteria.`;
-    }
-
-    let result = `${title}\n\n`;
-    result += `Found ${projects.length} project${projects.length > 1 ? 's' : ''}:\n\n`;
-
-    projects.forEach((project, index) => {
-      result += `**${index + 1}. ${project.requestTitle}**\n`;
-      result += `• **PI:** ${project.pi} (${project.piInstitution})\n`;
-      result += `• **Field:** ${project.fos}\n`;
-      result += `• **Type:** ${project.allocationType}\n`;
-      result += `• **Period:** ${project.beginDate} to ${project.endDate}\n`;
-      result += `• **Project ID:** ${project.projectId}\n`;
-      
-      if (project.resources.length > 0) {
-        const resourceSummaries = project.resources.map(r => {
-          const allocation = this.formatAllocation(r.allocation || 0, r.units, r.resourceName);
-          return allocation ? `${r.resourceName} (${allocation})` : r.resourceName;
-        });
-        result += `• **Resources:** ${resourceSummaries.join(', ')}\n`;
-      }
-      
-      // Show first 150 characters of abstract
-      const abstractPreview = project.abstract.length > 150 
-        ? project.abstract.substring(0, 150) + '...'
-        : project.abstract;
-      result += `• **Abstract:** ${abstractPreview}\n\n`;
-    });
-
-    return result;
-  }
-
-  private formatSingleProject(project: Project): string {
-    let result = `📋 **Project Details**\n\n`;
-    result += `**Title:** ${project.requestTitle}\n`;
-    result += `**Project ID:** ${project.projectId}\n`;
-    result += `**Request Number:** ${project.requestNumber}\n\n`;
-    
-    result += `**Principal Investigator:** ${project.pi}\n`;
-    result += `**Institution:** ${project.piInstitution}\n`;
-    result += `**Field of Science:** ${project.fos}\n`;
-    result += `**Allocation Type:** ${project.allocationType}\n\n`;
-    
-    result += `**Project Period:**\n`;
-    result += `• Start: ${project.beginDate}\n`;
-    result += `• End: ${project.endDate}\n\n`;
-    
-    if (project.resources.length > 0) {
-      result += `**Allocated Resources:**\n`;
-      project.resources.forEach(resource => {
-        result += `• **${resource.resourceName}**`;
-        const allocation = this.formatAllocation(resource.allocation || 0, resource.units, resource.resourceName);
-        if (allocation) {
-          result += `: ${allocation}`;
-        }
-        result += `\n`;
-      });
-      result += `\n`;
-    }
-    
-    result += `**Abstract:**\n${project.abstract}\n`;
-    
-    return result;
-  }
 
   // NSF Integration Methods
   private async analyzeProjectFunding(projectId: number) {
@@ -1691,8 +1603,8 @@ sort_by: "date_desc"
 
       for (const nameVariation of piNameVariations) {
         try {
-          const nsfData = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
-            person_name: nameVariation,
+          const nsfData = await this.callRemoteServer("nsf-awards", "search_nsf_awards", {
+            personnel: nameVariation,
             limit: 3
           });
           const nsfResponse = this.formatNsfResponse(nsfData);
@@ -2210,8 +2122,8 @@ sort_by: "date_desc"
       for (const project of batch) {
         try {
           // Search for NSF awards by PI name
-          const nsfData = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
-            person_name: project.pi,
+          const nsfData = await this.callRemoteServer("nsf-awards", "search_nsf_awards", {
+            personnel: project.pi,
             limit: 3
           });
           const nsfResponse = this.formatNsfResponse(nsfData);
@@ -2331,25 +2243,18 @@ sort_by: "date_desc"
 
       for (const variant of institutionVariants.slice(0, 3)) { // Try top 3 variants
         try {
-          const nsfData = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_institution", {
-            institution_name: variant,
-            limit: Math.ceil(limit / 2)
+          // Use primary_only parameter - filtering now handled by NSF server
+          const nsfData = await this.callRemoteServer("nsf-awards", "search_nsf_awards", {
+            institution: variant,
+            limit: Math.ceil(limit / 2),
+            primary_only: true  // Filter at source for cleaner architecture
           });
           const nsfResponse = this.formatNsfResponse(nsfData);
 
           if (nsfResponse && !nsfResponse.includes("Error") && !nsfResponse.includes("not available")) {
-            // CRITICAL: Filter to only include awards where this institution is PRIMARY recipient
-            const filteredResponse = this.filterNSFAwardsByPrimaryInstitution(
-              nsfResponse,
-              variant,
-              institutionVariants
-            );
-
-            if (filteredResponse && !filteredResponse.includes("No NSF awards found")) {
-              nsfAwardsByVariant.set(variant, filteredResponse);
-              const awardCount = (filteredResponse.match(/Award Number:/g) || []).length;
-              totalNSFAwards += awardCount;
-            }
+            nsfAwardsByVariant.set(variant, nsfResponse);
+            const awardCount = (nsfResponse.match(/Award Number:/g) || []).length;
+            totalNSFAwards += awardCount;
           }
         } catch (error) {
           console.warn(`Error fetching NSF data for variant "${variant}":`, error);
@@ -2782,8 +2687,8 @@ sort_by: "date_desc"
 
     for (const project of accessProjects.slice(0, 10)) { // Limit to first 10 for performance
       try {
-        const nsfData = await this.callRemoteServer("nsf-awards", "find_nsf_awards_by_personnel", {
-          person_name: project.pi,
+        const nsfData = await this.callRemoteServer("nsf-awards", "search_nsf_awards", {
+          personnel: project.pi,
           limit: 2
         });
         const nsfResponse = this.formatNsfResponse(nsfData);
@@ -2819,81 +2724,6 @@ sort_by: "date_desc"
       return response.content[0].text;
     }
     return JSON.stringify(response);
-  }
-
-  /**
-   * Filter NSF awards to only include those where the specified institution
-   * is the PRIMARY institution (listed in "Institution:" field), not just
-   * mentioned in collaborations or other contexts.
-   *
-   * @param nsfResponse - Raw NSF response text with award details
-   * @param targetInstitution - Institution name to match (or variants)
-   * @param institutionVariants - Array of institution name variations to check
-   * @returns Filtered response containing only awards with matching primary institution
-   */
-  private filterNSFAwardsByPrimaryInstitution(
-    nsfResponse: string,
-    targetInstitution: string,
-    institutionVariants: string[] = []
-  ): string {
-    if (!nsfResponse || nsfResponse.includes("not available") || nsfResponse.includes("Error")) {
-      return nsfResponse;
-    }
-
-    const allVariants = [targetInstitution, ...institutionVariants];
-    const normalizedVariants = allVariants.map(v => this.normalizeInstitutionName(v).toLowerCase());
-
-    const lines = nsfResponse.split('\n');
-    const filteredAwards: string[] = [];
-
-    let currentAward: string[] = [];
-    let currentAwardInstitution: string = '';
-    let isPrimaryInstitution = false;
-
-    for (const line of lines) {
-      // Start of a new award
-      if (line.includes('Award Number:') || line.includes('Title:')) {
-        // Check if previous award matched and save it
-        if (currentAward.length > 0 && isPrimaryInstitution) {
-          filteredAwards.push(currentAward.join('\n'));
-        }
-
-        // Start new award
-        currentAward = [line];
-        currentAwardInstitution = '';
-        isPrimaryInstitution = false;
-      } else if (currentAward.length > 0) {
-        // Continue building current award
-        currentAward.push(line);
-
-        // Check if this is the Institution field (primary institution)
-        if (line.trim().startsWith('Institution:')) {
-          currentAwardInstitution = line.toLowerCase();
-
-          // Check if any variant matches the primary institution
-          isPrimaryInstitution = normalizedVariants.some(variant => {
-            // Extract just the institution name part after "Institution:"
-            const institutionText = currentAwardInstitution.replace(/institution:/i, '').trim();
-            return this.matchesInstitution(institutionText, [variant]);
-          });
-        }
-      }
-    }
-
-    // Don't forget the last award
-    if (currentAward.length > 0 && isPrimaryInstitution) {
-      filteredAwards.push(currentAward.join('\n'));
-    }
-
-    // Return filtered results
-    if (filteredAwards.length === 0) {
-      return `No NSF awards found where "${targetInstitution}" is the primary recipient institution.\n\n` +
-        `💡 **Note:** The NSF database may contain awards where this institution appears as a collaborator ` +
-        `or co-PI institution, but those are not included here. To see all mentions, use the optional ` +
-        `\`include_collaborations: true\` parameter.`;
-    }
-
-    return filteredAwards.join('\n\n');
   }
 
   /**

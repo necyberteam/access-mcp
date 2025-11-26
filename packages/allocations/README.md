@@ -4,198 +4,124 @@ Advanced research project discovery with NSF funding integration and enterprise-
 
 ## Usage Examples
 
-### **Advanced Project Search**
+### **Search & Discovery**
 
 ```
-"Find machine learning projects on ACCESS"
-"Search for GPU computing research projects"
-"Show me quantum computing allocations from 2024"
-"Find projects using 'deep learning' but not 'computer vision'"
+"Machine learning projects on ACCESS"
+"GPU computing allocations from 2024"
+"Projects using 'deep learning' NOT 'computer vision'"
+"Quantum computing projects with >100K SUs"
+"All projects at Stanford"
 ```
 
-### **Smart Discovery**
+### **Similarity & Analysis**
 
 ```
-"Find projects similar to machine learning on GPU clusters"
-"Show me research projects related to climate modeling"
-"Discover bioinformatics projects with large allocations"
-"What projects are similar to NSF award 2138259?"
-```
-
-### **Institution Analysis**
-
-```
-"Analyze NSF funding for ACCESS project 54321"
-"Generate a funding profile for University of Illinois"
-"Show me all projects from Stanford with their NSF awards"
-"Compare computational resources with research funding"
-```
-
-### **Researcher Profiles**
-
-```
-"Find all projects by Dr. Smith with NSF funding context"
-"Show me computational usage patterns for this research team"
-"Analyze funding efficiency across different research groups"
-"What NSF awards correlate with high ACCESS usage?"
+"Projects similar to climate modeling research"
+"Similar projects to NSF award #2138259"
+"Bioinformatics allocations over 500K SUs"
+"Projects by PI Dr. Smith sorted by allocation size"
 ```
 
 ## Tools
 
 ### search_projects
 
-Advanced search for ACCESS-CI research projects with operators, filters, and sorting.
+Comprehensive ACCESS-CI research project search and discovery. Supports free-text search, field/resource filtering, similarity matching, and detailed project information retrieval.
 
 **Parameters:**
 
-- `query` (string, **REQUIRED**): Search query supporting operators: `"term1 AND term2"`, `"term1 OR term2"`, `"term1 NOT term2"`, exact phrases with quotes
+- `query` (string, optional): Search query supporting operators: `"term1 AND term2"`, `"term1 OR term2"`, `"term1 NOT term2"`, exact phrases with quotes. Omit when using `project_id` or `similar_to`
+- `project_id` (number, optional): Get detailed information for a specific project ID. Returns full project details including complete abstract
 - `field_of_science` (string, optional): Filter by field of science (e.g., 'Computer Science', 'Physics')
+- `resource_name` (string, optional): Filter projects using specific computational resources (e.g., 'NCSA Delta GPU', 'Purdue Anvil')
 - `allocation_type` (string, optional): Filter by allocation type (e.g., 'Discover', 'Explore', 'Accelerate')
 - `date_range` (object, optional): Filter by project date range with `start_date` and `end_date` in YYYY-MM-DD format
 - `min_allocation` (number, optional): Minimum allocation amount filter
-- `sort_by` (string, optional): Sort results by 'relevance', 'date_desc', 'date_asc', 'allocation_desc', 'allocation_asc', 'pi_name' (default: relevance)
+- `similar_to` (number, optional): Find projects similar to this project ID using semantic matching
+- `similarity_keywords` (string, optional): Find projects similar to these keywords/research terms
+- `similarity_threshold` (number, optional): Minimum similarity score (0.0-1.0, default: 0.3)
+- `include_same_field` (boolean, optional): Prioritize projects in same field for similarity search (default: true)
+- `show_similarity_scores` (boolean, optional): Display similarity scores in results (default: true)
+- `sort_by` (string, optional): Sort by 'relevance', 'date_desc', 'date_asc', 'allocation_desc', 'allocation_asc', 'pi_name' (default: relevance)
 - `limit` (number, optional): Maximum results (default: 20, max: 100)
 
-**Example:**
+**Examples:**
 ```typescript
-// User: "Find machine learning projects with GPU but not TensorFlow from 2024"
-const projects = await search_projects({
-  query: '"machine learning" AND gpu NOT tensorflow',
-  field_of_science: "Computer Science",
-  date_range: { start_date: "2024-01-01", end_date: "2024-12-31" },
-  min_allocation: 10000,
-  sort_by: "allocation_desc",
-  limit: 10
-});
+// Search for projects
+search_projects({ query: '"machine learning" AND gpu', limit: 10 })
+
+// Get specific project details
+search_projects({ project_id: 12345 })
+
+// List by field of science
+search_projects({ field_of_science: "Computer Science", limit: 20 })
+
+// Find projects using specific resource
+search_projects({ resource_name: "NCSA Delta GPU", limit: 15 })
+
+// Find similar projects
+search_projects({ similar_to: 12345, similarity_threshold: 0.7, limit: 10 })
 ```
 
-**Returns**: List of projects with titles, abstracts, PI information, institution details, resource allocations (ACCESS Credits), and grant numbers.
+**Returns**: JSON format `{total: number, items: Project[]}` where each Project contains:
+- `projectId`, `requestNumber`, `requestTitle`
+- `pi`, `piInstitution`
+- `fos` (field of science)
+- `abstract`
+- `allocationType`, `beginDate`, `endDate`
+- `resources[]` (array of allocation resources with names, units, and amounts)
+- `relevance_score` (when searching with query)
+- `similarity_score` (when searching with similarity)
 
-### get_project_details
+### analyze_funding
 
-Get detailed information about a specific research project.
-
-**Parameters:**
-
-- `project_id` (number): The project ID number
-
-### list_projects_by_field
-
-List projects by field of science.
-
-**Parameters:**
-
-- `field_of_science` (string): Field of science to filter by
-- `limit` (number, optional): Maximum number of results to return (default: 20)
-
-### list_projects_by_resource
-
-Find projects using specific computational resources.
+Comprehensive NSF funding analysis for ACCESS projects and institutions. Cross-references ACCESS allocations with NSF awards to show funding connections, institutional research profiles, and funded project discovery.
 
 **Parameters:**
 
-- `resource_name` (string): Resource name to search for
-- `limit` (number, optional): Maximum number of results to return (default: 20)
+- `project_id` (number, optional): Analyze funding for specific ACCESS project. Returns NSF awards connected to PI and institution
+- `institution` (string, optional): Generate comprehensive funding profile for institution. Shows ACCESS allocations, NSF awards, top researchers, and trends
+- `pi_name` (string, optional): Find funded projects by principal investigator name. Cross-references ACCESS and NSF data
+- `has_nsf_funding` (boolean, optional): Filter to only ACCESS projects with corresponding NSF funding
+- `field_of_science` (string, optional): Filter funded projects by field of science
+- `limit` (number, optional): Maximum projects/awards to return (default: 20 for institution, 10 for others)
+
+**Examples:**
+```typescript
+// Analyze specific project funding
+analyze_funding({ project_id: 12345 })
+
+// Generate institutional funding profile
+analyze_funding({ institution: "University of Illinois", limit: 20 })
+
+// Find funded projects by PI
+analyze_funding({ pi_name: "John Smith", has_nsf_funding: true })
+
+// Find NSF-funded projects in field
+analyze_funding({ field_of_science: "Computer Science", has_nsf_funding: true })
+```
+
+**Returns**: Funding connections, institutional profiles, or funded project lists with ACCESS and NSF data.
 
 ### get_allocation_statistics
 
-Get statistics about resource allocations and research trends.
+Get aggregate statistics across ACCESS allocations including top 10 fields of science, top 10 most-requested resources, top 10 institutions, and allocation type breakdown. Use for overview/trend questions like 'What are the most popular research areas?' NOT for finding specific projects (use `search_projects` instead).
 
 **Parameters:**
 
 - `pages_to_analyze` (number, optional): Number of pages to analyze for statistics (default: 5, max: 20)
 
-### find_similar_projects
-
-Find projects with similar research focus using advanced semantic matching.
-
-**Parameters:**
-
-- `project_id` (number, optional): Reference project ID to find similar projects
-- `keywords` (string, optional): Keywords or research terms to find similar projects (alternative to project_id)
-- `similarity_threshold` (number, optional): Minimum similarity score (0.0-1.0, default: 0.3)
-- `include_same_field` (boolean, optional): Whether to prioritize projects in the same field of science (default: true)
-- `show_similarity_scores` (boolean, optional): Whether to display similarity scores in results (default: true)
-- `limit` (number, optional): Maximum number of results (default: 10, max: 50)
-
-**Example:**
+**Examples:**
 ```typescript
-// User: "Find projects similar to project 12345 with 80% similarity"
-const similar = await find_similar_projects({
-  project_id: 12345,
-  similarity_threshold: 0.8,
-  show_similarity_scores: true,
-  include_same_field: true,
-  limit: 5
-});
+// Get allocation statistics
+get_allocation_statistics({ pages_to_analyze: 5 })
+
+// Get comprehensive statistics
+get_allocation_statistics({ pages_to_analyze: 10 })
 ```
 
-**Returns**: Related projects with similarity percentages, multi-tier groupings (High 70%+, Moderate 40-70%), research domain overlap analysis, and collaboration potential assessment.
-
-### get_nsf_award
-
-Get NSF award details for a specific award number.
-
-**Parameters:**
-
-- `award_number` (string): NSF award number (e.g., '2138259')
-
-### analyze_project_funding
-
-Comprehensive funding analysis with advanced PI name matching and institution validation.
-
-**Parameters:**
-
-- `project_id` (number, **REQUIRED**): ACCESS project ID to analyze for NSF funding connections
-
-### find_nsf_awards_by_pi
-
-Find NSF awards for a specific Principal Investigator.
-
-**Parameters:**
-
-- `pi_name` (string): Principal Investigator name to search for
-- `limit` (number, optional): Maximum number of awards to return (default: 10)
-
-### find_nsf_awards_by_personnel
-
-Search NSF awards by Principal Investigator name. 
-
-**Note:** Co-PI and Program Officer searches are not reliable in the NSF API and have been removed.
-
-**Parameters:**
-
-- `person_name` (string): Principal Investigator name to search for
-- `limit` (number, optional): Maximum number of awards to return (default: 10)
-
-### find_funded_projects
-
-Find ACCESS projects that have corresponding NSF funding with real cross-referencing.
-
-**Parameters:**
-
-- `pi_name` (string, optional): Principal investigator name
-- `institution_name` (string, optional): Institution name
-- `field_of_science` (string, optional): Field of science filter
-- `limit` (number, optional): Maximum number of results (default: 10)
-
-### institutional_funding_profile
-
-Generate comprehensive funding profile for an institution with advanced name matching.
-
-**Parameters:**
-
-- `institution_name` (string, **REQUIRED**): Institution name to analyze
-- `limit` (number, optional): Maximum number of projects per source (default: 20)
-
-**Example:**
-```typescript
-// User: "Generate a funding profile for University of Illinois"
-const profile = await institutional_funding_profile({
-  institution_name: "University of Illinois at Urbana-Champaign",
-  limit: 20
-});
-```
+**Returns**: Aggregate statistics including top fields, resources, institutions, and allocation types.
 
 ## Resources
 
@@ -271,13 +197,16 @@ To enable NSF awards cross-referencing in local development, configure both serv
   "mcpServers": {
     "nsf-awards": {
       "command": "npx",
-      "args": ["-y", "@access-mcp/nsf-awards"]
+      "args": ["-y", "@access-mcp/nsf-awards"],
+      "env": {
+        "PORT": "3007"
+      }
     },
     "allocations": {
       "command": "npx",
       "args": ["-y", "@access-mcp/allocations"],
       "env": {
-        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3001"
+        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3007"
       }
     }
   }
