@@ -63,136 +63,36 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     return [
       {
         name: "search_software",
-        description: "Search for software packages across ACCESS-CI resources. Returns both standard and AI-enhanced metadata when available. **Resource Discovery Workflow**: 1) Use `access-compute-resources:search_resources` with `include_resource_ids: true` to find resource IDs, 2) Use returned IDs in the `resource_id` parameter to filter results by specific resources.",
+        description: "Search software packages on ACCESS-CI resources. Returns {total, items}. If no parameters provided, lists popular/available software.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Search query for software names (e.g., 'python', 'tensorflow', 'gromacs')",
+              description: "Search software names/descriptions (optional - omit to list all/popular software)"
             },
-            resource_id: {
+            resource: {
               type: "string",
-              description: "Optional: filter by specific resource ID (e.g., 'delta.ncsa.access-ci.org'). **Finding Resource IDs**: If you don't know the exact resource ID, first use `access-compute-resources:search_resources` with `include_resource_ids: true` to discover available resources and their IDs.",
+              description: "Resource ID (e.g., 'delta.ncsa.access-ci.org')"
             },
-            include_ai_metadata: {
-              type: "boolean",
-              description: "Include AI-generated metadata (tags, research area, software type) when available. Default: true",
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of results to return (default: 100)",
-            },
-          },
-        },
-      },
-      {
-        name: "search_with_filters",
-        description: "Advanced search with client-side filtering on AI-enhanced metadata. Can search all software or filter specific search results. **Resource Discovery**: Use `access-compute-resources:search_resources` with `include_resource_ids: true` to find resource IDs for the `resource_id` parameter.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "Base search query (optional - if omitted, searches all software; use specific terms to narrow the base set)",
-            },
-            resource_id: {
-              type: "string",
-              description: "Optional: specific resource to search. **Finding Resource IDs**: If you don't know the exact resource ID, first use `access-compute-resources:search_resources` with `include_resource_ids: true` to discover available resources and their IDs.",
-            },
-            filter_research_area: {
-              type: "string",
-              description: "Filter by AI-identified research area (partial match, case-insensitive).",
-            },
-            filter_tags: {
+            tags: {
               type: "array",
               items: { type: "string" },
-              description: "Filter by AI tags (matches any of the provided tags from ai_general_tags field).",
+              description: "Filter by tags (ml, hpc, bio)"
             },
-            filter_software_type: {
-              type: "string",
-              description: "Filter by AI-identified software type (partial match)",
-            },
-            limit: {
-              type: "number",
-              description: "Maximum results after filtering (default: 50)",
-            },
-          },
-        },
-      },
-      {
-        name: "list_software_by_resource",
-        description:
-          "List all available software packages for a specific ACCESS-CI resource. **REQUIRED**: You must have a valid resource ID. Use `access-compute-resources:search_resources` with `include_resource_ids: true` to discover available resources and their IDs first.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            resource_id: {
-              type: "string",
-              description: "The resource ID. Use list_compute_resources or search_resources to get valid IDs.",
-              examples: [
-                "delta.ncsa.access-ci.org",
-                "anvil.purdue.access-ci.org",
-                "bridges2.psc.access-ci.org"
-              ]
+            discover: {
+              type: "boolean",
+              description: "Return available filter values",
+              default: false
             },
             limit: {
               type: "number",
-              description:
-                "Maximum number of packages to return (default: 100)",
-            },
-          },
-          required: ["resource_id"],
-        },
-      },
-      {
-        name: "get_software_details",
-        description:
-          "Get detailed information about a specific software package",
-        inputSchema: {
-          type: "object",
-          properties: {
-            software_name: {
-              type: "string",
-              description: "Name of the software package. Use search_software to discover available packages.",
-              examples: [
-                "python",
-                "gcc",
-                "tensorflow",
-                "gromacs",
-                "matlab"
-              ]
-            },
-            resource_id: {
-              type: "string",
-              description:
-                "Optional: specific resource to get package details for. **Finding Resource IDs**: If you don't know the exact resource ID, first use `access-compute-resources:search_resources` with `include_resource_ids: true` to discover available resources and their IDs.",
-            },
-          },
-          required: ["software_name"],
-        },
-      },
-      {
-        name: "discover_filter_values",
-        description: "Discover available filter values by sampling actual software data from all software or a specific resource. **Resource Discovery**: Use `access-compute-resources:search_resources` with `include_resource_ids: true` to find resource IDs for the `resource_id` parameter.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "Optional: Search query to get sample data (if omitted, samples from all software)",
-            },
-            resource_id: {
-              type: "string",
-              description: "Optional: discover values for a specific resource only. **Finding Resource IDs**: If you don't know the exact resource ID, first use `access-compute-resources:search_resources` with `include_resource_ids: true` to discover available resources and their IDs.",
-            },
-            sample_size: {
-              type: "number",
-              description: "Number of software packages to sample for discovering values (default: 200)",
-            },
-          },
-        },
-      },
+              description: "Max results (default: 100)",
+              default: 100
+            }
+          }
+        }
+      }
     ];
   }
 
@@ -221,32 +121,11 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       switch (name) {
         case "search_software":
           return await this.searchSoftware(args);
-        case "search_with_filters":
-          return await this.searchWithFilters(args);
-        case "discover_filter_values":
-          return await this.discoverFilterValues(args);
-        case "list_software_by_resource":
-          return await this.listSoftwareByResource(
-            args.resource_id,
-            args.limit,
-          );
-        case "get_software_details":
-          return await this.getSoftwareDetails(
-            args.software_name,
-            args.resource_id,
-          );
         default:
-          throw new Error(`Unknown tool: ${name}`);
+          return this.errorResponse(`Unknown tool: ${name}`);
       }
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${handleApiError(error)}`,
-          },
-        ],
-      };
+      return this.errorResponse(handleApiError(error));
     }
   }
 
@@ -396,12 +275,9 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               content: [{
                 type: "text",
                 text: JSON.stringify({
-                  search_type: "all_software",
-                  api_endpoint: endpoint,
-                  total_matches: transformedResults.length,
-                  ai_metadata_included: args.include_ai_metadata,
-                  software: transformedResults,
-                }, null, 2)
+                  total: transformedResults.length,
+                  items: transformedResults
+                })
               }]
             };
           }
@@ -424,8 +300,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           });
           
           const data = JSON.parse(result.content[0].text);
-          if (!data.error && data.software) {
-            allSoftware.push(...data.software);
+          if (!data.error && data.items) {
+            allSoftware.push(...data.items);
           }
         } catch (e) {
           continue;
@@ -444,11 +320,9 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         content: [{
           type: "text",
           text: JSON.stringify({
-            search_type: "aggregated_broad_search",
-            total_matches: limitedResults.length,
-            ai_metadata_included: args.include_ai_metadata,
-            software: limitedResults,
-          }, null, 2)
+            total: limitedResults.length,
+            items: limitedResults
+          })
         }]
       };
       
@@ -465,14 +339,48 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     }
   }
 
-  private async searchSoftware(args: {
+  private async searchSoftware(args: any) {
+    if (args.discover) {
+      return await this.discoverFilterValues({
+        query: args.query,
+        resource_id: args.resource,
+        sample_size: args.limit || 200
+      });
+    }
+
+    // If no query, no resource, and no tags provided, list all/popular software
+    if (!args.query && !args.resource && !args.tags) {
+      return await this.getAllSoftware({
+        include_ai_metadata: true,
+        limit: args.limit || 100
+      });
+    }
+
+    if (args.tags) {
+      return await this.searchWithFilters({
+        query: args.query,
+        resource_id: args.resource,
+        filter_tags: args.tags,
+        limit: args.limit
+      });
+    }
+
+    return await this.searchSoftwareBase({
+      query: args.query,
+      resource_id: args.resource,
+      include_ai_metadata: true,
+      limit: args.limit
+    });
+  }
+
+  private async searchSoftwareBase(args: {
     query?: string;
     resource_id?: string;
     include_ai_metadata?: boolean;
     limit?: number;
   }) {
-    const { 
-      query = '', 
+    const {
+      query = '',
       resource_id,
       include_ai_metadata = true,
       limit = 100
@@ -609,17 +517,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         content: [
           {
             type: "text",
-            text: JSON.stringify(
-              {
-                query,
-                search_type: "global",
-                total_matches: transformedResults.length,
-                ai_metadata_included: include_ai_metadata,
-                software: transformedResults,
-              },
-              null,
-              2,
-            ),
+            text: JSON.stringify({
+              total: transformedResults.length,
+              items: transformedResults
+            }),
           },
         ],
       };
@@ -636,11 +537,11 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         });
         
         const broadData = JSON.parse(broadResult.content[0].text);
-        if (!broadData.error && broadData.software) {
+        if (!broadData.error && broadData.items) {
           const queryLower = query.toLowerCase();
-          
+
           // Find software that contains the search term in name or description
-          const matches = broadData.software.filter((item: any) => 
+          const matches = broadData.items.filter((item: any) => 
             item.name?.toLowerCase().includes(queryLower) ||
             item.description?.toLowerCase().includes(queryLower)
           );
@@ -652,13 +553,9 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               content: [{
                 type: "text",
                 text: JSON.stringify({
-                  query,
-                  search_type: "substring_match",
-                  total_matches: limitedMatches.length,
-                  note: `Exact search failed, found ${limitedMatches.length} software packages containing "${query}"`,
-                  ai_metadata_included: include_ai_metadata,
-                  software: limitedMatches,
-                }, null, 2)
+                  total: limitedMatches.length,
+                  items: limitedMatches
+                })
               }]
             };
           }
@@ -679,27 +576,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         };
       }
       
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                query,
-                error: `Global search failed: ${error.message}`,
-                suggestions: {
-                  try_specific_resource: "Use list_software_by_resource with a specific resource ID",
-                  try_broader_terms: "Try broader terms like 'bio', 'tools', or common package categories",
-                  get_resources: "Use the compute-resources server's search_resources tool with include_resource_ids: true",
-                },
-                results: [],
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+      return this.errorResponse(
+        `Search failed: ${error.message}`,
+        "Try a specific resource ID or broader terms"
+      );
     }
   }
 
@@ -711,23 +591,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
 
     if (!apiKey) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                resource_id: resourceId,
-                error:
-                  "SDS API key not configured. Set SDS_API_KEY environment variable.",
-                software: [],
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+      return this.errorResponse(
+        "SDS API key not configured",
+        "Set SDS_API_KEY environment variable"
+      );
     }
 
     // Normalize the resource ID to handle legacy formats
@@ -746,39 +613,30 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       `/API_0.1/${apiKey}/rp=${normalizedResourceId},include=${apiFields.join("+")}`,
     );
 
-    if (response.status !== 200) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                error: `Resource ID not found: '${resourceId}'`,
-                solution: "REQUIRED: Use access-compute-resources:search_resources with include_resource_ids=true to find valid resource IDs",
-                example: `access-compute-resources:search_resources({"query": "${resourceId.split('.')[0]}", "include_resource_ids": true})`,
-                workflow: {
-                  step_1: "Search resources: access-compute-resources:search_resources with include_resource_ids=true",
-                  step_2: "Find your target resource from the results",
-                  step_3: "Use any ID from the 'resource_ids' array in software discovery tools",
-                  note: "Resource IDs are consistent across all ACCESS-CI services"
-                },
-                quick_reference: {
-                  common_resources: ["delta.ncsa.access-ci.org", "anvil.purdue.access-ci.org", "bridges2.psc.access-ci.org"],
-                  search_examples: ["delta", "anvil", "bridges", "gpu", "cpu"]
-                },
-                api_details: {
-                  resource_id: resourceId,
-                  normalized_resource_id: normalizedResourceId,
-                  api_error: `${response.status} ${response.statusText}`
-                },
-                software: [],
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+    // Check for error responses
+    // The SDS API may return 200 with "No data found" string, or non-200 status, or no data
+    const dataStr = response.data
+      ? (typeof response.data === 'string' ? response.data : JSON.stringify(response.data))
+      : '';
+    const isNoDataFound = dataStr.toLowerCase().includes('no data found');
+
+    if (response.status !== 200 || isNoDataFound) {
+      // Build a helpful error message
+      let errorMessage = `Resource ID not found: '${resourceId}'`;
+
+      if (isNoDataFound) {
+        errorMessage = `Resource ID not found: '${resourceId}' (no software found for this resource)`;
+      } else if (response.data && typeof response.data === 'object') {
+        // If API returned structured error, extract it
+        if (response.data.error || response.data.message) {
+          errorMessage = `Resource ID not found: '${resourceId}' (${response.data.error || response.data.message})`;
+        }
+      }
+
+      return this.errorResponse(
+        errorMessage,
+        `Use 'search_resources' from compute-resources server to find valid resource IDs. Normalized resource ID used: '${normalizedResourceId}'`
+      );
     }
 
     let softwareList = Array.isArray(response.data) ? response.data : [];
@@ -802,24 +660,17 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       content: [
         {
           type: "text",
-          text: JSON.stringify(
-            {
-              resource_id: resourceId,
-              normalized_resource_id: normalizedResourceId,
-              total_packages: softwareList.length,
-              search_query: searchQuery,
-              software: softwareList.map((pkg: any) => ({
-                name: pkg.software_name,
-                description: pkg.software_description,
-                versions: pkg.software_versions || [],
-                documentation: pkg.software_documentation,
-                website: pkg.software_web_page,
-                usage_link: pkg.software_use_link,
-              })),
-            },
-            null,
-            2,
-          ),
+          text: JSON.stringify({
+            total: softwareList.length,
+            items: softwareList.map((pkg: any) => ({
+              name: pkg.software_name,
+              description: pkg.software_description,
+              versions: pkg.software_versions || [],
+              documentation: pkg.software_documentation,
+              website: pkg.software_web_page,
+              usage_link: pkg.software_use_link,
+            }))
+          }),
         },
       ],
     };
@@ -854,7 +705,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       return allSoftware;
     }
 
-    const softwareDetails = allSoftwareData.software.find(
+    const softwareDetails = allSoftwareData.items.find(
       (pkg: any) => pkg.name.toLowerCase() === softwareName.toLowerCase(),
     );
 
@@ -890,7 +741,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     
     if (args.query) {
       // Use specific search query
-      searchResults = await this.searchSoftware({
+      searchResults = await this.searchSoftwareBase({
         query: args.query,
         resource_id: args.resource_id,
         include_ai_metadata: true,
@@ -911,8 +762,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     if (data.error) {
       return searchResults; // Return the error from the base search
     }
-    
-    let filteredSoftware = data.software || [];
+
+    let filteredSoftware = data.items || [];
     
     // Apply client-side filters on AI metadata
     if (args.filter_research_area) {
@@ -923,11 +774,23 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     }
     
     if (args.filter_tags && args.filter_tags.length > 0) {
-      const filterTagsLower = args.filter_tags.map(t => t.toLowerCase());
+      const filterTagsLower = args.filter_tags.map(t => t.toLowerCase().trim());
       filteredSoftware = filteredSoftware.filter((item: any) => {
         if (!item.ai_metadata?.tags || item.ai_metadata.tags.length === 0) return false;
-        const itemTagsLower = item.ai_metadata.tags.map((t: string) => t.toLowerCase());
-        return filterTagsLower.some(tag => itemTagsLower.some((itemTag: string) => itemTag.includes(tag)));
+        const itemTagsLower = item.ai_metadata.tags.map((t: string) => t.toLowerCase().trim());
+
+        // Match exact tags or tags that start/end with the search term (not partial substring matches)
+        return filterTagsLower.some(filterTag =>
+          itemTagsLower.some((itemTag: string) => {
+            // Exact match (highest priority)
+            if (itemTag === filterTag) return true;
+
+            // Word boundary match (e.g., "ml" matches "machine-learning" but not "xml")
+            // Split on common delimiters: hyphen, underscore, space
+            const itemTagWords = itemTag.split(/[-_\s]+/);
+            return itemTagWords.includes(filterTag);
+          })
+        );
       });
     }
     
@@ -948,22 +811,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       content: [
         {
           type: "text",
-          text: JSON.stringify(
-            {
-              query: args.query || "all software",
-              filters_applied: {
-                research_area: args.filter_research_area,
-                tags: args.filter_tags,
-                software_type: args.filter_software_type,
-                resource_id: args.resource_id,
-              },
-              total_before_filter: data.software ? data.software.length : 0,
-              total_after_filter: filteredSoftware.length,
-              software: filteredSoftware,
-            },
-            null,
-            2,
-          ),
+          text: JSON.stringify({
+            total: filteredSoftware.length,
+            items: filteredSoftware
+          }),
         },
       ],
     };
@@ -987,10 +838,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       if (resourceData.error) {
         return resourceResults;
       }
-      software = resourceData.software || [];
+      software = resourceData.items || [];
     } else if (args.query) {
       // Get software from search query
-      const searchResults = await this.searchSoftware({
+      const searchResults = await this.searchSoftwareBase({
         query: args.query,
         include_ai_metadata: true,
         limit: sampleSize,
@@ -1000,7 +851,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       if (data.error) {
         return searchResults;
       }
-      software = data.software || [];
+      software = data.items || [];
     } else {
       // Get all software for discovery
       const allResults = await this.getAllSoftware({
@@ -1012,7 +863,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       if (data.error) {
         return allResults;
       }
-      software = data.software || [];
+      software = data.items || [];
     }
     
     // Extract unique values from AI metadata

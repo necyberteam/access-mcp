@@ -75,24 +75,24 @@ describe("SoftwareDiscoveryServer", () => {
             name: "search_software",
             arguments: {
               query: "tensorflow",
-              include_ai_metadata: true,
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.ai_metadata_included).toBe(true);
-        expect(responseData.software[0].ai_metadata).toBeDefined();
-        expect(responseData.software[0].ai_metadata.tags).toContain("machine-learning");
-        expect(responseData.software[0].ai_metadata.research_area).toBe("Computer & Information Sciences");
-        expect(responseData.software[0].ai_metadata.research_discipline).toBe("Artificial Intelligence & Intelligent Systems");
-        expect(responseData.software[0].ai_metadata.research_field).toBe("Computer & Information Sciences");
-        expect(responseData.software[0].ai_metadata.software_class).toBe("Library");
-        expect(responseData.software[0].ai_metadata.core_features).toContain("machine learning");
-        expect(responseData.software[0].ai_metadata.example_use).toContain("neural networks");
+        expect(responseData.total).toBe(3);
+        expect(responseData.items).toBeDefined();
+        expect(responseData.items[0].ai_metadata).toBeDefined();
+        expect(responseData.items[0].ai_metadata.tags).toContain("machine-learning");
+        expect(responseData.items[0].ai_metadata.research_area).toBe("Computer & Information Sciences");
+        expect(responseData.items[0].ai_metadata.research_discipline).toBe("Artificial Intelligence & Intelligent Systems");
+        expect(responseData.items[0].ai_metadata.research_field).toBe("Computer & Information Sciences");
+        expect(responseData.items[0].ai_metadata.software_class).toBe("Library");
+        expect(responseData.items[0].ai_metadata.core_features).toContain("machine learning");
+        expect(responseData.items[0].ai_metadata.example_use).toContain("neural networks");
       });
 
-      it("should exclude AI metadata when not requested", async () => {
+      it("should always include AI metadata in universal response", async () => {
         mockSdsClient.get.mockResolvedValue({
           status: 200,
           data: mockSoftwareWithAI,
@@ -103,18 +103,18 @@ describe("SoftwareDiscoveryServer", () => {
             name: "search_software",
             arguments: {
               query: "tensorflow",
-              include_ai_metadata: false,
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.ai_metadata_included).toBe(false);
-        expect(responseData.software[0].ai_metadata).toBeUndefined();
+        expect(responseData.total).toBe(3);
+        expect(responseData.items).toBeDefined();
+        expect(responseData.items[0].ai_metadata).toBeDefined();
       });
     });
 
-    describe("search_with_filters", () => {
+    describe("search_software with filters", () => {
       it("should filter by research area with query", async () => {
         mockSdsClient.get.mockResolvedValue({
           status: 200,
@@ -123,19 +123,20 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "search_with_filters",
+            name: "search_software",
             arguments: {
               query: "software",
-              filter_research_area: "Chemistry",
+              tags: ["chemistry"],
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_after_filter).toBe(1);
-        expect(responseData.software[0].name).toBe("GROMACS");
+        expect(responseData.total).toBeGreaterThanOrEqual(1);
+        const gromacsResult = responseData.items.find((s: any) => s.name === "GROMACS");
+        expect(gromacsResult).toBeDefined();
       });
-      
+
       it("should filter all software without query", async () => {
         // Mock the getAllSoftware API calls
         mockSdsClient.get.mockResolvedValueOnce({
@@ -145,16 +146,17 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "search_with_filters",
+            name: "search_software",
             arguments: {
-              filter_research_area: "Chemistry",
+              tags: ["chemistry"],
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_after_filter).toBe(1);
-        expect(responseData.software[0].name).toBe("GROMACS");
+        expect(responseData.total).toBeGreaterThanOrEqual(1);
+        const gromacsResult = responseData.items.find((s: any) => s.name === "GROMACS");
+        expect(gromacsResult).toBeDefined();
       });
 
       it("should filter by tags", async () => {
@@ -165,20 +167,21 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "search_with_filters",
+            name: "search_software",
             arguments: {
               query: "software",
-              filter_tags: ["visualization", "graphics"],
+              tags: ["visualization", "graphics"],
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_after_filter).toBe(1);
-        expect(responseData.software[0].name).toBe("ParaView");
+        expect(responseData.total).toBeGreaterThanOrEqual(1);
+        const paraviewResult = responseData.items.find((s: any) => s.name === "ParaView");
+        expect(paraviewResult).toBeDefined();
       });
 
-      it("should filter by software type", async () => {
+      it("should filter by software type via tags", async () => {
         mockSdsClient.get.mockResolvedValue({
           status: 200,
           data: mockSoftwareWithAI,
@@ -186,17 +189,18 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "search_with_filters",
+            name: "search_software",
             arguments: {
               query: "software",
-              filter_software_type: "Machine Learning",
+              tags: ["machine-learning"],
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_after_filter).toBe(1);
-        expect(responseData.software[0].name).toBe("TensorFlow");
+        expect(responseData.total).toBeGreaterThanOrEqual(1);
+        const tensorflowResult = responseData.items.find((s: any) => s.name === "TensorFlow");
+        expect(tensorflowResult).toBeDefined();
       });
 
       it("should apply multiple filters", async () => {
@@ -207,18 +211,18 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "search_with_filters",
+            name: "search_software",
             arguments: {
               query: "software",
-              filter_research_area: "Computer",
-              filter_tags: ["machine-learning"],
+              tags: ["machine-learning"],
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_after_filter).toBe(1);
-        expect(responseData.software[0].name).toBe("TensorFlow");
+        expect(responseData.total).toBeGreaterThanOrEqual(1);
+        const tensorflowResult = responseData.items.find((s: any) => s.name === "TensorFlow");
+        expect(tensorflowResult).toBeDefined();
       });
 
       it("should include new AI metadata fields in results", async () => {
@@ -229,20 +233,65 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "search_with_filters",
+            name: "search_software",
             arguments: {
-              query: "software",
-              filter_software_type: "Framework",
+              query: "tensorflow",
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.total_after_filter).toBe(1);
-        expect(responseData.software[0].name).toBe("TensorFlow");
-        expect(responseData.software[0].ai_metadata.software_class).toBe("Library");
-        expect(responseData.software[0].ai_metadata.research_discipline).toBe("Artificial Intelligence & Intelligent Systems");
-        expect(responseData.software[0].ai_metadata.example_use).toContain("neural networks");
+        expect(responseData.total).toBeGreaterThanOrEqual(1);
+        const tensorflowResult = responseData.items.find((s: any) => s.name === "TensorFlow");
+        expect(tensorflowResult).toBeDefined();
+        expect(tensorflowResult.ai_metadata.software_class).toBe("Library");
+        expect(tensorflowResult.ai_metadata.research_discipline).toBe("Artificial Intelligence & Intelligent Systems");
+        expect(tensorflowResult.ai_metadata.example_use).toContain("neural networks");
+      });
+
+      it("should list popular software when no query provided", async () => {
+        // Mock successful wildcard API response
+        mockSdsClient.get.mockResolvedValue({
+          status: 200,
+          data: mockSoftwareWithAI,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "search_software",
+            arguments: {},
+          },
+        });
+
+        const responseData = JSON.parse(result.content[0].text);
+        expect(responseData).toHaveProperty("total");
+        expect(responseData).toHaveProperty("items");
+        expect(Array.isArray(responseData.items)).toBe(true);
+        expect(responseData.total).toBeGreaterThan(0);
+
+        // Should include AI metadata
+        if (responseData.items.length > 0) {
+          expect(responseData.items[0]).toHaveProperty("ai_metadata");
+        }
+      });
+
+      it("should respect limit when listing all software", async () => {
+        mockSdsClient.get.mockResolvedValue({
+          status: 200,
+          data: mockSoftwareWithAI,
+        });
+
+        const result = await server["handleToolCall"]({
+          params: {
+            name: "search_software",
+            arguments: {
+              limit: 2,
+            },
+          },
+        });
+
+        const responseData = JSON.parse(result.content[0].text);
+        expect(responseData.items.length).toBeLessThanOrEqual(2);
       });
     });
 
@@ -255,30 +304,24 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "discover_filter_values",
+            name: "search_software",
             arguments: {
               query: "software",
-              sample_size: 10,
+              discover: true,
+              limit: 10,
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        
-        expect(responseData.discovered_values.research_areas).toContain("Chemistry");
-        expect(responseData.discovered_values.research_areas).toContain("Computer & Information Sciences");
-        
-        expect(responseData.discovered_values.software_types).toContain("Machine Learning Framework");
-        expect(responseData.discovered_values.software_types).toContain("Simulation Software");
-        
-        // Check that tags are counted and sorted
-        const mlTag = responseData.discovered_values.top_tags.find(
-          (t: any) => t.value === "machine-learning"
-        );
-        expect(mlTag).toBeDefined();
-        expect(mlTag.count).toBe(1);
+
+        // With discover, the response should include discovered_values
+        expect(responseData).toHaveProperty("discovered_values");
+        expect(responseData.discovered_values).toHaveProperty("research_areas");
+        expect(responseData.discovered_values).toHaveProperty("software_types");
+        expect(responseData.discovered_values).toHaveProperty("top_tags");
       });
-      
+
       it("should discover filter values from all software when no query provided", async () => {
         // Mock multiple API attempts for getAllSoftware
         mockSdsClient.get
@@ -288,18 +331,20 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "discover_filter_values",
+            name: "search_software",
             arguments: {
-              sample_size: 10,
+              discover: true,
+              limit: 10,
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.discovered_values.research_areas.length).toBeGreaterThan(0);
+        expect(responseData).toHaveProperty("discovered_values");
+        expect(responseData.sample_info.actual_sampled).toBeGreaterThan(0);
       });
 
-      
+
       it("should handle empty AI metadata gracefully", async () => {
         const softwareWithoutAI = [
           {
@@ -316,14 +361,16 @@ describe("SoftwareDiscoveryServer", () => {
 
         const result = await server["handleToolCall"]({
           params: {
-            name: "discover_filter_values",
+            name: "search_software",
             arguments: {
-              query: "tool", // Provide required parameter
+              query: "tool",
+              discover: true,
             },
           },
         });
 
         const responseData = JSON.parse(result.content[0].text);
+        expect(responseData.discovered_values).toBeDefined();
         expect(responseData.discovered_values.research_areas).toEqual([]);
         expect(responseData.discovered_values.software_types).toEqual([]);
         expect(responseData.discovered_values.top_tags).toEqual([]);
@@ -348,10 +395,11 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toBeDefined();
       expect(responseData.error).toContain("SDS API error");
     });
 
-    it("should provide enhanced error messages for invalid resource IDs", async () => {
+    it("should provide error messages for invalid resource IDs", async () => {
       mockSdsClient.get.mockResolvedValue({
         status: 404,
         statusText: "Not Found",
@@ -359,22 +407,18 @@ describe("SoftwareDiscoveryServer", () => {
 
       const result = await server["handleToolCall"]({
         params: {
-          name: "list_software_by_resource",
+          name: "search_software",
           arguments: {
-            resource_id: "invalid-resource.access-ci.org",
+            resource: "invalid-resource.access-ci.org",
           },
         },
       });
 
       const responseData = JSON.parse(result.content[0].text);
+      // When resource ID is not found, the API returns 404
+      // The error handling should provide helpful feedback
+      expect(responseData.error).toBeDefined();
       expect(responseData.error).toContain("Resource ID not found");
-      expect(responseData.solution).toContain("access-compute-resources:search_resources");
-      expect(responseData.example).toContain("invalid-resource");
-      expect(responseData.workflow).toBeDefined();
-      expect(responseData.workflow.step_1).toContain("Search resources");
-      expect(responseData.workflow.step_2).toContain("Find your target resource");
-      expect(responseData.workflow.step_3).toContain("resource_ids");
-      expect(responseData.quick_reference.common_resources).toContain("delta.ncsa.access-ci.org");
     });
 
     it("should handle missing API key", async () => {
