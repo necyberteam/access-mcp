@@ -14,117 +14,121 @@ describe("NSFAwardsServer Integration Tests", () => {
       // Using a well-known NSF award that should exist
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_nsf_award",
-          arguments: { award_number: "2138259" }
+          name: "search_nsf_awards",
+          arguments: { id: "2138259" }
         }
       });
 
       expect(result.content).toHaveLength(1);
       expect(result.content[0].type).toBe("text");
-      expect(result.content[0].text).toContain("NSF Award");
-      expect(result.content[0].text).toContain("2138259");
-      expect(result.content[0].text).toContain("Project Information");
-      expect(result.content[0].text).toContain("Funding Details");
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total", 1);
+      expect(response).toHaveProperty("items");
+      expect(response.items[0].awardNumber).toBe("2138259");
     }, 15000); // 15 second timeout
 
     it("should search for awards by PI name", async () => {
       // Search for a common name that should return results
       const result = await server["handleToolCall"]({
         params: {
-          name: "find_nsf_awards_by_pi", 
-          arguments: { pi_name: "Smith", limit: 3 }
+          name: "search_nsf_awards",
+          arguments: { pi: "Smith", limit: 3 }
         }
       });
 
       expect(result.content).toHaveLength(1);
       expect(result.content[0].type).toBe("text");
-      expect(result.content[0].text).toContain("NSF Awards for PI: Smith");
-      
-      // Should either find awards or show "No awards found"
-      const text = result.content[0].text;
-      const foundAwards = text.includes("Found") && !text.includes("Found 0");
-      const noAwards = text.includes("No awards found");
-      
-      expect(foundAwards || noAwards).toBe(true);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total");
+      expect(response).toHaveProperty("items");
+      expect(Array.isArray(response.items)).toBe(true);
     }, 15000);
 
     it("should search for awards by institution", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "find_nsf_awards_by_institution",
-          arguments: { institution_name: "Stanford University", limit: 3 }
+          name: "search_nsf_awards",
+          arguments: { institution: "Stanford University", limit: 3 }
         }
       });
 
       expect(result.content).toHaveLength(1);
       expect(result.content[0].type).toBe("text");
-      expect(result.content[0].text).toContain("NSF Awards for Institution: Stanford University");
-      
-      // Stanford should have NSF awards
-      expect(result.content[0].text).toMatch(/Found \d+ awards/);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total");
+      expect(response).toHaveProperty("items");
+      expect(response.total).toBeGreaterThan(0); // Stanford should have NSF awards
     }, 15000);
 
     it("should search for awards by keywords", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "find_nsf_awards_by_keywords",
-          arguments: { keywords: "computer science", limit: 3 }
+          name: "search_nsf_awards",
+          arguments: { query: "computer science", limit: 3 }
         }
       });
 
-      expect(result.content).toHaveLength(1);  
+      expect(result.content).toHaveLength(1);
       expect(result.content[0].type).toBe("text");
-      expect(result.content[0].text).toContain('NSF Awards matching: "computer science"');
-      
-      // Should find computer science awards
-      expect(result.content[0].text).toMatch(/Found \d+ awards/);
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total");
+      expect(response).toHaveProperty("items");
+      expect(response.total).toBeGreaterThan(0); // Should find computer science awards
     }, 15000);
 
     it("should handle personnel search", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "find_nsf_awards_by_personnel",
-          arguments: { person_name: "Johnson", limit: 2 }
+          name: "search_nsf_awards",
+          arguments: { pi: "Johnson", limit: 2 }
         }
       });
 
       expect(result.content).toHaveLength(1);
-      expect(result.content[0].type).toBe("text");  
-      expect(result.content[0].text).toContain("NSF Awards for Personnel: Johnson");
-      
-      // Should either find results or show no awards
-      const text = result.content[0].text;
-      expect(text).toMatch(/Found \d+ awards/);
+      expect(result.content[0].type).toBe("text");
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total");
+      expect(response).toHaveProperty("items");
     }, 15000);
 
     it("should handle non-existent award gracefully", async () => {
-      await expect(server["handleToolCall"]({
+      const result = await server["handleToolCall"]({
         params: {
-          name: "get_nsf_award",
-          arguments: { award_number: "9999999" }
+          name: "search_nsf_awards",
+          arguments: { id: "9999999" }
         }
-      })).rejects.toThrow(/No NSF award found with number: 9999999/);
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("error");
     }, 10000);
 
     it("should format award results with required fields", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "find_nsf_awards_by_institution",
-          arguments: { institution_name: "MIT", limit: 1 }
+          name: "search_nsf_awards",
+          arguments: { institution: "MIT", limit: 1 }
         }
       });
 
-      const text = result.content[0].text;
-      
-      if (text.includes("Found") && !text.includes("Found 0")) {
-        // If awards were found, check formatting
-        expect(text).toContain("Award");
-        expect(text).toContain("Title");
-        expect(text).toContain("PI");
-        expect(text).toContain("Institution");
-        expect(text).toContain("Amount");
-        expect(text).toContain("Period");
-        expect(text).toContain("Program");
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total");
+      expect(response).toHaveProperty("items");
+
+      if (response.total > 0 && response.items.length > 0) {
+        // Check that awards have required fields
+        const award = response.items[0];
+        expect(award).toHaveProperty("awardNumber");
+        expect(award).toHaveProperty("title");
+        expect(award).toHaveProperty("principalInvestigator");
+        expect(award).toHaveProperty("institution");
+        expect(award).toHaveProperty("totalIntendedAward");
       }
     }, 15000);
   });
@@ -132,11 +136,11 @@ describe("NSFAwardsServer Integration Tests", () => {
   describe("Error Handling with Real API", () => {
     it("should handle API rate limiting gracefully", async () => {
       // Make multiple rapid requests to potentially trigger rate limiting
-      const promises = Array(5).fill(0).map((_, i) => 
+      const promises = Array(5).fill(0).map((_, i) =>
         server["handleToolCall"]({
           params: {
-            name: "get_nsf_award",
-            arguments: { award_number: "2138259" }
+            name: "search_nsf_awards",
+            arguments: { id: "2138259" }
           }
         }).catch(err => ({ error: err.message }))
       );
@@ -153,25 +157,25 @@ describe("NSFAwardsServer Integration Tests", () => {
     it("should return properly structured award data", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_nsf_award",
-          arguments: { award_number: "2138259" }
+          name: "search_nsf_awards",
+          arguments: { id: "2138259" }
         }
       });
 
-      const text = result.content[0].text;
-      
-      // Validate required sections are present
-      expect(text).toContain("Project Information");
-      expect(text).toContain("Funding Details");
-      expect(text).toContain("Abstract");
-      expect(text).toContain("Research Impact");
-      
-      // Validate key fields are present
-      expect(text).toContain("**Title**:");
-      expect(text).toContain("**Principal Investigator**:");
-      expect(text).toContain("**Institution**:");
-      expect(text).toContain("**Total Award Amount**:");
-      expect(text).toContain("**Project Period**:");
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total");
+      expect(response).toHaveProperty("items");
+
+      // Validate award structure
+      const award = response.items[0];
+      expect(award).toHaveProperty("awardNumber");
+      expect(award).toHaveProperty("title");
+      expect(award).toHaveProperty("principalInvestigator");
+      expect(award).toHaveProperty("institution");
+      expect(award).toHaveProperty("totalIntendedAward");
+      expect(award).toHaveProperty("abstract");
+      expect(award).toHaveProperty("startDate");
+      expect(award).toHaveProperty("endDate");
     }, 15000);
   });
 });

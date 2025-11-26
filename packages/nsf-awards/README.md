@@ -4,37 +4,60 @@ A Model Context Protocol (MCP) server for accessing NSF awards and funding infor
 
 ## Usage Examples
 
-### **Search by Principal Investigator**
+### **Search & Discovery**
 
 ```
-"Find NSF awards for Dr. Jane Smith"
-"Show me all awards where John Doe is the PI"
-"What grants has Maria Garcia received from NSF?"
+"Awards for PI Dr. Jane Smith"
+"Award #2138259 details"
+"Computer science awards at MIT since 2020"
+"Awards with 'quantum computing' keywords"
+"Personnel search for Dr. Johnson (PI or Co-PI)"
 ```
 
-### **Search by Personnel**
+### **Analysis & Filtering**
 
 ```
-"Find awards where Dr. Smith is PI or Co-PI"
-"Show me all NSF funding for researchers at MIT"
-"What awards include Dr. Johnson as personnel?"
+"Stanford awards over $500K"
+"Largest materials science awards, 2020-2024"
+"All Co-PIs on award #1947282"
+"Physics awards by funding amount"
 ```
 
-### **Get Award Details**
+## Tools
 
-```
-"Tell me about NSF award 2138259"
-"Show me the details of grant number 1947282"
-"What is the funding amount for award 2045674?"
+### `search_nsf_awards`
+
+Comprehensive search for NSF awards and funding information. Search by award number, principal investigator, personnel (PI/Co-PI), institution, or research keywords. Returns detailed award information including funding amounts, project dates, abstracts, and team members.
+
+**Parameters:**
+
+- `id` (string, optional): Get specific NSF award by award number. Returns complete award details with full abstract
+- `pi` (string, optional): Search for awards where this person is the Principal Investigator. Use for tracking researcher's grant history
+- `institution` (string, optional): Search for all awards granted to this institution. Use to discover institutional research portfolio
+- `query` (string, optional): Search awards by keywords in titles and abstracts. Use to find projects in specific research domains
+- `primary_only` (boolean, optional): When searching by institution, only return awards where the institution is the PRIMARY recipient (excludes collaborative/co-PI awards from other institutions). Default: false
+- `limit` (number, optional): Maximum number of awards to return (default: 10, max: 100)
+
+**Examples:**
+
+```typescript
+// Get specific award details
+search_nsf_awards({ id: "2138259" })
+
+// Find awards by PI
+search_nsf_awards({ pi: "John Smith", limit: 10 })
+
+// Find awards by institution (all awards including collaborations)
+search_nsf_awards({ institution: "Stanford University", limit: 20 })
+
+// Find awards where institution is PRIMARY recipient only
+search_nsf_awards({ institution: "Stanford University", primary_only: true, limit: 20 })
+
+// Search awards by keywords
+search_nsf_awards({ query: "machine learning", limit: 10 })
 ```
 
-### **Funding Analysis**
-
-```
-"How much NSF funding does Stanford receive annually?"
-"What's the average award size in computer science?"
-"Show me the largest NSF awards in the last 5 years"
-```
+**Returns:** Award information including award number, title, PI/Co-PIs, institution, funding amounts, project dates, program details, and abstract.
 
 ## Installation
 
@@ -42,82 +65,60 @@ A Model Context Protocol (MCP) server for accessing NSF awards and funding infor
 npm install -g @access-mcp/nsf-awards
 ```
 
+### Configuration
+
+The NSF Awards server runs in **HTTP mode** (not stdio mode) to enable inter-server communication with the Allocations server.
+
 Add to your Claude Desktop configuration:
 
 ```json
 {
   "mcpServers": {
-    "nsf-awards": {
+    "access-nsf-awards": {
       "command": "npx",
-      "args": ["@access-mcp/nsf-awards"]
+      "args": ["@access-mcp/nsf-awards"],
+      "env": {
+        "PORT": "3007"
+      }
     }
   }
 }
 ```
 
-## Available Tools
+**Important:**
+- The `PORT` environment variable is **required** to run the server in HTTP mode
+- Port 3007 is the standard port for NSF Awards server
+- This allows the Allocations server to make HTTP requests for NSF funding cross-referencing
 
-### `find_nsf_awards_by_pi`
-Search for NSF awards where a specific person is the Principal Investigator.
+### Enable NSF Integration in Allocations Server
 
-**Parameters:**
-- `pi_name` (string): Principal investigator name to search for
-- `limit` (number, optional): Maximum number of awards to return (default: 10)
-
-### `find_nsf_awards_by_personnel`
-Search for NSF awards where a person is listed as PI or Co-PI.
-
-**Parameters:**
-- `person_name` (string): Person name to search for in award personnel
-- `limit` (number, optional): Maximum number of awards to return (default: 10)
-
-### `get_nsf_award`
-Get detailed information about a specific NSF award by award number.
-
-**Parameters:**
-- `award_number` (string): NSF award number (e.g., '2138259')
-
-### `find_nsf_awards_by_institution`
-Search for NSF awards by institution name.
-
-**Parameters:**
-- `institution_name` (string): Institution name to search for
-- `limit` (number, optional): Maximum number of awards to return (default: 10)
-
-### `search_nsf_awards_by_keywords`
-Search NSF awards by keywords in titles and abstracts.
-
-**Parameters:**
-- `keywords` (string): Keywords to search for in award titles and abstracts
-- `limit` (number, optional): Maximum number of awards to return (default: 10)
-
-## Installation
-
-```bash
-cd packages/nsf-awards
-npm install
-npm run build
-```
-
-## Usage
-
-### Direct execution:
-```bash
-npm start
-```
-
-### As MCP Server:
-Add to your MCP client configuration:
+To enable NSF award cross-referencing in the Allocations server, add this configuration:
 
 ```json
 {
   "mcpServers": {
-    "nsf-awards": {
-      "command": "access-mcp-nsf-awards"
+    "access-nsf-awards": {
+      "command": "npx",
+      "args": ["@access-mcp/nsf-awards"],
+      "env": {
+        "PORT": "3007"
+      }
+    },
+    "access-allocations": {
+      "command": "npx",
+      "args": ["@access-mcp/allocations"],
+      "env": {
+        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3007"
+      }
     }
   }
 }
 ```
+
+This enables features like:
+- Institutional funding profiles (ACCESS + NSF)
+- PI/Co-PI award history
+- Funding vs. computational usage analysis
 
 ## Data Source
 
@@ -128,24 +129,29 @@ This server uses the official NSF Awards API:
 
 ## Example Queries
 
-1. **Find awards by researcher**:
+1. **Get specific award details**:
    ```
-   find_nsf_awards_by_pi: {"pi_name": "John Smith"}
+   search_nsf_awards: {"award_number": "2138259"}
    ```
 
-2. **Get specific award details**:
+2. **Find awards by researcher**:
    ```
-   get_nsf_award: {"award_number": "2138259"}
+   search_nsf_awards: {"pi": "John Smith", "limit": 10}
    ```
 
 3. **Search by institution**:
    ```
-   find_nsf_awards_by_institution: {"institution_name": "Stanford University"}
+   search_nsf_awards: {"institution": "Stanford University", "limit": 20}
    ```
 
 4. **Search by research area**:
    ```
-   search_nsf_awards_by_keywords: {"keywords": "machine learning"}
+   search_nsf_awards: {"keywords": "machine learning", "limit": 10}
+   ```
+
+5. **Find all projects involving a researcher (PI or Co-PI)**:
+   ```
+   search_nsf_awards: {"personnel": "Jane Doe", "limit": 15}
    ```
 
 ## Integration with Other Servers

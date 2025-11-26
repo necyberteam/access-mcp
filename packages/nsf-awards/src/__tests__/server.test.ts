@@ -15,60 +15,44 @@ describe("NSFAwardsServer", () => {
   });
 
   describe("Tool Registration", () => {
-    it("should register all expected tools", () => {
+    it("should register search_nsf_awards tool", () => {
       const tools = server["getTools"]();
-      
-      expect(tools).toHaveLength(5);
-      
-      const toolNames = tools.map(tool => tool.name);
-      expect(toolNames).toEqual([
-        "find_nsf_awards_by_pi",
-        "find_nsf_awards_by_personnel", 
-        "get_nsf_award",
-        "find_nsf_awards_by_institution",
-        "find_nsf_awards_by_keywords"
-      ]);
+
+      expect(tools).toHaveLength(1);
+      expect(tools[0].name).toBe("search_nsf_awards");
     });
 
-    it("should have proper input schemas for all tools", () => {
+    it("should have proper input schema", () => {
       const tools = server["getTools"]();
-      
-      for (const tool of tools) {
-        expect(tool.inputSchema).toBeDefined();
-        expect(tool.inputSchema.type).toBe("object");
-        expect(tool.inputSchema.properties).toBeDefined();
-        expect(tool.inputSchema.required).toBeDefined();
-      }
+      const tool = tools[0];
+
+      expect(tool.inputSchema).toBeDefined();
+      expect(tool.inputSchema.type).toBe("object");
+      expect(tool.inputSchema.properties).toBeDefined();
+      expect(tool.inputSchema.properties.id).toBeDefined();
+      expect(tool.inputSchema.properties.query).toBeDefined();
+      expect(tool.inputSchema.properties.pi).toBeDefined();
+      expect(tool.inputSchema.properties.institution).toBeDefined();
     });
   });
 
   describe("Tool Call Handler", () => {
-    it("should route tool calls correctly", async () => {
-      const findPISpy = vi.spyOn(server as any, "find_nsf_awards_by_pi").mockResolvedValue({
-        content: [{ type: "text", text: "PI results" }]
-      });
-
-      await server["handleToolCall"]({
-        params: {
-          name: "find_nsf_awards_by_pi",
-          arguments: { pi_name: "Test PI" }
-        }
-      });
-
-      expect(findPISpy).toHaveBeenCalledWith({ pi_name: "Test PI" });
-    });
-
-    it("should throw error for unknown tool", async () => {
-      await expect(server["handleToolCall"]({
+    it("should handle unknown tool with error response", async () => {
+      const result = await server["handleToolCall"]({
         params: {
           name: "unknown_tool",
           arguments: {}
         }
-      })).rejects.toThrow("Unknown tool: unknown_tool");
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("error");
+      expect(response.error).toContain("Unknown tool");
     });
   });
 
-  describe("NSF Award Fetching", () => {
+  describe("Search by Award ID", () => {
     const mockAwardResponse = {
       response: {
         award: [{
@@ -96,12 +80,20 @@ describe("NSFAwardsServer", () => {
         json: async () => mockAwardResponse
       });
 
-      const result = await server["get_nsf_award"]({ award_number: "2138259" });
-      
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { id: "2138259" }
+        }
+      });
+
       expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain("NSF Award 2138259");
-      expect(result.content[0].text).toContain("Test Award Title");
-      expect(result.content[0].text).toContain("John Doe");
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total", 1);
+      expect(response).toHaveProperty("items");
+      expect(response.items[0].awardNumber).toBe("2138259");
+      expect(response.items[0].title).toBe("Test Award Title");
+      expect(response.items[0].principalInvestigator).toBe("John Doe");
     });
 
     it("should handle award not found", async () => {
@@ -110,8 +102,17 @@ describe("NSFAwardsServer", () => {
         json: async () => ({ response: { award: [] } })
       });
 
-      await expect(server["get_nsf_award"]({ award_number: "9999999" }))
-        .rejects.toThrow("No NSF award found with number: 9999999");
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { id: "9999999" }
+        }
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("error");
+      expect(response.error).toContain("No NSF award found");
     });
 
     it("should handle API errors gracefully", async () => {
@@ -121,12 +122,20 @@ describe("NSFAwardsServer", () => {
         statusText: "Internal Server Error"
       });
 
-      await expect(server["get_nsf_award"]({ award_number: "2138259" }))
-        .rejects.toThrow("NSF API request failed: 500 Internal Server Error");
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { id: "2138259" }
+        }
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("error");
     });
   });
 
-  describe("PI Search", () => {
+  describe("Search by PI", () => {
     const mockPISearchResponse = {
       response: {
         award: [
@@ -143,7 +152,7 @@ describe("NSFAwardsServer", () => {
           },
           {
             id: "1234567",
-            title: "Award 2", 
+            title: "Award 2",
             awardeeName: "University B",
             piFirstName: "John",
             piLastName: "Smith",
@@ -162,16 +171,19 @@ describe("NSFAwardsServer", () => {
         json: async () => mockPISearchResponse
       });
 
-      const result = await server["find_nsf_awards_by_pi"]({ 
-        pi_name: "John Smith",
-        limit: 10 
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", limit: 10 }
+        }
       });
 
       expect(result.content).toHaveLength(1);
-      expect(result.content[0].text).toContain("NSF Awards for PI: John Smith");
-      expect(result.content[0].text).toContain("Found 2 awards");
-      expect(result.content[0].text).toContain("Award 1");
-      expect(result.content[0].text).toContain("Award 2");
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total", 2);
+      expect(response).toHaveProperty("items");
+      expect(response.items).toHaveLength(2);
+      expect(response.items[0].principalInvestigator).toBe("John Smith");
     });
 
     it("should handle no results found", async () => {
@@ -190,12 +202,17 @@ describe("NSFAwardsServer", () => {
           json: async () => ({ response: { award: [] } })
         });
 
-      const result = await server["find_nsf_awards_by_pi"]({ 
-        pi_name: "NonExistent Person" 
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "NonExistent Person" }
+        }
       });
 
-      expect(result.content[0].text).toContain("Found 0 awards");
-      expect(result.content[0].text).toContain("No awards found");
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total", 0);
+      expect(response).toHaveProperty("items");
+      expect(response.items).toHaveLength(0);
     });
 
     it("should respect limit parameter", async () => {
@@ -204,78 +221,31 @@ describe("NSFAwardsServer", () => {
         json: async () => mockPISearchResponse
       });
 
-      const result = await server["find_nsf_awards_by_pi"]({ 
-        pi_name: "John Smith",
-        limit: 1
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", limit: 1 }
+        }
       });
 
-      // With limit 1, searchNSFAwardsByPI returns limited results
-      // The actual behavior depends on the implementation in searchNSFAwardsByPI
-      const text = result.content[0].text;
-      expect(text).toContain("NSF Awards for PI: John Smith");
-      expect(text).toMatch(/Found \d+ awards/); // Should show some number
-      
-      // Should have at least one award result
-      expect(text).toContain("**1. Award");
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total");
+      expect(response).toHaveProperty("items");
+      // Limit is applied in the search method, so we get limited results
+      expect(response.items.length).toBeLessThanOrEqual(1);
     });
   });
 
-  describe("Personnel Search", () => {
-    it("should search both PI and Co-PI fields", async () => {
-      const mockPIResponse = {
-        response: {
-          award: [{
-            id: "1111111",
-            title: "PI Award",
-            piFirstName: "Jane",
-            piLastName: "Doe"
-          }]
-        }
-      };
-
-      const mockCoPIResponse = {
-        response: {
-          award: [{
-            id: "2222222", 
-            title: "Co-PI Award",
-            piFirstName: "Someone",
-            piLastName: "Else",
-            coPDPI: "Jane Doe; Other Person"
-          }]
-        }
-      };
-
-      // First call (PI search) returns one result
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockPIResponse
-      });
-
-      // Second call (Co-PI search) returns another result  
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: async () => mockCoPIResponse
-      });
-
-      const result = await server["find_nsf_awards_by_personnel"]({
-        person_name: "Jane Doe"
-      });
-
-      expect(result.content[0].text).toContain("NSF Awards for Personnel: Jane Doe");
-      expect(mockFetch).toHaveBeenCalledTimes(2); // Should call both PI and Co-PI endpoints
-    });
-  });
-
-  describe("Institution Search", () => {
+  describe("Search by Institution", () => {
     it("should search awards by institution", async () => {
       const mockInstitutionResponse = {
         response: {
           award: [{
-            id: "3333333",
-            title: "Institution Award",
+            id: "1111111",
+            title: "PI Award",
             awardeeName: "Stanford University",
-            piFirstName: "Test",
-            piLastName: "PI"
+            piFirstName: "Jane",
+            piLastName: "Doe"
           }]
         }
       };
@@ -285,25 +255,31 @@ describe("NSFAwardsServer", () => {
         json: async () => mockInstitutionResponse
       });
 
-      const result = await server["find_nsf_awards_by_institution"]({
-        institution_name: "Stanford University"
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { institution: "Stanford University" }
+        }
       });
 
-      expect(result.content[0].text).toContain("NSF Awards for Institution: Stanford University");
-      expect(result.content[0].text).toContain("Found 1 awards");
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total", 1);
+      expect(response).toHaveProperty("items");
+      expect(response.items[0].institution).toContain("Stanford");
     });
   });
 
-  describe("Keyword Search", () => {
+  describe("Search by Keywords", () => {
     it("should search awards by keywords", async () => {
       const mockKeywordResponse = {
         response: {
           award: [{
-            id: "4444444",
+            id: "2222222",
             title: "Machine Learning Research",
-            abstractText: "This project focuses on machine learning algorithms...",
+            awardeeName: "MIT",
             piFirstName: "AI",
-            piLastName: "Researcher"
+            piLastName: "Researcher",
+            abstractText: "This project focuses on machine learning algorithms..."
           }]
         }
       };
@@ -313,12 +289,17 @@ describe("NSFAwardsServer", () => {
         json: async () => mockKeywordResponse
       });
 
-      const result = await server["find_nsf_awards_by_keywords"]({
-        keywords: "machine learning"
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { query: "machine learning" }
+        }
       });
 
-      expect(result.content[0].text).toContain('NSF Awards matching: "machine learning"');
-      expect(result.content[0].text).toContain("Found 1 awards");
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("total", 1);
+      expect(response).toHaveProperty("items");
+      expect(response.items[0].abstract).toContain("machine learning");
     });
   });
 
@@ -327,17 +308,17 @@ describe("NSFAwardsServer", () => {
       const rawAward = {
         id: "1234567",
         title: "Test Title",
-        awardeeName: "Test University", 
-        piFirstName: "John",
-        piLastName: "Doe",
-        coPDPI: "Jane Smith; Bob Johnson",
-        estimatedTotalAmt: "500000",
-        fundsObligatedAmt: "400000",
-        startDate: "09/01/2021",
-        expDate: "08/31/2024",
+        awardeeName: "Test University",
+        piFirstName: "Test",
+        piLastName: "Researcher",
+        coPDPI: "Co-PI One; Co-PI Two",
+        estimatedTotalAmt: "1000000",
+        fundsObligatedAmt: "500000",
+        startDate: "01/01/2023",
+        expDate: "12/31/2025",
         abstractText: "Test abstract",
-        primaryProgram: "Computer Science",
-        poName: "Program Officer",
+        primaryProgram: "Test Program",
+        poName: "Test Officer",
         ueiNumber: "TEST123"
       };
 
@@ -346,34 +327,27 @@ describe("NSFAwardsServer", () => {
       expect(parsed.awardNumber).toBe("1234567");
       expect(parsed.title).toBe("Test Title");
       expect(parsed.institution).toBe("Test University");
-      expect(parsed.principalInvestigator).toBe("John Doe");
-      expect(parsed.coPIs).toEqual(["Jane Smith", "Bob Johnson"]);
-      expect(parsed.totalIntendedAward).toBe("$500,000");
-      expect(parsed.totalAwardedToDate).toBe("$400,000");
-      expect(parsed.startDate).toBe("09/01/2021");
-      expect(parsed.endDate).toBe("08/31/2024");
-      expect(parsed.abstract).toBe("Test abstract");
-      expect(parsed.primaryProgram).toBe("Computer Science");
-      expect(parsed.programOfficer).toBe("Program Officer");
-      expect(parsed.ueiNumber).toBe("TEST123");
+      expect(parsed.principalInvestigator).toBe("Test Researcher");
+      expect(parsed.coPIs).toHaveLength(2);
+      expect(parsed.coPIs[0]).toBe("Co-PI One");
+      expect(parsed.coPIs[1]).toBe("Co-PI Two");
+      expect(parsed.totalIntendedAward).toBe("$1,000,000");
+      expect(parsed.totalAwardedToDate).toBe("$500,000");
     });
 
-    it("should handle missing award data gracefully", async () => {
-      const incompleteAward = {
+    it("should handle missing fields gracefully", async () => {
+      const rawAward = {
         id: "1234567"
-        // Missing most fields
+        // Most fields missing
       };
 
-      const parsed = server["parseNSFAward"](incompleteAward);
+      const parsed = server["parseNSFAward"](rawAward);
 
       expect(parsed.awardNumber).toBe("1234567");
       expect(parsed.title).toBe("No title available");
       expect(parsed.institution).toBe("Unknown institution");
       expect(parsed.principalInvestigator).toBe("Unknown PI");
-      expect(parsed.coPIs).toEqual([]);
-      expect(parsed.totalIntendedAward).toBe("Amount not available");
-      expect(parsed.totalAwardedToDate).toBe("Amount not available");
-      expect(parsed.abstract).toBe("No abstract available");
+      expect(parsed.coPIs).toHaveLength(0);
     });
   });
 
@@ -382,8 +356,16 @@ describe("NSFAwardsServer", () => {
       mockFetch.mockClear();
       mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
-      await expect(server["get_nsf_award"]({ award_number: "1234567" }))
-        .rejects.toThrow("Failed to fetch NSF award");
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { id: "1234567" }
+        }
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("error");
     });
 
     it("should handle malformed API responses", async () => {
@@ -393,8 +375,190 @@ describe("NSFAwardsServer", () => {
         json: async () => ({ invalid: "response" })
       });
 
-      await expect(server["get_nsf_award"]({ award_number: "1234567" }))
-        .rejects.toThrow("No NSF award found with number: 1234567");
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { id: "1234567" }
+        }
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("error");
+      expect(response.error).toContain("No NSF award found");
+    });
+
+    it("should require at least one search parameter", async () => {
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: {}
+        }
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response).toHaveProperty("error");
+      expect(response.error).toContain("Provide");
+    });
+  });
+
+  describe("Institution Filtering (primary_only)", () => {
+    it("should filter to primary institution only when primary_only=true", async () => {
+      const mockAwards = [
+        {
+          id: "1",
+          title: "Test Award 1",
+          awardeeName: "University of Chicago",
+          piFirstName: "John",
+          piLastName: "Doe",
+          estimatedTotalAmt: "100000",
+          fundsObligatedAmt: "100000",
+          startDate: "2024-01-01",
+          expDate: "2025-01-01",
+          abstractText: "Test abstract",
+          primaryProgram: "Test Program",
+          poName: "Test Officer",
+          ueiNumber: "123456"
+        },
+        {
+          id: "2",
+          title: "Collaborative Award",
+          awardeeName: "Stanford University",
+          piFirstName: "Jane",
+          piLastName: "Smith",
+          estimatedTotalAmt: "200000",
+          fundsObligatedAmt: "200000",
+          startDate: "2024-01-01",
+          expDate: "2025-01-01",
+          abstractText: "Collaborative project",
+          primaryProgram: "Test Program",
+          poName: "Test Officer",
+          ueiNumber: "789012"
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ response: { award: mockAwards } })
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: {
+            institution: "University of Chicago",
+            primary_only: true,
+            limit: 10
+          }
+        }
+      });
+
+      const response = JSON.parse(result.content[0].text);
+
+      // Should only include University of Chicago award
+      expect(response.total).toBe(1);
+      expect(response.items).toHaveLength(1);
+      expect(response.items[0].institution).toBe("University of Chicago");
+    });
+
+    it("should include all awards when primary_only=false", async () => {
+      const mockAwards = [
+        {
+          id: "1",
+          title: "Test Award 1",
+          awardeeName: "University of Chicago",
+          piFirstName: "John",
+          piLastName: "Doe",
+          estimatedTotalAmt: "100000",
+          fundsObligatedAmt: "100000",
+          startDate: "2024-01-01",
+          expDate: "2025-01-01",
+          abstractText: "Test abstract",
+          primaryProgram: "Test Program",
+          poName: "Test Officer",
+          ueiNumber: "123456"
+        },
+        {
+          id: "2",
+          title: "Collaborative Award",
+          awardeeName: "Stanford University",
+          piFirstName: "Jane",
+          piLastName: "Smith",
+          estimatedTotalAmt: "200000",
+          fundsObligatedAmt: "200000",
+          startDate: "2024-01-01",
+          expDate: "2025-01-01",
+          abstractText: "Collaborative project",
+          primaryProgram: "Test Program",
+          poName: "Test Officer",
+          ueiNumber: "789012"
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ response: { award: mockAwards } })
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: {
+            institution: "University of Chicago",
+            primary_only: false,
+            limit: 10
+          }
+        }
+      });
+
+      const response = JSON.parse(result.content[0].text);
+
+      // Should include both awards
+      expect(response.total).toBe(2);
+      expect(response.items).toHaveLength(2);
+    });
+
+    it("should handle institution name variations", async () => {
+      const mockAwards = [
+        {
+          id: "1",
+          title: "Test Award",
+          awardeeName: "Univ of Chicago",
+          piFirstName: "John",
+          piLastName: "Doe",
+          estimatedTotalAmt: "100000",
+          fundsObligatedAmt: "100000",
+          startDate: "2024-01-01",
+          expDate: "2025-01-01",
+          abstractText: "Test abstract",
+          primaryProgram: "Test Program",
+          poName: "Test Officer",
+          ueiNumber: "123456"
+        }
+      ];
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ response: { award: mockAwards } })
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: {
+            institution: "University of Chicago",
+            primary_only: true,
+            limit: 10
+          }
+        }
+      });
+
+      const response = JSON.parse(result.content[0].text);
+
+      // Should match despite name variation
+      expect(response.total).toBe(1);
+      expect(response.items[0].institution).toContain("Chicago");
     });
   });
 });

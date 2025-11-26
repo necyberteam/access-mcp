@@ -27,122 +27,40 @@ export class NSFAwardsServer extends BaseAccessServer {
   protected getTools() {
     return [
       {
-        name: "find_nsf_awards_by_pi",
-        description: "Search for NSF awards where a specific person is listed as the Principal Investigator. Use this to find funding for a researcher's projects, track their grant history, or identify research they are leading.",
+        name: "search_nsf_awards",
+        description: "Search NSF awards and funding. Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
-            pi_name: {
+            id: {
               type: "string",
-              description: "Principal investigator name to search for",
-              examples: [
-                "John Smith",
-                "Jane Doe",
-                "Smith"
-              ]
+              description: "Award number (e.g., '2138259')"
+            },
+            query: {
+              type: "string",
+              description: "Search keywords in titles/abstracts"
+            },
+            pi: {
+              type: "string",
+              description: "Principal investigator name"
+            },
+            institution: {
+              type: "string",
+              description: "Institution name"
+            },
+            primary_only: {
+              type: "boolean",
+              description: "When searching by institution, only return awards where the institution is the PRIMARY recipient (excludes collaborative/co-PI awards from other institutions). Default: false",
+              default: false
             },
             limit: {
               type: "number",
-              description: "Maximum number of awards to return",
-              default: 10,
-            },
-          },
-          required: ["pi_name"],
-        },
-      },
-      {
-        name: "find_nsf_awards_by_personnel",
-        description: "Search for NSF awards where a person is listed as either Principal Investigator or Co-PI. Use this when you want to find all projects someone is involved with, regardless of their role.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            person_name: {
-              type: "string",
-              description: "Person name to search for in award personnel (PI or Co-PI)",
-              examples: [
-                "John Smith",
-                "Jane Doe",
-                "Robert Johnson"
-              ]
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of awards to return",
-              default: 10,
-            },
-          },
-          required: ["person_name"],
-        },
-      },
-      {
-        name: "get_nsf_award",
-        description: "Retrieve comprehensive details about a specific NSF award including full abstract, funding amounts, project dates, PI/Co-PI information, and program details. Use this when you have an award number and need complete project information.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            award_number: {
-              type: "string",
-              description: "NSF award number",
-              examples: [
-                "2138259",
-                "1948997",
-                "2229876"
-              ]
-            },
-          },
-          required: ["award_number"],
-        },
-      },
-      {
-        name: "find_nsf_awards_by_institution",
-        description: "Search for all NSF awards granted to a specific institution. Use this to discover research funding at universities and research centers, track institutional portfolios, or find collaborators at specific organizations.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            institution_name: {
-              type: "string",
-              description: "Institution name to search for",
-              examples: [
-                "Stanford University",
-                "MIT",
-                "University of California",
-                "Carnegie Mellon University"
-              ]
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of awards to return",
-              default: 10,
-            },
-          },
-          required: ["institution_name"],
-        },
-      },
-      {
-        name: "find_nsf_awards_by_keywords",
-        description: "Search for NSF awards by keywords appearing in the project title or abstract. Use this to find research projects in specific domains, discover related work, or identify potential collaborators working on similar topics.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            keywords: {
-              type: "string",
-              description: "Keywords to search for in award titles and abstracts",
-              examples: [
-                "machine learning",
-                "climate change",
-                "genomics",
-                "quantum computing"
-              ]
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of awards to return",
-              default: 10,
-            },
-          },
-          required: ["keywords"],
-        },
-      },
+              description: "Max results (default: 10)",
+              default: 10
+            }
+          }
+        }
+      }
     ];
   }
 
@@ -153,19 +71,15 @@ export class NSFAwardsServer extends BaseAccessServer {
   protected async handleToolCall(request: any): Promise<any> {
     const { name, arguments: args } = request.params;
 
-    switch (name) {
-      case "find_nsf_awards_by_pi":
-        return await this.find_nsf_awards_by_pi(args);
-      case "find_nsf_awards_by_personnel":
-        return await this.find_nsf_awards_by_personnel(args);
-      case "get_nsf_award":
-        return await this.get_nsf_award(args);
-      case "find_nsf_awards_by_institution":
-        return await this.find_nsf_awards_by_institution(args);
-      case "find_nsf_awards_by_keywords":
-        return await this.find_nsf_awards_by_keywords(args);
-      default:
-        throw new Error(`Unknown tool: ${name}`);
+    try {
+      switch (name) {
+        case "search_nsf_awards":
+          return await this.searchNSFAwardsRouter(args);
+        default:
+          return this.errorResponse(`Unknown tool: ${name}`);
+      }
+    } catch (error: any) {
+      return this.errorResponse(error.message);
     }
   }
 
@@ -173,115 +87,83 @@ export class NSFAwardsServer extends BaseAccessServer {
     throw new Error("Resource reading not supported");
   }
 
-  private async find_nsf_awards_by_pi(args: { pi_name: string; limit?: number }) {
-    const { pi_name, limit = 10 } = args;
-    
-    try {
-      const awards = await this.searchNSFAwardsByPI(pi_name, limit);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: this.formatNSFAwardsResults(
-              `NSF Awards for PI: ${pi_name}`,
-              awards,
-              `Found ${awards.length} awards where ${pi_name} is the Principal Investigator`
-            ),
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`Failed to search NSF awards by PI: ${error instanceof Error ? error.message : String(error)}`);
+  private async searchNSFAwardsRouter(args: any) {
+    if (args.id) {
+      return await this.get_nsf_award({ award_number: args.id });
     }
+
+    if (args.pi) {
+      return await this.find_nsf_awards_by_pi({ pi_name: args.pi, limit: args.limit });
+    }
+
+    if (args.institution) {
+      return await this.find_nsf_awards_by_institution({
+        institution_name: args.institution,
+        limit: args.limit,
+        primary_only: args.primary_only || false
+      });
+    }
+
+    if (args.query) {
+      return await this.find_nsf_awards_by_keywords({ keywords: args.query, limit: args.limit });
+    }
+
+    return this.errorResponse("Provide id, query, pi, or institution");
   }
 
-  private async find_nsf_awards_by_personnel(args: { person_name: string; limit?: number }) {
-    const { person_name, limit = 10 } = args;
-    
-    try {
-      const awards = await this.searchNSFAwardsByPersonnel(person_name, limit);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: this.formatNSFAwardsResults(
-              `NSF Awards for Personnel: ${person_name}`,
-              awards,
-              `Found ${awards.length} awards where ${person_name} is listed as PI or Co-PI`
-            ),
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`Failed to search NSF awards by personnel: ${error instanceof Error ? error.message : String(error)}`);
-    }
+  private async find_nsf_awards_by_pi(args: { pi_name: string; limit?: number }) {
+    const awards = await this.searchNSFAwardsByPI(args.pi_name, args.limit || 10);
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ total: awards.length, items: awards })
+      }]
+    };
   }
 
   private async get_nsf_award(args: { award_number: string }) {
-    const { award_number } = args;
-    
-    try {
-      const award = await this.fetchNSFAwardData(award_number);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: this.formatSingleNSFAward(award),
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`Failed to fetch NSF award: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    const award = await this.fetchNSFAwardData(args.award_number);
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ total: 1, items: [award] })
+      }]
+    };
   }
 
-  private async find_nsf_awards_by_institution(args: { institution_name: string; limit?: number }) {
-    const { institution_name, limit = 10 } = args;
-    
-    try {
-      const awards = await this.searchNSFAwardsByInstitution(institution_name, limit);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: this.formatNSFAwardsResults(
-              `NSF Awards for Institution: ${institution_name}`,
-              awards,
-              `Found ${awards.length} awards for ${institution_name}`
-            ),
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`Failed to search NSF awards by institution: ${error instanceof Error ? error.message : String(error)}`);
+  private async find_nsf_awards_by_institution(args: {
+    institution_name: string;
+    limit?: number;
+    primary_only?: boolean;
+  }) {
+    let awards = await this.searchNSFAwardsByInstitution(args.institution_name, args.limit || 10);
+
+    // If primary_only is requested, filter awards to only include those where
+    // the queried institution is the primary recipient
+    if (args.primary_only) {
+      const normalizedInstitution = this.normalizeInstitutionName(args.institution_name);
+      awards = awards.filter(award => {
+        const awardInstitution = this.normalizeInstitutionName(award.institution);
+        return this.matchesInstitution(awardInstitution, [normalizedInstitution]);
+      });
     }
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ total: awards.length, items: awards })
+      }]
+    };
   }
 
   private async find_nsf_awards_by_keywords(args: { keywords: string; limit?: number }) {
-    const { keywords, limit = 10 } = args;
-    
-    try {
-      const awards = await this.searchNSFAwardsByKeywords(keywords, limit);
-      
-      return {
-        content: [
-          {
-            type: "text",
-            text: this.formatNSFAwardsResults(
-              `NSF Awards matching: "${keywords}"`,
-              awards,
-              `Found ${awards.length} awards matching keywords "${keywords}"`
-            ),
-          },
-        ],
-      };
-    } catch (error) {
-      throw new Error(`Failed to search NSF awards by keywords: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    const awards = await this.searchNSFAwardsByKeywords(args.keywords, args.limit || 10);
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({ total: awards.length, items: awards })
+      }]
+    };
   }
 
   private async fetchNSFAwardData(awardNumber: string): Promise<NSFAward> {
@@ -512,7 +394,90 @@ export class NSFAwardsServer extends BaseAccessServer {
     result += `• This NSF-funded research may utilize ACCESS-CI computational resources\n`;
     result += `• Use XDMoD to analyze computational usage patterns for this project\n`;
     result += `• Cross-reference PI/Co-PI names with XDMoD user data\n`;
-    
+
     return result;
+  }
+
+  /**
+   * Normalize institution names for better matching.
+   * Handles common variations in punctuation, abbreviations, and formatting.
+   */
+  private normalizeInstitutionName(name: string): string {
+    return name
+      // Normalize punctuation variations
+      .replace(/,\s*(at|in|of)\s*/gi, ' $1 ')  // "Colorado, Boulder" → "Colorado at Boulder"
+      .replace(/,\s+/g, ' ')                   // Remove other commas
+      .replace(/\s*-\s*/g, '-')                // Normalize hyphens
+      .replace(/\s*&\s*/g, ' and ')            // Normalize ampersands
+      // Normalize institution type words
+      .replace(/\b(University|College|Institute|School|Center|Laboratory|Lab)\b/gi, (match) => {
+        const mappings: Record<string, string> = {
+          'university': 'University',
+          'college': 'College',
+          'institute': 'Institute',
+          'school': 'School',
+          'center': 'Center',
+          'laboratory': 'Laboratory',
+          'lab': 'Laboratory'
+        };
+        return mappings[match.toLowerCase()] || match;
+      })
+      // Handle common abbreviations
+      .replace(/\bU\b/g, 'University')
+      .replace(/\bUniv\b/gi, 'University')
+      .replace(/\bColl\b/gi, 'College')
+      .replace(/\bInst\b/gi, 'Institute')
+      // Normalize whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  /**
+   * Check if an institution name matches the search criteria.
+   * Uses multi-tier matching strategy to avoid false positives.
+   */
+  private matchesInstitution(institutionText: string, searchVariants: string[]): boolean {
+    const normalizedText = institutionText.toLowerCase();
+
+    // Common words that should be ignored in word overlap matching
+    const COMMON_INSTITUTION_WORDS = new Set([
+      'university', 'institute', 'college', 'school', 'center',
+      'academy', 'polytechnic', 'tech', 'state', 'national'
+    ]);
+
+    for (const variant of searchVariants) {
+      const normalizedVariant = variant.toLowerCase();
+
+      // Tier 1: Exact match (highest confidence)
+      if (normalizedText === normalizedVariant) {
+        return true;
+      }
+
+      // Tier 2: Full variant contained in text (with length check to avoid false positives)
+      if (normalizedVariant.length > 8 && normalizedText.includes(normalizedVariant)) {
+        return true;
+      }
+
+      // Tier 3: Check significant word overlap (excludes common words)
+      const textWords = new Set(
+        normalizedText.split(/\s+/)
+          .filter(w => w.length > 3 && !COMMON_INSTITUTION_WORDS.has(w))
+      );
+
+      const variantWords = normalizedVariant.split(/\s+/)
+        .filter(w => w.length > 3 && !COMMON_INSTITUTION_WORDS.has(w));
+
+      if (variantWords.length > 0 && textWords.size > 0) {
+        const matchingWords = variantWords.filter(word => textWords.has(word));
+        const overlapRatio = matchingWords.length / variantWords.length;
+
+        // Require EITHER high overlap (75%+) OR at least 2 matching significant words
+        if (overlapRatio >= 0.75 || (matchingWords.length >= 2 && overlapRatio >= 0.5)) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 }
