@@ -1,6 +1,6 @@
 {
   "name": "@access-mcp/compute-resources",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "description": "MCP server for ACCESS-CI Compute Resources API",
   "type": "module",
   "main": "dist/index.js",

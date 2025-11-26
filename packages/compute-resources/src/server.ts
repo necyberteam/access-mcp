@@ -22,82 +22,52 @@ export class ComputeResourcesServer extends BaseAccessServer {
   protected getTools() {
     return [
       {
-        name: "list_compute_resources",
-        description: "Retrieve a complete list of all ACCESS-CI compute resources including clusters, storage systems, and cloud resources. Use this to discover available systems, their capabilities (CPU/GPU/memory/storage), and organizations. Returns resource IDs needed for other ACCESS-CI tools.",
-        inputSchema: {
-          type: "object",
-          properties: {},
-          required: [],
-        },
-      },
-      {
-        name: "get_compute_resource",
-        description:
-          "Get detailed information about a specific compute resource",
+        name: "search_resources",
+        description: "Search ACCESS-CI compute resources (list, filter, get details). Returns resource IDs for other services. Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
-            resource_id: {
+            id: {
               type: "string",
-              description: "The resource ID or info_groupid. Use list_compute_resources or search_resources to get valid IDs.",
-              examples: [
-                "delta.ncsa.access-ci.org",
-                "bridges2.psc.access-ci.org",
-                "stampede3.tacc.access-ci.org"
-              ]
+              description: "Get specific resource (e.g., 'delta.ncsa.access-ci.org')"
             },
-          },
-          required: ["resource_id"],
+            query: {
+              type: "string",
+              description: "Search names, descriptions, organizations"
+            },
+            type: {
+              type: "string",
+              enum: ["compute", "storage", "cloud", "gpu", "cpu"],
+              description: "Filter by resource type"
+            },
+            has_gpu: {
+              type: "boolean",
+              description: "Filter for GPU resources"
+            },
+            organization: {
+              type: "string",
+              description: "Filter by org (NCSA, PSC, Purdue, SDSC, TACC)"
+            },
+            include_ids: {
+              type: "boolean",
+              description: "Include resource IDs for other services",
+              default: true
+            }
+          }
         },
       },
       {
         name: "get_resource_hardware",
-        description:
-          "Retrieve detailed hardware specifications for a compute resource including CPU architecture, memory configuration, GPU types, storage capacity, and node counts. Use this when users need technical specs to determine if a resource meets their computational requirements or when planning resource allocation requests.",
+        description: "Get hardware specs (CPU, GPU, memory, storage). Returns detailed specs.",
         inputSchema: {
           type: "object",
           properties: {
-            resource_id: {
+            id: {
               type: "string",
-              description: "The resource ID or info_groupid. Use list_compute_resources or search_resources to get valid IDs.",
-              examples: [
-                "delta.ncsa.access-ci.org",
-                "bridges2.psc.access-ci.org",
-                "anvil.purdue.access-ci.org"
-              ]
-            },
+              description: "Resource ID (use search_resources to find)"
+            }
           },
-          required: ["resource_id"],
-        },
-      },
-      {
-        name: "search_resources",
-        description: "**CRITICAL TOOL**: Search for compute resources and discover resource IDs needed by other ACCESS-CI services. **IMPORTANT**: This tool is essential for discovering resource IDs required by software-discovery, system-status, and other ACCESS-CI tools. Always use `include_resource_ids: true` when you need IDs for other operations.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "Search term to match against resource names, descriptions, and organizations",
-            },
-            resource_type: {
-              type: "string",
-              enum: ["compute", "storage", "cloud", "gpu", "cpu"],
-              description: "Filter by resource type",
-            },
-            has_gpu: {
-              type: "boolean",
-              description: "Filter for resources with GPU capabilities",
-            },
-            organization: {
-              type: "string",
-              description: "Filter by organization name (e.g., 'NCSA', 'PSC', 'Purdue', 'SDSC', 'TACC', 'Indiana'). Partial matches supported.",
-            },
-            include_resource_ids: {
-              type: "boolean",
-              description: "**CRITICAL**: Include resource IDs needed for other ACCESS-CI services. These IDs are required parameters for software discovery, system status, and other ACCESS-CI tools. Always set to true when you need resource IDs for subsequent operations. **Common Workflow**: 1) Search resources with this enabled, 2) Use returned IDs in other ACCESS-CI tools.",
-            },
-          },
+          required: ["id"]
         },
       },
     ];
@@ -177,27 +147,42 @@ export class ComputeResourcesServer extends BaseAccessServer {
 
     try {
       switch (name) {
-        case "list_compute_resources":
-          return await this.listComputeResources();
-        case "get_compute_resource":
-          return await this.getComputeResource(args.resource_id);
-        case "get_resource_hardware":
-          return await this.getResourceHardware(args.resource_id);
         case "search_resources":
-          return await this.searchResources(args);
+          return await this.searchResourcesRouter({
+            resource_id: args.id,
+            query: args.query,
+            resource_type: args.type,
+            has_gpu: args.has_gpu,
+            organization: args.organization,
+            include_resource_ids: args.include_ids
+          });
+        case "get_resource_hardware":
+          return await this.getResourceHardware(args.id);
         default:
-          throw new Error(`Unknown tool: ${name}`);
+          return this.errorResponse(`Unknown tool: ${name}`);
       }
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${handleApiError(error)}`,
-          },
-        ],
-      };
+      return this.errorResponse(handleApiError(error));
     }
+  }
+
+  /**
+   * Router for consolidated search_resources tool
+   * Routes to appropriate handler based on parameters
+   */
+  private async searchResourcesRouter(args: any) {
+    // Get specific resource details by ID
+    if (args.resource_id) {
+      return await this.getComputeResource(args.resource_id);
+    }
+
+    // No parameters = list all resources
+    if (!args.query && !args.resource_type && !args.has_gpu && !args.organization) {
+      return await this.listComputeResources();
+    }
+
+    // Search/filter resources
+    return await this.searchResources(args);
   }
 
   async handleResourceRead(request: any) {
@@ -530,6 +515,49 @@ Consider:
     19169: "CloudBank",
   };
 
+  /**
+   * Common organization abbreviations for better search UX
+   * Includes HPC centers, universities, and research institutions
+   */
+  private readonly ORG_ABBREVIATIONS: Record<string, string[]> = {
+    // Major HPC/Supercomputing Centers
+    "NCSA": ["National Center for Supercomputing Applications", "Illinois"],
+    "SDSC": ["San Diego Supercomputer Center"],
+    "PSC": ["Pittsburgh Supercomputing Center"],
+    "TACC": ["Texas Advanced Computing Center"],
+    "NCAR": ["NSF National Center for Atmospheric Research", "National Center for Atmospheric Research"],
+    "NERSC": ["National Energy Research Scientific Computing Center"],
+    "ALCF": ["Argonne Leadership Computing Facility"],
+    "OLCF": ["Oak Ridge Leadership Computing Facility"],
+
+    // Universities (common abbreviations)
+    "IU": ["Indiana University"],
+    "UK": ["University of Kentucky"],
+    "TAMU": ["Texas A&M University", "Texas A&M"],
+    "UT": ["University of Texas at Austin"],
+    "TTU": ["Texas Tech University"],
+    "OSU": ["Ohio State University"],
+    "ASU": ["Arizona State University"],
+    "FSU": ["Florida State University"],
+    "PSU": ["Pennsylvania State University", "Penn State"],
+    "MSU": ["Michigan State University"],
+    "USC": ["University of Southern California"],
+    "UCLA": ["University of California, Los Angeles"],
+    "UIUC": ["University of Illinois at Urbana-Champaign", "Illinois"],
+    "MIT": ["Massachusetts Institute of Technology"],
+    "CU": ["University of Colorado"],
+    "CU Boulder": ["University of Colorado Boulder"],
+    "UChicago": ["University of Chicago"],
+
+    // Research Computing Consortia & Networks
+    "OSG": ["OSG Consortium", "Open Science Grid"],
+    "OSN": ["Open Storage Network"],
+    "SGCI": ["Science Gateways Center of Excellence", "Science Gateways Community Institute"],
+    "RENCI": ["Renaissance Computing Institute"],
+    "ACCESS": ["ACCESS Support", "Advanced Cyberinfrastructure Coordination Ecosystem"],
+    "XSEDE": ["Extreme Science and Engineering Discovery Environment"], // Legacy
+  };
+
   private async listComputeResources() {
     // Get all active resource groups
     const response = await this.httpClient.get(
@@ -612,15 +640,10 @@ Consider:
       content: [
         {
           type: "text",
-          text: JSON.stringify(
-            {
-              total: computeResources.length,
-              resources: computeResources,
-              documentation: this.addDocumentation(),
-            },
-            null,
-            2,
-          ),
+          text: JSON.stringify({
+            total: computeResources.length,
+            items: computeResources
+          }),
         },
       ],
     };
@@ -633,6 +656,22 @@ Consider:
     const response = await this.httpClient.get(
       `/wh2/cider/v1/access-active/info_groupid/${sanitizedId}/?format=json`,
     );
+
+    // Check for errors
+    if (response.status !== 200) {
+      return this.errorResponse(
+        `Resource not found: '${resourceId}'`,
+        "Use 'search_resources' to find valid resource IDs. Resource IDs typically look like 'delta.ncsa.access-ci.org' or 'bridges2.psc.access-ci.org'"
+      );
+    }
+
+    // Check if results exist and are valid
+    if (!response.data || !response.data.results || response.data.results.length === 0) {
+      return this.errorResponse(
+        `Resource not found: '${resourceId}'`,
+        "Use 'search_resources' to find valid resource IDs"
+      );
+    }
 
     return {
       content: [
@@ -647,8 +686,15 @@ Consider:
   private async getResourceHardware(resourceId: string) {
     const resourceData = await this.getComputeResource(resourceId);
 
+    // Check if getComputeResource returned an error
+    // Parse the content to check if it's an error response
+    const parsedData = JSON.parse(resourceData.content[0].text);
+    if (parsedData.error) {
+      return resourceData; // Return the error response as-is
+    }
+
     // Extract hardware-related information
-    const fullData = JSON.parse(resourceData.content[0].text);
+    const fullData = parsedData;
     const hardwareInfo = fullData.filter(
       (item: any) =>
         item.cider_type === "Compute" ||
@@ -810,7 +856,7 @@ Consider:
     // Get all resources first
     const allResourcesResult = await this.listComputeResources();
     const allResourcesData = JSON.parse(allResourcesResult.content[0].text);
-    let resources = allResourcesData.resources || [];
+    let resources = allResourcesData.items || [];
 
     // Apply filters
     if (query) {
@@ -837,13 +883,22 @@ Consider:
       );
     }
 
-    // Organization filter (ENHANCED: works with partial names and searches known orgs)
+    // Organization filter (ENHANCED: works with partial names, abbreviations, and searches known orgs)
     if (organization) {
       const orgLower = organization.toLowerCase();
+      const orgUpper = organization.toUpperCase();
 
-      // Find matching organization IDs from known organizations
+      // Check if input is an abbreviation and expand it to full names
+      let searchTerms = [orgLower];
+      if (this.ORG_ABBREVIATIONS[orgUpper]) {
+        searchTerms.push(...this.ORG_ABBREVIATIONS[orgUpper].map(n => n.toLowerCase()));
+      }
+
+      // Find matching organization IDs from known organizations using all search terms
       const matchingKnownOrgIds = Object.entries(this.KNOWN_ORGANIZATIONS)
-        .filter(([_, name]) => name.toLowerCase().includes(orgLower))
+        .filter(([_, name]) =>
+          searchTerms.some(term => name.toLowerCase().includes(term))
+        )
         .map(([id, _]) => parseInt(id));
 
       resources = resources.filter((resource: any) => {
@@ -851,9 +906,9 @@ Consider:
           return false;
         }
 
-        // Check if any organization name matches the search
+        // Check if any organization name matches any of our search terms
         const nameMatch = resource.organization_names.some((org: string) =>
-          typeof org === 'string' && org.toLowerCase().includes(orgLower)
+          typeof org === 'string' && searchTerms.some(term => org.toLowerCase().includes(term))
         );
 
         if (nameMatch) {
@@ -875,43 +930,22 @@ Consider:
       });
     }
     
-    // Add detailed resource ID information if requested
+    // Add resource IDs if requested
     if (include_resource_ids) {
       resources = resources.map((resource: any) => ({
         ...resource,
-        service_integration: {
-          resource_ids: resource.resourceIds,
-          available_for_services: resource.resourceIds.length > 0,
-          usage_note: resource.resourceIds.length > 0
-            ? `Use any of these IDs with other ACCESS-CI services: ${resource.resourceIds.join(', ')}`
-            : 'No resource IDs available for service integration',
-        },
+        resource_ids: resource.resourceIds
       }));
     }
-    
-    // Build response object
-    const responseData: any = {
-      search_criteria: { query, resource_type, has_gpu, organization, include_resource_ids },
-      total_found: resources.length,
-      resources: resources,
-    };
-
-    // Add usage notes if resource IDs are included
-    if (include_resource_ids) {
-      responseData.usage_notes = {
-        service_integration: "Use any ID from the 'resource_ids' array as 'resource_id' parameter in other ACCESS-CI tools",
-        note: "These are the actual resource IDs from the ACCESS-CI operations API",
-      };
-    }
-
-    // Documentation is not useful in search results (users already know what they want)
-    // Removed to keep responses focused
 
     return {
       content: [
         {
           type: "text",
-          text: JSON.stringify(responseData, null, 2),
+          text: JSON.stringify({
+            total: resources.length,
+            items: resources
+          }),
         },
       ],
     };
