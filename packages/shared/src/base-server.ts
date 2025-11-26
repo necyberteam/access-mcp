@@ -99,9 +99,12 @@ export abstract class BaseAccessServer {
           content: [
             {
               type: "text",
-              text: `Error: ${errorMessage}`,
+              text: JSON.stringify({
+                error: errorMessage
+              }),
             },
           ],
+          isError: true,
         };
       }
     });
@@ -172,6 +175,26 @@ export abstract class BaseAccessServer {
    */
   protected async handleGetPrompt(request: any): Promise<any> {
     throw new Error("Prompt not found");
+  }
+
+  /**
+   * Helper method to create a standard error response (MCP 2025 compliant)
+   * @param message The error message
+   * @param hint Optional suggestion for how to fix the error
+   */
+  protected errorResponse(message: string, hint?: string) {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            error: message,
+            ...(hint && { hint }),
+          }),
+        },
+      ],
+      isError: true,
+    };
   }
 
   /**

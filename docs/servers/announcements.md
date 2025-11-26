@@ -4,60 +4,32 @@ MCP server providing access to ACCESS support announcements, service updates, ma
 
 ## Usage Examples
 
-### **Stay Updated on Recent Activity**
+### **Recent Updates**
 
 ```
-"What's new with ACCESS?"
-"Show me recent announcements"
-"Any updates from ACCESS Support this week?"
-"What are the latest community announcements?"
+"Recent ACCESS announcements"
+"Updates from past week"
+"Latest community news"
+"Announcements since January 2024"
 ```
 
-### **Monitor System Maintenance & Issues**
+### **System & Maintenance**
 
 ```
-"Are there any GPU maintenance announcements?"
-"Show me maintenance notices for DELTA"
-"What system updates have been posted recently?"
-"Any announcements about Bridges-2 issues?"
-"Tell me about network-related announcements"
+"GPU maintenance announcements"
+"Delta maintenance notices"
+"Bridges-2 system updates"
+"Network-related announcements"
 ```
 
-### **Find Training & Educational Content**
+### **By Topic**
 
 ```
-"Are there any training workshops announced?"
-"Show me machine learning training announcements"
-"What professional development opportunities are available?"
-"Any upcoming webinars or educational events?"
-```
-
-### **Track Specific Systems or Communities**
-
-```
-"Show me all announcements about Anvil"
-"What updates are there for the CSSN community?"
-"Any news from the Open OnDemand team?"
-"Show me Pegasus-related announcements"
-```
-
-### **Search by Topic or Technology**
-
-```
-"Find announcements about cloud computing"
-"Show me AI and machine learning updates"
-"Any announcements about allocation proposals?"
-"What's new with data science resources?"
-"Find announcements about Python or PyTorch"
-```
-
-### **Time-Based Searches**
-
-```
-"Show me announcements from the past month"
-"What was announced last week?"
-"Find announcements since January 1st, 2024"
-"Show me announcements from the past 6 months"
+"Training workshops announced"
+"Machine learning updates"
+"Cloud computing announcements"
+"Allocation proposal news"
+"Python and PyTorch updates"
 ```
 
 
@@ -82,108 +54,61 @@ Add to your Claude Desktop configuration:
 
 ## Tools
 
-### get_announcements
+### search_announcements
 
-Search ACCESS support announcements with comprehensive filtering options.
+Search and filter ACCESS support announcements with flexible filtering options.
 
 **Parameters:**
 - `tags` - Filter by topics (comma-separated). Examples: 'gpu,nvidia', 'machine-learning,ai', 'training,workshop'
-- `ag` - Filter by system/community group. Examples: 'DELTA', 'Anvil', 'ACCESS Support', 'CSSN (Computational Science Support Network)'
-- `relative_start_date` - Filter from relative date. Examples: 'today', '-1 week', '-1 month', '-3 months'
+- `ag` - Filter by system/community group. Examples: 'Anvil', 'ACCESS Support', 'DARWIN', 'Stampede-3'
+- `relative_start_date` - Filter from relative date. Examples: 'today', '-1 week', '-1 month', '-1 year'
 - `relative_end_date` - Filter to relative date. Examples: 'now', 'today', '-1 week', '+1 week'
 - `start_date` - Filter from exact date (YYYY-MM-DD). Example: '2024-01-01'
 - `end_date` - Filter to exact date (YYYY-MM-DD). Example: '2024-12-31'
-- `limit` - Maximum results (default: 20)
+- `limit` - Maximum results (default: 25). Automatically rounded to valid API page sizes (5, 10, 25, or 50)
 
 **Usage Examples:**
 ```javascript
-// Recent GPU-related announcements
-get_announcements({
-  tags: "gpu,nvidia",
+// Recent announcements
+search_announcements({
   relative_start_date: "-1 month",
   limit: 10
 })
 
-// DELTA system announcements from this year
-get_announcements({
-  ag: "DELTA",
-  start_date: "2024-01-01",
+// Topic-specific search - GPU announcements
+search_announcements({
+  tags: "gpu,nvidia",
+  relative_start_date: "-1 year",
+  limit: 25
+})
+
+// System-specific search - Anvil announcements
+search_announcements({
+  ag: "Anvil",
+  relative_start_date: "-6 months",
   limit: 15
 })
 
-// Training announcements from the past 3 months
-get_announcements({
-  tags: "training,professional-development",
+// Machine learning announcements
+search_announcements({
+  tags: "machine-learning,ai",
+  relative_start_date: "-1 year",
+  limit: 20
+})
+
+// Combined filters - recent announcements for ACCESS Support
+search_announcements({
+  ag: "ACCESS Support",
+  tags: "maintenance",
   relative_start_date: "-3 months",
-  limit: 20
-})
-```
-
-### get_announcements_by_tags
-
-Find announcements about specific topics or systems.
-
-**Parameters:**
-- `tags` (required) - Specific topics (comma-separated). Examples: 'gpu,nvidia', 'data-science,python', 'cloud-computing'
-- `limit` - Maximum results (default: 10)
-
-**Usage Examples:**
-```javascript
-// Machine learning and AI announcements
-get_announcements_by_tags({
-  tags: "machine-learning,ai,deep-learning",
-  limit: 15
-})
-
-// Cloud computing updates
-get_announcements_by_tags({
-  tags: "cloud-computing,openstack",
   limit: 10
 })
-```
 
-### get_announcements_by_affinity_group
-
-Get announcements for specific ACCESS systems or community groups.
-
-**Parameters:**
-- `ag` (required) - System or community name. Examples: 'DELTA', 'Anvil', 'Bridges-2', 'ACCESS Support', 'Open OnDemand'
-- `limit` - Maximum results (default: 10)
-
-**Usage Examples:**
-```javascript
-// All DELTA-related announcements
-get_announcements_by_affinity_group({
-  ag: "DELTA",
-  limit: 20
-})
-
-// Open OnDemand community updates
-get_announcements_by_affinity_group({
-  ag: "Open OnDemand",
-  limit: 10
-})
-```
-
-### get_recent_announcements
-
-Get the latest announcements from a recent time period.
-
-**Parameters:**
-- `period` - Time period to look back. Examples: '1 week', '2 weeks', '1 month', '3 months' (default: '1 month')
-- `limit` - Maximum results (default: 10)
-
-**Usage Examples:**
-```javascript
-// Past week's announcements
-get_recent_announcements({
-  period: "1 week",
-  limit: 15
-})
-
-// Past 3 months overview
-get_recent_announcements({
-  period: "3 months",
+// Exact date range search
+search_announcements({
+  tags: "training,professional-development",
+  start_date: "2024-01-01",
+  end_date: "2024-12-31",
   limit: 25
 })
 ```
@@ -253,5 +178,5 @@ All tools return enhanced JSON responses with:
 ---
 
 **Package:** `@access-mcp/announcements`  
-**Version:** v0.1.1  
+**Version:** v0.2.0  
 **Main:** `dist/index.js`

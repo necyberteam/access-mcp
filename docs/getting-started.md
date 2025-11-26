@@ -123,7 +123,11 @@ Once you have npm and pipx installed, install all ACCESS-CI MCP servers:
 ```bash
 npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/announcements
 ```
-_Note: Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation._
+
+**Important Notes:**
+- Global installation (`-g`) is recommended for better performance, but the `npx` configuration below will work even without global installation
+- **Dependencies are automatically installed** - The `@access-mcp/shared` package and all required dependencies will be installed automatically when you install any server
+- No additional installation steps are needed beyond the command above
 
 **Python Server:**
 ```bash
@@ -183,11 +187,17 @@ Open the config file in a text editor and add:
     },
     "access-allocations": {
       "command": "npx",
-      "args": ["@access-mcp/allocations"]
+      "args": ["@access-mcp/allocations"],
+      "env": {
+        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3007"
+      }
     },
     "access-nsf-awards": {
       "command": "npx",
-      "args": ["@access-mcp/nsf-awards"]
+      "args": ["@access-mcp/nsf-awards"],
+      "env": {
+        "PORT": "3007"
+      }
     },
     "access-announcements": {
       "command": "npx",
@@ -202,6 +212,15 @@ Open the config file in a text editor and add:
   }
 }
 ```
+
+### Important: NSF Awards Server Configuration
+
+The NSF Awards server runs in **HTTP mode** (not stdio mode like other servers) because:
+- The Allocations server needs to make HTTP requests to it for NSF funding cross-referencing
+- It uses port 3007 by default
+- The `ACCESS_MCP_SERVICES` environment variable tells the Allocations server where to find it
+
+**Note:** The NSF Awards server works independently, but enabling it unlocks advanced funding analysis features in the Allocations server.
 
 ### Step 5: Restart Claude Desktop
 
@@ -262,11 +281,35 @@ To get an API key:
 - **macOS/Linux**: Use `sudo npm install -g ...`
 - **Windows**: Run Command Prompt as Administrator
 
+### Missing @access-mcp/shared Dependency
+If you see errors about missing `@access-mcp/shared`:
+
+**For npm installations (recommended):**
+- This should never happen - dependencies are installed automatically
+- If it does occur, try: `npm install -g @access-mcp/shared` then reinstall the server
+- Clear npm cache: `npm cache clean --force` and reinstall
+
+**For local/source installations:**
+- Ensure you ran `npm install` at the root of the repository
+- Ensure you ran `npm run build` to build all packages including shared
+- The shared package must be built before other packages can use it
+
 ### Claude Desktop Not Finding Servers
 1. Verify npm packages are installed: `npm list -g @access-mcp/allocations`
 2. Check config file syntax (must be valid JSON)
 3. Restart Claude Desktop completely
 4. Check Claude Desktop logs for error messages
+
+### Package Version Conflicts
+If you encounter dependency version conflicts:
+```bash
+# Clear npm cache
+npm cache clean --force
+
+# Reinstall packages
+npm uninstall -g @access-mcp/allocations
+npm install -g @access-mcp/allocations
+```
 
 
 ## 🔧 Developers (npm packages)
@@ -288,12 +331,20 @@ npm install @access-mcp/affinity-groups
 
 ### Install from Source
 
+For local development or contributing to the project:
+
 ```bash
-git clone <repository-url>
+git clone https://github.com/necyberteam/access-mcp.git
 cd access_mcp
-npm install
-npm run build
+npm install        # Installs all workspace dependencies including @access-mcp/shared
+npm run build      # Builds all packages in the correct order
 ```
+
+**Note for local development:**
+- The monorepo uses npm workspaces to manage dependencies
+- `npm install` at the root will automatically set up all packages and their dependencies
+- The shared package is built first, then all other packages can reference it
+- All dependencies (including `@access-mcp/shared`) are handled automatically
 
 ### Configuration
 

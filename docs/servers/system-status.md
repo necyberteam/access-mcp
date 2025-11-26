@@ -4,40 +4,22 @@ MCP server providing real-time system status information for ACCESS-CI resources
 
 ## Usage Examples
 
-### **Monitor Current Issues**
+### **Current Status**
 
 ```
-"Are there any current outages on ACCESS-CI?"
-"Is Delta currently operational?"
-"What systems are experiencing issues right now?"
-"Show me all systems that are down"
+"Current ACCESS-CI outages"
+"Delta operational status"
+"Systems experiencing issues"
+"GPU systems status check"
 ```
 
-### **Track Maintenance Windows**
+### **Maintenance & Incidents**
 
 ```
-"When is the next maintenance for Expanse?"
-"Show me all scheduled maintenance for this week"
-"Is there upcoming maintenance on Bridges-2?"
-"What maintenance is planned for GPU systems?"
-```
-
-### **System Announcements**
-
-```
-"What are the latest system announcements?"
-"Are there any important notices for ACCESS users?"
-"Show me recent updates about system changes"
-"Any policy updates I should know about?"
-```
-
-### **Check Resource Status**
-
-```
-"What's the current status of Anvil?"
-"Is Frontera available for job submission?"
-"Check if all GPU systems are operational"
-"Get status for all TACC resources"
+"Scheduled maintenance this week"
+"Next Expanse maintenance window"
+"Past outages for Bridges-2"
+"All infrastructure news for Delta"
 ```
 
 
@@ -62,45 +44,44 @@ Add to your Claude Desktop configuration:
 
 ## Tools
 
-### get_current_outages
+### get_infrastructure_news
 
-Get current system outages and issues affecting ACCESS-CI resources.
+Comprehensive ACCESS-CI infrastructure status and outage information. Get current outages, scheduled maintenance, past incidents, and operational status for ACCESS-CI resources. Provides real-time monitoring of system health and availability.
 
 **Parameters:**
 
-- `resource_filter` (string, optional): Filter by specific resource name or ID
+- `resource` (string, optional): Filter by specific resource name or ID (e.g., 'delta', 'bridges2')
+- `time` (string, optional): Time period for infrastructure news: 'current' (active outages), 'scheduled' (future maintenance), 'past' (historical incidents), 'all' (comprehensive overview). Default: 'current'
+- `resource_ids` (array of strings, optional): Check operational status for specific resource IDs (returns 'operational' or 'affected' status). Use instead of 'resource' parameter for status checking
+- `limit` (number, optional): Maximum number of items to return (default: 50 for 'all', 100 for 'past')
+- `use_group_api` (boolean, optional): Use resource group API for status checking (only with resource_ids parameter, default: false)
 
-**Example:**
+**Examples:**
+
 ```typescript
-// User: "Are there any current outages on Delta?"
-const outages = await get_current_outages({
-  resource_filter: "delta"
-});
+// Get current outages across all resources
+get_infrastructure_news({})
+
+// Get scheduled maintenance
+get_infrastructure_news({ time: "scheduled" })
+
+// Get comprehensive overview of all infrastructure news
+get_infrastructure_news({ time: "all" })
+
+// Check current status for specific resource
+get_infrastructure_news({ resource: "delta", time: "current" })
+
+// Get all news for specific resource
+get_infrastructure_news({ resource: "delta", time: "all" })
+
+// Check operational status of specific resources
+get_infrastructure_news({
+  resource_ids: ["delta.ncsa.access-ci.org", "bridges2.psc.access-ci.org"]
+})
+
+// Get past outages with limit
+get_infrastructure_news({ time: "past", limit: 50 })
 ```
-
-### get_scheduled_maintenance
-
-Get scheduled maintenance and future outages for ACCESS-CI resources.
-
-**Parameters:**
-
-- `resource_filter` (string, optional): Filter by specific resource name or ID
-
-### get_system_announcements
-
-Get all system announcements (current and scheduled).
-
-**Parameters:**
-
-- `limit` (number, optional): Maximum number of announcements to return (default: 50)
-
-### get_resource_status
-
-Get the current operational status of a specific resource.
-
-**Parameters:**
-
-- `resource_id` (string): The resource ID to check status for
 
 ## Resources
 
@@ -109,5 +90,5 @@ Get the current operational status of a specific resource.
 ---
 
 **Package:** `@access-mcp/system-status`  
-**Version:** v0.4.2  
+**Version:** v0.5.0  
 **Main:** `dist/index.js`

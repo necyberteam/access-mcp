@@ -1,28 +1,32 @@
-import { z } from "zod";
+// Universal search parameters (all servers)
+export interface UniversalSearchParams {
+  query?: string;
+  id?: string;
+  type?: string;
+  tags?: string[];
+  date?: "today" | "upcoming" | "past" | "this_week" | "this_month";
+  limit?: number;
+  offset?: number;
+  sort?: string;
+  order?: "asc" | "desc";
+}
 
-export const AffinityGroupSchema = z.object({
-  group_id: z.string(),
-  name: z.string().optional(),
-  description: z.string().optional(),
-});
+// Universal response format (all servers)
+export interface UniversalResponse<T> {
+  total: number;
+  items: T[];
+}
 
-export const EventSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string().optional(),
-  start_date: z.string().optional(),
-  end_date: z.string().optional(),
-  location: z.string().optional(),
-});
+// Extended response with hints
+export interface UniversalResponseWithHints<T> extends UniversalResponse<T> {
+  hints?: {
+    next?: string;
+    tags?: string[];
+  };
+}
 
-export const KnowledgeBaseResourceSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  content: z.string().optional(),
-  category: z.string().optional(),
-  tags: z.array(z.string()).optional(),
-});
-
-export type AffinityGroup = z.infer<typeof AffinityGroupSchema>;
-export type Event = z.infer<typeof EventSchema>;
-export type KnowledgeBaseResource = z.infer<typeof KnowledgeBaseResourceSchema>;
+// Standard error response
+export interface StandardErrorResponse {
+  error: string;
+  hint?: string;
+}

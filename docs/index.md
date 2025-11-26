@@ -105,11 +105,17 @@ Here's a complete configuration example for Claude Desktop:
     },
     "access-allocations": {
       "command": "npx",
-      "args": ["@access-mcp/allocations"]
+      "args": ["@access-mcp/allocations"],
+      "env": {
+        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3007"
+      }
     },
     "access-nsf-awards": {
       "command": "npx",
-      "args": ["@access-mcp/nsf-awards"]
+      "args": ["@access-mcp/nsf-awards"],
+      "env": {
+        "PORT": "3007"
+      }
     },
     "access-events": {
       "command": "npx",

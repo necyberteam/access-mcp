@@ -124,9 +124,18 @@ packages/
 
 ### Package Dependencies
 
-- All servers depend on `@access-mcp/shared` (local: `"file:../shared"`)
-- Standard dependencies: `@modelcontextprotocol/sdk`, `axios`
-- Dev dependencies: `typescript`, `vitest`, `@types/node`
+**Production Dependencies:**
+- `@access-mcp/shared`: `^0.3.3` - Shared base classes, types, and utilities
+- `@modelcontextprotocol/sdk`: MCP protocol implementation
+- `axios`: HTTP client for API requests
+- Additional dependencies vary by server (e.g., `express` for allocations)
+
+**Development Dependencies:**
+- `typescript`: TypeScript compiler
+- `vitest`: Test framework
+- `@types/node`: Node.js type definitions
+
+**Important:** All published packages use version references (e.g., `^0.3.3`) to `@access-mcp/shared`. The `file:../shared` pattern should **never** appear in published packages, only in local development workspaces if needed.
 
 ## Testing Patterns
 
@@ -213,12 +222,18 @@ describe("Server Integration Tests", () => {
      "main": "dist/index.js",
      "bin": { "access-mcp-new-server": "dist/index.js" },
      "dependencies": {
-       "@access-mcp/shared": "file:../shared",
+       "@access-mcp/shared": "^0.3.3",
        "@modelcontextprotocol/sdk": "^0.5.0",
        "axios": "^1.7.0"
      }
    }
    ```
+
+   **Important:** Use version references (e.g., `^0.3.3`) for the shared package, NOT `file:../shared`. This ensures:
+   - npm users get automatic dependency resolution
+   - Published packages work correctly
+   - No manual installation of shared package required
+   - Local development still works via npm workspaces
 
 3. **Create TypeScript config:**
    ```json
@@ -311,12 +326,13 @@ Documentation auto-deploys to https://access-mcp.netlify.app from GitHub pushes.
 
 ## Important Conventions
 
-1. **Always use `file:../shared` for local development** - npm publish resolves to correct versions
+1. **Use version references for shared package** - All packages should depend on `@access-mcp/shared` using version references like `^0.3.3`, never `file:../shared`. This ensures proper dependency resolution for npm users.
 2. **Include integration tests** - Real API calls validate functionality
 3. **Follow enhancement patterns** - Transform raw data into useful structures
 4. **Comprehensive error handling** - Handle API errors gracefully
 5. **Consistent tool naming** - `get_items`, `search_items`, `get_items_by_tag`
 6. **Resource URIs** - Use `accessci://` scheme: `accessci://events/upcoming`
+7. **Dependency management** - npm workspaces handle local development; published packages use semver ranges
 
 ## Key Files Reference
 

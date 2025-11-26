@@ -263,14 +263,15 @@ async function main() {
   const servers = [];
   const serverPackages = [
     "affinity-groups",
-    "compute-resources", 
-    "system-status",
+    "allocations",
+    "announcements",
+    "compute-resources",
+    "events",
+    "nsf-awards",
     "software-discovery",
+    "system-status",
     "xdmod-charts",
     "xdmod-mcp-data",
-    "allocations",
-    "nsf-awards",
-    "announcements",
   ];
 
   // Extract metadata from all server packages
