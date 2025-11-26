@@ -66,7 +66,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             statistic: {
               type: "string",
-              description: 'The statistic to chart. Jobs realm (most common): "total_cpu_hours" (CPU usage), "job_count" (number of jobs). SUPREMM realm (most common): "gpu_time" (GPU hours), "wall_time" (total CPU time), "cpu_time_user" (user CPU time). Advanced: "total_ace", "avg_cpu_hours", "avg_percent_gpu_usage", "avg_percent_cpu_user", "avg_flops_per_core", "avg_memory_per_core", "avg_ib_rx_bytes".',
+              description: 'The statistic to chart. Jobs realm: "total_cpu_hours" (CPU usage), "job_count" (number of jobs), "avg_waitduration_hours" (average queue wait time), "total_waitduration_hours" (total wait time), "utilization" (CPU utilization), "avg_cpu_hours" (avg CPU per job), "max_processors" (max processor count), "total_ace" (ACCESS credits). SUPREMM realm: "gpu_time" (GPU hours), "wall_time" (total CPU time), "cpu_time_user" (user CPU time), "avg_percent_gpu_usage" (avg GPU %), "avg_percent_cpu_user" (avg CPU %), "avg_flops_per_core", "avg_memory_per_core", "avg_ib_rx_bytes".',
               examples: ["total_cpu_hours", "job_count", "gpu_time", "wall_time"]
             },
             start_date: {
@@ -147,7 +147,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             statistic: {
               type: "string",
-              description: 'The statistic to chart. Jobs realm (most common): "total_cpu_hours" (CPU usage), "job_count" (number of jobs). SUPREMM realm (most common): "gpu_time" (GPU hours), "wall_time" (total CPU time), "cpu_time_user" (user CPU time). Advanced: "total_ace", "avg_cpu_hours", "avg_percent_gpu_usage", "avg_percent_cpu_user", "avg_flops_per_core", "avg_memory_per_core", "avg_ib_rx_bytes".',
+              description: 'The statistic to chart. Jobs realm: "total_cpu_hours" (CPU usage), "job_count" (number of jobs), "avg_waitduration_hours" (average queue wait time), "total_waitduration_hours" (total wait time), "utilization" (CPU utilization), "avg_cpu_hours" (avg CPU per job), "max_processors" (max processor count), "total_ace" (ACCESS credits). SUPREMM realm: "gpu_time" (GPU hours), "wall_time" (total CPU time), "cpu_time_user" (user CPU time), "avg_percent_gpu_usage" (avg GPU %), "avg_percent_cpu_user" (avg CPU %), "avg_flops_per_core", "avg_memory_per_core", "avg_ib_rx_bytes".',
               examples: ["total_cpu_hours", "job_count", "gpu_time", "wall_time"]
             },
             start_date: {
@@ -243,7 +243,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
             },
             statistic: {
               type: "string",
-              description: 'The statistic to chart. Jobs realm (most common): "total_cpu_hours" (CPU usage), "job_count" (number of jobs). SUPREMM realm (most common): "gpu_time" (GPU hours), "wall_time" (total CPU time), "cpu_time_user" (user CPU time). Advanced: "total_ace", "avg_cpu_hours", "avg_percent_gpu_usage", "avg_percent_cpu_user", "avg_flops_per_core", "avg_memory_per_core", "avg_ib_rx_bytes".',
+              description: 'The statistic to chart. Jobs realm: "total_cpu_hours" (CPU usage), "job_count" (number of jobs), "avg_waitduration_hours" (average queue wait time), "total_waitduration_hours" (total wait time), "utilization" (CPU utilization), "avg_cpu_hours" (avg CPU per job), "max_processors" (max processor count), "total_ace" (ACCESS credits). SUPREMM realm: "gpu_time" (GPU hours), "wall_time" (total CPU time), "cpu_time_user" (user CPU time), "avg_percent_gpu_usage" (avg GPU %), "avg_percent_cpu_user" (avg CPU %), "avg_flops_per_core", "avg_memory_per_core", "avg_ib_rx_bytes".',
               examples: ["total_cpu_hours", "job_count", "gpu_time", "wall_time"]
             },
           },

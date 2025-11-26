@@ -4,68 +4,24 @@ MCP server providing charts and visualizations from XDMoD (XD Metrics on Demand)
 
 ## Usage Examples
 
-### **Explore Available Metrics**
+### **Charts & Visualizations**
 
 ```
-"What dimensions are available in XDMoD?"
-"Show me all statistics for the Jobs dimension"
-"What metrics can I track for Cloud resources?"
+"CPU hours chart for January 2024 (PNG)"
+"Job count data for last 30 days"
+"GPU usage SVG chart grouped by resource"
+"Average wait time visualization for Q1 2024"
 ```
 
-### **Get Usage Data**
+### **Portal Links**
 
 ```
-"Show me total CPU hours for January 2024"
-"What was the job count last month?"
-"Get me the average wait time data for Q1 2024"
-```
-
-### **Generate Charts**
-
-```
-"Create an SVG chart of CPU hours for the last 30 days"
-"Generate a high-resolution PNG chart of job counts for March 2024"
-"Show me a PDF chart of resource utilization trends"
-```
-
-### **Portal Integration**
-
-```
-"Give me a direct link to the CPU hours chart in XDMoD"
-"Generate a link to view GPU usage by resource in the portal"
-"How can I view this data interactively in the portal?"
-```
-
-### **NSF Integration & Research Analysis**
-
-```
-"Show me Dr. Smith's computational usage with their NSF funding context"
-"Analyze how NSF award 2138259's funding correlates with actual usage"
-"Generate a research profile for University of Illinois combining usage and NSF funding"
-"Compare funding allocation versus computational resource consumption"
+"XDMoD portal link for CPU hours chart"
+"Interactive GPU usage view in portal"
+"Job count chart link for Bridges-2"
 ```
 
 ## Tools
-
-### get_dimensions
-
-Get all available dimensions from the XDMoD Usage Tab.
-
-**Parameters:** None
-
-**Returns:** List of all dimensions with their IDs, categories, and group-by fields.
-
-### get_statistics
-
-Get available statistics for a specific dimension.
-
-**Parameters:**
-
-- `dimension_id` (string): The dimension ID (e.g., "Jobs_none")
-- `category` (string): The realm/category (e.g., "Jobs")
-- `group_by` (string): The group by field (e.g., "none")
-
-**Returns:** List of statistics available for the specified dimension.
 
 ### get_chart_data
 
@@ -111,87 +67,6 @@ Generate a direct link to view the chart in the XDMoD portal.
 - `statistic` (string): The statistic name (e.g., "total_cpu_hours", "gpu_time")
 
 **Returns:** Direct URL to view the interactive chart in XDMoD. Use the portal's filtering options to narrow down to specific resources, users, or other criteria.
-
-### get_nsf_award
-
-Get NSF award details for a specific award number.
-
-**Parameters:**
-
-- `award_number` (string): NSF award number (e.g., '2138259')
-
-### find_nsf_awards_by_pi
-
-Find NSF awards for a specific Principal Investigator.
-
-**Parameters:**
-
-- `pi_name` (string): Principal Investigator name to search for
-- `limit` (number, optional): Maximum number of awards to return (default: 10)
-
-### find_nsf_awards_by_personnel
-
-Search NSF awards by Principal Investigator name.
-
-**Note:** Co-PI and Program Officer searches are not reliable in the NSF API and have been removed.
-
-**Parameters:**
-
-- `person_name` (string): Principal Investigator name to search for
-- `limit` (number, optional): Maximum number of awards to return (default: 10)
-
-### get_usage_with_nsf_context
-
-Get XDMoD usage data enriched with NSF funding context for a researcher or institution.
-
-**Parameters:**
-
-- `researcher_name` (string, optional): Name of researcher to analyze
-- `institution_name` (string, optional): Institution to analyze
-- `start_date` (string): Start date in YYYY-MM-DD format
-- `end_date` (string): End date in YYYY-MM-DD format
-- `limit` (number, optional): Maximum NSF awards to include (default: 10)
-
-**Returns:** Combined analysis including XDMoD usage metrics and associated NSF funding portfolio
-
-### analyze_funding_vs_usage
-
-Compare NSF funding amounts with actual XDMoD computational usage patterns.
-
-**Parameters:**
-
-- `nsf_award_number` (string): Specific NSF award number to analyze
-- `start_date` (string): Start date in YYYY-MM-DD format  
-- `end_date` (string): End date in YYYY-MM-DD format
-
-**Returns:** Comparative analysis of funding allocation versus computational resource consumption
-
-### institutional_research_profile
-
-Generate a comprehensive research profile combining XDMoD usage patterns with NSF funding for an institution.
-
-**Parameters:**
-
-- `institution_name` (string): Institution name to profile
-- `start_date` (string): Start date in YYYY-MM-DD format
-- `end_date` (string): End date in YYYY-MM-DD format
-- `limit` (number, optional): Maximum NSF awards to include (default: 20)
-
-**Returns:** Comprehensive institutional profile with funding and usage correlation analysis
-
-### debug_auth_status
-
-Check authentication status and debug information.
-
-**Parameters:** None
-
-**Returns:** Comprehensive debugging information including:
-- API token status and configuration
-- Available tools and their authentication requirements  
-- Troubleshooting guidance for authentication issues
-- Environment variable and command-line argument detection
-
-
 
 ## Understanding Realms
 
