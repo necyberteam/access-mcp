@@ -4,55 +4,62 @@ MCP server providing access to ACCESS-CI Affinity Groups API endpoints. Access c
 
 ## Usage Examples
 
-### **Discover Community Resources**
+### **Discovery**
 
 ```
-"What affinity groups are available for machine learning?"
-"Show me information about the GPU computing affinity group"
-"Find affinity groups related to bioinformatics"
+"List all affinity groups"
+"Machine learning affinity groups"
+"Bridges-2 group details"
+"Groups related to bioinformatics"
 ```
 
-### **Find Events and Trainings**
+### **Events & Trainings**
 
 ```
-"What upcoming events are there for the bridges2.psc.access-ci.org group?"
-"Show me training opportunities for GPU computing"
-"Find workshops about parallel computing"
-```
-
-### **Access Knowledge Base**
-
-```
-"Get knowledge base resources for quantum computing"
-"What documentation is available for the Anvil cluster?"
-"Find tutorials for the Delta GPU system"
+"Upcoming events for delta.ncsa.access-ci.org"
+"GPU computing training opportunities"
+"Workshops about parallel computing"
+"All events and knowledge base for bridges2.psc.access-ci.org"
 ```
 
 ## Tools
 
-### get_affinity_group
+### search_affinity_groups
 
-Get basic information about a specific affinity group.
-
-**Parameters:**
-
-- `group_id` (string): The affinity group identifier (e.g., "bridges2.psc.access-ci.org")
-
-### get_affinity_group_events
-
-Get events and trainings for a specific affinity group.
+Comprehensive affinity groups search and discovery. Get information about affinity groups, their events, and knowledge base content with a single unified tool.
 
 **Parameters:**
 
-- `group_id` (string): The affinity group identifier
+- `group_id` (string, optional): Get information for specific affinity group by identifier (e.g., "bridges2.psc.access-ci.org"). Omit to list all affinity groups
+- `include` (string, optional): What to include in response - "events", "kb" (knowledge base), or "all" for complete group information. Default: "basic" (group info only)
+- `query` (string, optional): Search term to filter groups by name or description
+- `upcoming_events_only` (boolean, optional): When include="events", filter to upcoming events only (default: true)
+- `limit` (number, optional): Maximum number of items to return (default: 50)
 
-### get_affinity_group_kb
+**Examples:**
 
-Get knowledge base resources for a specific affinity group.
+```typescript
+// List all affinity groups
+search_affinity_groups({})
 
-**Parameters:**
+// Get specific group details
+search_affinity_groups({ group_id: "bridges2.psc.access-ci.org" })
 
-- `group_id` (string): The affinity group identifier
+// Get group with events
+search_affinity_groups({
+  group_id: "bridges2.psc.access-ci.org",
+  include: "events"
+})
+
+// Get complete group information (parallel fetching)
+search_affinity_groups({
+  group_id: "delta.ncsa.access-ci.org",
+  include: "all"
+})
+
+// Search for groups by query
+search_affinity_groups({ query: "GPU", limit: 10 })
+```
 
 ## Installation
 
@@ -85,7 +92,7 @@ Add to your Claude Desktop configuration:
 **Tool Call**:
 
 ```typescript
-const groupInfo = await get_affinity_group({
+const groupInfo = await search_affinity_groups({
   group_id: "bridges2.psc.access-ci.org",
 });
 ```
@@ -99,8 +106,10 @@ const groupInfo = await get_affinity_group({
 **Tool Call**:
 
 ```typescript
-const events = await get_affinity_group_events({
+const events = await search_affinity_groups({
   group_id: "gpu-computing.access-ci.org",
+  include: "events",
+  upcoming_events_only: true
 });
 ```
 
@@ -113,9 +122,25 @@ const events = await get_affinity_group_events({
 **Tool Call**:
 
 ```typescript
-const resources = await get_affinity_group_kb({
+const resources = await search_affinity_groups({
   group_id: "delta.ncsa.access-ci.org",
+  include: "kb"
 });
 ```
 
 **Returns**: Documentation, tutorials, best practices, and user guides.
+
+### Getting Complete Group Information
+
+**Natural Language**: "Give me everything about the Anvil group"
+
+**Tool Call**:
+
+```typescript
+const complete = await search_affinity_groups({
+  group_id: "anvil.purdue.access-ci.org",
+  include: "all"
+});
+```
+
+**Returns**: Complete group profile including basic info, events, and knowledge base resources (fetched in parallel for optimal performance).
