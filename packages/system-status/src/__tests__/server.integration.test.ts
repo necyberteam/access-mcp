@@ -12,8 +12,8 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should fetch current outages from real API", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_current_outages",
-          arguments: { limit: 5 }
+          name: "get_infrastructure_news",
+          arguments: { time: "current", limit: 5 }
         }
       });
 
@@ -31,16 +31,15 @@ describe("SystemStatusServer Integration Tests", () => {
       if (responseData.outages.length > 0) {
         const outage = responseData.outages[0];
         expect(outage).toHaveProperty("severity");
-        expect(outage).toHaveProperty("posted_time");
-        expect(outage).toHaveProperty("last_updated");
+        // The API response includes original fields like Subject, OutageStart, OutageEnd, etc.
+        expect(outage).toHaveProperty("Subject");
       }
     }, 10000);
 
     it("should fetch scheduled maintenance from real API", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_scheduled_maintenance",
-          arguments: { limit: 5 }
+          name: "get_infrastructure_news", arguments: { time: "scheduled", limit: 5 }
         }
       });
 
@@ -65,8 +64,7 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should fetch past outages from real API", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_past_outages",
-          arguments: { limit: 10 }
+          name: "get_infrastructure_news", arguments: { time: "past", limit: 5 }
         }
       });
 
@@ -93,8 +91,8 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should get comprehensive system announcements", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_system_announcements",
-          arguments: { limit: 20 }
+          name: "get_infrastructure_news",
+          arguments: { time: "all", limit: 20 }
         }
       });
 
@@ -121,9 +119,9 @@ describe("SystemStatusServer Integration Tests", () => {
       // Test with common resource names that might exist
       const result = await server["handleToolCall"]({
         params: {
-          name: "check_resource_status",
-          arguments: { 
-            resource_ids: ["anvil", "bridges", "jetstream"],
+          name: "get_infrastructure_news",
+          arguments: {
+            ids: ["anvil", "bridges", "jetstream"],
             use_group_api: false
           }
         }
@@ -152,9 +150,9 @@ describe("SystemStatusServer Integration Tests", () => {
       // Test group API with a resource that might have a group ID
       const result = await server["handleToolCall"]({
         params: {
-          name: "check_resource_status",
-          arguments: { 
-            resource_ids: ["anvil"],
+          name: "get_infrastructure_news",
+          arguments: {
+            ids: ["anvil"],
             use_group_api: true
           }
         }
@@ -169,13 +167,13 @@ describe("SystemStatusServer Integration Tests", () => {
       expect(resourceStatus).toHaveProperty("resource_id", "anvil");
       expect(resourceStatus).toHaveProperty("api_method");
       expect(["group_specific", "group_specific_failed"]).toContain(resourceStatus.api_method);
-      
+
       // If it succeeded, check structure
       if (resourceStatus.api_method === "group_specific") {
         expect(resourceStatus).toHaveProperty("status");
         expect(["operational", "affected"]).toContain(resourceStatus.status);
       }
-      
+
       // If it failed, check error handling
       if (resourceStatus.api_method === "group_specific_failed") {
         expect(resourceStatus.status).toBe("unknown");
@@ -186,24 +184,26 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should filter outages by resource correctly", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_current_outages",
-          arguments: { resource_filter: "anvil" }
+          name: "get_infrastructure_news",
+          arguments: { time: "current", query: "anvil" }
         }
       });
 
       const responseData = JSON.parse(result.content[0].text);
       expect(responseData).toHaveProperty("total_outages");
-      
+
       // If there are any results, they should match the filter
-      responseData.outages.forEach((outage: any) => {
-        const matchesFilter = 
-          outage.Subject?.toLowerCase().includes("anvil") ||
-          outage.AffectedResources?.some((resource: any) =>
-            resource.ResourceName?.toLowerCase().includes("anvil") ||
-            resource.ResourceID?.toString().includes("anvil")
-          );
-        expect(matchesFilter).toBe(true);
-      });
+      if (responseData.outages.length > 0) {
+        responseData.outages.forEach((outage: any) => {
+          const matchesFilter =
+            outage.Subject?.toLowerCase().includes("anvil") ||
+            outage.AffectedResources?.some((resource: any) =>
+              resource.ResourceName?.toLowerCase().includes("anvil") ||
+              resource.ResourceID?.toString().includes("anvil")
+            );
+          expect(matchesFilter).toBe(true);
+        });
+      }
     }, 10000);
 
     it("should handle resource reads for all endpoints", async () => {
@@ -237,8 +237,8 @@ describe("SystemStatusServer Integration Tests", () => {
       // This tests the robustness of our logic with potentially empty responses
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_current_outages",
-          arguments: { resource_filter: "nonexistent-resource-xyz" }
+          name: "get_infrastructure_news",
+          arguments: { time: "current", query: "nonexistent-resource-xyz-12345" }
         }
       });
 
@@ -251,8 +251,8 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should handle large limit values gracefully", async () => {
       const result = await server["handleToolCall"]({
         params: {
-          name: "get_past_outages",
-          arguments: { limit: 1000 }
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 1000 }
         }
       });
 

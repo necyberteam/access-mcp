@@ -87,14 +87,8 @@ describe("SystemStatusServer", () => {
 
     it("should provide correct tools", () => {
       const tools = server["getTools"]();
-      expect(tools).toHaveLength(5);
-      expect(tools.map(t => t.name)).toEqual([
-        "get_current_outages",
-        "get_scheduled_maintenance", 
-        "get_past_outages",
-        "get_system_announcements",
-        "check_resource_status"
-      ]);
+      expect(tools).toHaveLength(1);
+      expect(tools[0].name).toBe("get_infrastructure_news");
     });
 
     it("should provide correct resources", () => {
@@ -117,7 +111,7 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_current_outages", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "current" } }
       });
 
       expect(mockHttpClient.get).toHaveBeenCalledWith(
@@ -139,9 +133,9 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { 
-          name: "get_current_outages", 
-          arguments: { resource_filter: "Anvil" } 
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { query: "Anvil", time: "current" }
         }
       });
 
@@ -157,13 +151,13 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_current_outages", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "current" } }
       });
 
       const response = JSON.parse(result.content[0].text);
       const emergencyOutage = response.outages.find((o: any) => o.Subject.includes("Emergency"));
       const maintenanceOutage = response.outages.find((o: any) => o.Subject.includes("Scheduled"));
-      
+
       expect(emergencyOutage.severity).toBe("high");
       expect(maintenanceOutage.severity).toBe("low");
     });
@@ -177,7 +171,7 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_scheduled_maintenance", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "scheduled" } }
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -201,7 +195,7 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_scheduled_maintenance", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "scheduled" } }
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -217,7 +211,7 @@ describe("SystemStatusServer", () => {
           Subject: "Later maintenance"
         },
         {
-          ...mockFutureOutagesData[0], 
+          ...mockFutureOutagesData[0],
           OutageStart: "2024-08-30T10:00:00Z", // Earlier
           Subject: "Earlier maintenance"
         }
@@ -229,7 +223,7 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_scheduled_maintenance", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "scheduled" } }
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -246,7 +240,7 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_past_outages", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "past" } }
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -270,9 +264,9 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { 
-          name: "get_past_outages", 
-          arguments: { limit: 10 } 
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 10 }
         }
       });
 
@@ -289,11 +283,11 @@ describe("SystemStatusServer", () => {
         .mockResolvedValueOnce({ status: 200, data: { results: mockPastOutagesData } });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_system_announcements", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "all" } }
       });
 
       expect(mockHttpClient.get).toHaveBeenCalledTimes(3);
-      
+
       const response = JSON.parse(result.content[0].text);
       expect(response.current_outages).toBe(2);
       expect(response.scheduled_maintenance).toBe(1);
@@ -310,7 +304,7 @@ describe("SystemStatusServer", () => {
         .mockResolvedValueOnce({ status: 200, data: { results: mockPastOutagesData } });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_system_announcements", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "all" } }
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -327,9 +321,9 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { 
-          name: "check_resource_status", 
-          arguments: { resource_ids: ["anvil-1", "unknown-resource"] } 
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { ids: ["anvil-1", "unknown-resource"] }
         }
       });
 
@@ -338,7 +332,7 @@ describe("SystemStatusServer", () => {
       expect(response.resources_checked).toBe(2);
       expect(response.operational).toBe(1); // unknown-resource
       expect(response.affected).toBe(1);    // anvil-1
-      
+
       const anvilStatus = response.resource_status.find((r: any) => r.resource_id === "anvil-1");
       expect(anvilStatus.status).toBe("affected");
       expect(anvilStatus.severity).toBe("high"); // Emergency maintenance
@@ -351,17 +345,17 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { 
-          name: "check_resource_status", 
-          arguments: { 
-            resource_ids: ["anvil"], 
-            use_group_api: true 
-          } 
+        params: {
+          name: "get_infrastructure_news",
+          arguments: {
+            ids: ["anvil"],
+            use_group_api: true
+          }
         }
       });
 
       expect(mockHttpClient.get).toHaveBeenCalledWith("/wh2/news/v1/info_groupid/anvil/");
-      
+
       const response = JSON.parse(result.content[0].text);
       expect(response.api_method).toBe("resource_group_api");
       expect(response.resource_status[0].status).toBe("operational");
@@ -372,17 +366,17 @@ describe("SystemStatusServer", () => {
       mockHttpClient.get.mockRejectedValue(new Error("API Error"));
 
       const result = await server["handleToolCall"]({
-        params: { 
-          name: "check_resource_status", 
-          arguments: { 
-            resource_ids: ["invalid-resource"], 
-            use_group_api: true 
-          } 
+        params: {
+          name: "get_infrastructure_news",
+          arguments: {
+            ids: ["invalid-resource"],
+            use_group_api: true
+          }
         }
       });
 
       const response = JSON.parse(result.content[0].text);
-      expect(response.unknown).toBe(1);
+      expect(response).toHaveProperty("unknown", 1);
       expect(response.resource_status[0].status).toBe("unknown");
       expect(response.resource_status[0].api_method).toBe("group_specific_failed");
       expect(response.resource_status[0]).toHaveProperty("error");
@@ -397,20 +391,22 @@ describe("SystemStatusServer", () => {
       });
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_current_outages", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "current" } }
       });
 
-      expect(result.content[0].text).toContain("Error");
+      const response = JSON.parse(result.content[0].text);
+      expect(response.error).toBeDefined();
     });
 
     it("should handle network errors", async () => {
       mockHttpClient.get.mockRejectedValue(new Error("Network error"));
 
       const result = await server["handleToolCall"]({
-        params: { name: "get_current_outages", arguments: {} }
+        params: { name: "get_infrastructure_news", arguments: { time: "current" } }
       });
 
-      expect(result.content[0].text).toContain("Error");
+      const response = JSON.parse(result.content[0].text);
+      expect(response.error).toBe("Network error");
     });
 
     it("should handle unknown tools", async () => {

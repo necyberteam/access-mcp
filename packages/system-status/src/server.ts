@@ -12,93 +12,37 @@ export class SystemStatusServer extends BaseAccessServer {
   protected getTools() {
     return [
       {
-        name: "get_current_outages",
-        description:
-          "Get current system outages and issues affecting ACCESS-CI resources",
+        name: "get_infrastructure_news",
+        description: "Get ACCESS-CI infrastructure status (outages, maintenance, incidents). Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
-            resource_filter: {
+            query: {
               type: "string",
-              description: "Optional: filter by specific resource name or ID",
+              description: "Filter by resource name (e.g., 'delta', 'bridges2')"
             },
-          },
-          required: [],
-        },
-      },
-      {
-        name: "get_scheduled_maintenance",
-        description:
-          "Get scheduled maintenance and future outages for ACCESS-CI resources",
-        inputSchema: {
-          type: "object",
-          properties: {
-            resource_filter: {
+            time: {
               type: "string",
-              description: "Optional: filter by specific resource name or ID",
+              enum: ["current", "scheduled", "past", "all"],
+              description: "Period: current (active), scheduled (future), past, all",
+              default: "current"
             },
-          },
-          required: [],
-        },
-      },
-      {
-        name: "get_past_outages",
-        description:
-          "Get historical outages and past incidents affecting ACCESS-CI resources",
-        inputSchema: {
-          type: "object",
-          properties: {
-            resource_filter: {
-              type: "string",
-              description: "Optional: filter by specific resource name or ID",
-            },
-            limit: {
-              type: "number",
-              description: "Maximum number of past outages to return (default: 100)",
-            },
-          },
-          required: [],
-        },
-      },
-      {
-        name: "get_system_announcements",
-        description: "Retrieve all system announcements including current outages, scheduled maintenance, and recent past incidents. Use this when users want a comprehensive overview of system status across all ACCESS-CI resources or need to check for recent updates.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            limit: {
-              type: "number",
-              description:
-                "Maximum number of announcements to return (default: 50)",
-            },
-          },
-          required: [],
-        },
-      },
-      {
-        name: "check_resource_status",
-        description:
-          "Check the operational status of specific ACCESS-CI resources",
-        inputSchema: {
-          type: "object",
-          properties: {
-            resource_ids: {
+            ids: {
               type: "array",
               items: { type: "string" },
-              description: "List of resource IDs or names to check status for. Use list_compute_resources tool to get valid resource IDs.",
-              examples: [
-                ["delta.ncsa.access-ci.org", "bridges2.psc.access-ci.org"],
-                ["anvil.purdue.access-ci.org"],
-                ["stampede3.tacc.access-ci.org", "delta.ncsa.access-ci.org"]
-              ]
+              description: "Check status for specific resource IDs"
+            },
+            limit: {
+              type: "number",
+              description: "Max results (default: 50)",
+              default: 50
             },
             use_group_api: {
               type: "boolean",
-              description: "Use resource group API for more efficient querying (default: false)",
-              default: false,
-            },
-          },
-          required: ["resource_ids"],
+              description: "Use group API for status (with ids only)",
+              default: false
+            }
+          }
         },
       },
     ];
@@ -139,28 +83,46 @@ export class SystemStatusServer extends BaseAccessServer {
 
     try {
       switch (name) {
-        case "get_current_outages":
-          return await this.getCurrentOutages(args.resource_filter);
-        case "get_scheduled_maintenance":
-          return await this.getScheduledMaintenance(args.resource_filter);
-        case "get_past_outages":
-          return await this.getPastOutages(args.resource_filter, args.limit);
-        case "get_system_announcements":
-          return await this.getSystemAnnouncements(args.limit);
-        case "check_resource_status":
-          return await this.checkResourceStatus(args.resource_ids, args.use_group_api);
+        case "get_infrastructure_news":
+          return await this.getInfrastructureNewsRouter({
+            resource: args.query,
+            time: args.time,
+            resource_ids: args.ids,
+            limit: args.limit,
+            use_group_api: args.use_group_api
+          });
         default:
-          throw new Error(`Unknown tool: ${name}`);
+          return this.errorResponse(`Unknown tool: ${name}`);
       }
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Error: ${handleApiError(error)}`,
-          },
-        ],
-      };
+      return this.errorResponse(handleApiError(error));
+    }
+  }
+
+  /**
+   * Router for consolidated get_infrastructure_news tool
+   * Routes to appropriate handler based on parameters
+   */
+  private async getInfrastructureNewsRouter(args: any) {
+    const { resource, time = "current", resource_ids, limit, use_group_api = false } = args;
+
+    // Check resource status (returns operational/affected)
+    if (resource_ids && Array.isArray(resource_ids)) {
+      return await this.checkResourceStatus(resource_ids, use_group_api);
+    }
+
+    // Time-based routing
+    switch (time) {
+      case "current":
+        return await this.getCurrentOutages(resource);
+      case "scheduled":
+        return await this.getScheduledMaintenance(resource);
+      case "past":
+        return await this.getPastOutages(resource, limit || 100);
+      case "all":
+        return await this.getSystemAnnouncements(limit || 50);
+      default:
+        throw new Error(`Invalid time parameter: ${time}. Must be one of: current, scheduled, past, all`);
     }
   }
 

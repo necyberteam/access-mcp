@@ -4,83 +4,64 @@ MCP server providing real-time system status information for ACCESS-CI resources
 
 ## Usage Examples
 
-### **Monitor Current Issues**
+### **Current Status**
 
 ```
-"Are there any current outages on ACCESS-CI?"
-"Is Delta currently operational?"
-"What systems are experiencing issues right now?"
-"Show me all systems that are down"
+"Current ACCESS-CI outages"
+"Delta operational status"
+"Systems experiencing issues"
+"GPU systems status check"
 ```
 
-### **Track Maintenance Windows**
+### **Maintenance & Incidents**
 
 ```
-"When is the next maintenance for Expanse?"
-"Show me all scheduled maintenance for this week"
-"Is there upcoming maintenance on Bridges-2?"
-"What maintenance is planned for GPU systems?"
-```
-
-### **System Announcements**
-
-```
-"What are the latest system announcements?"
-"Are there any important notices for ACCESS users?"
-"Show me recent updates about system changes"
-"Any policy updates I should know about?"
-```
-
-### **Check Resource Status**
-
-```
-"What's the current status of Anvil?"
-"Is Frontera available for job submission?"
-"Check if all GPU systems are operational"
-"Get status for all TACC resources"
+"Scheduled maintenance this week"
+"Next Expanse maintenance window"
+"Past outages for Bridges-2"
+"All infrastructure news for Delta"
 ```
 
 ## Tools
 
-### get_current_outages
+### get_infrastructure_news
 
-Get current system outages and issues affecting ACCESS-CI resources.
+Comprehensive ACCESS-CI infrastructure status and outage information. Get current outages, scheduled maintenance, past incidents, and operational status for ACCESS-CI resources. Provides real-time monitoring of system health and availability.
 
 **Parameters:**
 
-- `resource_filter` (string, optional): Filter by specific resource name or ID
+- `resource` (string, optional): Filter by specific resource name or ID (e.g., 'delta', 'bridges2')
+- `time` (string, optional): Time period for infrastructure news: 'current' (active outages), 'scheduled' (future maintenance), 'past' (historical incidents), 'all' (comprehensive overview). Default: 'current'
+- `resource_ids` (array of strings, optional): Check operational status for specific resource IDs (returns 'operational' or 'affected' status). Use instead of 'resource' parameter for status checking
+- `limit` (number, optional): Maximum number of items to return (default: 50 for 'all', 100 for 'past')
+- `use_group_api` (boolean, optional): Use resource group API for status checking (only with resource_ids parameter, default: false)
 
-**Example:**
+**Examples:**
+
 ```typescript
-// User: "Are there any current outages on Delta?"
-const outages = await get_current_outages({
-  resource_filter: "delta"
-});
+// Get current outages across all resources
+get_infrastructure_news({})
+
+// Get scheduled maintenance
+get_infrastructure_news({ time: "scheduled" })
+
+// Get comprehensive overview of all infrastructure news
+get_infrastructure_news({ time: "all" })
+
+// Check current status for specific resource
+get_infrastructure_news({ resource: "delta", time: "current" })
+
+// Get all news for specific resource
+get_infrastructure_news({ resource: "delta", time: "all" })
+
+// Check operational status of specific resources
+get_infrastructure_news({
+  resource_ids: ["delta.ncsa.access-ci.org", "bridges2.psc.access-ci.org"]
+})
+
+// Get past outages with limit
+get_infrastructure_news({ time: "past", limit: 50 })
 ```
-
-### get_scheduled_maintenance
-
-Get scheduled maintenance and future outages for ACCESS-CI resources.
-
-**Parameters:**
-
-- `resource_filter` (string, optional): Filter by specific resource name or ID
-
-### get_system_announcements
-
-Get all system announcements (current and scheduled).
-
-**Parameters:**
-
-- `limit` (number, optional): Maximum number of announcements to return (default: 50)
-
-### get_resource_status
-
-Get the current operational status of a specific resource.
-
-**Parameters:**
-
-- `resource_id` (string): The resource ID to check status for
 
 ## Resources
 
@@ -141,14 +122,16 @@ Add to your Claude Desktop configuration:
 
 **Tool Call**:
 ```typescript
-const outages = await get_current_outages();
+const outages = await get_infrastructure_news({});
+// or explicitly: get_infrastructure_news({ time: "current" })
 ```
 
 **Returns**: List of active outages with:
 - Affected resources
+- Severity categorization (high/medium/low)
 - Start time and expected resolution
 - Impact description
-- Workaround information if available
+- Summary statistics (total outages, affected resources)
 
 ### Finding Scheduled Maintenance
 
@@ -156,33 +139,37 @@ const outages = await get_current_outages();
 
 **Tool Call**:
 ```typescript
-const maintenance = await get_scheduled_maintenance({
-  resource_filter: "delta"
+const maintenance = await get_infrastructure_news({
+  resource: "delta",
+  time: "scheduled"
 });
 ```
 
 **Returns**: Upcoming maintenance windows including:
 - Scheduled start and end times
 - Systems affected
-- Type of maintenance
-- Expected impact on users
+- Duration in hours
+- Hours until maintenance starts
+- Summary (upcoming in 24h, upcoming this week)
 
-### Getting System Announcements
+### Getting Comprehensive System Overview
 
 **Natural Language**: "What are the latest announcements?"
 
 **Tool Call**:
 ```typescript
-const announcements = await get_system_announcements({
+const announcements = await get_infrastructure_news({
+  time: "all",
   limit: 10
 });
 ```
 
-**Returns**: Recent announcements about:
-- Policy changes
-- New features or services
-- Important deadlines
-- System-wide updates
+**Returns**: Comprehensive overview including:
+- Current outages
+- Scheduled maintenance
+- Recent past outages (last 30 days)
+- Category breakdown
+- Sorted by relevance (current issues first)
 
 ### Checking Specific Resource Status
 
@@ -190,16 +177,17 @@ const announcements = await get_system_announcements({
 
 **Tool Call**:
 ```typescript
-const status = await get_resource_status({
-  resource_id: "expanse.sdsc.xsede.org"
+const status = await get_infrastructure_news({
+  resource_ids: ["expanse.sdsc.access-ci.org"]
 });
 ```
 
 **Returns**: Current operational status:
-- Overall system health
-- Service availability
-- Performance metrics
-- Any active issues or limitations
+- Overall status ("operational" or "affected")
+- Severity level if affected
+- Number of active outages
+- Outage details with subjects
+- Timestamp of status check
 
 ## API Endpoints
 
