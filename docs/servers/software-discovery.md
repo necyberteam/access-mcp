@@ -1,6 +1,6 @@
 # ACCESS-CI Software Discovery Service MCP server
 
-MCP server for discovering software packages across ACCESS-CI compute resources. Features global software search across all resources, resource-specific browsing, AI-enhanced metadata, advanced filtering capabilities, and detailed package information using the Software Discovery Service (SDS) API.
+MCP server for discovering software packages across ACCESS-CI compute resources. Features global software search across all resources, resource-specific browsing, AI-enhanced metadata, fuzzy matching, software comparison, and detailed package information using the Software Discovery Service (SDS) API v1.
 
 ## Usage Examples
 
@@ -20,7 +20,13 @@ MCP server for discovering software packages across ACCESS-CI compute resources.
 "Quantum chemistry tools (all resources)"
 "Computational biology packages"
 "GPU-optimized software by category"
-"Available filter values for research areas"
+```
+
+### **Comparison Queries**
+
+```
+"Compare CUDA and OpenMPI availability"
+"Which resources have TensorFlow and PyTorch?"
 ```
 
 
@@ -43,48 +49,107 @@ Add to your Claude Desktop configuration:
 }
 ```
 
+## What's New in v0.6.0
+
+- **New API Backend**: Uses the new SDS API v1 at `sds-ara-api.access-ci.org`
+- **Fuzzy Search**: Fuzzy matching for both software names and resource providers
+- **Improved Tools**: Reorganized tools for clearer use cases
+- **Software Comparison**: New tool to compare software availability across resources
+
+
 ## Tools
 
 ### search_software
 
-Comprehensive software search and filtering with support for global search, resource-specific queries, AI metadata filtering, package details, and filter discovery.
+Search software packages on ACCESS-CI resources with fuzzy matching support.
 
 **Parameters:**
 
-- `query` (string, optional): Search query for software names/descriptions (e.g., 'python', 'tensorflow', 'gromacs'). Omit to list all software.
-- `software_name` (string, optional): Get details for a specific software package by exact name
-- `resource_id` (string, optional): Filter by specific resource ID (e.g., 'delta.ncsa.access-ci.org'). Use `access-compute-resources:search_resources` with `include_resource_ids: true` to discover resource IDs.
-- `filter_research_area` (string, optional): Filter by AI-identified research area (partial match)
-- `filter_tags` (array, optional): Filter by AI tags (matches any provided tag)
-- `filter_software_type` (string, optional): Filter by AI-identified software type
-- `include_ai_metadata` (boolean, optional): Include AI-generated metadata. Default: true
-- `discover_filters` (boolean, optional): Return available filter values. Default: false
-- `limit` (number, optional): Maximum results. Default: 100
+- `query` (string, optional): Software name to search for (e.g., 'python', 'gcc', 'tensorflow'). Supports fuzzy matching.
+- `resource` (string, optional): Resource provider name or ID to filter by (e.g., 'anvil', 'expanse', 'delta.ncsa.access-ci.org'). Supports fuzzy matching.
+- `fuzzy` (boolean, optional): Enable fuzzy matching for software and resource names. Default: true
+- `include_ai_metadata` (boolean, optional): Include AI-generated metadata (tags, research area, software type, etc.). Default: true
+- `limit` (number, optional): Max results to return. Default: 100
 
 **Usage Examples:**
 
 ```javascript
-// Browse all available software (no search required!)
-search_software({ limit: 100 })
-
-// Search for Python packages
+// Search for Python packages with fuzzy matching
 search_software({ query: "python", limit: 20 })
 
-// List all software on Delta
-search_software({ resource_id: "delta.ncsa.access-ci.org", limit: 50 })
+// Find TensorFlow on Anvil
+search_software({ query: "tensorflow", resource: "anvil" })
 
-// Find machine learning software
-search_software({ filter_tags: ["machine-learning", "deep-learning"], limit: 30 })
+// Exact search (no fuzzy matching)
+search_software({ query: "gcc", fuzzy: false })
+```
 
+### list_all_software
+
+List all software packages available across ACCESS-CI resources.
+
+**Parameters:**
+
+- `resource` (string, optional): Filter to a specific resource provider (e.g., 'anvil', 'expanse')
+- `include_ai_metadata` (boolean, optional): Include AI-generated metadata. Default: false
+- `limit` (number, optional): Max results to return. Default: 100
+
+**Usage Examples:**
+
+```javascript
+// List all available software
+list_all_software({ limit: 100 })
+
+// List software on Delta
+list_all_software({ resource: "delta", limit: 50 })
+```
+
+### get_software_details
+
+Get detailed information about a specific software package.
+
+**Parameters:**
+
+- `software_name` (string, required): Exact or partial software name
+- `resource` (string, optional): Filter to a specific resource provider
+- `fuzzy` (boolean, optional): Enable fuzzy matching for software name. Default: true
+
+**Usage Examples:**
+
+```javascript
 // Get TensorFlow details
-search_software({ software_name: "tensorflow", resource_id: "delta.ncsa.access-ci.org" })
+get_software_details({ software_name: "tensorflow" })
 
-// Discover available filters
-search_software({ discover_filters: true, limit: 200 })
+// Get GCC details on Expanse
+get_software_details({ software_name: "gcc", resource: "expanse" })
+```
+
+### compare_software_availability
+
+Compare software availability across multiple resources.
+
+**Parameters:**
+
+- `software_names` (array, required): List of software names to check
+- `resources` (array, optional): List of resources to compare (compares all if not specified)
+
+**Usage Examples:**
+
+```javascript
+// Compare CUDA and OpenMPI availability
+compare_software_availability({
+  software_names: ["cuda", "openmpi"]
+})
+
+// Compare on specific resources
+compare_software_availability({
+  software_names: ["tensorflow", "pytorch"],
+  resources: ["anvil", "delta", "expanse"]
+})
 ```
 
 ---
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.5.0  
+**Version:** v0.6.0  
 **Main:** `dist/index.js`

@@ -1,14 +1,53 @@
 import { BaseAccessServer, handleApiError } from "@access-mcp/shared";
 import axios, { AxiosInstance } from "axios";
 
+interface SoftwareQueryParams {
+  software?: string[];
+  rps?: string[];
+  columns?: string[];
+  exclude?: boolean;
+  fuzz_software?: boolean;
+  fuzz_rp?: boolean;
+  collapse_resource_groups?: boolean;
+}
+
+interface RpInfo {
+  rp_name: string;
+  rp_resource_id: string[];
+  software_versions: string;
+  rp_software_documentation?: string;
+}
+
+interface SoftwareItem {
+  software_name: string;
+  software_description?: string;
+  software_web_page?: string;
+  software_documentation?: string;
+  software_use_link?: string;
+  rps?: Record<string, RpInfo>;
+  ai_description?: string;
+  ai_general_tags?: string;
+  ai_research_area?: string;
+  ai_research_discipline?: string;
+  ai_research_field?: string;
+  ai_software_type?: string;
+  ai_software_class?: string;
+  ai_core_features?: string;
+  ai_example_use?: string;
+}
+
+interface ApiResponse {
+  data: SoftwareItem[];
+}
+
 export class SoftwareDiscoveryServer extends BaseAccessServer {
   private _sdsClient?: AxiosInstance;
 
   constructor() {
     super(
       "access-mcp-software-discovery",
-      "0.3.0",
-      "https://ara-db.ccs.uky.edu",
+      "0.6.0",
+      "https://sds-ara-api.access-ci.org",
     );
   }
 
@@ -31,27 +70,31 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     if (resourceId.includes(".edu")) {
       resourceId = resourceId.replace(".edu", ".access-ci.org");
     }
-    
+
     // Handle specific resource types from compute-resources service
     // Convert delta-gpu.ncsa.access-ci.org -> delta.ncsa.access-ci.org
     // Convert delta-cpu.ncsa.access-ci.org -> delta.ncsa.access-ci.org
     // Convert delta-storage.ncsa.access-ci.org -> delta.ncsa.access-ci.org
     resourceId = resourceId.replace(/-(gpu|cpu|storage|compute)\./, '.');
-    
+
     // Handle other common patterns
     resourceId = resourceId.replace(/-(login|data|transfer)\./, '.');
-    
+
     // If already in correct format or unknown format, return as-is
     return resourceId;
   }
 
   protected get sdsClient(): AxiosInstance {
     if (!this._sdsClient) {
+      const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
+
       this._sdsClient = axios.create({
-        baseURL: "https://ara-db.ccs.uky.edu",
-        timeout: 10000,
+        baseURL: "https://sds-ara-api.access-ci.org",
+        timeout: 30000,
         headers: {
-          "User-Agent": "access-mcp-software-discovery/0.3.0",
+          "Content-Type": "application/json",
+          "User-Agent": "access-mcp-software-discovery/0.6.0",
+          ...(apiKey ? { "X-API-Key": apiKey } : {}),
         },
         validateStatus: () => true,
       });
@@ -59,30 +102,91 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     return this._sdsClient;
   }
 
+  /**
+   * Makes a query to the new SDS API v1
+   */
+  private async queryApi(params: SoftwareQueryParams): Promise<SoftwareItem[]> {
+    const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
+
+    if (!apiKey) {
+      throw new Error("SDS API key not configured. Set SDS_API_KEY environment variable.");
+    }
+
+    const response = await this.sdsClient.post("/api/v1", params);
+
+    if (response.status !== 200) {
+      throw new Error(`SDS API error: ${response.status} ${response.statusText}`);
+    }
+
+    // Handle the new API response format: { data: [...] }
+    const responseData = response.data as ApiResponse | SoftwareItem[];
+    if ('data' in responseData && Array.isArray(responseData.data)) {
+      return responseData.data;
+    }
+    return Array.isArray(responseData) ? responseData : [];
+  }
+
   protected getTools() {
     return [
       {
         name: "search_software",
-        description: "Search software packages on ACCESS-CI resources. Returns {total, items}. If no parameters provided, lists popular/available software.",
+        description: "Search software packages on ACCESS-CI HPC resources with fuzzy matching. Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Search software names/descriptions (optional - omit to list all/popular software)"
+              description: "Software name to search (e.g., 'python', 'tensorflow', 'gromacs'). Fuzzy matching finds partial matches."
             },
             resource: {
               type: "string",
-              description: "Resource ID (e.g., 'delta.ncsa.access-ci.org')"
+              description: "Filter to resource (e.g., 'anvil', 'delta', 'expanse', 'bridges-2')"
             },
-            tags: {
-              type: "array",
-              items: { type: "string" },
-              description: "Filter by tags (ml, hpc, bio)"
-            },
-            discover: {
+            fuzzy: {
               type: "boolean",
-              description: "Return available filter values",
+              description: "Enable fuzzy/partial matching (default: true)",
+              default: true
+            },
+            include_ai_metadata: {
+              type: "boolean",
+              description: "Include AI metadata (tags, research area, software type)",
+              default: true
+            },
+            limit: {
+              type: "number",
+              description: "Max results (default: 100)",
+              default: 100
+            }
+          },
+          examples: [
+            {
+              name: "Search for Python",
+              arguments: { query: "python", limit: 10 }
+            },
+            {
+              name: "Find TensorFlow on Anvil",
+              arguments: { query: "tensorflow", resource: "anvil" }
+            },
+            {
+              name: "Search MPI libraries on Delta",
+              arguments: { query: "mpi", resource: "delta", limit: 20 }
+            }
+          ]
+        }
+      },
+      {
+        name: "list_all_software",
+        description: "List all available software packages on ACCESS-CI resources. Returns {total, items}.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            resource: {
+              type: "string",
+              description: "Filter to resource (e.g., 'anvil', 'delta'). Omit for all resources."
+            },
+            include_ai_metadata: {
+              type: "boolean",
+              description: "Include AI metadata (default: false for compact output)",
               default: false
             },
             limit: {
@@ -90,7 +194,83 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               description: "Max results (default: 100)",
               default: 100
             }
-          }
+          },
+          examples: [
+            {
+              name: "List all software",
+              arguments: { limit: 50 }
+            },
+            {
+              name: "List software on Delta",
+              arguments: { resource: "delta", limit: 100 }
+            }
+          ]
+        }
+      },
+      {
+        name: "get_software_details",
+        description: "Get detailed info about a specific software package including versions and availability. Returns {found, details, other_matches}.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            software_name: {
+              type: "string",
+              description: "Software name (e.g., 'tensorflow', 'gromacs', 'python')"
+            },
+            resource: {
+              type: "string",
+              description: "Filter to specific resource (optional)"
+            },
+            fuzzy: {
+              type: "boolean",
+              description: "Enable fuzzy matching (default: true)",
+              default: true
+            }
+          },
+          required: ["software_name"],
+          examples: [
+            {
+              name: "Get TensorFlow details",
+              arguments: { software_name: "tensorflow" }
+            },
+            {
+              name: "Get GROMACS on Expanse",
+              arguments: { software_name: "gromacs", resource: "expanse" }
+            }
+          ]
+        }
+      },
+      {
+        name: "compare_software_availability",
+        description: "Compare availability of multiple software packages across resources. Returns {comparison, summary}.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            software_names: {
+              type: "array",
+              items: { type: "string" },
+              description: "Software packages to compare (e.g., ['tensorflow', 'pytorch'])"
+            },
+            resources: {
+              type: "array",
+              items: { type: "string" },
+              description: "Resources to check (optional, compares all if omitted)"
+            }
+          },
+          required: ["software_names"],
+          examples: [
+            {
+              name: "Compare ML frameworks",
+              arguments: { software_names: ["tensorflow", "pytorch", "cuda"] }
+            },
+            {
+              name: "Check compilers on specific resources",
+              arguments: {
+                software_names: ["gcc", "intel", "nvhpc"],
+                resources: ["anvil", "delta", "expanse"]
+              }
+            }
+          ]
         }
       }
     ];
@@ -121,6 +301,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       switch (name) {
         case "search_software":
           return await this.searchSoftware(args);
+        case "list_all_software":
+          return await this.listAllSoftware(args);
+        case "get_software_details":
+          return await this.getSoftwareDetails(args);
+        case "compare_software_availability":
+          return await this.compareSoftwareAvailability(args);
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
@@ -139,13 +325,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             {
               uri,
               mimeType: "text/plain",
-              text: "ACCESS-CI Software Discovery Service - Search and discover software packages available on ACCESS-CI resources.",
+              text: "ACCESS-CI Software Discovery Service - Search and discover software packages available on ACCESS-CI resources. Uses the new SDS API v1 with fuzzy search support.",
             },
           ],
         };
       case "accessci://software/categories":
-        // Discover actual filter values from the data
-        const filterValues = await this.discoverFilterValues({ sample_size: 100 });
+        const filterValues = await this.discoverFilterValues();
         return {
           contents: [
             {
@@ -160,792 +345,438 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     }
   }
 
-  private async getAllSoftware(args: {
-    resource_id?: string;
-    include_ai_metadata?: boolean;
-    limit?: number;
-  }) {
-    const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
+  /**
+   * Transform raw API response to enhanced format
+   */
+  private transformSoftwareItem(item: SoftwareItem, includeAiMetadata: boolean = true): any {
+    // Extract resource information from the rps object
+    const resources: string[] = [];
+    const resourceIds: string[] = [];
+    const versionsPerResource: Record<string, string> = {};
 
-    if (!apiKey) {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            error: "SDS API key not configured. Set SDS_API_KEY environment variable."
-          }, null, 2)
-        }]
-      };
-    }
-
-    // If resource_id is provided, get all software from that resource
-    if (args.resource_id) {
-      return await this.listSoftwareByResource(
-        args.resource_id,
-        args.limit || 1000
-      );
-    }
-
-    // For all software across all resources, try a direct API call without software filter
-    // Based on SDS API docs, we can query by just including fields
-    try {
-      const baseFields = [
-        "software_name",
-        "software_description", 
-        "software_web_page",
-        "software_documentation",
-        "software_use_link",
-        "software_versions",
-        "rp_name",
-        "rp_group_id"
-      ];
-      
-      const aiFields = args.include_ai_metadata ? [
-        "ai_description",
-        "ai_general_tags",
-        "ai_research_area",
-        "ai_research_discipline",
-        "ai_research_field",
-        "ai_software_type",
-        "ai_software_class",
-        "ai_core_features",
-        "ai_example_use"
-      ] : [];
-      
-      const apiFields = [...baseFields, ...aiFields];
-
-      // Try different API approaches to get all software
-      const apiAttempts = [
-        // Approach 1: Query all with wildcard
-        `/API_0.1/${apiKey}/software=*,include=${apiFields.join("+")}`,
-        // Approach 2: Query all without software filter
-        `/API_0.1/${apiKey}/include=${apiFields.join("+")}`,
-        // Approach 3: Empty software query
-        `/API_0.1/${apiKey}/software=,include=${apiFields.join("+")}`,
-      ];
-
-      for (const endpoint of apiAttempts) {
-        try {
-          const response = await this.sdsClient.get(endpoint);
-          
-          if (response.status === 200 && Array.isArray(response.data) && response.data.length > 0) {
-            let results = response.data;
-            
-            // Apply limit
-            const limit = args.limit || 1000;
-            if (results.length > limit) {
-              results = results.slice(0, limit);
-            }
-            
-            // Transform results
-            const transformedResults = results.map((item: any) => {
-              const resources = Array.isArray(item.rp_name) ? item.rp_name : [item.rp_name];
-              const resourceIds = Array.isArray(item.rp_group_id) ? item.rp_group_id : [item.rp_group_id];
-              
-              const baseResult: any = {
-                name: item.software_name,
-                description: item.software_description,
-                versions: item.software_versions || [],
-                documentation: item.software_documentation,
-                website: item.software_web_page,
-                usage_link: item.software_use_link,
-                available_on_resources: resources.filter(Boolean),
-                resource_ids: resourceIds.filter(Boolean),
-              };
-              
-              // Add AI-enhanced fields if available
-              if (args.include_ai_metadata) {
-                baseResult.ai_metadata = {
-                  description: item.ai_description || null,
-                  tags: item.ai_general_tags ? item.ai_general_tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
-                  research_area: item.ai_research_area || null,
-                  research_discipline: item.ai_research_discipline || null,
-                  research_field: item.ai_research_field || null,
-                  software_type: item.ai_software_type || null,
-                  software_class: item.ai_software_class || null,
-                  core_features: item.ai_core_features || null,
-                  example_use: item.ai_example_use || null,
-                };
-              }
-              
-              return baseResult;
-            });
-
-            return {
-              content: [{
-                type: "text",
-                text: JSON.stringify({
-                  total: transformedResults.length,
-                  items: transformedResults
-                })
-              }]
-            };
-          }
-        } catch (e) {
-          // Try next approach
-          continue;
+    if (item.rps) {
+      for (const [rpKey, rpInfo] of Object.entries(item.rps)) {
+        resources.push(rpInfo.rp_name || rpKey);
+        if (rpInfo.rp_resource_id) {
+          resourceIds.push(...rpInfo.rp_resource_id);
+        }
+        if (rpInfo.software_versions) {
+          versionsPerResource[rpInfo.rp_name || rpKey] = rpInfo.software_versions;
         }
       }
-
-      // If all API approaches fail, fall back to broad search terms
-      const broadTerms = ['software', 'tool', 'library', 'application'];
-      let allSoftware: any[] = [];
-      
-      for (const term of broadTerms) {
-        try {
-          const result = await this.searchSoftware({
-            query: term,
-            include_ai_metadata: args.include_ai_metadata,
-            limit: 250,
-          });
-          
-          const data = JSON.parse(result.content[0].text);
-          if (!data.error && data.items) {
-            allSoftware.push(...data.items);
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-
-      // Remove duplicates based on software name
-      const uniqueSoftware = allSoftware.filter((item, index, self) => 
-        index === self.findIndex(s => s.name === item.name)
-      );
-
-      const limit = args.limit || 1000;
-      const limitedResults = uniqueSoftware.slice(0, limit);
-
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            total: limitedResults.length,
-            items: limitedResults
-          })
-        }]
-      };
-      
-    } catch (error: any) {
-      return {
-        content: [{
-          type: "text",
-          text: JSON.stringify({
-            error: `Failed to retrieve all software: ${error.message}`,
-            suggestion: "Try using search_software with a specific query term"
-          }, null, 2)
-        }]
-      };
     }
-  }
 
-  private async searchSoftware(args: any) {
-    if (args.discover) {
-      return await this.discoverFilterValues({
-        query: args.query,
-        resource_id: args.resource,
-        sample_size: args.limit || 200
+    // Collect all unique versions across resources
+    const allVersions = new Set<string>();
+    Object.values(versionsPerResource).forEach(versions => {
+      versions.split(',').forEach(v => {
+        const trimmed = v.trim();
+        if (trimmed) allVersions.add(trimmed);
       });
-    }
-
-    // If no query, no resource, and no tags provided, list all/popular software
-    if (!args.query && !args.resource && !args.tags) {
-      return await this.getAllSoftware({
-        include_ai_metadata: true,
-        limit: args.limit || 100
-      });
-    }
-
-    if (args.tags) {
-      return await this.searchWithFilters({
-        query: args.query,
-        resource_id: args.resource,
-        filter_tags: args.tags,
-        limit: args.limit
-      });
-    }
-
-    return await this.searchSoftwareBase({
-      query: args.query,
-      resource_id: args.resource,
-      include_ai_metadata: true,
-      limit: args.limit
     });
+
+    const result: any = {
+      name: item.software_name,
+      description: item.software_description || null,
+      versions: Array.from(allVersions).sort(),
+      documentation: item.software_documentation || null,
+      website: item.software_web_page || null,
+      usage_link: item.software_use_link || null,
+      available_on_resources: [...new Set(resources)],
+      resource_ids: [...new Set(resourceIds)],
+      versions_by_resource: Object.keys(versionsPerResource).length > 0 ? versionsPerResource : undefined,
+    };
+
+    if (includeAiMetadata) {
+      result.ai_metadata = {
+        description: item.ai_description || null,
+        tags: item.ai_general_tags
+          ? item.ai_general_tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+          : [],
+        research_area: item.ai_research_area || null,
+        research_discipline: item.ai_research_discipline || null,
+        research_field: item.ai_research_field || null,
+        software_type: item.ai_software_type || null,
+        software_class: item.ai_software_class || null,
+        core_features: item.ai_core_features || null,
+        example_use: item.ai_example_use || null,
+      };
+    }
+
+    return result;
   }
 
-  private async searchSoftwareBase(args: {
+  private async searchSoftware(args: {
     query?: string;
-    resource_id?: string;
+    resource?: string;
+    fuzzy?: boolean;
     include_ai_metadata?: boolean;
     limit?: number;
   }) {
     const {
-      query = '',
-      resource_id,
+      query,
+      resource,
+      fuzzy = true,
       include_ai_metadata = true,
       limit = 100
     } = args;
-    const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
 
-    if (!apiKey) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                error:
-                  "SDS API key not configured. Set SDS_API_KEY environment variable.",
-                results: [],
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
+    // Build query params
+    const params: SoftwareQueryParams = {};
+
+    if (query) {
+      params.software = [query];
+      if (fuzzy) {
+        params.fuzz_software = true;
+      }
+    } else {
+      // Get all software if no query
+      params.software = ["*"];
     }
 
-    // If resource_id is provided, use the resource-specific search
-    if (resource_id) {
-      return await this.listSoftwareByResource(resource_id, limit, query);
+    if (resource) {
+      const normalizedResource = this.normalizeResourceId(resource);
+      params.rps = [normalizedResource];
+      if (fuzzy) {
+        params.fuzz_rp = true;
+      }
     }
 
-    // Use the new global software search API format
     try {
-      // Include AI-enhanced fields if requested
-      const baseFields = [
-        "software_name",
-        "software_description", 
-        "software_web_page",
-        "software_documentation",
-        "software_use_link",
-        "software_versions",
-        "rp_name",
-        "rp_group_id"
-      ];
-      
-      const aiFields = include_ai_metadata ? [
-        "ai_description",
-        "ai_general_tags",
-        "ai_research_area",
-        "ai_research_discipline",
-        "ai_research_field",
-        "ai_software_type",
-        "ai_software_class",
-        "ai_core_features",
-        "ai_example_use"
-      ] : [];
-      
-      const apiFields = [...baseFields, ...aiFields];
+      let results = await this.queryApi(params);
 
-      const response = await this.sdsClient.get(
-        `/API_0.1/${apiKey}/software=${encodeURIComponent(query)},include=${apiFields.join("+")}`
+      // Sort results by match quality when there's a query: exact > starts-with > contains
+      if (query) {
+        const queryLower = query.toLowerCase();
+        results = [...results].sort((a, b) => {
+          const aName = a.software_name.toLowerCase();
+          const bName = b.software_name.toLowerCase();
+
+          const aExact = aName === queryLower ? 0 : 1;
+          const bExact = bName === queryLower ? 0 : 1;
+          if (aExact !== bExact) return aExact - bExact;
+
+          const aStarts = aName.startsWith(queryLower) ? 0 : 1;
+          const bStarts = bName.startsWith(queryLower) ? 0 : 1;
+          if (aStarts !== bStarts) return aStarts - bStarts;
+
+          const aContains = aName.includes(queryLower) ? 0 : 1;
+          const bContains = bName.includes(queryLower) ? 0 : 1;
+          return aContains - bContains;
+        });
+      }
+
+      // Apply limit
+      const limitedResults = results.slice(0, limit);
+
+      // Transform results
+      const transformedResults = limitedResults.map(item =>
+        this.transformSoftwareItem(item, include_ai_metadata)
       );
 
-      if (response.status !== 200) {
-        let suggestion = "Try a different search term or check your API key.";
-        if (response.status === 404) {
-          suggestion = "The search term may not be found in the database. Try broader terms like 'python', 'gcc', or 'software'.";
-        }
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  query,
-                  error: `SDS API error: ${response.status} ${response.statusText}`,
-                  suggestion,
-                  help: {
-                    resource_discovery: "Use the compute-resources server's search_resources tool with include_resource_ids: true",
-                    broad_search_examples: ["python", "gcc", "mpi", "cuda", "software"],
-                  },
-                  results: [],
-                },
-                null,
-                2,
-              ),
-            },
-          ],
-        };
-      }
-
-      let results = Array.isArray(response.data) ? response.data : [];
-      
-      // Apply limit
-      if (limit && results.length > limit) {
-        results = results.slice(0, limit);
-      }
-      
-      // Transform results to show which resources have the software
-      const transformedResults = results.map((item: any) => {
-        const resources = Array.isArray(item.rp_name) ? item.rp_name : [item.rp_name];
-        const resourceIds = Array.isArray(item.rp_group_id) ? item.rp_group_id : [item.rp_group_id];
-        
-        const baseResult: any = {
-          name: item.software_name,
-          description: item.software_description,
-          versions: item.software_versions || [],
-          documentation: item.software_documentation,
-          website: item.software_web_page,
-          usage_link: item.software_use_link,
-          available_on_resources: resources.filter(Boolean),
-          resource_ids: resourceIds.filter(Boolean),
-        };
-        
-        // Add AI-enhanced fields if available
-        if (include_ai_metadata) {
-          baseResult.ai_metadata = {
-            description: item.ai_description || null,
-            tags: item.ai_general_tags ? item.ai_general_tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
-            research_area: item.ai_research_area || null,
-            research_discipline: item.ai_research_discipline || null,
-            research_field: item.ai_research_field || null,
-            software_type: item.ai_software_type || null,
-            software_class: item.ai_software_class || null,
-            core_features: item.ai_core_features || null,
-            example_use: item.ai_example_use || null,
-          };
-        }
-        
-        return baseResult;
-      });
-
       return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify({
-              total: transformedResults.length,
-              items: transformedResults
-            }),
-          },
-        ],
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            total: transformedResults.length,
+            query: query || null,
+            resource_filter: resource || null,
+            fuzzy_matching: fuzzy,
+            items: transformedResults
+          })
+        }]
       };
     } catch (error: any) {
-      // If exact search failed, try getting a broad sample and do substring matching
-      let fallbackResults = null;
-      
-      try {
-        // Try to get a large sample of software to search through
-        const broadResult = await this.getAllSoftware({
-          resource_id,
-          include_ai_metadata,
-          limit: 500, // Get a good sample size
-        });
-        
-        const broadData = JSON.parse(broadResult.content[0].text);
-        if (!broadData.error && broadData.items) {
-          const queryLower = query.toLowerCase();
+      return this.errorResponse(error.message);
+    }
+  }
 
-          // Find software that contains the search term in name or description
-          const matches = broadData.items.filter((item: any) => 
-            item.name?.toLowerCase().includes(queryLower) ||
-            item.description?.toLowerCase().includes(queryLower)
-          );
-          
-          if (matches.length > 0) {
-            const limitedMatches = matches.slice(0, limit);
-            
-            fallbackResults = {
-              content: [{
-                type: "text",
-                text: JSON.stringify({
-                  total: limitedMatches.length,
-                  items: limitedMatches
-                })
-              }]
-            };
-          }
-        }
-      } catch (e) {
-        // If broad search also fails, continue to error response
-      }
-      
-      if (fallbackResults) {
-        const data = JSON.parse(fallbackResults.content[0].text);
-        data.fallback_used = `Original query "${query}" failed, showing results for "${data.query}"`;
-        
+  private async listAllSoftware(args: {
+    resource?: string;
+    include_ai_metadata?: boolean;
+    limit?: number;
+  }) {
+    const {
+      resource,
+      include_ai_metadata = false,
+      limit = 100
+    } = args;
+
+    const params: SoftwareQueryParams = {
+      software: ["*"]
+    };
+
+    if (resource) {
+      const normalizedResource = this.normalizeResourceId(resource);
+      params.rps = [normalizedResource];
+      params.fuzz_rp = true;
+    }
+
+    try {
+      const results = await this.queryApi(params);
+
+      // Apply limit
+      const limitedResults = results.slice(0, limit);
+
+      // Transform results
+      const transformedResults = limitedResults.map(item =>
+        this.transformSoftwareItem(item, include_ai_metadata)
+      );
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            total: transformedResults.length,
+            resource_filter: resource || "all resources",
+            items: transformedResults
+          })
+        }]
+      };
+    } catch (error: any) {
+      return this.errorResponse(error.message);
+    }
+  }
+
+  private async getSoftwareDetails(args: {
+    software_name: string;
+    resource?: string;
+    fuzzy?: boolean;
+  }) {
+    const {
+      software_name,
+      resource,
+      fuzzy = true
+    } = args;
+
+    const params: SoftwareQueryParams = {
+      software: [software_name],
+      fuzz_software: fuzzy
+    };
+
+    if (resource) {
+      const normalizedResource = this.normalizeResourceId(resource);
+      params.rps = [normalizedResource];
+      params.fuzz_rp = true;
+    }
+
+    try {
+      const results = await this.queryApi(params);
+
+      if (results.length === 0) {
         return {
           content: [{
             type: "text",
-            text: JSON.stringify(data, null, 2)
+            text: JSON.stringify({
+              software_name,
+              found: false,
+              message: `No software found matching '${software_name}'${resource ? ` on resource '${resource}'` : ''}`,
+              suggestion: "Try a different search term or enable fuzzy matching"
+            })
           }]
         };
       }
-      
-      return this.errorResponse(
-        `Search failed: ${error.message}`,
-        "Try a specific resource ID or broader terms"
-      );
+
+      // Sort results by match quality: exact > starts-with > contains
+      const queryLower = software_name.toLowerCase();
+      const sortedResults = [...results].sort((a, b) => {
+        const aName = a.software_name.toLowerCase();
+        const bName = b.software_name.toLowerCase();
+
+        const aExact = aName === queryLower ? 0 : 1;
+        const bExact = bName === queryLower ? 0 : 1;
+        if (aExact !== bExact) return aExact - bExact;
+
+        const aStarts = aName.startsWith(queryLower) ? 0 : 1;
+        const bStarts = bName.startsWith(queryLower) ? 0 : 1;
+        if (aStarts !== bStarts) return aStarts - bStarts;
+
+        const aContains = aName.includes(queryLower) ? 0 : 1;
+        const bContains = bName.includes(queryLower) ? 0 : 1;
+        return aContains - bContains;
+      });
+
+      // Get the best match with full details
+      const bestMatch = this.transformSoftwareItem(sortedResults[0], true);
+
+      // If there are multiple matches, include them
+      const otherMatches = sortedResults.slice(1, 5).map(item => ({
+        name: item.software_name,
+        resources: item.rps ? Object.values(item.rps).map(rp => rp.rp_name) : []
+      }));
+
+      return {
+        content: [{
+          type: "text",
+          text: JSON.stringify({
+            software_name,
+            found: true,
+            details: bestMatch,
+            other_matches: otherMatches.length > 0 ? otherMatches : undefined
+          })
+        }]
+      };
+    } catch (error: any) {
+      return this.errorResponse(error.message);
     }
   }
 
-  private async listSoftwareByResource(
-    resourceId: string,
-    limit = 100,
-    searchQuery?: string,
-  ) {
-    const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
+  private async compareSoftwareAvailability(args: {
+    software_names: string[];
+    resources?: string[];
+  }) {
+    const { software_names, resources } = args;
 
-    if (!apiKey) {
-      return this.errorResponse(
-        "SDS API key not configured",
-        "Set SDS_API_KEY environment variable"
-      );
-    }
+    try {
+      // Query for all requested software
+      const params: SoftwareQueryParams = {
+        software: software_names,
+        fuzz_software: true
+      };
 
-    // Normalize the resource ID to handle legacy formats
-    const normalizedResourceId = this.normalizeResourceId(resourceId);
+      if (resources && resources.length > 0) {
+        params.rps = resources.map(r => this.normalizeResourceId(r));
+        params.fuzz_rp = true;
+      }
 
-    const apiFields = [
-      "software_name",
-      "software_description",
-      "software_web_page",
-      "software_documentation",
-      "software_use_link",
-      "software_versions",
-    ];
+      const results = await this.queryApi(params);
 
-    const response = await this.sdsClient.get(
-      `/API_0.1/${apiKey}/rp=${normalizedResourceId},include=${apiFields.join("+")}`,
-    );
+      // Build availability matrix
+      const availabilityMap: Record<string, Set<string>> = {};
+      const allResources = new Set<string>();
 
-    // Check for error responses
-    // The SDS API may return 200 with "No data found" string, or non-200 status, or no data
-    const dataStr = response.data
-      ? (typeof response.data === 'string' ? response.data : JSON.stringify(response.data))
-      : '';
-    const isNoDataFound = dataStr.toLowerCase().includes('no data found');
+      for (const item of results) {
+        const softwareName = item.software_name.toLowerCase();
 
-    if (response.status !== 200 || isNoDataFound) {
-      // Build a helpful error message
-      let errorMessage = `Resource ID not found: '${resourceId}'`;
+        if (!availabilityMap[softwareName]) {
+          availabilityMap[softwareName] = new Set();
+        }
 
-      if (isNoDataFound) {
-        errorMessage = `Resource ID not found: '${resourceId}' (no software found for this resource)`;
-      } else if (response.data && typeof response.data === 'object') {
-        // If API returned structured error, extract it
-        if (response.data.error || response.data.message) {
-          errorMessage = `Resource ID not found: '${resourceId}' (${response.data.error || response.data.message})`;
+        // Extract resources from the rps object
+        if (item.rps) {
+          for (const rpInfo of Object.values(item.rps)) {
+            const rpName = rpInfo.rp_name;
+            if (rpName) {
+              availabilityMap[softwareName].add(rpName);
+              allResources.add(rpName);
+            }
+          }
         }
       }
 
-      return this.errorResponse(
-        errorMessage,
-        `Use 'search_resources' from compute-resources server to find valid resource IDs. Normalized resource ID used: '${normalizedResourceId}'`
-      );
-    }
+      // Create comparison table
+      const comparison: any[] = [];
 
-    let softwareList = Array.isArray(response.data) ? response.data : [];
+      for (const softwareName of software_names) {
+        const softwareLower = softwareName.toLowerCase();
 
-    // Apply search filter if provided
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      softwareList = softwareList.filter(
-        (pkg: any) =>
-          pkg.software_name?.toLowerCase().includes(query) ||
-          pkg.software_description?.toLowerCase().includes(query),
-      );
-    }
+        // Priority matching: exact match first, then starts-with, then contains
+        let foundKey = Object.keys(availabilityMap).find(k => k === softwareLower);
+        if (!foundKey) {
+          foundKey = Object.keys(availabilityMap).find(k => k.startsWith(softwareLower));
+        }
+        if (!foundKey) {
+          foundKey = Object.keys(availabilityMap).find(k => k.includes(softwareLower));
+        }
+        if (!foundKey) {
+          foundKey = Object.keys(availabilityMap).find(k => softwareLower.includes(k));
+        }
 
-    // Apply limit
-    if (limit && softwareList.length > limit) {
-      softwareList = softwareList.slice(0, limit);
-    }
+        comparison.push({
+          software: softwareName,
+          found: !!foundKey,
+          available_on: foundKey ? Array.from(availabilityMap[foundKey]) : [],
+          resource_count: foundKey ? availabilityMap[foundKey].size : 0
+        });
+      }
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({
-            total: softwareList.length,
-            items: softwareList.map((pkg: any) => ({
-              name: pkg.software_name,
-              description: pkg.software_description,
-              versions: pkg.software_versions || [],
-              documentation: pkg.software_documentation,
-              website: pkg.software_web_page,
-              usage_link: pkg.software_use_link,
-            }))
-          }),
-        },
-      ],
-    };
-  }
-
-  private async getSoftwareDetails(softwareName: string, resourceId?: string) {
-    if (!resourceId) {
       return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                software_name: softwareName,
-                error:
-                  "resource_id parameter is required to get software details",
-                details: null,
-              },
-              null,
-              2,
-            ),
-          },
-        ],
-      };
-    }
-
-    // Get all software for the resource and filter by name
-    const allSoftware = await this.listSoftwareByResource(resourceId, 1000);
-    const allSoftwareData = JSON.parse(allSoftware.content[0].text);
-
-    if (allSoftwareData.error) {
-      return allSoftware;
-    }
-
-    const softwareDetails = allSoftwareData.items.find(
-      (pkg: any) => pkg.name.toLowerCase() === softwareName.toLowerCase(),
-    );
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              software_name: softwareName,
-              resource_id: resourceId,
-              found: !!softwareDetails,
-              details: softwareDetails || null,
-            },
-            null,
-            2,
-          ),
-        },
-      ],
-    };
-  }
-
-  private async searchWithFilters(args: {
-    query?: string;
-    resource_id?: string;
-    filter_research_area?: string;
-    filter_tags?: string[];
-    filter_software_type?: string;
-    limit?: number;
-  }) {
-    // Get the base results with AI metadata
-    let searchResults;
-    
-    if (args.query) {
-      // Use specific search query
-      searchResults = await this.searchSoftwareBase({
-        query: args.query,
-        resource_id: args.resource_id,
-        include_ai_metadata: true,
-        limit: 500,
-      });
-    } else {
-      // Get all software for filtering
-      searchResults = await this.getAllSoftware({
-        resource_id: args.resource_id,
-        include_ai_metadata: true,
-        limit: 500,
-      });
-    }
-    
-    // Parse the results
-    const data = JSON.parse(searchResults.content[0].text);
-    
-    if (data.error) {
-      return searchResults; // Return the error from the base search
-    }
-
-    let filteredSoftware = data.items || [];
-    
-    // Apply client-side filters on AI metadata
-    if (args.filter_research_area) {
-      const filterLower = args.filter_research_area.toLowerCase();
-      filteredSoftware = filteredSoftware.filter((item: any) => 
-        item.ai_metadata?.research_area?.toLowerCase().includes(filterLower)
-      );
-    }
-    
-    if (args.filter_tags && args.filter_tags.length > 0) {
-      const filterTagsLower = args.filter_tags.map(t => t.toLowerCase().trim());
-      filteredSoftware = filteredSoftware.filter((item: any) => {
-        if (!item.ai_metadata?.tags || item.ai_metadata.tags.length === 0) return false;
-        const itemTagsLower = item.ai_metadata.tags.map((t: string) => t.toLowerCase().trim());
-
-        // Match exact tags or tags that start/end with the search term (not partial substring matches)
-        return filterTagsLower.some(filterTag =>
-          itemTagsLower.some((itemTag: string) => {
-            // Exact match (highest priority)
-            if (itemTag === filterTag) return true;
-
-            // Word boundary match (e.g., "ml" matches "machine-learning" but not "xml")
-            // Split on common delimiters: hyphen, underscore, space
-            const itemTagWords = itemTag.split(/[-_\s]+/);
-            return itemTagWords.includes(filterTag);
-          })
-        );
-      });
-    }
-    
-    if (args.filter_software_type) {
-      const filterLower = args.filter_software_type.toLowerCase();
-      filteredSoftware = filteredSoftware.filter((item: any) => 
-        item.ai_metadata?.software_type?.toLowerCase().includes(filterLower)
-      );
-    }
-    
-    // Apply limit after filtering
-    const limit = args.limit || 50;
-    if (filteredSoftware.length > limit) {
-      filteredSoftware = filteredSoftware.slice(0, limit);
-    }
-    
-    return {
-      content: [
-        {
+        content: [{
           type: "text",
           text: JSON.stringify({
-            total: filteredSoftware.length,
-            items: filteredSoftware
-          }),
-        },
-      ],
-    };
-  }
-  
-  private async discoverFilterValues(args: {
-    query?: string;
-    resource_id?: string;
-    sample_size?: number;
-  }) {
-    const sampleSize = args.sample_size || 200;
-    let software: any[] = [];
-    
-    if (args.resource_id) {
-      // Get software from specific resource
-      const resourceResults = await this.listSoftwareByResource(
-        args.resource_id,
-        sampleSize
-      );
-      const resourceData = JSON.parse(resourceResults.content[0].text);
-      if (resourceData.error) {
-        return resourceResults;
-      }
-      software = resourceData.items || [];
-    } else if (args.query) {
-      // Get software from search query
-      const searchResults = await this.searchSoftwareBase({
-        query: args.query,
-        include_ai_metadata: true,
-        limit: sampleSize,
-      });
-      
-      const data = JSON.parse(searchResults.content[0].text);
-      if (data.error) {
-        return searchResults;
-      }
-      software = data.items || [];
-    } else {
-      // Get all software for discovery
-      const allResults = await this.getAllSoftware({
-        include_ai_metadata: true,
-        limit: sampleSize,
-      });
-      
-      const data = JSON.parse(allResults.content[0].text);
-      if (data.error) {
-        return allResults;
-      }
-      software = data.items || [];
+            requested_software: software_names,
+            requested_resources: resources || "all",
+            all_resources_found: Array.from(allResources).sort(),
+            comparison,
+            summary: {
+              total_software_requested: software_names.length,
+              software_found: comparison.filter(c => c.found).length,
+              software_not_found: comparison.filter(c => !c.found).map(c => c.software)
+            }
+          })
+        }]
+      };
+    } catch (error: any) {
+      return this.errorResponse(error.message);
     }
-    
-    // Extract unique values from AI metadata
-    const researchAreas = new Set<string>();
-    const tags = new Map<string, number>(); // Track frequency
-    const softwareTypes = new Set<string>();
-    const resources = new Set<string>();
-    
-    software.forEach((item: any) => {
-      // Collect research areas (try multiple fields)
-      if (item.ai_metadata?.research_area) {
-        researchAreas.add(item.ai_metadata.research_area);
-      }
-      if (item.ai_metadata?.research_discipline) {
-        researchAreas.add(item.ai_metadata.research_discipline);
-      }
-      if (item.ai_metadata?.research_field) {
-        researchAreas.add(item.ai_metadata.research_field);
-      }
-      
-      // Collect and count tags
-      if (item.ai_metadata?.tags && Array.isArray(item.ai_metadata.tags)) {
-        item.ai_metadata.tags.forEach((tag: string) => {
-          const trimmedTag = tag.trim();
-          if (trimmedTag) {
-            tags.set(trimmedTag, (tags.get(trimmedTag) || 0) + 1);
+  }
+
+  private async discoverFilterValues() {
+    try {
+      // Get a sample of all software
+      const results = await this.queryApi({
+        software: ["*"]
+      });
+
+      // Extract unique values
+      const researchAreas = new Set<string>();
+      const tags = new Map<string, number>();
+      const softwareTypes = new Set<string>();
+      const resources = new Set<string>();
+
+      for (const item of results) {
+        // Collect research areas
+        if (item.ai_research_area) researchAreas.add(item.ai_research_area);
+        if (item.ai_research_discipline) researchAreas.add(item.ai_research_discipline);
+        if (item.ai_research_field) researchAreas.add(item.ai_research_field);
+
+        // Collect and count tags
+        if (item.ai_general_tags) {
+          const itemTags = item.ai_general_tags.split(',').map(t => t.trim()).filter(Boolean);
+          for (const tag of itemTags) {
+            tags.set(tag, (tags.get(tag) || 0) + 1);
           }
-        });
+        }
+
+        // Collect software types
+        if (item.ai_software_type) softwareTypes.add(item.ai_software_type);
+        if (item.ai_software_class) softwareTypes.add(item.ai_software_class);
+
+        // Collect resources from the rps object
+        if (item.rps) {
+          for (const rpInfo of Object.values(item.rps)) {
+            if (rpInfo.rp_name) resources.add(rpInfo.rp_name);
+          }
+        }
       }
-      
-      // Collect software types (try multiple fields)
-      if (item.ai_metadata?.software_type) {
-        softwareTypes.add(item.ai_metadata.software_type);
-      }
-      if (item.ai_metadata?.software_class) {
-        softwareTypes.add(item.ai_metadata.software_class);
-      }
-      
-      // Collect resources
-      if (item.available_on_resources && Array.isArray(item.available_on_resources)) {
-        item.available_on_resources.forEach((resource: string) => {
-          if (resource) resources.add(resource);
-        });
-      }
-    });
-    
-    // Sort tags by frequency and take top ones
-    const sortedTags = Array.from(tags.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 30)
-      .map(([tag, count]) => ({ value: tag, count }));
-    
-    return {
-      content: [
-        {
+
+      // Sort tags by frequency
+      const sortedTags = Array.from(tags.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 30)
+        .map(([tag, count]) => ({ value: tag, count }));
+
+      return {
+        content: [{
           type: "text",
-          text: JSON.stringify(
-            {
-              sample_info: {
-                sample_size: sampleSize,
-                actual_sampled: software.length,
-                resource_filter: args.resource_id || "all resources",
-              },
-              discovered_values: {
-                research_areas: Array.from(researchAreas).sort(),
-                software_types: Array.from(softwareTypes).sort(),
-                top_tags: sortedTags,
-                resources: Array.from(resources).sort(),
-              },
-              usage_notes: {
-                research_areas: "Use these values with filter_research_area parameter in search_with_filters",
-                tags: "Use these values with filter_tags parameter in search_with_filters",
-                software_types: "Use these values with filter_software_type parameter in search_with_filters",
-                note: "Values are discovered from actual data, not hardcoded categories",
-                resource_discovery: "Use the compute-resources server's search_resources tool with include_resource_ids: true",
-              },
+          text: JSON.stringify({
+            sample_size: results.length,
+            discovered_values: {
+              research_areas: Array.from(researchAreas).sort(),
+              software_types: Array.from(softwareTypes).sort(),
+              top_tags: sortedTags,
+              resources: Array.from(resources).sort()
             },
-            null,
-            2,
-          ),
-        },
-      ],
-    };
+            api_info: {
+              version: "v1",
+              base_url: "https://sds-ara-api.access-ci.org",
+              supports_fuzzy_search: true
+            }
+          }, null, 2)
+        }]
+      };
+    } catch (error: any) {
+      return this.errorResponse(error.message);
+    }
   }
 }

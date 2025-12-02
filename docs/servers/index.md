@@ -150,7 +150,7 @@ npm install -g @access-mcp/nsf-awards
 ## ACCESS-CI Software Discovery Service MCP server
 
 **Package:** `@access-mcp/software-discovery`  
-**Version:** v0.5.0
+**Version:** v0.6.0
 
 ACCESS-CI Software Discovery Service MCP server
 
