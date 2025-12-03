@@ -51,7 +51,7 @@ export class XDMoDUserSpecific {
 
       // Filter for user-related group_bys
       const allGroupBys = data.data || [];
-      const userGroupBys = allGroupBys.filter((item: any) => {
+      const userGroupBys = allGroupBys.filter((item: { group_by?: string; id?: string; text?: string }) => {
         const groupBy = item.group_by || item.id || "";
         // Look for person/PI/user related group_bys
         return (
@@ -66,7 +66,7 @@ export class XDMoDUserSpecific {
 
       return {
         allGroupBys,
-        userRelatedGroupBys: userGroupBys.map((item: any) => ({
+        userRelatedGroupBys: userGroupBys.map((item: { group_by?: string; id?: string; text?: string }) => ({
           id: item.id,
           text: item.text,
           group_by: item.group_by,

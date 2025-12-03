@@ -1,6 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { SoftwareDiscoveryServer } from "./server.js";
 
+interface SoftwareComparisonResult {
+  software: string;
+  found: boolean;
+  available_on: string[];
+  resource_count: number;
+}
+
+interface TextContent {
+  type: "text";
+  text: string;
+}
+
 describe("Software Discovery Integration Tests", () => {
   const server = new SoftwareDiscoveryServer();
 
@@ -44,6 +56,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -53,7 +66,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -88,6 +101,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -98,7 +112,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -121,6 +135,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -130,7 +145,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -164,6 +179,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "list_all_software",
           arguments: {
@@ -172,7 +188,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -198,6 +214,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "list_all_software",
           arguments: {
@@ -207,7 +224,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -229,6 +246,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_software_details",
           arguments: {
@@ -237,7 +255,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -270,6 +288,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "compare_software_availability",
           arguments: {
@@ -278,7 +297,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -291,7 +310,7 @@ describe("Software Discovery Integration Tests", () => {
       expect(Array.isArray(responseData.comparison)).toBe(true);
       expect(responseData.comparison.length).toBe(3);
 
-      responseData.comparison.forEach((c: any) => {
+      responseData.comparison.forEach((c: SoftwareComparisonResult) => {
         expect(c).toHaveProperty("software");
         expect(c).toHaveProperty("found");
         expect(c).toHaveProperty("available_on");
@@ -301,7 +320,7 @@ describe("Software Discovery Integration Tests", () => {
       console.log('✅ Compare software availability test passed');
       console.log(`   Requested: ${responseData.requested_software.join(', ')}`);
       console.log(`   Found: ${responseData.summary.software_found}/${responseData.summary.total_software_requested}`);
-      responseData.comparison.forEach((c: any) => {
+      responseData.comparison.forEach((c: SoftwareComparisonResult) => {
         console.log(`   ${c.software}: ${c.found ? c.resource_count + ' resources' : 'not found'}`);
       });
     }, 15000);
@@ -314,6 +333,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "compare_software_availability",
           arguments: {
@@ -323,7 +343,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -344,6 +364,7 @@ describe("Software Discovery Integration Tests", () => {
       }
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -353,7 +374,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
         console.log('API error, skipping validation:', responseData.error);
@@ -387,6 +408,7 @@ describe("Software Discovery Integration Tests", () => {
       delete process.env.VITE_SDS_API_KEY;
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -395,7 +417,7 @@ describe("Software Discovery Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.error).toContain("SDS API key not configured");
 
       // Restore API key

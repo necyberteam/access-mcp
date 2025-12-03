@@ -1,39 +1,6 @@
 #!/usr/bin/env node
 
-import { BaseAccessServer } from "@access-mcp/shared";
-
-interface XDMoDDimension {
-  id: string;
-  text: string;
-  category: string;
-  group_by: string;
-  leaf?: boolean;
-}
-
-interface XDMoDStatistic {
-  id: string;
-  text: string;
-  category: string;
-  group_by: string;
-  statistic?: string;
-  leaf?: boolean;
-}
-
-
-
-interface ChartRequest {
-  operation: string;
-  public_user: string;
-  dataset_type: string;
-  format: string;
-  width?: number;
-  height?: number;
-  realm: string;
-  group_by: string;
-  statistic: string;
-  start_date: string;
-  end_date: string;
-}
+import { BaseAccessServer, Tool, Resource, CallToolResult } from "@access-mcp/shared";
 
 class XDMoDMetricsServer extends BaseAccessServer {
   constructor() {
@@ -46,8 +13,8 @@ class XDMoDMetricsServer extends BaseAccessServer {
     };
   }
 
-  protected getTools(): any[] {
-    const tools: any[] = [
+  protected getTools(): Tool[] {
+    const tools: Tool[] = [
       {
         name: "get_chart_data",
         description: "Get chart data and metadata for a specific statistic from XDMoD. Common examples: Jobs realm with total_cpu_hours by person, SUPREMM realm with gpu_time by resource.",
@@ -255,52 +222,52 @@ class XDMoDMetricsServer extends BaseAccessServer {
     return tools;
   }
 
-  protected getResources() {
+  protected getResources(): Resource[] {
     return [];
   }
 
-  protected async handleToolCall(request: any) {
-    const { name, arguments: args } = request.params;
+  protected async handleToolCall(request: { method: "tools/call"; params: { name: string; arguments?: Record<string, unknown> } }): Promise<CallToolResult> {
+    const { name, arguments: args = {} } = request.params;
     // console.log(`[XDMoD] Tool called: ${name}`, args);
 
     switch (name) {
       case "get_chart_data":
         return await this.getChartData({
-          realm: args.realm,
-          group_by: args.group_by,
-          statistic: args.statistic,
-          start_date: args.start_date,
-          end_date: args.end_date,
-          dataset_type: args.dataset_type || "timeseries",
-          display_type: args.display_type || "line",
-          combine_type: args.combine_type || "side",
-          limit: args.limit || 10,
-          offset: args.offset || 0,
-          log_scale: args.log_scale || "n",
-          filters: args.filters,
+          realm: args.realm as string,
+          group_by: args.group_by as string,
+          statistic: args.statistic as string,
+          start_date: args.start_date as string,
+          end_date: args.end_date as string,
+          dataset_type: (args.dataset_type as string) || "timeseries",
+          display_type: (args.display_type as string) || "line",
+          combine_type: (args.combine_type as string) || "side",
+          limit: (args.limit as number) || 10,
+          offset: (args.offset as number) || 0,
+          log_scale: (args.log_scale as string) || "n",
+          filters: args.filters as Record<string, string> | undefined,
         });
 
       case "get_chart_image":
         return await this.getChartImage({
-          realm: args.realm,
-          group_by: args.group_by,
-          statistic: args.statistic,
-          start_date: args.start_date,
-          end_date: args.end_date,
-          format: args.format || "svg",
-          width: args.width || 916,
-          height: args.height || 484,
-          dataset_type: args.dataset_type || "timeseries",
-          display_type: args.display_type || "line",
-          combine_type: args.combine_type || "side",
-          limit: args.limit || 10,
-          offset: args.offset || 0,
-          log_scale: args.log_scale || "n",
-          filters: args.filters,
+          realm: args.realm as string,
+          group_by: args.group_by as string,
+          statistic: args.statistic as string,
+          start_date: args.start_date as string,
+          end_date: args.end_date as string,
+          format: (args.format as string) || "svg",
+          width: (args.width as number) || 916,
+          height: (args.height as number) || 484,
+          dataset_type: (args.dataset_type as string) || "timeseries",
+          display_type: (args.display_type as string) || "line",
+          combine_type: (args.combine_type as string) || "side",
+          limit: (args.limit as number) || 10,
+          offset: (args.offset as number) || 0,
+          log_scale: (args.log_scale as string) || "n",
+          filters: args.filters as Record<string, string> | undefined,
         });
 
       case "get_chart_link":
-        return await this.getChartLink(args.realm, args.group_by, args.statistic);
+        return await this.getChartLink(args.realm as string, args.group_by as string, args.statistic as string);
 
 
 
@@ -408,7 +375,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: resultText,
           },
         ],
@@ -500,12 +467,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
         return {
           content: [
             {
-              type: "image",
+              type: "image" as const,
               data: base64Data,
               mimeType: "image/png",
             },
             {
-              type: "text",
+              type: "text" as const,
               text:
                 `\nChart Details:\n` +
                 `- Statistic: ${params.statistic}\n` +
@@ -525,7 +492,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
           return {
             content: [
               {
-                type: "text",
+                type: "text" as const,
                 text: `SVG Chart for ${params.statistic} (${params.realm})\n\n` +
                       `⚠️ SVG format doesn't display directly in Claude Desktop.\n\n` +
                       `**Recommended:** Use PNG format for direct image display:\n` +
@@ -550,7 +517,7 @@ class XDMoDMetricsServer extends BaseAccessServer {
           return {
             content: [
               {
-                type: "text",
+                type: "text" as const,
                 text:
                   `Chart Image (${params.format.toUpperCase()}) for ${params.statistic}:\n\n` +
                   `**Parameters:** Realm: ${params.realm}, Group By: ${params.group_by}, ` +
@@ -594,13 +561,12 @@ class XDMoDMetricsServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: responseText,
         },
       ],
     };
   }
-
 
 }
 
@@ -611,7 +577,7 @@ async function main() {
   await server.start(port ? { httpPort: port } : undefined);
 }
 
-main().catch((error) => {
+main().catch(() => {
   // Log errors to a file instead of stderr to avoid interfering with JSON-RPC
   process.exit(1);
 });

@@ -1,4 +1,5 @@
-import { BaseAccessServer, handleApiError } from "@access-mcp/shared";
+import { BaseAccessServer, handleApiError, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
 
 interface SoftwareQueryParams {
@@ -38,6 +39,62 @@ interface SoftwareItem {
 
 interface ApiResponse {
   data: SoftwareItem[];
+}
+
+interface TransformedSoftware {
+  name: string;
+  description: string | null;
+  versions: string[];
+  documentation: string | null;
+  website: string | null;
+  usage_link: string | null;
+  available_on_resources: string[];
+  resource_ids: string[];
+  versions_by_resource?: Record<string, string>;
+  ai_metadata?: {
+    description: string | null;
+    tags: string[];
+    research_area: string | null;
+    research_discipline: string | null;
+    research_field: string | null;
+    software_type: string | null;
+    software_class: string | null;
+    core_features: string | null;
+    example_use: string | null;
+  };
+}
+
+interface SoftwareComparison {
+  software: string;
+  found: boolean;
+  available_on: string[];
+  resource_count: number;
+}
+
+// Argument types for tool methods
+interface SearchSoftwareArgs {
+  query?: string;
+  resource?: string;
+  fuzzy?: boolean;
+  include_ai_metadata?: boolean;
+  limit?: number;
+}
+
+interface ListAllSoftwareArgs {
+  resource?: string;
+  include_ai_metadata?: boolean;
+  limit?: number;
+}
+
+interface GetSoftwareDetailsArgs {
+  software_name: string;
+  resource?: string;
+  fuzzy?: boolean;
+}
+
+interface CompareSoftwareAvailabilityArgs {
+  software_names: string[];
+  resources?: string[];
 }
 
 export class SoftwareDiscoveryServer extends BaseAccessServer {
@@ -115,7 +172,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     const response = await this.sdsClient.post("/api/v1", params);
 
     if (response.status !== 200) {
-      throw new Error(`SDS API error: ${response.status} ${response.statusText}`);
+      throw new Error(`SDS API error: ${response.status}`);
     }
 
     // Handle the new API response format: { data: [...] }
@@ -126,7 +183,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     return Array.isArray(responseData) ? responseData : [];
   }
 
-  protected getTools() {
+  protected getTools(): Tool[] {
     return [
       {
         name: "search_software",
@@ -276,7 +333,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     ];
   }
 
-  protected getResources() {
+  protected getResources(): Resource[] {
     return [
       {
         uri: "accessci://software-discovery",
@@ -294,19 +351,19 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     ];
   }
 
-  protected async handleToolCall(request: any) {
+  protected async handleToolCall(request: CallToolRequest): Promise<CallToolResult> {
     const { name, arguments: args = {} } = request.params;
 
     try {
       switch (name) {
         case "search_software":
-          return await this.searchSoftware(args);
+          return await this.searchSoftware(args as SearchSoftwareArgs);
         case "list_all_software":
-          return await this.listAllSoftware(args);
+          return await this.listAllSoftware(args as ListAllSoftwareArgs);
         case "get_software_details":
-          return await this.getSoftwareDetails(args);
+          return await this.getSoftwareDetails(args as unknown as GetSoftwareDetailsArgs);
         case "compare_software_availability":
-          return await this.compareSoftwareAvailability(args);
+          return await this.compareSoftwareAvailability(args as unknown as CompareSoftwareAvailabilityArgs);
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
@@ -315,7 +372,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     }
   }
 
-  protected async handleResourceRead(request: any) {
+  protected async handleResourceRead(request: ReadResourceRequest): Promise<ReadResourceResult> {
     const { uri } = request.params;
 
     switch (uri) {
@@ -329,17 +386,20 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             },
           ],
         };
-      case "accessci://software/categories":
+      case "accessci://software/categories": {
         const filterValues = await this.discoverFilterValues();
+        const content = filterValues.content[0];
+        const text = content.type === "text" ? content.text : "";
         return {
           contents: [
             {
               uri,
               mimeType: "application/json",
-              text: filterValues.content[0].text,
+              text,
             },
           ],
         };
+      }
       default:
         throw new Error(`Unknown resource: ${uri}`);
     }
@@ -348,7 +408,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   /**
    * Transform raw API response to enhanced format
    */
-  private transformSoftwareItem(item: SoftwareItem, includeAiMetadata: boolean = true): any {
+  private transformSoftwareItem(item: SoftwareItem, includeAiMetadata: boolean = true): TransformedSoftware {
     // Extract resource information from the rps object
     const resources: string[] = [];
     const resourceIds: string[] = [];
@@ -375,7 +435,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       });
     });
 
-    const result: any = {
+    const result: TransformedSoftware = {
       name: item.software_name,
       description: item.software_description || null,
       versions: Array.from(allVersions).sort(),
@@ -406,13 +466,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     return result;
   }
 
-  private async searchSoftware(args: {
-    query?: string;
-    resource?: string;
-    fuzzy?: boolean;
-    include_ai_metadata?: boolean;
-    limit?: number;
-  }) {
+  private async searchSoftware(args: SearchSoftwareArgs): Promise<CallToolResult> {
     const {
       query,
       resource,
@@ -476,7 +530,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
       return {
         content: [{
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: transformedResults.length,
             query: query || null,
@@ -486,16 +540,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           })
         }]
       };
-    } catch (error: any) {
-      return this.errorResponse(error.message);
+    } catch (error) {
+      return this.errorResponse(error instanceof Error ? error.message : String(error));
     }
   }
 
-  private async listAllSoftware(args: {
-    resource?: string;
-    include_ai_metadata?: boolean;
-    limit?: number;
-  }) {
+  private async listAllSoftware(args: ListAllSoftwareArgs): Promise<CallToolResult> {
     const {
       resource,
       include_ai_metadata = false,
@@ -525,7 +575,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
       return {
         content: [{
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: transformedResults.length,
             resource_filter: resource || "all resources",
@@ -533,16 +583,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           })
         }]
       };
-    } catch (error: any) {
-      return this.errorResponse(error.message);
+    } catch (error) {
+      return this.errorResponse(error instanceof Error ? error.message : String(error));
     }
   }
 
-  private async getSoftwareDetails(args: {
-    software_name: string;
-    resource?: string;
-    fuzzy?: boolean;
-  }) {
+  private async getSoftwareDetails(args: GetSoftwareDetailsArgs): Promise<CallToolResult> {
     const {
       software_name,
       resource,
@@ -566,7 +612,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       if (results.length === 0) {
         return {
           content: [{
-            type: "text",
+            type: "text" as const,
             text: JSON.stringify({
               software_name,
               found: false,
@@ -607,7 +653,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
       return {
         content: [{
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             software_name,
             found: true,
@@ -616,15 +662,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           })
         }]
       };
-    } catch (error: any) {
-      return this.errorResponse(error.message);
+    } catch (error) {
+      return this.errorResponse(error instanceof Error ? error.message : String(error));
     }
   }
 
-  private async compareSoftwareAvailability(args: {
-    software_names: string[];
-    resources?: string[];
-  }) {
+  private async compareSoftwareAvailability(args: CompareSoftwareAvailabilityArgs): Promise<CallToolResult> {
     const { software_names, resources } = args;
 
     try {
@@ -665,7 +708,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       }
 
       // Create comparison table
-      const comparison: any[] = [];
+      const comparison: SoftwareComparison[] = [];
 
       for (const softwareName of software_names) {
         const softwareLower = softwareName.toLowerCase();
@@ -692,7 +735,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
       return {
         content: [{
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             requested_software: software_names,
             requested_resources: resources || "all",
@@ -706,12 +749,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           })
         }]
       };
-    } catch (error: any) {
-      return this.errorResponse(error.message);
+    } catch (error) {
+      return this.errorResponse(error instanceof Error ? error.message : String(error));
     }
   }
 
-  private async discoverFilterValues() {
+  private async discoverFilterValues(): Promise<CallToolResult> {
     try {
       // Get a sample of all software
       const results = await this.queryApi({
@@ -758,7 +801,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
       return {
         content: [{
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             sample_size: results.length,
             discovered_values: {
@@ -775,8 +818,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           }, null, 2)
         }]
       };
-    } catch (error: any) {
-      return this.errorResponse(error.message);
+    } catch (error) {
+      return this.errorResponse(error instanceof Error ? error.message : String(error));
     }
   }
 }

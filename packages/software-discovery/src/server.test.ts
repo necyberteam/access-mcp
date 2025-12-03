@@ -1,9 +1,40 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
 import { SoftwareDiscoveryServer } from "./server.js";
+
+interface MockResponse {
+  status: number;
+  data: unknown;
+}
+
+interface MockSdsClient {
+  post: Mock<(url: string, data?: unknown) => Promise<MockResponse>>;
+}
+
+interface SoftwareComparisonResult {
+  software: string;
+  found: boolean;
+  available_on: string[];
+  resource_count: number;
+}
+
+interface TransformedSoftwareResult {
+  name: string;
+  available_on_resources: string[];
+}
+
+interface OtherMatchResult {
+  name: string;
+  resources: string[];
+}
+
+interface TextContent {
+  type: "text";
+  text: string;
+}
 
 describe("SoftwareDiscoveryServer", () => {
   let server: SoftwareDiscoveryServer;
-  let mockSdsClient: any;
+  let mockSdsClient: MockSdsClient;
 
   // Mock data using the new API response format with nested rps object
   const mockSoftwareWithAI = {
@@ -92,7 +123,7 @@ describe("SoftwareDiscoveryServer", () => {
 
   beforeEach(() => {
     server = new SoftwareDiscoveryServer();
-    mockSdsClient = { post: vi.fn(), get: vi.fn() };
+    mockSdsClient = { post: vi.fn() };
     Object.defineProperty(server, "sdsClient", {
       get: () => mockSdsClient,
       configurable: true,
@@ -109,6 +140,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -122,7 +154,7 @@ describe("SoftwareDiscoveryServer", () => {
         fuzz_software: true,
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.total).toBe(3);
       expect(responseData.query).toBe("tensorflow");
       expect(responseData.fuzzy_matching).toBe(true);
@@ -136,6 +168,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -144,7 +177,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.items[0].ai_metadata).toBeDefined();
       expect(responseData.items[0].ai_metadata.tags).toContain("machine-learning");
       expect(responseData.items[0].ai_metadata.research_area).toBe("Computer & Information Sciences");
@@ -158,6 +191,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -166,7 +200,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       const tensorflow = responseData.items[0];
 
       expect(tensorflow.available_on_resources).toContain("delta");
@@ -183,6 +217,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -199,7 +234,7 @@ describe("SoftwareDiscoveryServer", () => {
         fuzz_rp: true,
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.resource_filter).toBe("delta");
     });
 
@@ -210,6 +245,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -231,6 +267,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {},
@@ -241,7 +278,7 @@ describe("SoftwareDiscoveryServer", () => {
         software: ["*"],
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.total).toBe(3);
       expect(responseData.query).toBeNull();
     });
@@ -253,6 +290,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -261,7 +299,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.items.length).toBe(2);
     });
 
@@ -272,6 +310,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -281,7 +320,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.items[0].ai_metadata).toBeUndefined();
     });
   });
@@ -294,6 +333,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "list_all_software",
           arguments: {},
@@ -304,7 +344,7 @@ describe("SoftwareDiscoveryServer", () => {
         software: ["*"],
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.total).toBe(3);
       expect(responseData.resource_filter).toBe("all resources");
     });
@@ -316,6 +356,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "list_all_software",
           arguments: {
@@ -330,7 +371,7 @@ describe("SoftwareDiscoveryServer", () => {
         fuzz_rp: true,
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.resource_filter).toBe("anvil");
     });
 
@@ -341,13 +382,14 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "list_all_software",
           arguments: {},
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.items[0].ai_metadata).toBeUndefined();
     });
 
@@ -358,6 +400,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "list_all_software",
           arguments: {
@@ -366,7 +409,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.items[0].ai_metadata).toBeDefined();
     });
   });
@@ -379,6 +422,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_software_details",
           arguments: {
@@ -392,7 +436,7 @@ describe("SoftwareDiscoveryServer", () => {
         fuzz_software: true,
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.found).toBe(true);
       expect(responseData.software_name).toBe("tensorflow");
       expect(responseData.details).toBeDefined();
@@ -407,6 +451,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_software_details",
           arguments: {
@@ -415,7 +460,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.found).toBe(true);
       expect(responseData.other_matches).toBeDefined();
       expect(responseData.other_matches.length).toBe(2);
@@ -428,6 +473,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_software_details",
           arguments: {
@@ -436,7 +482,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.found).toBe(false);
       expect(responseData.message).toContain("No software found");
     });
@@ -448,6 +494,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_software_details",
           arguments: {
@@ -474,6 +521,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "compare_software_availability",
           arguments: {
@@ -487,7 +535,7 @@ describe("SoftwareDiscoveryServer", () => {
         fuzz_software: true,
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.requested_software).toEqual(["tensorflow", "gromacs"]);
       expect(responseData.comparison).toBeDefined();
       expect(responseData.comparison.length).toBe(2);
@@ -501,6 +549,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "compare_software_availability",
           arguments: {
@@ -525,6 +574,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "compare_software_availability",
           arguments: {
@@ -533,17 +583,17 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       const tensorflowComparison = responseData.comparison.find(
-        (c: any) => c.software === "tensorflow"
+        (c: SoftwareComparisonResult) => c.software === "tensorflow"
       );
       expect(tensorflowComparison.found).toBe(true);
       expect(tensorflowComparison.available_on).toContain("delta");
       expect(tensorflowComparison.available_on).toContain("anvil");
 
       const gromacsComparison = responseData.comparison.find(
-        (c: any) => c.software === "gromacs"
+        (c: SoftwareComparisonResult) => c.software === "gromacs"
       );
       expect(gromacsComparison.found).toBe(true);
       expect(gromacsComparison.available_on).toContain("anvil");
@@ -557,6 +607,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "compare_software_availability",
           arguments: {
@@ -565,7 +616,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.summary.software_found).toBe(1);
       expect(responseData.summary.software_not_found).toContain("nonexistent");
     });
@@ -604,14 +655,15 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: { query: "pytorch" },
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
-      const names = responseData.items.map((i: any) => i.name);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      const names = responseData.items.map((i: TransformedSoftwareResult) => i.name);
 
       expect(names[0]).toBe("pytorch");  // exact match first
       expect(names[1]).toBe("pytorch-lightning");  // starts-with second
@@ -627,20 +679,21 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_software_details",
           arguments: { software_name: "pytorch" },
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       expect(responseData.details.name).toBe("pytorch");  // exact match as best
       expect(responseData.details.available_on_resources).toContain("anvil");
       expect(responseData.details.available_on_resources).toContain("delta");
 
       // Other matches should be sorted too
-      const otherNames = responseData.other_matches.map((m: any) => m.name);
+      const otherNames = responseData.other_matches.map((m: OtherMatchResult) => m.name);
       expect(otherNames[0]).toBe("pytorch-lightning");  // starts-with before contains
     });
 
@@ -651,14 +704,15 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "compare_software_availability",
           arguments: { software_names: ["pytorch"] },
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
-      const pytorchComparison = responseData.comparison.find((c: any) => c.software === "pytorch");
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      const pytorchComparison = responseData.comparison.find((c: SoftwareComparisonResult) => c.software === "pytorch");
 
       expect(pytorchComparison.found).toBe(true);
       expect(pytorchComparison.resource_count).toBe(2);  // anvil and delta from exact "pytorch"
@@ -673,13 +727,14 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: { limit: 10 },  // no query
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       // Should return in API order when no query
       expect(responseData.items[0].name).toBe("gpytorch");
     });
@@ -689,10 +744,11 @@ describe("SoftwareDiscoveryServer", () => {
     it("should handle API errors gracefully", async () => {
       mockSdsClient.post.mockResolvedValue({
         status: 500,
-        statusText: "Internal Server Error",
+        data: null,
       });
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -701,7 +757,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.error).toBeDefined();
       expect(responseData.error).toContain("SDS API error");
     });
@@ -713,6 +769,7 @@ describe("SoftwareDiscoveryServer", () => {
       delete process.env.VITE_SDS_API_KEY;
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -721,7 +778,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.error).toContain("SDS API key not configured");
 
       // Restore API key
@@ -734,6 +791,7 @@ describe("SoftwareDiscoveryServer", () => {
       mockSdsClient.post.mockRejectedValue(new Error("Network error"));
 
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -742,7 +800,7 @@ describe("SoftwareDiscoveryServer", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.error).toBeDefined();
     });
   });
@@ -755,6 +813,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -777,6 +836,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_software",
           arguments: {
@@ -800,11 +860,14 @@ describe("SoftwareDiscoveryServer", () => {
 
       expect(searchTool).toBeDefined();
       expect(searchTool?.description).toContain("fuzzy matching");
-      expect(searchTool?.inputSchema.properties.query).toBeDefined();
-      expect(searchTool?.inputSchema.properties.resource).toBeDefined();
-      expect(searchTool?.inputSchema.properties.fuzzy).toBeDefined();
-      expect(searchTool?.inputSchema.properties.include_ai_metadata).toBeDefined();
-      expect(searchTool?.inputSchema.properties.limit).toBeDefined();
+
+      const properties = searchTool?.inputSchema.properties;
+      expect(properties).toBeDefined();
+      expect(properties?.query).toBeDefined();
+      expect(properties?.resource).toBeDefined();
+      expect(properties?.fuzzy).toBeDefined();
+      expect(properties?.include_ai_metadata).toBeDefined();
+      expect(properties?.limit).toBeDefined();
     });
 
     it("should define list_all_software tool", () => {

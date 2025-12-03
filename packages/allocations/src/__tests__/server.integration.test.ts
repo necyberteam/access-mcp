@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { AllocationsServer } from "../server.js";
 
+interface TextContent {
+  type: "text";
+  text: string;
+}
+
 /**
  * Integration tests for AllocationsServer
  * These tests make real API calls to the ACCESS Allocations API
@@ -17,6 +22,7 @@ describe("AllocationsServer Integration Tests", () => {
   describe("Real API Calls - Basic Search", () => {
     it("should search for machine learning projects", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -27,8 +33,8 @@ describe("AllocationsServer Integration Tests", () => {
       });
 
       expect(result.content).toHaveLength(1);
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should be JSON with {total, items} format
       expect(responseData).toHaveProperty("total");
@@ -42,6 +48,7 @@ describe("AllocationsServer Integration Tests", () => {
 
     it("should filter by field of science", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -51,8 +58,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should contain Computer Science projects in JSON format
       expect(responseData).toHaveProperty("total");
@@ -65,6 +72,7 @@ describe("AllocationsServer Integration Tests", () => {
 
     it("should handle boolean search operators", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -74,8 +82,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should have JSON results
       expect(responseData).toHaveProperty("total");
@@ -90,6 +98,7 @@ describe("AllocationsServer Integration Tests", () => {
     it("should get specific project by ID", async () => {
       // Use a known project ID (adjust if needed based on API)
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -98,8 +107,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should contain project details in JSON format
       if (!responseData.error) {
@@ -114,6 +123,7 @@ describe("AllocationsServer Integration Tests", () => {
 
     it("should handle resource name filtering", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -123,8 +133,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should contain resource information in JSON format
       expect(responseData).toHaveProperty("total");
@@ -140,6 +150,7 @@ describe("AllocationsServer Integration Tests", () => {
   describe("Real API Calls - Similarity Search", () => {
     it("should find similar projects by keywords", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -150,8 +161,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should have similarity search results in JSON format
       expect(responseData).toHaveProperty("total");
@@ -167,6 +178,7 @@ describe("AllocationsServer Integration Tests", () => {
   describe("Real API Calls - Sorting", () => {
     it("should sort by allocation amount descending", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -177,8 +189,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should contain sorted results in JSON format
       expect(responseData).toHaveProperty("total");
@@ -190,6 +202,7 @@ describe("AllocationsServer Integration Tests", () => {
 
     it("should sort by date descending", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -200,8 +213,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should contain dated results in JSON format
       expect(responseData).toHaveProperty("total");
@@ -217,6 +230,7 @@ describe("AllocationsServer Integration Tests", () => {
   describe("Error Handling", () => {
     it("should handle empty search results gracefully", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -225,8 +239,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should return empty items array
       expect(responseData).toHaveProperty("total");
@@ -239,16 +253,17 @@ describe("AllocationsServer Integration Tests", () => {
 
     it("should require at least one search parameter", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {},
         },
       });
 
-      const responseText = result.content[0].text;
+      const content = result.content[0] as TextContent;
 
       // Should contain error message about required parameters
-      const responseData = JSON.parse(responseText);
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("error");
       expect(responseData.error).toContain("search parameter");
 
@@ -260,6 +275,7 @@ describe("AllocationsServer Integration Tests", () => {
     it("should analyze project funding with NSF integration", async () => {
       // First get a project
       const searchResult = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -269,8 +285,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const searchText = searchResult.content[0].text;
-      const searchData = JSON.parse(searchText);
+      const searchContent = searchResult.content[0] as TextContent;
+      const searchData = JSON.parse(searchContent.text);
 
       // Extract project ID from JSON if available
       if (searchData.items && searchData.items.length > 0) {
@@ -278,6 +294,7 @@ describe("AllocationsServer Integration Tests", () => {
 
         // Analyze funding for this project
         const fundingResult = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "analyze_funding",
             arguments: {
@@ -286,11 +303,11 @@ describe("AllocationsServer Integration Tests", () => {
           },
         });
 
-        const fundingText = fundingResult.content[0].text;
+        const fundingContent = fundingResult.content[0] as TextContent;
 
         // Should contain funding analysis
-        expect(fundingText).toContain("Funding Analysis");
-        expect(fundingText.length).toBeGreaterThan(0);
+        expect(fundingContent.text).toContain("Funding Analysis");
+        expect(fundingContent.text.length).toBeGreaterThan(0);
 
         console.log("✅ NSF funding analysis working");
       } else {
@@ -300,6 +317,7 @@ describe("AllocationsServer Integration Tests", () => {
 
     it("should generate institutional funding profile", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "analyze_funding",
           arguments: {
@@ -309,11 +327,11 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
+      const content = result.content[0] as TextContent;
 
       // Should contain institutional profile
-      expect(responseText).toContain("Institutional Funding Profile");
-      expect(responseText).toContain("Stanford");
+      expect(content.text).toContain("Institutional Funding Profile");
+      expect(content.text).toContain("Stanford");
 
       console.log("✅ Institutional funding profile working");
     }, 20000);
@@ -322,6 +340,7 @@ describe("AllocationsServer Integration Tests", () => {
   describe("Resource Validation", () => {
     it("should include allocation details in results", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_projects",
           arguments: {
@@ -331,8 +350,8 @@ describe("AllocationsServer Integration Tests", () => {
         },
       });
 
-      const responseText = result.content[0].text;
-      const responseData = JSON.parse(responseText);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should contain resource information in JSON format
       expect(responseData).toHaveProperty("items");

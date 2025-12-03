@@ -3,19 +3,25 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
   CallToolRequestSchema,
   GetPromptRequestSchema,
-  InitializeRequestSchema,
   ListPromptsRequestSchema,
   ListResourcesRequestSchema,
   ListToolsRequestSchema,
   ReadResourceRequestSchema,
+  Tool,
+  Resource,
+  Prompt,
+  CallToolResult,
+  ReadResourceResult,
+  GetPromptResult,
+  CallToolRequest,
+  ReadResourceRequest,
+  GetPromptRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
 import express, { Express, Request, Response } from "express";
 
-interface ServiceEndpoint {
-  name: string;
-  url: string;
-}
+// Re-export SDK types for convenience
+export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
 
 export abstract class BaseAccessServer {
   protected server: Server;
@@ -49,7 +55,7 @@ export abstract class BaseAccessServer {
 
   protected get httpClient(): AxiosInstance {
     if (!this._httpClient) {
-      const headers: any = {
+      const headers: Record<string, string> = {
         "User-Agent": `${this.serverName}/${this.version}`,
       };
 
@@ -152,29 +158,29 @@ export abstract class BaseAccessServer {
     });
   }
 
-  protected abstract getTools(): any[];
-  protected abstract getResources(): any[];
-  protected abstract handleToolCall(request: any): Promise<any>;
+  protected abstract getTools(): Tool[];
+  protected abstract getResources(): Resource[];
+  protected abstract handleToolCall(request: CallToolRequest): Promise<CallToolResult>;
 
   /**
    * Get available prompts - override in subclasses to provide prompts
    */
-  protected getPrompts(): any[] {
+  protected getPrompts(): Prompt[] {
     return [];
   }
 
   /**
    * Handle resource read requests - override in subclasses
    */
-  protected async handleResourceRead(request: any): Promise<any> {
-    throw new Error("Resource reading not supported by this server");
+  protected async handleResourceRead(request: ReadResourceRequest): Promise<ReadResourceResult> {
+    throw new Error(`Resource reading not supported by this server: ${request.params.uri}`);
   }
 
   /**
    * Handle get prompt requests - override in subclasses
    */
-  protected async handleGetPrompt(request: any): Promise<any> {
-    throw new Error("Prompt not found");
+  protected async handleGetPrompt(request: GetPromptRequest): Promise<GetPromptResult> {
+    throw new Error(`Prompt not found: ${request.params.name}`);
   }
 
   /**
@@ -182,7 +188,7 @@ export abstract class BaseAccessServer {
    * @param message The error message
    * @param hint Optional suggestion for how to fix the error
    */
-  protected errorResponse(message: string, hint?: string) {
+  protected errorResponse(message: string, hint?: string): CallToolResult {
     return {
       content: [
         {
@@ -202,7 +208,7 @@ export abstract class BaseAccessServer {
    * @param uri The resource URI
    * @param data The data to return as JSON
    */
-  protected createJsonResource(uri: string, data: any) {
+  protected createJsonResource(uri: string, data: unknown) {
     return {
       contents: [
         {
@@ -308,7 +314,8 @@ export abstract class BaseAccessServer {
         }
 
         // Execute the tool
-        const request = {
+        const request: CallToolRequest = {
+          method: "tools/call",
           params: {
             name: toolName,
             arguments: args
@@ -337,8 +344,8 @@ export abstract class BaseAccessServer {
   protected async callRemoteServer(
     serviceName: string,
     toolName: string,
-    args: Record<string, any> = {}
-  ): Promise<any> {
+    args: Record<string, unknown> = {}
+  ): Promise<unknown> {
     const serviceUrl = this.getServiceEndpoint(serviceName);
     if (!serviceUrl) {
       throw new Error(`Service '${serviceName}' not found. Check ACCESS_MCP_SERVICES environment variable.`);

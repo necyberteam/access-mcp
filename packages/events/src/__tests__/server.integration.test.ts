@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { EventsServer } from "../server.js";
 
+interface EventItem {
+  title?: string;
+  description?: string;
+  tags?: string[];
+  skill_level?: string;
+}
+
 // These are integration tests that hit the real API
 // Run with: npm run test:integration
 describe("EventsServer Integration Tests", () => {
@@ -13,6 +20,7 @@ describe("EventsServer Integration Tests", () => {
   describe("Real API Calls", () => {
     it("should fetch real events from ACCESS-CI API", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_events",
           arguments: {
@@ -43,6 +51,7 @@ describe("EventsServer Integration Tests", () => {
 
     it("should search for Python events", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_events",
           arguments: {
@@ -60,7 +69,7 @@ describe("EventsServer Integration Tests", () => {
       // Check that search actually filters
       if (responseData.items.length > 0) {
         const hasMatch = responseData.items.some(
-          (event: any) =>
+          (event: EventItem) =>
             event.title?.toLowerCase().includes("python") ||
             event.description?.toLowerCase().includes("python") ||
             event.tags?.some((tag: string) =>
@@ -73,6 +82,7 @@ describe("EventsServer Integration Tests", () => {
 
     it("should filter events by type", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_events",
           arguments: {
@@ -90,6 +100,7 @@ describe("EventsServer Integration Tests", () => {
 
     it("should filter events by tags", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_events",
           arguments: {
@@ -108,6 +119,7 @@ describe("EventsServer Integration Tests", () => {
 
     it("should handle date filtering correctly", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_events",
           arguments: {
@@ -125,6 +137,7 @@ describe("EventsServer Integration Tests", () => {
 
     it("should handle skill level filtering", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_events",
           arguments: {
@@ -143,8 +156,8 @@ describe("EventsServer Integration Tests", () => {
       // Check skill levels if events are returned
       if (responseData.items.length > 0) {
         const skillLevels = responseData.items
-          .filter((event: any) => event.skill_level)
-          .map((event: any) => event.skill_level.toLowerCase());
+          .filter((event: EventItem) => event.skill_level)
+          .map((event: EventItem) => event.skill_level?.toLowerCase());
 
         // Since this is a real API call, skill levels can vary
         // Just verify the filter parameter was processed and skill levels exist
@@ -160,6 +173,7 @@ describe("EventsServer Integration Tests", () => {
 
     it("should combine multiple filters", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_events",
           arguments: {
@@ -181,6 +195,7 @@ describe("EventsServer Integration Tests", () => {
   describe("Error Handling with Real API", () => {
     it("should handle empty results gracefully", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_events",
           arguments: {

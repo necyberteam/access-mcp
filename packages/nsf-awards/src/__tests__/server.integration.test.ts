@@ -136,7 +136,7 @@ describe("NSFAwardsServer Integration Tests", () => {
   describe("Error Handling with Real API", () => {
     it("should handle API rate limiting gracefully", async () => {
       // Make multiple rapid requests to potentially trigger rate limiting
-      const promises = Array(5).fill(0).map((_, i) =>
+      const promises = Array(5).fill(0).map(() =>
         server["handleToolCall"]({
           params: {
             name: "search_nsf_awards",

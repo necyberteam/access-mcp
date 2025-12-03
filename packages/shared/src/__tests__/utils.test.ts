@@ -46,13 +46,13 @@ describe("Utils", () => {
       expect(handleApiError(error)).toBe("API error: 404 Not Found");
     });
 
-    test("should handle error message", () => {
-      const error = { message: "Network error" };
+    test("should handle Error instance", () => {
+      const error = new Error("Network error");
       expect(handleApiError(error)).toBe("Network error");
     });
 
     test("should handle unknown error", () => {
-      const error = {};
+      const error = "some string error";
       expect(handleApiError(error)).toBe("Unknown API error");
     });
   });

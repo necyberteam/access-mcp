@@ -20,10 +20,10 @@ describe("Compute Resources - Prompts", () => {
 
       const args = prompts[0].arguments;
       expect(args).toHaveLength(4);
-      expect(args.find((a: any) => a.name === "research_area")?.required).toBe(true);
-      expect(args.find((a: any) => a.name === "compute_needs")?.required).toBe(true);
-      expect(args.find((a: any) => a.name === "experience_level")?.required).toBe(false);
-      expect(args.find((a: any) => a.name === "allocation_size")?.required).toBe(false);
+      expect(args?.find((a: { name: string; required?: boolean }) => a.name === "research_area")?.required).toBe(true);
+      expect(args?.find((a: { name: string; required?: boolean }) => a.name === "compute_needs")?.required).toBe(true);
+      expect(args?.find((a: { name: string; required?: boolean }) => a.name === "experience_level")?.required).toBe(false);
+      expect(args?.find((a: { name: string; required?: boolean }) => a.name === "allocation_size")?.required).toBe(false);
     });
   });
 

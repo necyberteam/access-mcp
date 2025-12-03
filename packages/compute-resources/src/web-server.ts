@@ -1,10 +1,8 @@
 import express from "express";
 import path from "path";
-import { ComputeResourcesServer } from "./server.js";
 
 export function startWebServer(port: number = 3000) {
   const app = express();
-  const server = new ComputeResourcesServer();
 
   // Serve static files from public directory
   const publicDir = path.join(__dirname, "../../../public");

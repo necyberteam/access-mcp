@@ -1,9 +1,23 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi, Mock } from "vitest";
 import { ComputeResourcesServer } from "./server.js";
+
+interface MockHttpClient {
+  get: Mock<(url: string) => Promise<{ status: number; statusText?: string; data: unknown }>>;
+}
+
+interface ComputeResource {
+  name?: string;
+  organization_names?: string[];
+}
+
+interface HardwareItem {
+  cider_type?: string;
+  name?: string;
+}
 
 describe("ComputeResourcesServer", () => {
   let server: ComputeResourcesServer;
-  let mockHttpClient: any;
+  let mockHttpClient: MockHttpClient;
 
   beforeEach(() => {
     server = new ComputeResourcesServer();
@@ -121,7 +135,7 @@ describe("ComputeResourcesServer", () => {
       expect(responseData.total).toBe(3);
       expect(responseData.items).toHaveLength(3);
 
-      const delta = responseData.items.find((r: any) => r.name === "Delta");
+      const delta = responseData.items.find((r: ComputeResource) => r.name === "Delta");
       expect(delta).toBeDefined();
       expect(delta.description).toContain("GPU-focused");
       expect(delta.hasGpu).toBe(true);
@@ -149,7 +163,7 @@ describe("ComputeResourcesServer", () => {
       const responseData = JSON.parse(result.content[0].text);
       expect(responseData.total).toBe(3);
 
-      const delta = responseData.items.find((r: any) => r.name === "Delta");
+      const delta = responseData.items.find((r: ComputeResource) => r.name === "Delta");
       expect(delta.organization_names).toEqual(["100"]); // Falls back to ID
     });
 
@@ -369,8 +383,8 @@ describe("ComputeResourcesServer", () => {
 
       // Check raw_hardware_items has 2 items (Compute and Storage, Network excluded)
       expect(responseData.raw_hardware_items).toHaveLength(2);
-      expect(responseData.raw_hardware_items.some((h: any) => h.cider_type === "Compute")).toBe(true);
-      expect(responseData.raw_hardware_items.some((h: any) => h.cider_type === "Storage")).toBe(true);
+      expect(responseData.raw_hardware_items.some((h: HardwareItem) => h.cider_type === "Compute")).toBe(true);
+      expect(responseData.raw_hardware_items.some((h: HardwareItem) => h.cider_type === "Storage")).toBe(true);
     });
   });
 

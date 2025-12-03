@@ -1,6 +1,28 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { SystemStatusServer } from "../server.js";
 
+interface TextContent {
+  type: "text";
+  text: string;
+}
+
+interface ResourceStatus {
+  resource_id: string;
+  status: string;
+  active_outages: number;
+  outage_details: unknown[];
+}
+
+interface AffectedResource {
+  ResourceName?: string;
+  ResourceID?: string | number;
+}
+
+interface OutageItem {
+  Subject?: string;
+  AffectedResources?: AffectedResource[];
+}
+
 describe("SystemStatusServer Integration Tests", () => {
   let server: SystemStatusServer;
 
@@ -11,13 +33,15 @@ describe("SystemStatusServer Integration Tests", () => {
   describe("Real API Integration", () => {
     it("should fetch current outages from real API", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: { time: "current", limit: 5 }
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("total_outages");
       expect(responseData).toHaveProperty("affected_resources");
       expect(responseData).toHaveProperty("severity_counts");
@@ -38,12 +62,14 @@ describe("SystemStatusServer Integration Tests", () => {
 
     it("should fetch scheduled maintenance from real API", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news", arguments: { time: "scheduled", limit: 5 }
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("total_scheduled");
       expect(responseData).toHaveProperty("upcoming_24h");
       expect(responseData).toHaveProperty("upcoming_week");
@@ -55,7 +81,7 @@ describe("SystemStatusServer Integration Tests", () => {
         const maintenance = responseData.maintenance[0];
         expect(maintenance).toHaveProperty("hours_until_start");
         expect(maintenance).toHaveProperty("has_scheduled_time");
-        expect(maintenance.hours_until_start).toSatisfy((val: any) => 
+        expect(maintenance.hours_until_start).toSatisfy((val: unknown) =>
           val === null || typeof val === "number"
         );
       }
@@ -63,12 +89,14 @@ describe("SystemStatusServer Integration Tests", () => {
 
     it("should fetch past outages from real API", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news", arguments: { time: "past", limit: 5 }
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("total_past_outages");
       expect(responseData).toHaveProperty("recent_outages_30_days");
       expect(responseData).toHaveProperty("affected_resources");
@@ -82,7 +110,7 @@ describe("SystemStatusServer Integration Tests", () => {
         expect(outage).toHaveProperty("duration_hours");
         expect(outage).toHaveProperty("days_ago");
         expect(outage).toHaveProperty("outage_type");
-        expect(outage.days_ago).toSatisfy((val: any) => 
+        expect(outage.days_ago).toSatisfy((val: unknown) =>
           val === null || typeof val === "number"
         );
       }
@@ -90,13 +118,15 @@ describe("SystemStatusServer Integration Tests", () => {
 
     it("should get comprehensive system announcements", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: { time: "all", limit: 20 }
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("total_announcements");
       expect(responseData).toHaveProperty("current_outages");
       expect(responseData).toHaveProperty("scheduled_maintenance");
@@ -118,6 +148,7 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should check resource status with direct method", async () => {
       // Test with common resource names that might exist
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: {
@@ -127,7 +158,8 @@ describe("SystemStatusServer Integration Tests", () => {
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("checked_at");
       expect(responseData).toHaveProperty("resources_checked", 3);
       expect(responseData).toHaveProperty("operational");
@@ -137,7 +169,7 @@ describe("SystemStatusServer Integration Tests", () => {
       expect(responseData.resource_status).toHaveLength(3);
 
       // Check resource status structure
-      responseData.resource_status.forEach((resource: any) => {
+      responseData.resource_status.forEach((resource: ResourceStatus) => {
         expect(resource).toHaveProperty("resource_id");
         expect(resource).toHaveProperty("status");
         expect(["operational", "affected"]).toContain(resource.status);
@@ -149,6 +181,7 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should test group API functionality", async () => {
       // Test group API with a resource that might have a group ID
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: {
@@ -158,7 +191,8 @@ describe("SystemStatusServer Integration Tests", () => {
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("api_method", "resource_group_api");
       expect(responseData).toHaveProperty("resources_checked", 1);
       expect(responseData.resource_status).toHaveLength(1);
@@ -183,21 +217,23 @@ describe("SystemStatusServer Integration Tests", () => {
 
     it("should filter outages by resource correctly", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: { time: "current", query: "anvil" }
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("total_outages");
 
       // If there are any results, they should match the filter
       if (responseData.outages.length > 0) {
-        responseData.outages.forEach((outage: any) => {
+        responseData.outages.forEach((outage: OutageItem) => {
           const matchesFilter =
             outage.Subject?.toLowerCase().includes("anvil") ||
-            outage.AffectedResources?.some((resource: any) =>
+            outage.AffectedResources?.some((resource: AffectedResource) =>
               resource.ResourceName?.toLowerCase().includes("anvil") ||
               resource.ResourceID?.toString().includes("anvil")
             );
@@ -209,13 +245,14 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should handle resource reads for all endpoints", async () => {
       const resources = [
         "accessci://system-status",
-        "accessci://outages/current", 
+        "accessci://outages/current",
         "accessci://outages/scheduled",
         "accessci://outages/past"
       ];
 
       for (const uri of resources) {
         const result = await server["handleResourceRead"]({
+          method: "resources/read",
           params: { uri }
         });
 
@@ -226,7 +263,7 @@ describe("SystemStatusServer Integration Tests", () => {
 
         if (uri !== "accessci://system-status") {
           // JSON resources should have valid JSON
-          expect(() => JSON.parse(result.contents[0].text)).not.toThrow();
+          expect(() => JSON.parse(result.contents[0].text as string)).not.toThrow();
         }
       }
     }, 15000);
@@ -236,13 +273,15 @@ describe("SystemStatusServer Integration Tests", () => {
     it("should handle empty API responses", async () => {
       // This tests the robustness of our logic with potentially empty responses
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: { time: "current", query: "nonexistent-resource-xyz-12345" }
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("total_outages", 0);
       expect(responseData.outages).toHaveLength(0);
       expect(responseData.affected_resources).toHaveLength(0);
@@ -250,13 +289,15 @@ describe("SystemStatusServer Integration Tests", () => {
 
     it("should handle large limit values gracefully", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: { time: "past", limit: 1000 }
         }
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
       expect(responseData).toHaveProperty("total_past_outages");
       // Should not crash or timeout
       expect(responseData.outages.length).toBeLessThanOrEqual(1000);

@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { AffinityGroupsServer } from "../server.js";
 
+interface TextContent {
+  type: "text";
+  text: string;
+}
+
 /**
  * Integration tests for AffinityGroupsServer
  * These tests make real API calls to the ACCESS Support API
@@ -15,6 +20,7 @@ describe("AffinityGroupsServer Integration Tests", () => {
   describe("Real API Calls - List Groups", () => {
     it("should list all affinity groups", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_affinity_groups",
           arguments: {},
@@ -22,7 +28,8 @@ describe("AffinityGroupsServer Integration Tests", () => {
       });
 
       expect(result.content).toHaveLength(1);
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Check universal response format
       expect(responseData).toHaveProperty("total");
@@ -45,19 +52,22 @@ describe("AffinityGroupsServer Integration Tests", () => {
     it("should get specific affinity group details", async () => {
       // First list groups to get a valid ID
       const listResult = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_affinity_groups",
           arguments: {},
         },
       });
 
-      const listData = JSON.parse(listResult.content[0].text);
+      const listContent = listResult.content[0] as TextContent;
+      const listData = JSON.parse(listContent.text);
 
       if (listData.items.length > 0) {
         const groupId = listData.items[0].id;
 
         // Get specific group
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_affinity_groups",
             arguments: {
@@ -66,7 +76,8 @@ describe("AffinityGroupsServer Integration Tests", () => {
           },
         });
 
-        const responseData = JSON.parse(result.content[0].text);
+        const content = result.content[0] as TextContent;
+        const responseData = JSON.parse(content.text);
         expect(responseData).toHaveProperty("total");
         expect(responseData).toHaveProperty("items");
         expect(responseData.items).toHaveLength(1);
@@ -81,19 +92,22 @@ describe("AffinityGroupsServer Integration Tests", () => {
     it("should get group with events included", async () => {
       // Get a group ID first
       const listResult = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_affinity_groups",
           arguments: {},
         },
       });
 
-      const listData = JSON.parse(listResult.content[0].text);
+      const listContent = listResult.content[0] as TextContent;
+      const listData = JSON.parse(listContent.text);
 
       if (listData.items.length > 0) {
         const groupId = listData.items[0].id;
 
         // Get group with events
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_affinity_groups",
             arguments: {
@@ -103,7 +117,8 @@ describe("AffinityGroupsServer Integration Tests", () => {
           },
         });
 
-        const responseData = JSON.parse(result.content[0].text);
+        const content = result.content[0] as TextContent;
+        const responseData = JSON.parse(content.text);
         expect(responseData).toHaveProperty("total");
         expect(responseData).toHaveProperty("items");
 
@@ -116,19 +131,22 @@ describe("AffinityGroupsServer Integration Tests", () => {
     it("should get group with knowledge base included", async () => {
       // Get a group ID first
       const listResult = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_affinity_groups",
           arguments: {},
         },
       });
 
-      const listData = JSON.parse(listResult.content[0].text);
+      const listContent = listResult.content[0] as TextContent;
+      const listData = JSON.parse(listContent.text);
 
       if (listData.items.length > 0) {
         const groupId = listData.items[0].id;
 
         // Get group with KB
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_affinity_groups",
             arguments: {
@@ -138,7 +156,8 @@ describe("AffinityGroupsServer Integration Tests", () => {
           },
         });
 
-        const responseData = JSON.parse(result.content[0].text);
+        const content = result.content[0] as TextContent;
+        const responseData = JSON.parse(content.text);
         expect(responseData).toHaveProperty("total");
         expect(responseData).toHaveProperty("items");
 
@@ -151,19 +170,22 @@ describe("AffinityGroupsServer Integration Tests", () => {
     it("should get group with all resources included", async () => {
       // Get a group ID first
       const listResult = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_affinity_groups",
           arguments: {},
         },
       });
 
-      const listData = JSON.parse(listResult.content[0].text);
+      const listContent = listResult.content[0] as TextContent;
+      const listData = JSON.parse(listContent.text);
 
       if (listData.items.length > 0) {
         const groupId = listData.items[0].id;
 
         // Get group with all resources
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_affinity_groups",
             arguments: {
@@ -173,7 +195,8 @@ describe("AffinityGroupsServer Integration Tests", () => {
           },
         });
 
-        const responseData = JSON.parse(result.content[0].text);
+        const content = result.content[0] as TextContent;
+        const responseData = JSON.parse(content.text);
 
         // When include: "all", response structure is different
         expect(responseData).toHaveProperty("group");
@@ -188,6 +211,7 @@ describe("AffinityGroupsServer Integration Tests", () => {
   describe("Error Handling", () => {
     it("should handle invalid group ID gracefully", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_affinity_groups",
           arguments: {
@@ -196,7 +220,8 @@ describe("AffinityGroupsServer Integration Tests", () => {
         },
       });
 
-      const responseData = JSON.parse(result.content[0].text);
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
 
       // Should either return error or empty results
       if (responseData.error) {
@@ -213,6 +238,7 @@ describe("AffinityGroupsServer Integration Tests", () => {
   describe("Resource Endpoint", () => {
     it("should fetch data through resource endpoint", async () => {
       const result = await server["handleResourceRead"]({
+        method: "resources/read",
         params: {
           uri: "accessci://affinity-groups",
         },
@@ -221,7 +247,8 @@ describe("AffinityGroupsServer Integration Tests", () => {
       expect(result.contents).toHaveLength(1);
       expect(result.contents[0].mimeType).toBe("application/json");
 
-      const data = JSON.parse(result.contents[0].text);
+      const textContent = result.contents[0].text;
+      const data = JSON.parse(textContent as string);
       expect(data).toHaveProperty("total");
       expect(data).toHaveProperty("items");
       expect(Array.isArray(data.items)).toBe(true);

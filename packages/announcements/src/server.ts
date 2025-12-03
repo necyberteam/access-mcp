@@ -1,4 +1,11 @@
-import { BaseAccessServer } from "@access-mcp/shared";
+import { BaseAccessServer, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+
+interface SearchAnnouncementsArgs {
+  tags?: string;
+  date?: string;
+  limit?: number;
+}
 
 interface AnnouncementFilters {
   tags?: string;
@@ -8,6 +15,7 @@ interface AnnouncementFilters {
   relative_end_date?: string;
   start_date?: string;
   end_date?: string;
+  date?: string;
   limit?: number;
 }
 
@@ -26,7 +34,7 @@ export class AnnouncementsServer extends BaseAccessServer {
     super("access-announcements", "0.1.0", "https://support.access-ci.org");
   }
 
-  protected getTools() {
+  protected getTools(): Tool[] {
     return [
       {
         name: "search_announcements",
@@ -54,7 +62,7 @@ export class AnnouncementsServer extends BaseAccessServer {
     ];
   }
 
-  protected getResources() {
+  protected getResources(): Resource[] {
     return [
       {
         uri: "accessci://announcements",
@@ -65,22 +73,23 @@ export class AnnouncementsServer extends BaseAccessServer {
     ];
   }
 
-  async handleToolCall(request: any) {
+  protected async handleToolCall(request: CallToolRequest): Promise<CallToolResult> {
     const { name, arguments: args } = request.params;
 
     try {
       switch (name) {
         case "search_announcements":
-          return await this.searchAnnouncements(args);
+          return await this.searchAnnouncements(args as SearchAnnouncementsArgs);
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
-    } catch (error: any) {
-      return this.errorResponse(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return this.errorResponse(message);
     }
   }
 
-  async handleResourceRead(request: any) {
+  protected async handleResourceRead(request: ReadResourceRequest): Promise<ReadResourceResult> {
     const { uri } = request.params;
 
     if (uri === "accessci://announcements") {
@@ -95,13 +104,14 @@ export class AnnouncementsServer extends BaseAccessServer {
             }
           ]
         };
-      } catch (error: any) {
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
         return {
           contents: [
             {
               uri,
-              mimeType: "text/plain", 
-              text: `Error loading announcements: ${error.message}`
+              mimeType: "text/plain",
+              text: `Error loading announcements: ${message}`
             }
           ]
         };
@@ -113,7 +123,6 @@ export class AnnouncementsServer extends BaseAccessServer {
 
   private normalizeLimit(limit?: number): number {
     // Drupal API only accepts specific pagination values: 5, 10, 25, 50
-    const validSizes = [5, 10, 25, 50];
     const requestedLimit = limit || 25; // Default to 25 (valid API value)
 
     // Find the closest valid size
@@ -123,7 +132,7 @@ export class AnnouncementsServer extends BaseAccessServer {
     return 50;
   }
 
-  private buildAnnouncementsUrl(filters: any): string {
+  private buildAnnouncementsUrl(filters: AnnouncementFilters): string {
     const params = new URLSearchParams();
     params.append("items_per_page", String(this.normalizeLimit(filters.limit)));
 
@@ -161,7 +170,7 @@ export class AnnouncementsServer extends BaseAccessServer {
     return this.enhanceAnnouncements(announcements);
   }
 
-  private enhanceAnnouncements(rawAnnouncements: any[]): Announcement[] {
+  private enhanceAnnouncements(rawAnnouncements: Announcement[]): Announcement[] {
     return rawAnnouncements.map(announcement => ({
       ...announcement,
       tags: Array.isArray(announcement.tags) ? announcement.tags : [],
@@ -169,13 +178,13 @@ export class AnnouncementsServer extends BaseAccessServer {
     }));
   }
 
-  private async searchAnnouncements(filters: any) {
+  private async searchAnnouncements(filters: SearchAnnouncementsArgs): Promise<CallToolResult> {
     const announcements = await this.fetchAnnouncements(filters);
     const limited = filters.limit ? announcements.slice(0, filters.limit) : announcements;
 
     return {
       content: [{
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({
           total: announcements.length,
           items: limited

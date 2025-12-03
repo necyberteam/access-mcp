@@ -1,12 +1,14 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, Mock } from "vitest";
 import { NSFAwardsServer } from "../server.js";
 
 // Mock the global fetch function
 global.fetch = vi.fn();
 
+type MockFetch = Mock<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>;
+
 describe("NSFAwardsServer", () => {
   let server: NSFAwardsServer;
-  let mockFetch: any;
+  let mockFetch: MockFetch;
 
   beforeEach(() => {
     server = new NSFAwardsServer();

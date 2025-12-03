@@ -9,6 +9,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  // Log errors to a file instead of stderr to avoid interfering with JSON-RPC
+  console.error("Server error:", error);
   process.exit(1);
 });

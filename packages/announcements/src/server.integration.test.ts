@@ -1,5 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { AnnouncementsServer } from "./server.js";
+
+interface TextContent {
+  type: "text";
+  text: string;
+}
+
+interface AnnouncementItem {
+  title: string;
+  body: string;
+  published_date: string;
+  tags: string[];
+}
 
 /**
  * Integration tests for AnnouncementsServer
@@ -15,16 +27,17 @@ describe("AnnouncementsServer Integration Tests", () => {
   describe("get_announcements", () => {
     it("should fetch real announcements from API", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_announcements",
           arguments: {
             limit: 5,
           },
         },
-      } as any);
+      });
 
       expect(result.isError).toBeFalsy();
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       
       // Check structure
       expect(responseData).toHaveProperty("total");
@@ -46,6 +59,7 @@ describe("AnnouncementsServer Integration Tests", () => {
 
     it("should filter by tags", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_announcements",
           arguments: {
@@ -53,17 +67,17 @@ describe("AnnouncementsServer Integration Tests", () => {
             limit: 3,
           },
         },
-      } as any);
+      });
 
       expect(result.isError).toBeFalsy();
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       expect(responseData).toHaveProperty("items");
       expect(Array.isArray(responseData.items)).toBe(true);
 
       // If maintenance announcements exist, they should contain the tag
       if (responseData.items.length > 0) {
-        const hasMaintenanceTag = responseData.items.some((ann: any) =>
+        const hasMaintenanceTag = responseData.items.some((ann: AnnouncementItem) =>
           ann.tags && ann.tags.some((tag: string) =>
             tag.toLowerCase().includes("maintenance")
           )
@@ -75,6 +89,7 @@ describe("AnnouncementsServer Integration Tests", () => {
 
     it("should handle date range filters", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_announcements",
           arguments: {
@@ -82,10 +97,10 @@ describe("AnnouncementsServer Integration Tests", () => {
             limit: 10,
           },
         },
-      } as any);
+      });
 
       expect(result.isError).toBeFalsy();
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       expect(responseData).toHaveProperty("items");
 
@@ -94,7 +109,7 @@ describe("AnnouncementsServer Integration Tests", () => {
         const oneMonthAgo = new Date();
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
 
-        responseData.items.forEach((ann: any) => {
+        responseData.items.forEach((ann: AnnouncementItem) => {
           const annDate = new Date(ann.published_date);
           expect(annDate.getTime()).toBeGreaterThanOrEqual(oneMonthAgo.getTime());
         });
@@ -105,16 +120,17 @@ describe("AnnouncementsServer Integration Tests", () => {
   describe("get_recent_announcements", () => {
     it("should fetch announcements from the past week", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_announcements",
           arguments: {
             date: "this_week",
           },
         },
-      } as any);
+      });
 
       expect(result.isError).toBeFalsy();
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       expect(responseData).toHaveProperty("items");
 
@@ -123,7 +139,7 @@ describe("AnnouncementsServer Integration Tests", () => {
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-        responseData.items.forEach((ann: any) => {
+        responseData.items.forEach((ann: AnnouncementItem) => {
           const annDate = new Date(ann.published_date);
           expect(annDate.getTime()).toBeGreaterThanOrEqual(oneWeekAgo.getTime());
         });
@@ -132,16 +148,17 @@ describe("AnnouncementsServer Integration Tests", () => {
 
     it("should handle today filter", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_announcements",
           arguments: {
             date: "today",
           },
         },
-      } as any);
+      });
 
       expect(result.isError).toBeFalsy();
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       expect(responseData).toHaveProperty("items");
 
@@ -153,16 +170,17 @@ describe("AnnouncementsServer Integration Tests", () => {
   describe("get_announcements with limit", () => {
     it("should respect limit parameter", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_announcements",
           arguments: {
             limit: 5,
           },
         },
-      } as any);
+      });
 
       expect(result.isError).toBeFalsy();
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       // Should return a valid response
       expect(responseData).toHaveProperty("items");
@@ -176,31 +194,33 @@ describe("AnnouncementsServer Integration Tests", () => {
   describe("API Error Handling", () => {
     it("should handle search with no parameters", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_announcements",
           arguments: {},
         },
-      } as any);
+      });
 
       // Should return default results
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData).toHaveProperty("items");
     }, 10000);
 
     it("should handle empty results", async () => {
       const result = await server["handleToolCall"]({
+        method: "tools/call",
         params: {
           name: "search_announcements",
           arguments: {
             tags: "nonexistent-tag-xyz-123-456",
           },
         },
-      } as any);
+      });
 
       expect(result.isError).toBeFalsy();
-      const responseData = JSON.parse(result.content[0].text);
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       // May have 0 or few results
       expect(responseData).toHaveProperty("total");

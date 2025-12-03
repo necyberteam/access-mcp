@@ -1,7 +1,36 @@
 #!/usr/bin/env node
 
-import { BaseAccessServer } from "@access-mcp/shared";
-import { AxiosInstance } from "axios";
+import { BaseAccessServer, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+
+interface SearchNSFAwardsArgs {
+  id?: string;
+  query?: string;
+  pi?: string;
+  institution?: string;
+  primary_only?: boolean;
+  limit?: number;
+}
+
+// Raw NSF API award response structure
+interface RawNSFAward {
+  id?: string;
+  title?: string;
+  abstractText?: string;
+  piFirstName?: string;
+  piLastName?: string;
+  coPDPI?: string;
+  poName?: string;
+  awardeeName?: string;
+  awardeeCity?: string;
+  awardeeStateCode?: string;
+  fundsObligatedAmt?: string;
+  estimatedTotalAmt?: string;
+  startDate?: string;
+  expDate?: string;
+  primaryProgram?: string;
+  ueiNumber?: string;
+  fundProgramName?: string;
+}
 
 interface NSFAward {
   awardNumber: string;
@@ -24,7 +53,7 @@ export class NSFAwardsServer extends BaseAccessServer {
     super("access-mcp-nsf-awards", "0.1.0", "https://api.nsf.gov");
   }
 
-  protected getTools() {
+  protected getTools(): Tool[] {
     return [
       {
         name: "search_nsf_awards",
@@ -64,30 +93,32 @@ export class NSFAwardsServer extends BaseAccessServer {
     ];
   }
 
-  protected getResources() {
+  protected getResources(): Resource[] {
     return [];
   }
 
-  protected async handleToolCall(request: any): Promise<any> {
-    const { name, arguments: args } = request.params;
+  protected async handleToolCall(request: { method: "tools/call"; params: { name: string; arguments?: Record<string, unknown> } }): Promise<CallToolResult> {
+    const { name, arguments: args = {} } = request.params;
+    const typedArgs = args as SearchNSFAwardsArgs;
 
     try {
       switch (name) {
         case "search_nsf_awards":
-          return await this.searchNSFAwardsRouter(args);
+          return await this.searchNSFAwardsRouter(typedArgs);
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
-    } catch (error: any) {
-      return this.errorResponse(error.message);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return this.errorResponse(message);
     }
   }
 
-  protected async handleResourceRead(request: any): Promise<any> {
+  protected async handleResourceRead(): Promise<never> {
     throw new Error("Resource reading not supported");
   }
 
-  private async searchNSFAwardsRouter(args: any) {
+  private async searchNSFAwardsRouter(args: SearchNSFAwardsArgs): Promise<CallToolResult> {
     if (args.id) {
       return await this.get_nsf_award({ award_number: args.id });
     }
@@ -115,7 +146,7 @@ export class NSFAwardsServer extends BaseAccessServer {
     const awards = await this.searchNSFAwardsByPI(args.pi_name, args.limit || 10);
     return {
       content: [{
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({ total: awards.length, items: awards })
       }]
     };
@@ -125,7 +156,7 @@ export class NSFAwardsServer extends BaseAccessServer {
     const award = await this.fetchNSFAwardData(args.award_number);
     return {
       content: [{
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({ total: 1, items: [award] })
       }]
     };
@@ -150,7 +181,7 @@ export class NSFAwardsServer extends BaseAccessServer {
 
     return {
       content: [{
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({ total: awards.length, items: awards })
       }]
     };
@@ -160,7 +191,7 @@ export class NSFAwardsServer extends BaseAccessServer {
     const awards = await this.searchNSFAwardsByKeywords(args.keywords, args.limit || 10);
     return {
       content: [{
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({ total: awards.length, items: awards })
       }]
     };
@@ -217,7 +248,7 @@ export class NSFAwardsServer extends BaseAccessServer {
         if (data.response?.award && data.response.award.length > 0) {
           const awards = data.response.award
             .slice(0, Math.min(limit, 100))
-            .map((award: any) => this.parseNSFAward(award));
+            .map((award: RawNSFAward) => this.parseNSFAward(award));
           
           if (awards.length > 0) {
             return awards;
@@ -249,7 +280,7 @@ export class NSFAwardsServer extends BaseAccessServer {
           const data = await response.json();
           
           if (data.response?.award && data.response.award.length > 0) {
-            const copiAwards = data.response.award.map((award: any) => this.parseNSFAward(award));
+            const copiAwards = data.response.award.map((award: RawNSFAward) => this.parseNSFAward(award));
             awards.push(...copiAwards);
           }
         }
@@ -273,7 +304,7 @@ export class NSFAwardsServer extends BaseAccessServer {
       const data = await response.json();
       
       if (data.response?.award && data.response.award.length > 0) {
-        return data.response.award.map((award: any) => this.parseNSFAward(award));
+        return data.response.award.map((award: RawNSFAward) => this.parseNSFAward(award));
       }
       
       return [];
@@ -294,7 +325,7 @@ export class NSFAwardsServer extends BaseAccessServer {
       const data = await response.json();
       
       if (data.response?.award && data.response.award.length > 0) {
-        return data.response.award.map((award: any) => this.parseNSFAward(award));
+        return data.response.award.map((award: RawNSFAward) => this.parseNSFAward(award));
       }
       
       return [];
@@ -303,7 +334,7 @@ export class NSFAwardsServer extends BaseAccessServer {
     }
   }
 
-  private parseNSFAward(award: any): NSFAward {
+  private parseNSFAward(award: RawNSFAward): NSFAward {
     const coPIs = award.coPDPI && typeof award.coPDPI === 'string' 
       ? award.coPDPI.split(";").map((name: string) => name.trim()) 
       : [];

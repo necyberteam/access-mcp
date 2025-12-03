@@ -9,14 +9,27 @@ export function formatApiUrl(version: string, endpoint: string): string {
   return `/${version}/${endpoint}`;
 }
 
-export function handleApiError(error: any): string {
-  if (error.response?.data?.message) {
-    return error.response.data.message;
+interface AxiosErrorLike {
+  response?: {
+    data?: { message?: string };
+    status?: number;
+    statusText?: string;
+  };
+  message?: string;
+}
+
+export function handleApiError(error: unknown): string {
+  const axiosError = error as AxiosErrorLike;
+  if (axiosError.response?.data?.message) {
+    return axiosError.response.data.message;
   }
-  if (error.response?.status) {
-    return `API error: ${error.response.status} ${error.response.statusText}`;
+  if (axiosError.response?.status) {
+    return `API error: ${axiosError.response.status} ${axiosError.response.statusText}`;
   }
-  return error.message || "Unknown API error";
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "Unknown API error";
 }
 
 /**
@@ -30,16 +43,16 @@ export interface NextStep {
   action: string;
   description: string;
   tool?: string;
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }
 
-export interface LLMResponse<T = any> {
+export interface LLMResponse<T = unknown> {
   data?: T;
   count?: number;
   next_steps?: NextStep[];
   suggestions?: string[];
   related_tools?: string[];
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 export interface LLMError {

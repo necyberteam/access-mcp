@@ -8,7 +8,7 @@ async function main() {
   await server.start(port ? { httpPort: port } : undefined);
 }
 
-main().catch((error) => {
+main().catch(() => {
   // Log errors to a file instead of stderr to avoid interfering with JSON-RPC
   process.exit(1);
 });

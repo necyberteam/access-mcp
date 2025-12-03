@@ -4,7 +4,7 @@ import { SystemStatusServer } from "./server.js";
 
 export function startWebServer(port: number = 3000) {
   const app = express();
-  const server = new SystemStatusServer();
+  new SystemStatusServer();
 
   // Serve static files from public directory
   const publicDir = path.join(__dirname, "../../../public");

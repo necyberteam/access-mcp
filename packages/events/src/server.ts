@@ -1,5 +1,23 @@
-import { BaseAccessServer, handleApiError, UniversalSearchParams, UniversalResponse } from "@access-mcp/shared";
+import { BaseAccessServer, handleApiError, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
+
+interface SearchEventsParams {
+  query?: string;
+  type?: string;
+  tags?: string;
+  date?: string;
+  skill?: string;
+  limit?: number;
+}
+
+interface RawEvent {
+  title?: string;
+  start_date?: string;
+  end_date?: string;
+  tags?: string[];
+  [key: string]: unknown;
+}
 
 export class EventsServer extends BaseAccessServer {
   private _eventsHttpClient?: AxiosInstance;
@@ -10,7 +28,7 @@ export class EventsServer extends BaseAccessServer {
 
   protected get httpClient(): AxiosInstance {
     if (!this._eventsHttpClient) {
-      const headers: any = {
+      const headers: Record<string, string> = {
         "User-Agent": `${this.serverName}/${this.version}`,
       };
 
@@ -30,7 +48,7 @@ export class EventsServer extends BaseAccessServer {
     return this._eventsHttpClient;
   }
 
-  protected getTools() {
+  protected getTools(): Tool[] {
     return [
       {
         name: "search_events",
@@ -71,7 +89,7 @@ export class EventsServer extends BaseAccessServer {
     ];
   }
 
-  protected getResources() {
+  protected getResources(): Resource[] {
     return [
       {
         uri: "accessci://events",
@@ -101,13 +119,13 @@ export class EventsServer extends BaseAccessServer {
     ];
   }
 
-  async handleToolCall(request: any) {
+  protected async handleToolCall(request: CallToolRequest): Promise<CallToolResult> {
     const { name, arguments: args = {} } = request.params;
 
     try {
       switch (name) {
         case "search_events":
-          return await this.searchEvents(args);
+          return await this.searchEvents(args as SearchEventsParams);
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
@@ -116,28 +134,40 @@ export class EventsServer extends BaseAccessServer {
     }
   }
 
-  async handleResourceRead(request: any) {
+  protected async handleResourceRead(request: ReadResourceRequest): Promise<ReadResourceResult> {
     const { uri } = request.params;
 
     switch (uri) {
-      case "accessci://events":
+      case "accessci://events": {
         const allEvents = await this.searchEvents({});
-        return this.createJsonResource(uri, JSON.parse(allEvents.content[0].text));
-      case "accessci://events/upcoming":
+        const content = allEvents.content[0];
+        const text = content.type === "text" ? content.text : "";
+        return this.createJsonResource(uri, JSON.parse(text));
+      }
+      case "accessci://events/upcoming": {
         const upcomingEvents = await this.searchEvents({ date: "upcoming" });
-        return this.createJsonResource(uri, JSON.parse(upcomingEvents.content[0].text));
-      case "accessci://events/workshops":
+        const content = upcomingEvents.content[0];
+        const text = content.type === "text" ? content.text : "";
+        return this.createJsonResource(uri, JSON.parse(text));
+      }
+      case "accessci://events/workshops": {
         const workshops = await this.searchEvents({ type: "workshop" });
-        return this.createJsonResource(uri, JSON.parse(workshops.content[0].text));
-      case "accessci://events/webinars":
+        const content = workshops.content[0];
+        const text = content.type === "text" ? content.text : "";
+        return this.createJsonResource(uri, JSON.parse(text));
+      }
+      case "accessci://events/webinars": {
         const webinars = await this.searchEvents({ type: "webinar" });
-        return this.createJsonResource(uri, JSON.parse(webinars.content[0].text));
+        const content = webinars.content[0];
+        const text = content.type === "text" ? content.text : "";
+        return this.createJsonResource(uri, JSON.parse(text));
+      }
       default:
         throw new Error(`Unknown resource: ${uri}`);
     }
   }
 
-  private buildEventsUrl(params: any): string {
+  private buildEventsUrl(params: SearchEventsParams): string {
     const url = new URL("/api/2.2/events", this.baseURL);
 
     const limit = params.limit || 50;
@@ -188,7 +218,7 @@ export class EventsServer extends BaseAccessServer {
     return url.toString();
   }
 
-  private async getEvents(params: any) {
+  private async getEvents(params: SearchEventsParams): Promise<CallToolResult> {
     const url = this.buildEventsUrl(params);
     const response = await this.httpClient.get(url);
 
@@ -196,23 +226,23 @@ export class EventsServer extends BaseAccessServer {
       throw new Error(`API error ${response.status}`);
     }
 
-    let events = response.data || [];
+    let events: RawEvent[] = response.data || [];
     if (params.limit && events.length > params.limit) {
       events = events.slice(0, params.limit);
     }
 
-    const enhancedEvents = events.map((event: any) => ({
+    const enhancedEvents = events.map((event: RawEvent) => ({
       ...event,
       tags: Array.isArray(event.tags) ? event.tags : [],
       duration_hours: event.end_date
-        ? Math.round((new Date(event.end_date).getTime() - new Date(event.start_date).getTime()) / 3600000)
+        ? Math.round((new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) / 3600000)
         : null,
-      starts_in_hours: Math.max(0, Math.round((new Date(event.start_date).getTime() - Date.now()) / 3600000))
+      starts_in_hours: Math.max(0, Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000))
     }));
 
     return {
       content: [{
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({
           total: enhancedEvents.length,
           items: enhancedEvents
@@ -221,7 +251,7 @@ export class EventsServer extends BaseAccessServer {
     };
   }
 
-  private async searchEvents(params: any) {
+  private async searchEvents(params: SearchEventsParams): Promise<CallToolResult> {
     // Validate enum parameters
     const validDateValues = ["today", "upcoming", "past", "this_week", "this_month"];
     const validSkillValues = ["beginner", "intermediate", "advanced"];

@@ -1,13 +1,13 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach, Mock } from "vitest";
 import { EventsServer } from "../server.js";
-import axios from "axios";
 
-// Mock axios
-vi.mock("axios");
+interface MockHttpClient {
+  get: Mock<(url: string) => Promise<{ status: number; data: unknown }>>;
+}
 
 describe("EventsServer", () => {
   let server: EventsServer;
-  let mockHttpClient: any;
+  let mockHttpClient: MockHttpClient;
 
   beforeEach(() => {
     server = new EventsServer();
@@ -193,6 +193,7 @@ describe("EventsServer", () => {
         });
 
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {},
@@ -211,7 +212,8 @@ describe("EventsServer", () => {
           data: mockEventsData,
         });
 
-        const result = await server["handleToolCall"]({
+        await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {
@@ -231,7 +233,8 @@ describe("EventsServer", () => {
           data: [mockEventsData[0]], // Only workshop
         });
 
-        const result = await server["handleToolCall"]({
+        await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {
@@ -250,7 +253,8 @@ describe("EventsServer", () => {
           data: [mockEventsData[0]],
         });
 
-        const result = await server["handleToolCall"]({
+        await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {
@@ -269,7 +273,8 @@ describe("EventsServer", () => {
           data: mockEventsData,
         });
 
-        const result = await server["handleToolCall"]({
+        await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {
@@ -289,6 +294,7 @@ describe("EventsServer", () => {
         });
 
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {
@@ -308,6 +314,7 @@ describe("EventsServer", () => {
         });
 
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {},
@@ -330,6 +337,7 @@ describe("EventsServer", () => {
         });
 
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {
@@ -352,7 +360,8 @@ describe("EventsServer", () => {
           data: [mockEventsData[0]],
         });
 
-        const result = await server["handleToolCall"]({
+        await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {
@@ -382,6 +391,7 @@ describe("EventsServer", () => {
         });
 
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {},
@@ -396,6 +406,7 @@ describe("EventsServer", () => {
         mockHttpClient.get.mockRejectedValue(new Error("Network error"));
 
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "search_events",
             arguments: {},
@@ -407,6 +418,7 @@ describe("EventsServer", () => {
 
       it("should handle unknown tools", async () => {
         const result = await server["handleToolCall"]({
+          method: "tools/call",
           params: {
             name: "unknown_tool",
             arguments: {},

@@ -1,4 +1,48 @@
-import { BaseAccessServer, handleApiError } from "@access-mcp/shared";
+import { BaseAccessServer, handleApiError, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+
+interface InfrastructureNewsArgs {
+  query?: string;
+  time?: string;
+  ids?: string[];
+  limit?: number;
+  use_group_api?: boolean;
+}
+
+interface InfrastructureNewsRouterArgs {
+  resource?: string;
+  time?: string;
+  resource_ids?: string[];
+  limit?: number;
+  use_group_api?: boolean;
+}
+
+interface AffectedResource {
+  ResourceName?: string;
+  ResourceID?: string | number;
+}
+
+interface OutageItem {
+  Subject?: string;
+  AffectedResources?: AffectedResource[];
+  OutageStart?: string;
+  OutageEnd?: string;
+  OutageType?: string;
+  category?: string;
+}
+
+interface EnhancedOutage extends OutageItem {
+  severity?: string;
+  scheduled_start?: string;
+  scheduled_end?: string;
+  hours_until_start?: number;
+  duration_hours?: number | null;
+  has_scheduled_time?: boolean;
+  outage_start?: string;
+  outage_end?: string;
+  days_ago?: number;
+  outage_type?: string;
+}
 
 export class SystemStatusServer extends BaseAccessServer {
   constructor() {
@@ -9,7 +53,7 @@ export class SystemStatusServer extends BaseAccessServer {
     );
   }
 
-  protected getTools() {
+  protected getTools(): Tool[] {
     return [
       {
         name: "get_infrastructure_news",
@@ -48,7 +92,7 @@ export class SystemStatusServer extends BaseAccessServer {
     ];
   }
 
-  protected getResources() {
+  protected getResources(): Resource[] {
     return [
       {
         uri: "accessci://system-status",
@@ -78,18 +122,19 @@ export class SystemStatusServer extends BaseAccessServer {
     ];
   }
 
-  async handleToolCall(request: any) {
+  protected async handleToolCall(request: CallToolRequest): Promise<CallToolResult> {
     const { name, arguments: args = {} } = request.params;
+    const typedArgs = args as InfrastructureNewsArgs;
 
     try {
       switch (name) {
         case "get_infrastructure_news":
           return await this.getInfrastructureNewsRouter({
-            resource: args.query,
-            time: args.time,
-            resource_ids: args.ids,
-            limit: args.limit,
-            use_group_api: args.use_group_api
+            resource: typedArgs.query,
+            time: typedArgs.time,
+            resource_ids: typedArgs.ids,
+            limit: typedArgs.limit,
+            use_group_api: typedArgs.use_group_api
           });
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
@@ -103,7 +148,7 @@ export class SystemStatusServer extends BaseAccessServer {
    * Router for consolidated get_infrastructure_news tool
    * Routes to appropriate handler based on parameters
    */
-  private async getInfrastructureNewsRouter(args: any) {
+  private async getInfrastructureNewsRouter(args: InfrastructureNewsRouterArgs): Promise<CallToolResult> {
     const { resource, time = "current", resource_ids, limit, use_group_api = false } = args;
 
     // Check resource status (returns operational/affected)
@@ -126,11 +171,11 @@ export class SystemStatusServer extends BaseAccessServer {
     }
   }
 
-  async handleResourceRead(request: any) {
+  protected async handleResourceRead(request: ReadResourceRequest): Promise<ReadResourceResult> {
     const { uri } = request.params;
 
     switch (uri) {
-      case "accessci://system-status":
+      case "accessci://system-status": {
         return {
           contents: [
             {
@@ -140,59 +185,69 @@ export class SystemStatusServer extends BaseAccessServer {
             },
           ],
         };
-      case "accessci://outages/current":
+      }
+      case "accessci://outages/current": {
         const currentOutages = await this.getCurrentOutages();
+        const content = currentOutages.content[0];
+        const text = content.type === "text" ? content.text : "";
         return {
           contents: [
             {
               uri,
               mimeType: "application/json",
-              text: currentOutages.content[0].text,
+              text,
             },
           ],
         };
-      case "accessci://outages/scheduled":
+      }
+      case "accessci://outages/scheduled": {
         const scheduledMaintenance = await this.getScheduledMaintenance();
+        const content = scheduledMaintenance.content[0];
+        const text = content.type === "text" ? content.text : "";
         return {
           contents: [
             {
               uri,
               mimeType: "application/json",
-              text: scheduledMaintenance.content[0].text,
+              text,
             },
           ],
         };
-      case "accessci://outages/past":
+      }
+      case "accessci://outages/past": {
         const pastOutages = await this.getPastOutages();
+        const content = pastOutages.content[0];
+        const text = content.type === "text" ? content.text : "";
         return {
           contents: [
             {
               uri,
               mimeType: "application/json",
-              text: pastOutages.content[0].text,
+              text,
             },
           ],
         };
+      }
       default:
         throw new Error(`Unknown resource: ${uri}`);
     }
   }
 
-  private async getCurrentOutages(resourceFilter?: string) {
+  private async getCurrentOutages(resourceFilter?: string): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/current_outages/",
     );
 
-    let outages = response.data.results || [];
+    let outages: OutageItem[] = response.data.results || [];
 
     // Filter by resource if specified
     if (resourceFilter) {
       const filter = resourceFilter.toLowerCase();
       outages = outages.filter(
-        (outage: any) =>
+        (outage: OutageItem) =>
           outage.Subject?.toLowerCase().includes(filter) ||
           outage.AffectedResources?.some(
-            (resource: any) =>
+            (resource: AffectedResource) =>
               resource.ResourceName?.toLowerCase().includes(filter) ||
               resource.ResourceID?.toString().includes(filter),
           ),
@@ -204,9 +259,9 @@ export class SystemStatusServer extends BaseAccessServer {
     const severityCounts = { high: 0, medium: 0, low: 0, unknown: 0 };
 
     // Enhance outages with status summary
-    const enhancedOutages = outages.map((outage: any) => {
+    const enhancedOutages = outages.map((outage: OutageItem): EnhancedOutage => {
       // Track affected resources
-      outage.AffectedResources?.forEach((resource: any) => {
+      outage.AffectedResources?.forEach((resource: AffectedResource) => {
         affectedResources.add(resource.ResourceName);
       });
 
@@ -241,28 +296,28 @@ export class SystemStatusServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify(summary, null, 2),
         },
       ],
     };
   }
 
-  private async getScheduledMaintenance(resourceFilter?: string) {
+  private async getScheduledMaintenance(resourceFilter?: string): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/future_outages/",
     );
 
-    let maintenance = response.data.results || [];
+    let maintenance: OutageItem[] = response.data.results || [];
 
     // Filter by resource if specified
     if (resourceFilter) {
       const filter = resourceFilter.toLowerCase();
       maintenance = maintenance.filter(
-        (item: any) =>
+        (item: OutageItem) =>
           item.Subject?.toLowerCase().includes(filter) ||
           item.AffectedResources?.some(
-            (resource: any) =>
+            (resource: AffectedResource) =>
               resource.ResourceName?.toLowerCase().includes(filter) ||
               resource.ResourceID?.toString().includes(filter),
           ),
@@ -270,9 +325,9 @@ export class SystemStatusServer extends BaseAccessServer {
     }
 
     // Sort by scheduled start time
-    maintenance.sort((a: any, b: any) => {
-      const dateA = new Date(a.OutageStart);
-      const dateB = new Date(b.OutageStart);
+    maintenance.sort((a: OutageItem, b: OutageItem) => {
+      const dateA = new Date(a.OutageStart || "");
+      const dateB = new Date(b.OutageStart || "");
       return dateA.getTime() - dateB.getTime();
     });
 
@@ -281,15 +336,15 @@ export class SystemStatusServer extends BaseAccessServer {
     let upcoming24h = 0;
     let upcomingWeek = 0;
 
-    const enhancedMaintenance = maintenance.map((item: any) => {
+    const enhancedMaintenance = maintenance.map((item: OutageItem): EnhancedOutage => {
       // Track affected resources
-      item.AffectedResources?.forEach((resource: any) => {
+      item.AffectedResources?.forEach((resource: AffectedResource) => {
         affectedResources.add(resource.ResourceName);
       });
 
       // Check timing - use OutageStart for scheduling
       const hasScheduledTime = !!item.OutageStart;
-      const startTime = new Date(item.OutageStart);
+      const startTime = new Date(item.OutageStart || "");
       const now = new Date();
       const hoursUntil =
         (startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
@@ -325,28 +380,28 @@ export class SystemStatusServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify(summary, null, 2),
         },
       ],
     };
   }
 
-  private async getPastOutages(resourceFilter?: string, limit: number = 100) {
+  private async getPastOutages(resourceFilter?: string, limit: number = 100): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/past_outages/",
     );
 
-    let pastOutages = response.data.results || [];
+    let pastOutages: OutageItem[] = response.data.results || [];
 
     // Filter by resource if specified
     if (resourceFilter) {
       const filter = resourceFilter.toLowerCase();
       pastOutages = pastOutages.filter(
-        (outage: any) =>
+        (outage: OutageItem) =>
           outage.Subject?.toLowerCase().includes(filter) ||
           outage.AffectedResources?.some(
-            (resource: any) =>
+            (resource: AffectedResource) =>
               resource.ResourceName?.toLowerCase().includes(filter) ||
               resource.ResourceID?.toString().includes(filter),
           ),
@@ -354,9 +409,9 @@ export class SystemStatusServer extends BaseAccessServer {
     }
 
     // Sort by outage end time (most recent first)
-    pastOutages.sort((a: any, b: any) => {
-      const dateA = new Date(a.OutageEnd);
-      const dateB = new Date(b.OutageEnd);
+    pastOutages.sort((a: OutageItem, b: OutageItem) => {
+      const dateA = new Date(a.OutageEnd || "");
+      const dateB = new Date(b.OutageEnd || "");
       return dateB.getTime() - dateA.getTime();
     });
 
@@ -366,19 +421,21 @@ export class SystemStatusServer extends BaseAccessServer {
     }
 
     // Initialize tracking variables
-    const affectedResources = new Set();
-    const outageTypes = new Set();
-    const recentOutages = pastOutages.filter((outage: any) => {
-      const endTime = new Date(outage.OutageEnd);
+    const affectedResources = new Set<string>();
+    const outageTypes = new Set<string>();
+    const recentOutages = pastOutages.filter((outage: OutageItem) => {
+      const endTime = new Date(outage.OutageEnd || "");
       const daysAgo = (Date.now() - endTime.getTime()) / (1000 * 60 * 60 * 24);
       return daysAgo <= 30; // Last 30 days
     });
 
     // Enhance outages with calculated fields
-    const enhancedOutages = pastOutages.map((outage: any) => {
+    const enhancedOutages = pastOutages.map((outage: OutageItem): EnhancedOutage => {
       // Track affected resources
-      outage.AffectedResources?.forEach((resource: any) => {
-        affectedResources.add(resource.ResourceName);
+      outage.AffectedResources?.forEach((resource: AffectedResource) => {
+        if (resource.ResourceName) {
+          affectedResources.add(resource.ResourceName);
+        }
       });
 
       // Track outage types
@@ -387,8 +444,8 @@ export class SystemStatusServer extends BaseAccessServer {
       }
 
       // Calculate duration
-      const startTime = new Date(outage.OutageStart);
-      const endTime = new Date(outage.OutageEnd);
+      const startTime = new Date(outage.OutageStart || "");
+      const endTime = new Date(outage.OutageEnd || "");
       const durationHours = Math.round(
         (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60),
       );
@@ -416,9 +473,9 @@ export class SystemStatusServer extends BaseAccessServer {
       average_duration_hours: enhancedOutages.length > 0
         ? Math.round(
             enhancedOutages
-              .filter((o: any) => o.duration_hours > 0)
-              .reduce((sum: number, o: any) => sum + o.duration_hours, 0) /
-            enhancedOutages.filter((o: any) => o.duration_hours > 0).length
+              .filter((o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0)
+              .reduce((sum: number, o: EnhancedOutage) => sum + (o.duration_hours || 0), 0) /
+            enhancedOutages.filter((o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0).length
           )
         : 0,
       outages: enhancedOutages,
@@ -427,14 +484,14 @@ export class SystemStatusServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify(summary, null, 2),
         },
       ],
     };
   }
 
-  private async getSystemAnnouncements(limit: number = 50) {
+  private async getSystemAnnouncements(limit: number = 50): Promise<CallToolResult> {
     // Get current, future, and recent past announcements for comprehensive view
     const [currentResponse, futureResponse, pastResponse] = await Promise.all([
       this.httpClient.get(
@@ -448,30 +505,30 @@ export class SystemStatusServer extends BaseAccessServer {
       ),
     ]);
 
-    const currentOutages = currentResponse.data.results || [];
-    const futureOutages = futureResponse.data.results || [];
-    const pastOutages = pastResponse.data.results || [];
+    const currentOutages: OutageItem[] = currentResponse.data.results || [];
+    const futureOutages: OutageItem[] = futureResponse.data.results || [];
+    const pastOutagesData: OutageItem[] = pastResponse.data.results || [];
 
     // Filter recent past outages (last 30 days) for announcements
-    const recentPastOutages = pastOutages.filter((outage: any) => {
-      const endTime = new Date(outage.OutageEnd);
+    const recentPastOutages = pastOutagesData.filter((outage: OutageItem) => {
+      const endTime = new Date(outage.OutageEnd || "");
       const daysAgo = (Date.now() - endTime.getTime()) / (1000 * 60 * 60 * 24);
       return daysAgo <= 30;
     });
 
     // Combine all announcements and sort by most relevant date
-    const allAnnouncements = [
-      ...currentOutages.map((item: any) => ({ ...item, category: 'current' })),
-      ...futureOutages.map((item: any) => ({ ...item, category: 'scheduled' })),
-      ...recentPastOutages.map((item: any) => ({ ...item, category: 'recent_past' })),
+    const allAnnouncements: OutageItem[] = [
+      ...currentOutages.map((item: OutageItem) => ({ ...item, category: 'current' as const })),
+      ...futureOutages.map((item: OutageItem) => ({ ...item, category: 'scheduled' as const })),
+      ...recentPastOutages.map((item: OutageItem) => ({ ...item, category: 'recent_past' as const })),
     ]
-      .sort((a: any, b: any) => {
+      .sort((a: OutageItem, b: OutageItem) => {
         // Sort by most relevant date: current first, then future by start time, then past by end time
         if (a.category === 'current' && b.category !== 'current') return -1;
         if (b.category === 'current' && a.category !== 'current') return 1;
-        
-        const dateA = new Date(a.OutageStart);
-        const dateB = new Date(b.OutageStart);
+
+        const dateA = new Date(a.OutageStart || "");
+        const dateB = new Date(b.OutageStart || "");
         return dateB.getTime() - dateA.getTime(); // Most recent first
       })
       .slice(0, limit);
@@ -492,14 +549,14 @@ export class SystemStatusServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify(summary, null, 2),
         },
       ],
     };
   }
 
-  private async checkResourceStatus(resourceIds: string[], useGroupApi: boolean = false) {
+  private async checkResourceStatus(resourceIds: string[], useGroupApi: boolean = false): Promise<CallToolResult> {
     if (!resourceIds || !Array.isArray(resourceIds) || resourceIds.length === 0) {
       throw new Error("resource_ids parameter is required and must be a non-empty array of resource IDs");
     }
@@ -512,12 +569,12 @@ export class SystemStatusServer extends BaseAccessServer {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/current_outages/",
     );
-    const rawOutages = response.data.results || [];
+    const rawOutages: OutageItem[] = response.data.results || [];
 
     const resourceStatus = resourceIds.map((resourceId) => {
-      const affectedOutages = rawOutages.filter((outage: any) =>
+      const affectedOutages = rawOutages.filter((outage: OutageItem) =>
         outage.AffectedResources?.some(
-          (resource: any) =>
+          (resource: AffectedResource) =>
             resource.ResourceID?.toString() === resourceId ||
             resource.ResourceName?.toLowerCase().includes(
               resourceId.toLowerCase(),
@@ -526,12 +583,12 @@ export class SystemStatusServer extends BaseAccessServer {
       );
 
       let status = "operational";
-      let severity = null;
+      let severity: string | null = null;
 
       if (affectedOutages.length > 0) {
         status = "affected";
         // Get highest severity using same logic as getCurrentOutages
-        const severities = affectedOutages.map((outage: any) => {
+        const severities = affectedOutages.map((outage: OutageItem) => {
           const subject = outage.Subject?.toLowerCase() || "";
           if (subject.includes("emergency") || subject.includes("critical")) {
             return "high";
@@ -541,7 +598,7 @@ export class SystemStatusServer extends BaseAccessServer {
             return "medium";
           }
         });
-        
+
         if (severities.includes("high")) severity = "high";
         else if (severities.includes("medium")) severity = "medium";
         else severity = "low";
@@ -552,7 +609,7 @@ export class SystemStatusServer extends BaseAccessServer {
         status,
         severity,
         active_outages: affectedOutages.length,
-        outage_details: affectedOutages.map((outage: any) => ({
+        outage_details: affectedOutages.map((outage: OutageItem) => ({
           subject: outage.Subject,
           severity,
         })),
@@ -562,7 +619,7 @@ export class SystemStatusServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify(
             {
               checked_at: new Date().toISOString(),
@@ -583,7 +640,7 @@ export class SystemStatusServer extends BaseAccessServer {
     };
   }
 
-  private async checkResourceStatusViaGroups(resourceIds: string[]) {
+  private async checkResourceStatusViaGroups(resourceIds: string[]): Promise<CallToolResult> {
     if (!resourceIds || !Array.isArray(resourceIds) || resourceIds.length === 0) {
       throw new Error("resource_ids parameter is required and must be a non-empty array of resource IDs");
     }
@@ -594,21 +651,21 @@ export class SystemStatusServer extends BaseAccessServer {
         const response = await this.httpClient.get(
           `/wh2/news/v1/info_groupid/${resourceId}/`,
         );
-        
-        const groupData = response.data.results || [];
+
+        const groupData: OutageItem[] = response.data.results || [];
         const hasOutages = groupData.length > 0;
-        
+
         return {
           resource_id: resourceId,
           status: hasOutages ? "affected" : "operational",
           severity: hasOutages ? "medium" : null,
           active_outages: groupData.length,
-          outage_details: groupData.map((outage: any) => ({
+          outage_details: groupData.map((outage: OutageItem) => ({
             subject: outage.Subject,
           })),
           api_method: "group_specific",
         };
-      } catch (error) {
+      } catch {
         // Fallback to general check if group API fails
         return {
           resource_id: resourceId,
@@ -627,7 +684,7 @@ export class SystemStatusServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify(
             {
               checked_at: new Date().toISOString(),

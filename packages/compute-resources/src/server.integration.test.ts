@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { ComputeResourcesServer } from "./server.js";
 
+interface ComputeResource {
+  name?: string;
+}
+
 describe("ComputeResourcesServer Integration Tests", () => {
   const server = new ComputeResourcesServer();
 
@@ -19,7 +23,7 @@ describe("ComputeResourcesServer Integration Tests", () => {
     expect(responseData.items).toBeInstanceOf(Array);
 
     // Check for known major resources
-    const resourceNames = responseData.items.map((r: any) => r.name.toLowerCase());
+    const resourceNames = responseData.items.map((r: ComputeResource) => r.name?.toLowerCase());
     const knownResources = ["delta", "anvil", "bridges", "jetstream"];
     const foundKnownResources = knownResources.filter(known =>
       resourceNames.some(name => name.includes(known))

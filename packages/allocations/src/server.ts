@@ -4,6 +4,8 @@ import {
   FIELDS_OF_SCIENCE,
   ALLOCATION_TYPES,
   getFieldNames,
+  Tool,
+  CallToolResult,
 } from "@access-mcp/shared";
 
 /**
@@ -41,9 +43,32 @@ interface Project {
 interface ProjectsResponse {
   projects: Project[];
   pages: number;
-  filters: Record<string, any>;
+  filters: Record<string, unknown>;
 }
 
+interface SearchProjectsArgs {
+  project_id?: number;
+  similar_to?: number;
+  similarity_keywords?: string;
+  limit?: number;
+  similarity_threshold?: number;
+  include_same_field?: boolean;
+  resource_name?: string;
+  query?: string;
+  field_of_science?: string;
+  allocation_type?: string;
+  date_range?: { start_date?: string; end_date?: string };
+  min_allocation?: number;
+  sort_by?: string;
+}
+
+interface AnalyzeFundingArgs {
+  project_id?: number;
+  institution?: string;
+  pi_name?: string;
+  field_of_science?: string;
+  limit?: number;
+}
 
 export class AllocationsServer extends BaseAccessServer {
   private projectCache = new Map<number, ProjectsResponse>();
@@ -63,13 +88,13 @@ export class AllocationsServer extends BaseAccessServer {
     // }, 10 * 60 * 1000); // Clean up every 10 minutes
   }
 
-  protected getTools() {
+  protected getTools(): Tool[] {
     return [
       {
         name: "search_projects",
         description: "Search ACCESS-CI research projects. Returns {total, items}.",
         inputSchema: {
-          type: "object",
+          type: "object" as const,
           properties: {
             query: {
               type: "string",
@@ -92,7 +117,7 @@ export class AllocationsServer extends BaseAccessServer {
               description: "Filter by allocation type (e.g., 'Discover', 'Explore', 'Accelerate')",
             },
             date_range: {
-              type: "object",
+              type: "object" as const,
               description: "Filter by project date range",
               properties: {
                 start_date: {
@@ -129,11 +154,6 @@ export class AllocationsServer extends BaseAccessServer {
             include_same_field: {
               type: "boolean",
               description: "Whether to prioritize projects in the same field of science for similarity search (default: true)",
-              default: true
-            },
-            show_similarity_scores: {
-              type: "boolean",
-              description: "Whether to display similarity scores in results (default: true)",
               default: true
             },
             sort_by: {
@@ -192,7 +212,7 @@ export class AllocationsServer extends BaseAccessServer {
         name: "analyze_funding",
         description: "Analyze NSF funding for ACCESS projects/institutions. Returns detailed markdown analysis.",
         inputSchema: {
-          type: "object",
+          type: "object" as const,
           properties: {
             project_id: {
               type: "number",
@@ -257,7 +277,7 @@ export class AllocationsServer extends BaseAccessServer {
         name: "get_allocation_statistics",
         description: "Get allocation statistics (top fields, resources, institutions, types). Returns aggregate stats.",
         inputSchema: {
-          type: "object",
+          type: "object" as const,
           properties: {
             pages_to_analyze: {
               type: "number",
@@ -317,17 +337,18 @@ export class AllocationsServer extends BaseAccessServer {
     ];
   }
 
-  async handleToolCall(request: any) {
+  async handleToolCall(request: { method: "tools/call"; params: { name: string; arguments?: Record<string, unknown> } }): Promise<CallToolResult> {
     const { name, arguments: args } = request.params;
+    const toolArgs = (args || {}) as Record<string, unknown>;
 
     try {
       switch (name) {
         case "search_projects":
-          return await this.searchProjectsRouter(args);
+          return await this.searchProjectsRouter(toolArgs as SearchProjectsArgs);
         case "analyze_funding":
-          return await this.analyzeFundingRouter(args);
+          return await this.analyzeFundingRouter(toolArgs as AnalyzeFundingArgs);
         case "get_allocation_statistics":
-          return await this.getAllocationStatistics(args.pages_to_analyze || 5);
+          return await this.getAllocationStatistics((toolArgs.pages_to_analyze as number) || 5);
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -335,7 +356,7 @@ export class AllocationsServer extends BaseAccessServer {
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: `Error: ${handleApiError(error)}`,
           },
         ],
@@ -343,7 +364,7 @@ export class AllocationsServer extends BaseAccessServer {
     }
   }
 
-  async handleResourceRead(request: any) {
+  async handleResourceRead(request: { params: { uri: string } }) {
     const { uri } = request.params;
 
     if (uri === "accessci://allocations") {
@@ -575,7 +596,7 @@ sort_by: "date_desc"
    * Router for consolidated search_projects tool
    * Routes to appropriate handler based on parameters
    */
-  private async searchProjectsRouter(args: any) {
+  private async searchProjectsRouter(args: SearchProjectsArgs) {
     // Get specific project details
     if (args.project_id) {
       return await this.getProjectDetails(args.project_id);
@@ -588,8 +609,7 @@ sort_by: "date_desc"
         args.similarity_keywords,
         args.limit,
         args.similarity_threshold,
-        args.include_same_field,
-        args.show_similarity_scores
+        args.include_same_field
       );
     }
 
@@ -625,7 +645,7 @@ sort_by: "date_desc"
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             error: "Please provide at least one search parameter: query, project_id, field_of_science, resource_name, allocation_type, similar_to, or similarity_keywords"
           }, null, 2)
@@ -638,7 +658,7 @@ sort_by: "date_desc"
    * Router for consolidated analyze_funding tool
    * Routes to appropriate handler based on parameters
    */
-  private async analyzeFundingRouter(args: any) {
+  private async analyzeFundingRouter(args: AnalyzeFundingArgs) {
     // Analyze specific project funding
     if (args.project_id) {
       return await this.analyzeProjectFunding(args.project_id);
@@ -679,8 +699,7 @@ sort_by: "date_desc"
     
     // Use parallel fetching for better performance
     const maxPages = Math.min(15, limit > 50 ? 20 : 15);
-    const pagesToFetch = Array.from({length: maxPages}, (_, i) => i + 1);
-    
+
     // Fetch first page to get total pages available
     const firstPageData = await this.fetchProjects(1);
     const totalPages = Math.min(firstPageData.pages, maxPages);
@@ -690,7 +709,7 @@ sort_by: "date_desc"
     const allProjects = await this.fetchMultiplePages(actualPages);
     
     // Apply filters
-    let filteredProjects = allProjects.filter(project => {
+    const filteredProjects = allProjects.filter(project => {
       // Date range filter
       if (dateRange) {
         const projectStart = new Date(project.beginDate);
@@ -736,7 +755,7 @@ sort_by: "date_desc"
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: items.length,
             items: items
@@ -962,7 +981,7 @@ sort_by: "date_desc"
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: JSON.stringify({
                 total: 1,
                 items: [project]
@@ -979,7 +998,7 @@ sort_by: "date_desc"
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             error: `Project with ID ${projectId} not found in current allocations.`
           }, null, 2),
@@ -1020,7 +1039,7 @@ sort_by: "date_desc"
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: results.length,
             items: results
@@ -1072,7 +1091,7 @@ sort_by: "date_desc"
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: results.length,
             items: results,
@@ -1122,7 +1141,7 @@ sort_by: "date_desc"
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: results.length,
             items: results
@@ -1202,7 +1221,7 @@ sort_by: "date_desc"
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: statsText,
         },
       ],
@@ -1210,12 +1229,11 @@ sort_by: "date_desc"
   }
 
   private async findSimilarProjects(
-    projectId?: number, 
-    keywords?: string, 
+    projectId?: number,
+    keywords?: string,
     limit: number = 10,
     similarityThreshold: number = 0.3,
-    includeSameField: boolean = true,
-    showSimilarityScores: boolean = true
+    includeSameField: boolean = true
   ) {
     let referenceProject: Project | null = null;
     let searchTerms: string = "";
@@ -1242,7 +1260,7 @@ sort_by: "date_desc"
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: JSON.stringify({
                 error: `Project with ID ${projectId} not found in current allocations database.`
               }, null, 2),
@@ -1261,7 +1279,7 @@ sort_by: "date_desc"
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: JSON.stringify({
               error: "Please provide either a project_id or keywords to find similar projects."
             }, null, 2),
@@ -1286,30 +1304,6 @@ sort_by: "date_desc"
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, limit);
 
-    // Build comprehensive result
-    const header = referenceProject 
-      ? `🔍 **Projects Similar to "${referenceProject.requestTitle}"**`
-      : `🔍 **Projects Similar to Keywords: "${keywords}"**`;
-
-    let result = `${header}\n\n`;
-
-    // Reference project info
-    if (referenceProject) {
-      result += `**🎯 Reference Project:**\n`;
-      result += `• **ID:** ${referenceProject.projectId}\n`;
-      result += `• **PI:** ${referenceProject.pi} (${referenceProject.piInstitution})\n`;
-      result += `• **Field:** ${referenceProject.fos}\n`;
-      result += `• **Resources:** ${this.summarizeResources(referenceProject.resources)}\n\n`;
-    }
-
-    // Search parameters
-    result += `**⚙️ Search Parameters:**\n`;
-    result += `• **Similarity Threshold:** ${(similarityThreshold * 100).toFixed(0)}%\n`;
-    result += `• **Field Priority:** ${includeSameField ? 'Same field preferred' : 'All fields equal'}\n`;
-    result += `• **Results Found:** ${scoredResults.length}${scoredResults.length >= limit ? '+' : ''}\n`;
-    if (referenceField) result += `• **Reference Field:** ${referenceField}\n`;
-    result += `\n`;
-
     // Return in universal {total, items} format with similarity scores
     const items = scoredResults.map(({project, similarity}) => ({
       ...project,
@@ -1319,7 +1313,7 @@ sort_by: "date_desc"
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: items.length,
             items: items
@@ -1388,7 +1382,6 @@ sort_by: "date_desc"
     }
 
     // Text similarity analysis
-    const projectText = (project.requestTitle + ' ' + project.abstract + ' ' + project.fos).toLowerCase();
     const searchWords = searchTerms.toLowerCase()
       .split(/\s+/)
       .filter(word => word.length > 3 && !this.isStopWord(word));
@@ -1401,7 +1394,7 @@ sort_by: "date_desc"
     
     let titleMatches = 0;
     let abstractMatches = 0;
-    let totalTerms = searchWords.length;
+    const totalTerms = searchWords.length;
 
     searchWords.forEach(term => {
       if (titleText.includes(term)) {
@@ -1471,7 +1464,6 @@ sort_by: "date_desc"
     }
 
     // Enhanced text similarity with weighted scoring
-    const projectText = (project.abstract + ' ' + project.requestTitle).toLowerCase();
     const titleText = project.requestTitle.toLowerCase();
     const keywords = searchTerms.toLowerCase()
       .split(' ')
@@ -1587,7 +1579,7 @@ sort_by: "date_desc"
         return {
           content: [
             {
-              type: "text",
+              type: "text" as const,
               text: `ACCESS project ${projectId} not found in current allocations database.`,
             },
           ],
@@ -1599,21 +1591,21 @@ sort_by: "date_desc"
 
       // Step 2: Search NSF database with exact name matching
       const nsfSearchResults = new Map<string, string>();
-      let relevantAwards: string[] = [];
+      const relevantAwards: string[] = [];
 
       for (const nameVariation of piNameVariations) {
         try {
           const nsfData = await this.callRemoteServer("nsf-awards", "search_nsf_awards", {
             personnel: nameVariation,
             limit: 3
-          });
+          }) as { content?: Array<{ text?: string }> };
           const nsfResponse = this.formatNsfResponse(nsfData);
 
           if (nsfResponse && !nsfResponse.includes("Error") && !nsfResponse.includes("not available")) {
             nsfSearchResults.set(nameVariation, nsfResponse);
             
             // Parse and filter for exact matches
-            const exactMatches = this.parseNSFResponseExact(nsfResponse, accessProject.pi, accessProject.piInstitution);
+            const exactMatches = this.parseNSFResponseExact(nsfResponse, accessProject.pi);
             relevantAwards.push(...exactMatches);
           }
 
@@ -1696,7 +1688,7 @@ sort_by: "date_desc"
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: result,
           },
         ],
@@ -1705,7 +1697,7 @@ sort_by: "date_desc"
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: `Error analyzing project funding: ${error instanceof Error ? error.message : String(error)}`,
           },
         ],
@@ -1843,7 +1835,7 @@ sort_by: "date_desc"
   }
 
   // Enhanced NSF response parsing with exact matching
-  private parseNSFResponseExact(nsfResponse: string, expectedPI: string, expectedInstitution: string): string[] {
+  private parseNSFResponseExact(nsfResponse: string, expectedPI: string): string[] {
     if (!nsfResponse || nsfResponse.includes("not available") || nsfResponse.includes("Error")) {
       return [];
     }
@@ -1955,7 +1947,7 @@ sort_by: "date_desc"
       // Step 1: Get ACCESS projects
       let accessProjects: Project[] = [];
       let searchQuery = "";
-      let searchMetadata = {
+      const searchMetadata = {
         piNameVariations: [] as string[],
         institutionVariants: [] as string[]
       };
@@ -2045,7 +2037,7 @@ sort_by: "date_desc"
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: result,
           },
         ],
@@ -2054,23 +2046,12 @@ sort_by: "date_desc"
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: `Error finding funded projects: ${error instanceof Error ? error.message : String(error)}`,
           },
         ],
       };
     }
-  }
-
-  // Helper method to extract actual Project objects from search results
-  private async extractProjectsFromSearchResult(searchResult: any): Promise<Project[]> {
-    // Parse the search result text to extract project info, but this is complex
-    // For now, let's use a more direct approach - just fetch and filter
-    
-    // Since search results are formatted text, we need the actual Project objects
-    // This is a limitation of the current architecture - search should return Project objects
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
-    return allProjects.slice(0, 20); // Return first 20 as sample - this is the issue!
   }
 
   // Helper method to get projects by field directly
@@ -2125,11 +2106,11 @@ sort_by: "date_desc"
           const nsfData = await this.callRemoteServer("nsf-awards", "search_nsf_awards", {
             personnel: project.pi,
             limit: 3
-          });
+          }) as { content?: Array<{ text?: string }> };
           const nsfResponse = this.formatNsfResponse(nsfData);
 
           // Parse NSF response to extract award summaries
-          const nsfAwards = this.parseNSFResponse(nsfResponse, project.pi, project.piInstitution);
+          const nsfAwards = this.parseNSFResponse(nsfResponse, project.pi);
           
           if (nsfAwards.length > 0) {
             correlations.push({
@@ -2152,7 +2133,7 @@ sort_by: "date_desc"
   }
 
   // Parse NSF server response and extract relevant awards
-  private parseNSFResponse(nsfResponse: string, expectedPI: string, expectedInstitution: string): string[] {
+  private parseNSFResponse(nsfResponse: string, expectedPI: string): string[] {
     if (!nsfResponse || nsfResponse.includes("not available") || nsfResponse.includes("Error")) {
       return [];
     }
@@ -2248,7 +2229,7 @@ sort_by: "date_desc"
             institution: variant,
             limit: Math.ceil(limit / 2),
             primary_only: true  // Filter at source for cleaner architecture
-          });
+          }) as { content?: Array<{ text?: string }> };
           const nsfResponse = this.formatNsfResponse(nsfData);
 
           if (nsfResponse && !nsfResponse.includes("Error") && !nsfResponse.includes("not available")) {
@@ -2262,7 +2243,7 @@ sort_by: "date_desc"
       }
 
       // Step 4: Cross-reference ACCESS PIs with NSF awards
-      const piCrossReference = await this.crossReferenceInstitutionPIs(accessProjects, institutionVariants);
+      const piCrossReference = await this.crossReferenceInstitutionPIs(accessProjects);
 
       // Step 5: Build comprehensive result
       let result = `🏛️ **Institutional Funding Profile: ${institutionName}**\n\n`;
@@ -2334,7 +2315,7 @@ sort_by: "date_desc"
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: result,
           },
         ],
@@ -2343,7 +2324,7 @@ sort_by: "date_desc"
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: `Error generating institutional funding profile: ${error instanceof Error ? error.message : String(error)}`,
           },
         ],
@@ -2657,12 +2638,10 @@ sort_by: "date_desc"
 
   private analyzeInstitutionalResources(projects: Project[]): string {
     const resourceCounts = new Map<string, number>();
-    let totalAllocations = 0;
 
     projects.forEach(project => {
       project.resources.forEach(resource => {
         resourceCounts.set(resource.resourceName, (resourceCounts.get(resource.resourceName) || 0) + 1);
-        if (resource.allocation) totalAllocations += resource.allocation;
       });
     });
 
@@ -2678,7 +2657,7 @@ sort_by: "date_desc"
     return result;
   }
 
-  private async crossReferenceInstitutionPIs(accessProjects: Project[], institutionVariants: string[]): Promise<{
+  private async crossReferenceInstitutionPIs(accessProjects: Project[]): Promise<{
     matches: number;
     details: string;
   }> {
@@ -2690,11 +2669,11 @@ sort_by: "date_desc"
         const nsfData = await this.callRemoteServer("nsf-awards", "search_nsf_awards", {
           personnel: project.pi,
           limit: 2
-        });
+        }) as { content?: Array<{ text?: string }> };
         const nsfResponse = this.formatNsfResponse(nsfData);
 
         if (nsfResponse && !nsfResponse.includes("Error") && !nsfResponse.includes("not available")) {
-          const relevantAwards = this.parseNSFResponse(nsfResponse, project.pi, project.piInstitution);
+          const relevantAwards = this.parseNSFResponse(nsfResponse, project.pi);
           if (relevantAwards.length > 0) {
             matches++;
             details += `• **${project.pi}:** ${relevantAwards.length} NSF award(s) - ${project.fos}\n`;
@@ -2719,7 +2698,7 @@ sort_by: "date_desc"
   }
 
   // Helper method to format NSF server responses
-  private formatNsfResponse(response: any): string {
+  private formatNsfResponse(response: { content?: Array<{ text?: string }> }): string {
     if (response.content && response.content[0] && response.content[0].text) {
       return response.content[0].text;
     }

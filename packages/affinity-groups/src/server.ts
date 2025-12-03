@@ -2,14 +2,25 @@ import {
   BaseAccessServer,
   handleApiError,
   sanitizeGroupId,
+  Tool,
+  Resource,
+  CallToolResult,
 } from "@access-mcp/shared";
+import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+
+interface SearchAffinityGroupsArgs {
+  id?: string;
+  include?: string;
+  query?: string;
+  limit?: number;
+}
 
 export class AffinityGroupsServer extends BaseAccessServer {
   constructor() {
     super("access-mcp-affinity-groups", "0.3.0");
   }
 
-  protected getTools() {
+  protected getTools(): Tool[] {
     return [
       {
         name: "search_affinity_groups",
@@ -41,7 +52,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     ];
   }
 
-  protected getResources() {
+  protected getResources(): Resource[] {
     return [
       {
         uri: "accessci://affinity-groups",
@@ -53,13 +64,13 @@ export class AffinityGroupsServer extends BaseAccessServer {
     ];
   }
 
-  protected async handleToolCall(request: any) {
+  protected async handleToolCall(request: CallToolRequest): Promise<CallToolResult> {
     const { name, arguments: args = {} } = request.params;
 
     try {
       switch (name) {
         case "search_affinity_groups":
-          return await this.searchAffinityGroupsRouter(args);
+          return await this.searchAffinityGroupsRouter(args as SearchAffinityGroupsArgs);
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
@@ -68,8 +79,8 @@ export class AffinityGroupsServer extends BaseAccessServer {
     }
   }
 
-  private async searchAffinityGroupsRouter(args: any) {
-    const { id, include, query, limit = 20 } = args;
+  private async searchAffinityGroupsRouter(args: SearchAffinityGroupsArgs): Promise<CallToolResult> {
+    const { id, include } = args;
 
     if (!id) {
       return await this.listAffinityGroups();
@@ -82,13 +93,20 @@ export class AffinityGroupsServer extends BaseAccessServer {
         this.getAffinityGroupKB(id),
       ]);
 
+      const groupContent = groupInfo.content[0];
+      const eventsContent = events.content[0];
+      const kbContent = kb.content[0];
+      const groupText = groupContent.type === "text" ? groupContent.text : "";
+      const eventsText = eventsContent.type === "text" ? eventsContent.text : "";
+      const kbText = kbContent.type === "text" ? kbContent.text : "";
+
       return {
         content: [{
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
-            group: JSON.parse(groupInfo.content[0].text),
-            events: JSON.parse(events.content[0].text),
-            knowledge_base: JSON.parse(kb.content[0].text)
+            group: JSON.parse(groupText),
+            events: JSON.parse(eventsText),
+            knowledge_base: JSON.parse(kbText)
           })
         }]
       };
@@ -105,17 +123,19 @@ export class AffinityGroupsServer extends BaseAccessServer {
     return await this.getAffinityGroup(id);
   }
 
-  protected async handleResourceRead(request: any) {
+  protected async handleResourceRead(request: ReadResourceRequest): Promise<ReadResourceResult> {
     const { uri } = request.params;
 
     if (uri === "accessci://affinity-groups") {
       const result = await this.listAffinityGroups();
+      const content = result.content[0];
+      const text = content.type === "text" ? content.text : "";
       return {
         contents: [
           {
             uri,
             mimeType: "application/json",
-            text: result.content[0].text,
+            text,
           },
         ],
       };
@@ -124,7 +144,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     throw new Error(`Unknown resource: ${uri}`);
   }
 
-  private async getAffinityGroup(groupId: string) {
+  private async getAffinityGroup(groupId: string): Promise<CallToolResult> {
     const sanitizedId = sanitizeGroupId(groupId);
     const response = await this.httpClient.get(
       `/1.1/affinity_groups/${sanitizedId}`,
@@ -135,7 +155,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
       return {
         content: [
           {
-            type: "text",
+            type: "text" as const,
             text: JSON.stringify({
               total: 0,
               items: []
@@ -164,7 +184,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: cleanedGroups.length,
             items: cleanedGroups
@@ -174,7 +194,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     };
   }
 
-  private async getAffinityGroupEvents(groupId: string) {
+  private async getAffinityGroupEvents(groupId: string): Promise<CallToolResult> {
     const sanitizedId = sanitizeGroupId(groupId);
     const response = await this.httpClient.get(`/1.1/events/ag/${sanitizedId}`);
 
@@ -183,7 +203,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: events.length,
             items: events
@@ -193,7 +213,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     };
   }
 
-  private async getAffinityGroupKB(groupId: string) {
+  private async getAffinityGroupKB(groupId: string): Promise<CallToolResult> {
     const sanitizedId = sanitizeGroupId(groupId);
     const response = await this.httpClient.get(`/1.0/kb/${sanitizedId}`);
 
@@ -202,7 +222,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     return {
       content: [
         {
-          type: "text",
+          type: "text" as const,
           text: JSON.stringify({
             total: kbItems.length,
             items: kbItems
@@ -212,7 +232,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     };
   }
 
-  private async listAffinityGroups() {
+  private async listAffinityGroups(): Promise<CallToolResult> {
     const response = await this.httpClient.get("/1.1/affinity_groups/all");
 
     const groups = Array.isArray(response.data)
@@ -227,7 +247,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
 
     return {
       content: [{
-        type: "text",
+        type: "text" as const,
         text: JSON.stringify({
           total: groups.length,
           items: groups
