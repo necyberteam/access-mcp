@@ -622,36 +622,36 @@ describe("SoftwareDiscoveryServer", () => {
     });
   });
 
-  describe("Result Sorting (Priority-based)", () => {
-    // Mock data where API returns results in non-optimal order
-    const mockUnsortedResults = {
+  describe("Result Ordering (API pre-sorted)", () => {
+    // Mock data simulating API's pre-sorted response: exact > starts-with > contains > other (alphabetically)
+    const mockSortedResults = {
       data: [
         {
-          software_name: "gpytorch",  // contains "pytorch" but not exact
-          rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: "1.0" } },
-        },
-        {
-          software_name: "miniforge3_pytorch",  // contains "pytorch"
-          rps: { "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: "1.0" } },
-        },
-        {
-          software_name: "pytorch",  // exact match - should be first
+          software_name: "pytorch",  // exact match - first
           rps: {
             "anvil.purdue.access-ci.org": { rp_name: "anvil", rp_resource_id: [], software_versions: "2.0" },
             "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: "2.0" },
           },
         },
         {
-          software_name: "pytorch-lightning",  // starts with "pytorch"
+          software_name: "pytorch-lightning",  // starts with "pytorch" - second
           rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: "1.0" } },
+        },
+        {
+          software_name: "gpytorch",  // contains "pytorch" - third (alphabetically before miniforge)
+          rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: "1.0" } },
+        },
+        {
+          software_name: "miniforge3_pytorch",  // contains "pytorch" - fourth
+          rps: { "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: "1.0" } },
         },
       ]
     };
 
-    it("should sort search_software results: exact > starts-with > contains", async () => {
+    it("should preserve API sort order in search_software results", async () => {
       mockSdsClient.post.mockResolvedValue({
         status: 200,
-        data: mockUnsortedResults,
+        data: mockSortedResults,
       });
 
       const result = await server["handleToolCall"]({
@@ -665,17 +665,17 @@ describe("SoftwareDiscoveryServer", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
       const names = responseData.items.map((i: TransformedSoftwareResult) => i.name);
 
+      // API returns pre-sorted: exact > starts-with > contains (alphabetically within each)
       expect(names[0]).toBe("pytorch");  // exact match first
       expect(names[1]).toBe("pytorch-lightning");  // starts-with second
-      // contains matches last
-      expect(names).toContain("gpytorch");
-      expect(names).toContain("miniforge3_pytorch");
+      expect(names[2]).toBe("gpytorch");  // contains (alphabetically first)
+      expect(names[3]).toBe("miniforge3_pytorch");  // contains (alphabetically second)
     });
 
-    it("should sort get_software_details results and return exact match as best", async () => {
+    it("should use first API result as best match in get_software_details", async () => {
       mockSdsClient.post.mockResolvedValue({
         status: 200,
-        data: mockUnsortedResults,
+        data: mockSortedResults,
       });
 
       const result = await server["handleToolCall"]({
@@ -688,19 +688,21 @@ describe("SoftwareDiscoveryServer", () => {
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
-      expect(responseData.details.name).toBe("pytorch");  // exact match as best
+      // First API result is best match (API handles sorting)
+      expect(responseData.details.name).toBe("pytorch");
       expect(responseData.details.available_on_resources).toContain("anvil");
       expect(responseData.details.available_on_resources).toContain("delta");
 
-      // Other matches should be sorted too
+      // Other matches preserve API order
       const otherNames = responseData.other_matches.map((m: OtherMatchResult) => m.name);
-      expect(otherNames[0]).toBe("pytorch-lightning");  // starts-with before contains
+      expect(otherNames[0]).toBe("pytorch-lightning");
+      expect(otherNames[1]).toBe("gpytorch");
     });
 
-    it("should prioritize exact match in compare_software_availability", async () => {
+    it("should use first API result for compare_software_availability", async () => {
       mockSdsClient.post.mockResolvedValue({
         status: 200,
-        data: mockUnsortedResults,
+        data: mockSortedResults,
       });
 
       const result = await server["handleToolCall"]({
@@ -714,16 +716,17 @@ describe("SoftwareDiscoveryServer", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
       const pytorchComparison = responseData.comparison.find((c: SoftwareComparisonResult) => c.software === "pytorch");
 
+      // Uses first result (exact match) from API
       expect(pytorchComparison.found).toBe(true);
-      expect(pytorchComparison.resource_count).toBe(2);  // anvil and delta from exact "pytorch"
+      expect(pytorchComparison.resource_count).toBe(2);
       expect(pytorchComparison.available_on).toContain("anvil");
       expect(pytorchComparison.available_on).toContain("delta");
     });
 
-    it("should not sort when no query provided in search_software", async () => {
+    it("should preserve API order in search_software without query", async () => {
       mockSdsClient.post.mockResolvedValue({
         status: 200,
-        data: mockUnsortedResults,
+        data: mockSortedResults,
       });
 
       const result = await server["handleToolCall"]({
@@ -735,8 +738,8 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      // Should return in API order when no query
-      expect(responseData.items[0].name).toBe("gpytorch");
+      // Preserves API order
+      expect(responseData.items[0].name).toBe("pytorch");
     });
   });
 

@@ -497,28 +497,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     }
 
     try {
-      let results = await this.queryApi(params);
-
-      // Sort results by match quality when there's a query: exact > starts-with > contains
-      if (query) {
-        const queryLower = query.toLowerCase();
-        results = [...results].sort((a, b) => {
-          const aName = a.software_name.toLowerCase();
-          const bName = b.software_name.toLowerCase();
-
-          const aExact = aName === queryLower ? 0 : 1;
-          const bExact = bName === queryLower ? 0 : 1;
-          if (aExact !== bExact) return aExact - bExact;
-
-          const aStarts = aName.startsWith(queryLower) ? 0 : 1;
-          const bStarts = bName.startsWith(queryLower) ? 0 : 1;
-          if (aStarts !== bStarts) return aStarts - bStarts;
-
-          const aContains = aName.includes(queryLower) ? 0 : 1;
-          const bContains = bName.includes(queryLower) ? 0 : 1;
-          return aContains - bContains;
-        });
-      }
+      // API returns results pre-sorted: exact > starts-with > contains > other (alphabetically within each)
+      const results = await this.queryApi(params);
 
       // Apply limit
       const limitedResults = results.slice(0, limit);
@@ -623,30 +603,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         };
       }
 
-      // Sort results by match quality: exact > starts-with > contains
-      const queryLower = software_name.toLowerCase();
-      const sortedResults = [...results].sort((a, b) => {
-        const aName = a.software_name.toLowerCase();
-        const bName = b.software_name.toLowerCase();
-
-        const aExact = aName === queryLower ? 0 : 1;
-        const bExact = bName === queryLower ? 0 : 1;
-        if (aExact !== bExact) return aExact - bExact;
-
-        const aStarts = aName.startsWith(queryLower) ? 0 : 1;
-        const bStarts = bName.startsWith(queryLower) ? 0 : 1;
-        if (aStarts !== bStarts) return aStarts - bStarts;
-
-        const aContains = aName.includes(queryLower) ? 0 : 1;
-        const bContains = bName.includes(queryLower) ? 0 : 1;
-        return aContains - bContains;
-      });
-
-      // Get the best match with full details
-      const bestMatch = this.transformSoftwareItem(sortedResults[0], true);
+      // API returns results pre-sorted: exact > starts-with > contains > other (alphabetically within each)
+      // First result is the best match
+      const bestMatch = this.transformSoftwareItem(results[0], true);
 
       // If there are multiple matches, include them
-      const otherMatches = sortedResults.slice(1, 5).map(item => ({
+      const otherMatches = results.slice(1, 5).map(item => ({
         name: item.software_name,
         resources: item.rps ? Object.values(item.rps).map(rp => rp.rp_name) : []
       }));
