@@ -42,7 +42,6 @@ Comprehensive ACCESS-CI research project search and discovery. Supports free-tex
 - `similarity_keywords` (string, optional): Find projects similar to these keywords/research terms
 - `similarity_threshold` (number, optional): Minimum similarity score (0.0-1.0, default: 0.3)
 - `include_same_field` (boolean, optional): Prioritize projects in same field for similarity search (default: true)
-- `show_similarity_scores` (boolean, optional): Display similarity scores in results (default: true)
 - `sort_by` (string, optional): Sort by 'relevance', 'date_desc', 'date_asc', 'allocation_desc', 'allocation_asc', 'pi_name' (default: relevance)
 - `limit` (number, optional): Maximum results (default: 20, max: 100)
 
