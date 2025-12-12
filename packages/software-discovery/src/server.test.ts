@@ -48,13 +48,13 @@ describe("SoftwareDiscoveryServer", () => {
           "delta.ncsa.access-ci.org": {
             rp_name: "delta",
             rp_resource_id: ["delta-gpu.ncsa.access-ci.org", "delta-cpu.ncsa.access-ci.org"],
-            software_versions: "2.10,2.11,2.12",
+            software_versions: ["2.12", "2.11", "2.10"],
             rp_software_documentation: "https://docs.ncsa.edu"
           },
           "anvil.purdue.access-ci.org": {
             rp_name: "anvil",
             rp_resource_id: ["anvil.purdue.access-ci.org"],
-            software_versions: "2.11",
+            software_versions: ["2.11"],
             rp_software_documentation: "https://www.rcac.purdue.edu"
           }
         },
@@ -76,13 +76,13 @@ describe("SoftwareDiscoveryServer", () => {
           "anvil.purdue.access-ci.org": {
             rp_name: "anvil",
             rp_resource_id: ["anvil.purdue.access-ci.org"],
-            software_versions: "2022.3,2023.1",
+            software_versions: ["2023.1", "2022.3"],
             rp_software_documentation: ""
           },
           "expanse.sdsc.access-ci.org": {
             rp_name: "expanse",
             rp_resource_id: ["expanse.sdsc.access-ci.org"],
-            software_versions: "2023.1",
+            software_versions: ["2023.1"],
             rp_software_documentation: ""
           }
         },
@@ -104,7 +104,7 @@ describe("SoftwareDiscoveryServer", () => {
           "bridges2.psc.access-ci.org": {
             rp_name: "bridges2",
             rp_resource_id: ["bridges2.psc.access-ci.org"],
-            software_versions: "5.10,5.11",
+            software_versions: ["5.11", "5.10"],
             rp_software_documentation: ""
           }
         },
@@ -207,7 +207,7 @@ describe("SoftwareDiscoveryServer", () => {
       expect(tensorflow.available_on_resources).toContain("anvil");
       expect(tensorflow.resource_ids).toContain("delta-gpu.ncsa.access-ci.org");
       expect(tensorflow.versions_by_resource).toBeDefined();
-      expect(tensorflow.versions_by_resource.delta).toBe("2.10,2.11,2.12");
+      expect(tensorflow.versions_by_resource.delta).toEqual(["2.12", "2.11", "2.10"]);
     });
 
     it("should filter by resource with fuzzy matching", async () => {
@@ -629,21 +629,21 @@ describe("SoftwareDiscoveryServer", () => {
         {
           software_name: "pytorch",  // exact match - first
           rps: {
-            "anvil.purdue.access-ci.org": { rp_name: "anvil", rp_resource_id: [], software_versions: "2.0" },
-            "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: "2.0" },
+            "anvil.purdue.access-ci.org": { rp_name: "anvil", rp_resource_id: [], software_versions: ["2.0"] },
+            "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: ["2.0"] },
           },
         },
         {
           software_name: "pytorch-lightning",  // starts with "pytorch" - second
-          rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: "1.0" } },
+          rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: ["1.0"] } },
         },
         {
           software_name: "gpytorch",  // contains "pytorch" - third (alphabetically before miniforge)
-          rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: "1.0" } },
+          rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: ["1.0"] } },
         },
         {
           software_name: "miniforge3_pytorch",  // contains "pytorch" - fourth
-          rps: { "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: "1.0" } },
+          rps: { "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: ["1.0"] } },
         },
       ]
     };

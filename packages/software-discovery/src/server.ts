@@ -15,7 +15,7 @@ interface SoftwareQueryParams {
 interface RpInfo {
   rp_name: string;
   rp_resource_id: string[];
-  software_versions: string;
+  software_versions: string[]; // API returns sorted array, first item is latest
   rp_software_documentation?: string;
 }
 
@@ -50,7 +50,7 @@ interface TransformedSoftware {
   usage_link: string | null;
   available_on_resources: string[];
   resource_ids: string[];
-  versions_by_resource?: Record<string, string>;
+  versions_by_resource?: Record<string, string[]>;
   ai_metadata?: {
     description: string | null;
     tags: string[];
@@ -412,7 +412,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     // Extract resource information from the rps object
     const resources: string[] = [];
     const resourceIds: string[] = [];
-    const versionsPerResource: Record<string, string> = {};
+    const versionsPerResource: Record<string, string[]> = {};
 
     if (item.rps) {
       for (const [rpKey, rpInfo] of Object.entries(item.rps)) {
@@ -427,18 +427,22 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     }
 
     // Collect all unique versions across resources
-    const allVersions = new Set<string>();
+    // Note: API returns versions pre-sorted (best effort), first item is latest
+    const allVersions: string[] = [];
+    const seenVersions = new Set<string>();
     Object.values(versionsPerResource).forEach(versions => {
-      versions.split(',').forEach(v => {
-        const trimmed = v.trim();
-        if (trimmed) allVersions.add(trimmed);
+      versions.forEach(v => {
+        if (v && !seenVersions.has(v)) {
+          seenVersions.add(v);
+          allVersions.push(v);
+        }
       });
     });
 
     const result: TransformedSoftware = {
       name: item.software_name,
       description: item.software_description || null,
-      versions: Array.from(allVersions).sort(),
+      versions: allVersions, // Preserve API sort order (first is latest)
       documentation: item.software_documentation || null,
       website: item.software_web_page || null,
       usage_link: item.software_use_link || null,
