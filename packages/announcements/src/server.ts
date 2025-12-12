@@ -149,9 +149,10 @@ export class AnnouncementsServer extends BaseAccessServer {
     };
 
     if (filters.date && dateMap[filters.date]) {
-      params.append("relative_start_date", dateMap[filters.date].start);
-      if (dateMap[filters.date].end) {
-        params.append("relative_end_date", dateMap[filters.date].end);
+      const dateRange = dateMap[filters.date];
+      params.append("relative_start_date", dateRange.start);
+      if (dateRange.end) {
+        params.append("relative_end_date", dateRange.end);
       }
     }
 
