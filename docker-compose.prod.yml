@@ -1,0 +1,147 @@
+# Docker Compose file for ACCESS-CI MCP Servers - Production
+# Uses pre-built images from GitHub Container Registry
+
+services:
+  # TypeScript MCP Servers
+  mcp-affinity-groups:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/affinity-groups:latest
+    ports:
+      - "3011:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-compute-resources:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/compute-resources:latest
+    ports:
+      - "3002:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-system-status:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/system-status:latest
+    ports:
+      - "3003:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-software-discovery:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/software-discovery:latest
+    ports:
+      - "3004:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SDS_API_KEY=${SDS_API_KEY}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-xdmod-charts:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/xdmod-charts:latest
+    ports:
+      - "3005:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-allocations:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/allocations:latest
+    ports:
+      - "3006:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ACCESS_MCP_SERVICES=${ACCESS_MCP_SERVICES}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-nsf-awards:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/nsf-awards:latest
+    ports:
+      - "3007:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-announcements:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/announcements:latest
+    ports:
+      - "3009:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-events:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/events:latest
+    ports:
+      - "3010:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  # Python MCP Server
+  mcp-xdmod-data:
+    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/xdmod-mcp-data:latest
+    ports:
+      - "3008:3000"
+    restart: unless-stopped
+    environment:
+      - PYTHONUNBUFFERED=1
+      - XDMOD_API_TOKEN=${XDMOD_API_TOKEN}
+      - PORT=3000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+networks:
+  default:
+    name: mcp-network

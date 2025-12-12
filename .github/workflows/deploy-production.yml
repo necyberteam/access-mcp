@@ -1,0 +1,115 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      matrix:
+        include:
+          # Node.js MCP servers
+          - package: affinity-groups
+            dockerfile: Dockerfile.node
+          - package: compute-resources
+            dockerfile: Dockerfile.node
+          - package: system-status
+            dockerfile: Dockerfile.node
+          - package: software-discovery
+            dockerfile: Dockerfile.node
+          - package: xdmod-charts
+            dockerfile: Dockerfile.node
+          - package: allocations
+            dockerfile: Dockerfile.node
+          - package: nsf-awards
+            dockerfile: Dockerfile.node
+          - package: announcements
+            dockerfile: Dockerfile.node
+          - package: events
+            dockerfile: Dockerfile.node
+          # Python MCP server
+          - package: xdmod-mcp-data
+            dockerfile: Dockerfile.python
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/${{ matrix.package }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            PACKAGE=${{ matrix.package }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Deploy to production server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: github
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            cd ~/access-mcp
+
+            # Pull latest images
+            echo "Pulling latest images..."
+            docker compose pull
+
+            # Restart services with new images
+            echo "Restarting services..."
+            docker compose up -d --remove-orphans
+
+            # Clean up old images
+            echo "Cleaning up old images..."
+            docker image prune -f
+
+            # Show running containers
+            echo "Running containers:"
+            docker compose ps
