@@ -17,9 +17,65 @@ This repository contains MCP servers that provide programmatic access to:
 
 ## Quick Start
 
-### For End Users
+### Try It Now (Hosted Servers)
 
-Install individual MCP servers:
+Connect Claude Desktop to our hosted MCP servers. Add this to your Claude Desktop config:
+
+**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "access-compute-resources": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3002/sse"]
+    },
+    "access-system-status": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3003/sse"]
+    },
+    "access-software-discovery": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3004/sse"]
+    },
+    "access-xdmod-charts": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3005/sse"]
+    },
+    "access-allocations": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3006/sse"]
+    },
+    "access-nsf-awards": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3007/sse"]
+    },
+    "access-xdmod-data": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3008/sse"]
+    },
+    "access-announcements": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3009/sse"]
+    },
+    "access-events": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3010/sse"]
+    },
+    "access-affinity-groups": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3011/sse"]
+    }
+  }
+}
+```
+
+Restart Claude Desktop and ask: *"What GPU resources are available on ACCESS-CI?"*
+
+### Install Locally (npm)
+
+Install individual MCP servers to run locally:
 
 ```bash
 # Install specific servers
@@ -126,6 +182,28 @@ cd docs
 npm run dev    # Start development server
 npm run build  # Build for production
 ```
+
+## Docker Deployment
+
+Pre-built Docker images are available from GitHub Container Registry:
+
+```bash
+# Pull and run with Docker Compose
+curl -o docker-compose.yml https://raw.githubusercontent.com/necyberteam/access-mcp/main/docker-compose.prod.yml
+
+# Create .env file with your configuration
+cat > .env << 'EOF'
+GITHUB_REPOSITORY=necyberteam/access-mcp
+SDS_API_KEY=your-key
+XDMOD_API_TOKEN=your-token
+ACCESS_MCP_SERVICES=nsf-awards=http://mcp-nsf-awards:3000
+EOF
+
+# Start services
+docker compose pull && docker compose up -d
+```
+
+Images are automatically built and pushed on every commit to `main`. See [Getting Started](https://access-mcp.netlify.app/getting-started.html#docker-deployment-advanced) for full deployment instructions.
 
 ## Release Process
 

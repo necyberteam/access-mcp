@@ -43,98 +43,82 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 - Installed ML frameworks and libraries
 - Current system status and availability
 
-## Getting Started
+## Try It Now
 
-Ready to explore ACCESS-CI resources with AI assistance? Get started in just a few minutes:
+Want to try ACCESS-CI MCP servers without installing anything? Connect Claude Desktop to our hosted servers in seconds.
 
-### What You'll Need
-- **Claude Desktop** - Free AI assistant app with MCP support
-- **npm** (Node Package Manager) - Comes with Node.js for TypeScript servers
-- **pipx** - Python package installer for the Python MCP server
+### 1. Install Claude Desktop
 
-### Quick Install
+Download [Claude Desktop](https://claude.ai/download) for macOS or Windows.
 
-**TypeScript Servers:**
-```bash
-npm install -g @access-mcp/affinity-groups @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-charts @access-mcp/allocations @access-mcp/nsf-awards @access-mcp/events @access-mcp/announcements
-```
+### 2. Add This Configuration
 
-**Python Server:**
-```bash
-pipx install xdmod-mcp-data
-```
+Open your Claude Desktop config file:
+- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
-### Quick Setup
-1. **Install Prerequisites** - Claude Desktop and npm
-2. **Install MCP Servers** - One command installs all ACCESS-CI servers  
-3. **Configure Claude** - Add servers to your configuration file
-4. **Start Exploring** - Ask Claude about ACCESS-CI resources
+Copy and paste this configuration:
 
-### Authentication
-- **Most servers work immediately** with no setup required
-- **Some servers** may need API keys for full functionality
-- Get started right away and add API keys as needed
-
-### Example Configuration
-Here's a complete configuration example for Claude Desktop:
 ```json
 {
   "mcpServers": {
-    "access-affinity-groups": {
-      "command": "npx",
-      "args": ["@access-mcp/affinity-groups"]
-    },
     "access-compute-resources": {
       "command": "npx",
-      "args": ["@access-mcp/compute-resources"]
+      "args": ["mcp-remote", "http://45.79.215.140:3002/sse"]
     },
     "access-system-status": {
       "command": "npx",
-      "args": ["@access-mcp/system-status"]
+      "args": ["mcp-remote", "http://45.79.215.140:3003/sse"]
     },
     "access-software-discovery": {
       "command": "npx",
-      "args": ["@access-mcp/software-discovery"],
-      "env": {
-        "SDS_API_KEY": "your-api-key"
-      }
+      "args": ["mcp-remote", "http://45.79.215.140:3004/sse"]
     },
     "access-xdmod-charts": {
       "command": "npx",
-      "args": ["@access-mcp/xdmod-charts"]
+      "args": ["mcp-remote", "http://45.79.215.140:3005/sse"]
     },
     "access-allocations": {
       "command": "npx",
-      "args": ["@access-mcp/allocations"],
-      "env": {
-        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3007"
-      }
+      "args": ["mcp-remote", "http://45.79.215.140:3006/sse"]
     },
     "access-nsf-awards": {
       "command": "npx",
-      "args": ["@access-mcp/nsf-awards"],
-      "env": {
-        "PORT": "3007"
-      }
+      "args": ["mcp-remote", "http://45.79.215.140:3007/sse"]
     },
-    "access-events": {
+    "access-xdmod-data": {
       "command": "npx",
-      "args": ["@access-mcp/events"]
+      "args": ["mcp-remote", "http://45.79.215.140:3008/sse"]
     },
     "access-announcements": {
       "command": "npx",
-      "args": ["@access-mcp/announcements"]
+      "args": ["mcp-remote", "http://45.79.215.140:3009/sse"]
     },
-    "xdmod-mcp-data": {
-      "command": "xdmod-mcp-data",
-      "env": {
-        "XDMOD_API_TOKEN": "your-xdmod-token-here",
-        "ACCESS_MCP_SERVICES": "nsf-awards=http://localhost:3007"
-      }
+    "access-events": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3010/sse"]
+    },
+    "access-affinity-groups": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://45.79.215.140:3011/sse"]
     }
   }
 }
 ```
+
+### 3. Restart Claude Desktop
+
+Restart the app and ask: *"What GPU resources are available on ACCESS-CI?"*
+
+::: tip No Installation Required
+The hosted servers handle everything. You just need Claude Desktop and npm (for the `mcp-remote` bridge).
+:::
+
+---
+
+## Install Locally
+
+For better performance or offline use, install the servers locally:
 
 [**📖 Complete Installation Guide →**](/getting-started)
 

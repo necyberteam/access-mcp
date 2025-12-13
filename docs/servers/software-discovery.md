@@ -1,11 +1,10 @@
-# ACCESS-CI Software Discovery Service MCP server
+# Software Discovery MCP Server
 
-MCP server for discovering software packages across ACCESS-CI compute resources. Features global software search across all resources, resource-specific browsing, AI-enhanced metadata, fuzzy matching, software comparison, and detailed package information using the Software Discovery Service (SDS) API v1.
+MCP server for discovering software packages across ACCESS-CI compute resources. Features global software search, AI-enhanced metadata, fuzzy matching, and software comparison using the Software Discovery Service (SDS) API v1.
 
 ## Usage Examples
 
-### **Search & Browse**
-
+### Search & Browse
 ```
 "TensorFlow availability across ACCESS-CI"
 "All software on Expanse"
@@ -13,8 +12,7 @@ MCP server for discovering software packages across ACCESS-CI compute resources.
 "GROMACS installation on Bridges-2"
 ```
 
-### **AI-Enhanced Discovery**
-
+### AI-Enhanced Discovery
 ```
 "Machine learning software on Delta"
 "Quantum chemistry tools (all resources)"
@@ -22,57 +20,28 @@ MCP server for discovering software packages across ACCESS-CI compute resources.
 "GPU-optimized software by category"
 ```
 
-### **Comparison Queries**
-
+### Comparison Queries
 ```
 "Compare CUDA and OpenMPI availability"
 "Which resources have TensorFlow and PyTorch?"
 ```
 
-
-## Installation
-
-```bash
-npm install -g @access-mcp/software-discovery
-```
-
-Add to your Claude Desktop configuration:
-
-```json
-{
-  "mcpServers": {
-    "software-discovery": {
-      "command": "npx",
-      "args": ["@access-mcp/software-discovery"]
-    }
-  }
-}
-```
-
-## What's New in v0.6.0
-
-- **New API Backend**: Uses the new SDS API v1 at `sds-ara-api.access-ci.org`
-- **Fuzzy Search**: Fuzzy matching for both software names and resource providers
-- **Improved Tools**: Reorganized tools for clearer use cases
-- **Software Comparison**: New tool to compare software availability across resources
-
-
 ## Tools
 
-### search_software
+### `search_software`
 
 Search software packages on ACCESS-CI resources with fuzzy matching support.
 
 **Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `query` | string | Software name to search for (supports fuzzy matching) |
+| `resource` | string | Resource provider name or ID (e.g., "anvil", "delta.ncsa.access-ci.org") |
+| `fuzzy` | boolean | Enable fuzzy matching (default: true) |
+| `include_ai_metadata` | boolean | Include AI-generated metadata (default: true) |
+| `limit` | number | Max results (default: 100) |
 
-- `query` (string, optional): Software name to search for (e.g., 'python', 'gcc', 'tensorflow'). Supports fuzzy matching.
-- `resource` (string, optional): Resource provider name or ID to filter by (e.g., 'anvil', 'expanse', 'delta.ncsa.access-ci.org'). Supports fuzzy matching.
-- `fuzzy` (boolean, optional): Enable fuzzy matching for software and resource names. Default: true
-- `include_ai_metadata` (boolean, optional): Include AI-generated metadata (tags, research area, software type, etc.). Default: true
-- `limit` (number, optional): Max results to return. Default: 100
-
-**Usage Examples:**
-
+**Examples:**
 ```javascript
 // Search for Python packages with fuzzy matching
 search_software({ query: "python", limit: 20 })
@@ -84,18 +53,18 @@ search_software({ query: "tensorflow", resource: "anvil" })
 search_software({ query: "gcc", fuzzy: false })
 ```
 
-### list_all_software
+### `list_all_software`
 
 List all software packages available across ACCESS-CI resources.
 
 **Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `resource` | string | Filter to a specific resource provider |
+| `include_ai_metadata` | boolean | Include AI-generated metadata (default: false) |
+| `limit` | number | Max results (default: 100) |
 
-- `resource` (string, optional): Filter to a specific resource provider (e.g., 'anvil', 'expanse')
-- `include_ai_metadata` (boolean, optional): Include AI-generated metadata. Default: false
-- `limit` (number, optional): Max results to return. Default: 100
-
-**Usage Examples:**
-
+**Examples:**
 ```javascript
 // List all available software
 list_all_software({ limit: 100 })
@@ -104,18 +73,18 @@ list_all_software({ limit: 100 })
 list_all_software({ resource: "delta", limit: 50 })
 ```
 
-### get_software_details
+### `get_software_details`
 
 Get detailed information about a specific software package.
 
 **Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `software_name` | string | Exact or partial software name (required) |
+| `resource` | string | Filter to a specific resource provider |
+| `fuzzy` | boolean | Enable fuzzy matching (default: true) |
 
-- `software_name` (string, required): Exact or partial software name
-- `resource` (string, optional): Filter to a specific resource provider
-- `fuzzy` (boolean, optional): Enable fuzzy matching for software name. Default: true
-
-**Usage Examples:**
-
+**Examples:**
 ```javascript
 // Get TensorFlow details
 get_software_details({ software_name: "tensorflow" })
@@ -124,22 +93,20 @@ get_software_details({ software_name: "tensorflow" })
 get_software_details({ software_name: "gcc", resource: "expanse" })
 ```
 
-### compare_software_availability
+### `compare_software_availability`
 
 Compare software availability across multiple resources.
 
 **Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `software_names` | array | List of software names to check (required) |
+| `resources` | array | List of resources to compare (compares all if not specified) |
 
-- `software_names` (array, required): List of software names to check
-- `resources` (array, optional): List of resources to compare (compares all if not specified)
-
-**Usage Examples:**
-
+**Examples:**
 ```javascript
 // Compare CUDA and OpenMPI availability
-compare_software_availability({
-  software_names: ["cuda", "openmpi"]
-})
+compare_software_availability({ software_names: ["cuda", "openmpi"] })
 
 // Compare on specific resources
 compare_software_availability({
@@ -148,8 +115,37 @@ compare_software_availability({
 })
 ```
 
+## Installation
+
+```bash
+npm install -g @access-mcp/software-discovery
+```
+
+## Configuration
+
+```json
+{
+  "mcpServers": {
+    "access-software-discovery": {
+      "command": "npx",
+      "args": ["@access-mcp/software-discovery"],
+      "env": {
+        "SDS_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
+
+**Note:** The `SDS_API_KEY` environment variable is required. Contact the ACCESS-CI team to request an API key.
+
+## Resources
+
+- `accessci://software-discovery` - ACCESS-CI Software Discovery Service
+- `accessci://software/categories` - Available filter values from actual software data
+
 ---
 
-**Package:** `@access-mcp/software-discovery`  
-**Version:** v0.6.0  
+**Package:** `@access-mcp/software-discovery`
+**Version:** v0.6.0
 **Main:** `dist/index.js`

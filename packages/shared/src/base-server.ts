@@ -1,5 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   GetPromptRequestSchema,
@@ -19,6 +20,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
 import express, { Express, Request, Response } from "express";
+import { IncomingMessage, ServerResponse } from "node:http";
 
 // Re-export SDK types for convenience
 export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
@@ -29,6 +31,7 @@ export abstract class BaseAccessServer {
   private _httpClient?: AxiosInstance;
   private _httpServer?: Express;
   private _httpPort?: number;
+  private _sseTransports: Map<string, SSEServerTransport> = new Map();
 
   constructor(
     protected serverName: string,
@@ -272,7 +275,7 @@ export abstract class BaseAccessServer {
   }
 
   /**
-   * Start HTTP service layer for inter-server communication
+   * Start HTTP service layer with SSE support for remote MCP connections
    */
   private async startHttpService(): Promise<void> {
     if (!this._httpPort) return;
@@ -290,7 +293,59 @@ export abstract class BaseAccessServer {
       });
     });
 
-    // List available tools endpoint
+    // SSE endpoint for MCP remote connections
+    this._httpServer.get('/sse', async (req: Request, res: Response) => {
+      console.log(`[${this.serverName}] New SSE connection`);
+
+      const transport = new SSEServerTransport('/messages', res as unknown as ServerResponse);
+      const sessionId = transport.sessionId;
+      this._sseTransports.set(sessionId, transport);
+
+      // Clean up on disconnect
+      res.on('close', () => {
+        console.log(`[${this.serverName}] SSE connection closed: ${sessionId}`);
+        this._sseTransports.delete(sessionId);
+      });
+
+      // Create a new server instance for this SSE connection
+      const sseServer = new Server(
+        {
+          name: this.serverName,
+          version: this.version,
+        },
+        {
+          capabilities: {
+            resources: {},
+            tools: {},
+            prompts: {},
+          },
+        },
+      );
+
+      // Set up handlers for the SSE server (same as main server)
+      this.setupServerHandlers(sseServer);
+
+      await sseServer.connect(transport);
+    });
+
+    // Messages endpoint for SSE POST messages
+    this._httpServer.post('/messages', async (req: Request, res: Response) => {
+      const sessionId = req.query.sessionId as string;
+      const transport = this._sseTransports.get(sessionId);
+
+      if (!transport) {
+        res.status(404).json({ error: 'Session not found' });
+        return;
+      }
+
+      await transport.handlePostMessage(
+        req as unknown as IncomingMessage,
+        res as unknown as ServerResponse,
+        req.body
+      );
+    });
+
+    // List available tools endpoint (for inter-server communication)
     this._httpServer.get('/tools', (req: Request, res: Response) => {
       try {
         const tools = this.getTools();
@@ -300,7 +355,7 @@ export abstract class BaseAccessServer {
       }
     });
 
-    // Tool execution endpoint
+    // Tool execution endpoint (for inter-server communication)
     this._httpServer.post('/tools/:toolName', async (req: Request, res: Response) => {
       try {
         const { toolName } = req.params;
@@ -310,7 +365,8 @@ export abstract class BaseAccessServer {
         const tools = this.getTools();
         const tool = tools.find(t => t.name === toolName);
         if (!tool) {
-          return res.status(404).json({ error: `Tool '${toolName}' not found` });
+          res.status(404).json({ error: `Tool '${toolName}' not found` });
+          return;
         }
 
         // Execute the tool
@@ -335,6 +391,89 @@ export abstract class BaseAccessServer {
       this._httpServer!.listen(this._httpPort!, '0.0.0.0', () => {
         resolve();
       }).on('error', reject);
+    });
+  }
+
+  /**
+   * Set up MCP handlers on a server instance
+   */
+  private setupServerHandlers(server: Server) {
+    server.setRequestHandler(ListToolsRequestSchema, async () => {
+      try {
+        return { tools: this.getTools() };
+      } catch (error: unknown) {
+        return { tools: [] };
+      }
+    });
+
+    server.setRequestHandler(ListResourcesRequestSchema, async () => {
+      try {
+        return { resources: this.getResources() };
+      } catch (error: unknown) {
+        return { resources: [] };
+      }
+    });
+
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      try {
+        return await this.handleToolCall(request);
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error("Error handling tool call:", errorMessage);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                error: errorMessage
+              }),
+            },
+          ],
+          isError: true,
+        };
+      }
+    });
+
+    server.setRequestHandler(
+      ReadResourceRequestSchema,
+      async (request) => {
+        try {
+          return await this.handleResourceRead(request);
+        } catch (error: unknown) {
+          const errorMessage =
+            error instanceof Error ? error.message : String(error);
+          console.error("Error reading resource:", errorMessage);
+          return {
+            contents: [
+              {
+                uri: request.params.uri,
+                mimeType: "text/plain",
+                text: `Error: ${errorMessage}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    server.setRequestHandler(ListPromptsRequestSchema, async () => {
+      try {
+        return { prompts: this.getPrompts() };
+      } catch (error: unknown) {
+        return { prompts: [] };
+      }
+    });
+
+    server.setRequestHandler(GetPromptRequestSchema, async (request) => {
+      try {
+        return await this.handleGetPrompt(request);
+      } catch (error: unknown) {
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        console.error("Error getting prompt:", errorMessage);
+        throw error;
+      }
     });
   }
 

@@ -34,15 +34,15 @@ async function extractServerMetadata(packageName) {
       try {
         const pyprojectPath = join(packagePath, "pyproject.toml");
         const pyprojectContent = readFileSync(pyprojectPath, "utf-8");
-        
+
         // Basic TOML parsing for our needs
         const nameMatch = pyprojectContent.match(/name = "(.+?)"/);
         const versionMatch = pyprojectContent.match(/version = "(.+?)"/);
         const descriptionMatch = pyprojectContent.match(/description = "(.+?)"/);
-        
+
         metadata = {
           name: nameMatch ? nameMatch[1] : `@access-mcp/${packageName}`,
-          version: versionMatch ? versionMatch[1] : "0.1.0", 
+          version: versionMatch ? versionMatch[1] : "0.1.0",
           description: descriptionMatch ? descriptionMatch[1] : `MCP server for ${packageName}`,
           main: "src/server.py",
           bin: {
@@ -87,49 +87,14 @@ ACCESS-CI provides ${servers.length} MCP servers for different aspects of cyberi
 
 ${servers
   .map(
-    (server) => {
-      // Detect if this is a Python package
-      const isPythonPackage = server.main && server.main.endsWith('.py');
-      
-      let installCommand, configCommand, configArgs;
-      
-      if (isPythonPackage) {
-        // Python package - use pipx
-        installCommand = `pipx install ${server.name}`;
-        configCommand = server.name;
-        configArgs = `"command": "${server.name}"`;
-      } else {
-        // TypeScript package - use npm
-        installCommand = `npm install -g ${server.name}`;
-        configCommand = "npx";
-        configArgs = `"command": "npx",\n      "args": ["${server.name}"]`;
-      }
-      
-      return `
+    (server) => `
 ## ${server.description}
 
-**Package:** \`${server.name}\`  
+**Package:** \`${server.name}\`
 **Version:** v${server.version}
 
-${server.description}
-
-[View Details](/servers/${server.id}){.btn-primary}
-
-\`\`\`bash
-# Install
-${installCommand}
-
-# Configure
-{
-  "mcpServers": {
-    "${server.id}": {
-      ${configArgs}
-    }
-  }
-}
-\`\`\`
-`;
-    }
+[View Details](/servers/${server.id})
+`
   )
   .join("")}
 
@@ -138,124 +103,40 @@ ${installCommand}
 }
 
 /**
- * Generate individual server documentation page
+ * Generate individual server documentation page from README
  */
 function generateServerPage(server) {
-  const serverTitle = server.description || server.name;
-  
-  // Extract usage examples, enhanced description, and remaining content from README
-  const { usageExamples, enhancedDescription, remainingContent } = extractUsageExamples(server.readme || "");
+  let content = server.readme || "";
 
-  // Detect if this is a Python package (has .py main file)
-  const isPythonPackage = server.main && server.main.endsWith('.py');
-  
-  let installationSection, configurationSection;
-  
-  if (isPythonPackage) {
-    // Python package - use pipx
-    installationSection = `## Installation
+  // If no README, generate a basic page
+  if (!content) {
+    return `# ${server.description || server.name}
 
-\`\`\`bash
-pipx install ${server.name}
-\`\`\`
-
-Add to your Claude Desktop configuration:
-
-\`\`\`json
-{
-  "mcpServers": {
-    "${server.id}": {
-      "command": "${server.name}"
-    }
-  }
-}
-\`\`\``;
-  } else {
-    // TypeScript package - use npm
-    installationSection = `## Installation
-
-\`\`\`bash
-npm install -g ${server.name}
-\`\`\`
-
-Add to your Claude Desktop configuration:
-
-\`\`\`json
-{
-  "mcpServers": {
-    "${server.id}": {
-      "command": "npx",
-      "args": ["${server.name}"]
-    }
-  }
-}
-\`\`\``;
-  }
-
-  return `# ${serverTitle}
-
-${enhancedDescription || server.description}
-
-${usageExamples}
-
-${installationSection}
-
-${remainingContent}
+${server.description}
 
 ---
 
-**Package:** \`${server.name}\`  
-**Version:** v${server.version}  
+**Package:** \`${server.name}\`
+**Version:** v${server.version}
 **Main:** \`${server.main}\`
 `;
-}
-
-/**
- * Extract content from README, splitting at Installation section
- */
-function extractUsageExamples(readmeContent) {
-  if (!readmeContent) {
-    return {
-      usageExamples: "## Usage Examples\n\n<!-- TODO: Extract examples from server code -->",
-      enhancedDescription: null,
-      remainingContent: ""
-    };
   }
 
-  // Extract everything up to ## Installation (or end of file)
-  const beforeInstallation = readmeContent.match(/^([\s\S]*?)(?=\n## Installation|\n## License|$)/);
-  let contentBeforeInstallation = beforeInstallation ? beforeInstallation[1] : readmeContent;
-  
-  // Extract the enhanced description (everything between title and Usage Examples)
-  let enhancedDescription = null;
-  const titleMatch = contentBeforeInstallation.match(/^# .*?\n\n([\s\S]*?)(?=\n## Usage Examples|\n## |$)/);
-  if (titleMatch && titleMatch[1]) {
-    enhancedDescription = titleMatch[1].trim();
-  }
-  
-  // Extract Usage Examples section
-  const usageMatch = contentBeforeInstallation.match(/## Usage Examples[\s\S]*?(?=\n## (?!Usage Examples)|\n# |$)/);
-  let usageExamples = "";
-  if (usageMatch) {
-    usageExamples = usageMatch[0];
-  } else {
-    usageExamples = "## Usage Examples\n\n<!-- TODO: Extract examples from server code -->";
-  }
-  
-  // Extract remaining content (everything after Usage Examples, before Installation)
-  let remainingContent = contentBeforeInstallation;
-  
-  // Remove title and description
-  remainingContent = remainingContent.replace(/^# .*?\n\n[\s\S]*?(?=\n## Usage Examples|\n## |$)/, "");
-  
-  // Remove Usage Examples
-  if (usageMatch) {
-    remainingContent = remainingContent.replace(usageMatch[0], "");
-  }
-  
-  remainingContent = remainingContent.trim();
-  
-  return { usageExamples, enhancedDescription, remainingContent };
+  // Use the README content as-is, just add package metadata at the end
+  // Remove any trailing whitespace
+  content = content.trim();
+
+  // Add package metadata footer
+  content += `
+
+---
+
+**Package:** \`${server.name}\`
+**Version:** v${server.version}
+**Main:** \`${server.main}\`
+`;
+
+  return content;
 }
 
 // Main execution

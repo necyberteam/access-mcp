@@ -1,11 +1,10 @@
-# MCP server for ACCESS-CI System Status and Outages API
+# System Status MCP Server
 
-MCP server providing real-time system status information for ACCESS-CI resources. Provides critical operational information about ACCESS-CI systems, including current outages, scheduled maintenance, and system-wide announcements.
+MCP server for real-time ACCESS-CI system status including current outages, scheduled maintenance, and operational status.
 
 ## Usage Examples
 
-### **Current Status**
-
+### Current Status
 ```
 "Current ACCESS-CI outages"
 "Delta operational status"
@@ -13,8 +12,7 @@ MCP server providing real-time system status information for ACCESS-CI resources
 "GPU systems status check"
 ```
 
-### **Maintenance & Incidents**
-
+### Maintenance & Incidents
 ```
 "Scheduled maintenance this week"
 "Next Expanse maintenance window"
@@ -22,57 +20,34 @@ MCP server providing real-time system status information for ACCESS-CI resources
 "All infrastructure news for Delta"
 ```
 
-
-## Installation
-
-```bash
-npm install -g @access-mcp/system-status
-```
-
-Add to your Claude Desktop configuration:
-
-```json
-{
-  "mcpServers": {
-    "system-status": {
-      "command": "npx",
-      "args": ["@access-mcp/system-status"]
-    }
-  }
-}
-```
-
 ## Tools
 
-### get_infrastructure_news
+### `get_infrastructure_news`
 
-Comprehensive ACCESS-CI infrastructure status and outage information. Get current outages, scheduled maintenance, past incidents, and operational status for ACCESS-CI resources. Provides real-time monitoring of system health and availability.
+Get infrastructure status, outages, and maintenance information for ACCESS-CI resources.
 
 **Parameters:**
-
-- `resource` (string, optional): Filter by specific resource name or ID (e.g., 'delta', 'bridges2')
-- `time` (string, optional): Time period for infrastructure news: 'current' (active outages), 'scheduled' (future maintenance), 'past' (historical incidents), 'all' (comprehensive overview). Default: 'current'
-- `resource_ids` (array of strings, optional): Check operational status for specific resource IDs (returns 'operational' or 'affected' status). Use instead of 'resource' parameter for status checking
-- `limit` (number, optional): Maximum number of items to return (default: 50 for 'all', 100 for 'past')
-- `use_group_api` (boolean, optional): Use resource group API for status checking (only with resource_ids parameter, default: false)
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `resource` | string | Filter by resource name (e.g., "delta", "bridges2") |
+| `time` | enum | Time period: `current`, `scheduled`, `past`, `all` (default: "current") |
+| `resource_ids` | array | Check status for specific resource IDs |
+| `limit` | number | Max results (default: 50 for "all", 100 for "past") |
+| `use_group_api` | boolean | Use resource group API for status checking (default: false) |
 
 **Examples:**
-
-```typescript
+```javascript
 // Get current outages across all resources
 get_infrastructure_news({})
 
 // Get scheduled maintenance
 get_infrastructure_news({ time: "scheduled" })
 
-// Get comprehensive overview of all infrastructure news
+// Get comprehensive overview
 get_infrastructure_news({ time: "all" })
 
 // Check current status for specific resource
 get_infrastructure_news({ resource: "delta", time: "current" })
-
-// Get all news for specific resource
-get_infrastructure_news({ resource: "delta", time: "all" })
 
 // Check operational status of specific resources
 get_infrastructure_news({
@@ -83,12 +58,31 @@ get_infrastructure_news({
 get_infrastructure_news({ time: "past", limit: 50 })
 ```
 
+## Installation
+
+```bash
+npm install -g @access-mcp/system-status
+```
+
+## Configuration
+
+```json
+{
+  "mcpServers": {
+    "access-system-status": {
+      "command": "npx",
+      "args": ["@access-mcp/system-status"]
+    }
+  }
+}
+```
+
 ## Resources
 
-- `accessci://system-status`: Current operational status of all ACCESS-CI resources
+- `accessci://system-status` - Current operational status of all ACCESS-CI resources
 
 ---
 
-**Package:** `@access-mcp/system-status`  
-**Version:** v0.5.0  
+**Package:** `@access-mcp/system-status`
+**Version:** v0.5.0
 **Main:** `dist/index.js`

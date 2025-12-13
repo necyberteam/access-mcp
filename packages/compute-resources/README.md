@@ -1,73 +1,79 @@
 # Compute Resources MCP Server
 
-MCP server providing access to ACCESS-CI compute resources information including hardware specifications, resource status, and detailed configurations. Get comprehensive information about supercomputers, clusters, and their technical capabilities.
+MCP server for ACCESS-CI compute resources including hardware specifications, capabilities, and configurations.
 
 ## Usage Examples
 
-### **Discovery & Search**
-
+### Discovery & Search
 ```
 "List all GPU resources"
 "Resources at NCSA"
 "Cloud computing systems"
-"Expanse details"
 "Delta hardware specifications"
 ```
 
-### **Advanced Queries**
-
+### Recommendations
 ```
-"GPU count and models on Delta"
-"Compute resources with A100 GPUs"
-"Memory configuration on Frontera"
-"All resources at SDSC"
+"Recommend a resource for machine learning with GPUs"
+"What system should I use for molecular dynamics?"
+"Best resource for a beginner doing genomics analysis"
 ```
 
 ## Tools
 
-### search_resources
+### `search_resources`
 
-Comprehensive search for ACCESS-CI compute resources. Supports listing all resources, getting details for specific resources, and advanced filtering by type/GPU capability. Returns resource IDs needed for other ACCESS-CI services.
+Search and filter ACCESS-CI compute resources. Returns resource IDs usable by other ACCESS-CI services.
 
 **Parameters:**
-
-- `resource_id` (string, optional): Get detailed information for specific resource by ID or info_groupid (e.g., "expanse.sdsc.xsede.org")
-- `query` (string, optional): Search term to match against resource names, descriptions, and organizations
-- `resource_type` (string, optional): Filter by resource type (compute, storage, cloud, gpu, cpu)
-- `has_gpu` (boolean, optional): Filter for resources with GPU capabilities
-- `include_resource_ids` (boolean, optional): Include resource IDs needed for other ACCESS-CI services (default: true for cross-service workflows)
-- `limit` (number, optional): Maximum number of results to return (default: 50)
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Get specific resource (e.g., "delta.ncsa.access-ci.org") |
+| `query` | string | Search names, descriptions, organizations |
+| `type` | enum | Filter: `compute`, `storage`, `cloud`, `gpu`, `cpu` |
+| `has_gpu` | boolean | Filter for GPU resources |
+| `organization` | string | Filter by org: `NCSA`, `PSC`, `Purdue`, `SDSC`, `TACC` |
+| `limit` | number | Max results (default: 50) |
 
 **Examples:**
-
-```typescript
+```javascript
 // List all resources
 search_resources({})
 
-// Get specific resource details
-search_resources({ resource_id: "expanse.sdsc.xsede.org" })
+// Get specific resource
+search_resources({ id: "expanse.sdsc.access-ci.org" })
 
-// Find GPU resources
-search_resources({ has_gpu: true, limit: 20 })
-
-// Search by query
-search_resources({ query: "NCSA", limit: 10 })
-
-// Filter by type
-search_resources({ resource_type: "compute", include_resource_ids: true })
+// Find GPU resources at NCSA
+search_resources({ has_gpu: true, organization: "NCSA" })
 ```
 
-### get_resource_hardware
+### `get_resource_hardware`
 
-Get detailed hardware specifications for a specific compute resource including CPU models, GPU configurations, memory, interconnect, and storage details.
+Get detailed hardware specs (CPU, GPU, memory, storage) for a resource.
 
 **Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Resource ID (required) |
 
-- `resource_id` (string): The resource ID or info_groupid (e.g., "delta.ncsa.xsede.org")
+**Example:**
+```javascript
+get_resource_hardware({ id: "delta.ncsa.access-ci.org" })
+```
 
-## Resources
+## Prompts
 
-- `accessci://compute-resources`: Comprehensive information about all compute resources
+### `recommend_compute_resource`
+
+Get personalized resource recommendations based on research needs.
+
+**Arguments:**
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `research_area` | Yes | Field of research (e.g., "machine learning", "molecular dynamics") |
+| `compute_needs` | Yes | Requirements (e.g., "GPU for training transformers", "high memory for genome assembly") |
+| `experience_level` | No | HPC experience: `beginner`, `intermediate`, `advanced` |
+| `allocation_size` | No | Scale needed (e.g., "small pilot project", "large-scale production") |
 
 ## Installation
 
@@ -76,8 +82,6 @@ npm install -g @access-mcp/compute-resources
 ```
 
 ## Configuration
-
-Add to your Claude Desktop configuration:
 
 ```json
 {
@@ -90,85 +94,9 @@ Add to your Claude Desktop configuration:
 }
 ```
 
-## Usage Examples
+## Resources
 
-### 🖥️ **Discover Available Resources**
-
-- "What compute resources are available on ACCESS-CI?"
-- "Show me all GPU-enabled systems"
-- "Which systems have the most CPU cores?"
-
-### 🔍 **Get Resource Details**
-
-- "Tell me about the Expanse cluster at SDSC"
-- "What are the specifications of the Delta system?"
-- "Show me details about Bridges-2 at PSC"
-
-### 💻 **Hardware Specifications**
-
-- "What GPUs are available on Delta?"
-- "How much memory does Anvil have per node?"
-- "What's the interconnect on Frontera?"
-
-## Detailed Usage Examples
-
-### Listing All Compute Resources
-
-**Natural Language**: "Show me all available ACCESS-CI compute resources"
-
-**Tool Call**:
-
-```typescript
-const resources = await search_resources({});
-```
-
-**Returns**: Complete list of all compute resources with names, organizations, and basic specs.
-
-### Getting Detailed Resource Information
-
-**Natural Language**: "Tell me everything about the Expanse cluster"
-
-**Tool Call**:
-
-```typescript
-const details = await search_resources({
-  resource_id: "expanse.sdsc.xsede.org",
-});
-```
-
-**Returns**: Comprehensive information including:
-
-- System architecture and configuration
-- Node types and counts
-- Storage systems
-- Software environment
-- Access methods
-- Support information
-
-### Querying Hardware Specifications
-
-**Natural Language**: "What hardware does Delta have?"
-
-**Tool Call**:
-
-```typescript
-const hardware = await get_resource_hardware({
-  resource_id: "delta.ncsa.xsede.org",
-});
-```
-
-**Returns**: Detailed hardware specifications:
-
-- CPU models and core counts
-- GPU models and configurations
-- Memory per node
-- Interconnect technology
-- Storage specifications
-
-## API Endpoints
-
-This server connects to the ACCESS-CI Operations API at `https://operations-api.access-ci.org`
-
-## License
-
-MIT
+- `accessci://compute-resources` - All compute resources
+- `accessci://compute-resources/capabilities-matrix` - Resource comparison matrix
+- `accessci://compute-resources/gpu-guide` - GPU selection guide
+- `accessci://compute-resources/resource-types` - Resource type taxonomy

@@ -33,7 +33,7 @@
     "url": "https://github.com/necyberteam/access-mcp/issues"
   },
   "dependencies": {
-    "@access-mcp/shared": "^0.3.3"
+    "@access-mcp/shared": "^0.4.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

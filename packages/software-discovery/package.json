@@ -39,7 +39,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@access-mcp/shared": "^0.3.3",
+    "@access-mcp/shared": "^0.4.0",
     "@modelcontextprotocol/sdk": "^1.16.0",
     "axios": "^1.7.7"
   },

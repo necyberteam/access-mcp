@@ -1,28 +1,79 @@
-# MCP server for ACCESS-CI Compute Resources API
+# Compute Resources MCP Server
 
-MCP server providing access to ACCESS-CI compute resources information including hardware specifications, resource status, and detailed configurations. Get comprehensive information about supercomputers, clusters, and their technical capabilities.
+MCP server for ACCESS-CI compute resources including hardware specifications, capabilities, and configurations.
 
 ## Usage Examples
 
-### **Discovery & Search**
-
+### Discovery & Search
 ```
 "List all GPU resources"
 "Resources at NCSA"
 "Cloud computing systems"
-"Expanse details"
 "Delta hardware specifications"
 ```
 
-### **Advanced Queries**
-
+### Recommendations
 ```
-"GPU count and models on Delta"
-"Compute resources with A100 GPUs"
-"Memory configuration on Frontera"
-"All resources at SDSC"
+"Recommend a resource for machine learning with GPUs"
+"What system should I use for molecular dynamics?"
+"Best resource for a beginner doing genomics analysis"
 ```
 
+## Tools
+
+### `search_resources`
+
+Search and filter ACCESS-CI compute resources. Returns resource IDs usable by other ACCESS-CI services.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Get specific resource (e.g., "delta.ncsa.access-ci.org") |
+| `query` | string | Search names, descriptions, organizations |
+| `type` | enum | Filter: `compute`, `storage`, `cloud`, `gpu`, `cpu` |
+| `has_gpu` | boolean | Filter for GPU resources |
+| `organization` | string | Filter by org: `NCSA`, `PSC`, `Purdue`, `SDSC`, `TACC` |
+| `limit` | number | Max results (default: 50) |
+
+**Examples:**
+```javascript
+// List all resources
+search_resources({})
+
+// Get specific resource
+search_resources({ id: "expanse.sdsc.access-ci.org" })
+
+// Find GPU resources at NCSA
+search_resources({ has_gpu: true, organization: "NCSA" })
+```
+
+### `get_resource_hardware`
+
+Get detailed hardware specs (CPU, GPU, memory, storage) for a resource.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | string | Resource ID (required) |
+
+**Example:**
+```javascript
+get_resource_hardware({ id: "delta.ncsa.access-ci.org" })
+```
+
+## Prompts
+
+### `recommend_compute_resource`
+
+Get personalized resource recommendations based on research needs.
+
+**Arguments:**
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `research_area` | Yes | Field of research (e.g., "machine learning", "molecular dynamics") |
+| `compute_needs` | Yes | Requirements (e.g., "GPU for training transformers", "high memory for genome assembly") |
+| `experience_level` | No | HPC experience: `beginner`, `intermediate`, `advanced` |
+| `allocation_size` | No | Scale needed (e.g., "small pilot project", "large-scale production") |
 
 ## Installation
 
@@ -30,12 +81,12 @@ MCP server providing access to ACCESS-CI compute resources information including
 npm install -g @access-mcp/compute-resources
 ```
 
-Add to your Claude Desktop configuration:
+## Configuration
 
 ```json
 {
   "mcpServers": {
-    "compute-resources": {
+    "access-compute-resources": {
       "command": "npx",
       "args": ["@access-mcp/compute-resources"]
     }
@@ -43,54 +94,15 @@ Add to your Claude Desktop configuration:
 }
 ```
 
-## Tools
-
-### search_resources
-
-Comprehensive search for ACCESS-CI compute resources. Supports listing all resources, getting details for specific resources, and advanced filtering by type/GPU capability. Returns resource IDs needed for other ACCESS-CI services.
-
-**Parameters:**
-
-- `resource_id` (string, optional): Get detailed information for specific resource by ID or info_groupid (e.g., "expanse.sdsc.xsede.org")
-- `query` (string, optional): Search term to match against resource names, descriptions, and organizations
-- `resource_type` (string, optional): Filter by resource type (compute, storage, cloud, gpu, cpu)
-- `has_gpu` (boolean, optional): Filter for resources with GPU capabilities
-- `include_resource_ids` (boolean, optional): Include resource IDs needed for other ACCESS-CI services (default: true for cross-service workflows)
-- `limit` (number, optional): Maximum number of results to return (default: 50)
-
-**Examples:**
-
-```typescript
-// List all resources
-search_resources({})
-
-// Get specific resource details
-search_resources({ resource_id: "expanse.sdsc.xsede.org" })
-
-// Find GPU resources
-search_resources({ has_gpu: true, limit: 20 })
-
-// Search by query
-search_resources({ query: "NCSA", limit: 10 })
-
-// Filter by type
-search_resources({ resource_type: "compute", include_resource_ids: true })
-```
-
-### get_resource_hardware
-
-Get detailed hardware specifications for a specific compute resource including CPU models, GPU configurations, memory, interconnect, and storage details.
-
-**Parameters:**
-
-- `resource_id` (string): The resource ID or info_groupid (e.g., "delta.ncsa.xsede.org")
-
 ## Resources
 
-- `accessci://compute-resources`: Comprehensive information about all compute resources
+- `accessci://compute-resources` - All compute resources
+- `accessci://compute-resources/capabilities-matrix` - Resource comparison matrix
+- `accessci://compute-resources/gpu-guide` - GPU selection guide
+- `accessci://compute-resources/resource-types` - Resource type taxonomy
 
 ---
 
-**Package:** `@access-mcp/compute-resources`  
-**Version:** v0.6.0  
+**Package:** `@access-mcp/compute-resources`
+**Version:** v0.6.0
 **Main:** `dist/index.js`
