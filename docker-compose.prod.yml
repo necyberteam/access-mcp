@@ -4,7 +4,7 @@
 services:
   # TypeScript MCP Servers
   mcp-affinity-groups:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/affinity-groups:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/affinity-groups:latest
     ports:
       - "3011:3000"
     restart: unless-stopped
@@ -17,7 +17,7 @@ services:
           memory: 128M
 
   mcp-compute-resources:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/compute-resources:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/compute-resources:latest
     ports:
       - "3002:3000"
     restart: unless-stopped
@@ -30,7 +30,7 @@ services:
           memory: 128M
 
   mcp-system-status:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/system-status:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/system-status:latest
     ports:
       - "3003:3000"
     restart: unless-stopped
@@ -43,7 +43,7 @@ services:
           memory: 128M
 
   mcp-software-discovery:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/software-discovery:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/software-discovery:latest
     ports:
       - "3004:3000"
     restart: unless-stopped
@@ -57,7 +57,7 @@ services:
           memory: 128M
 
   mcp-xdmod-charts:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/xdmod-charts:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/xdmod-charts:latest
     ports:
       - "3005:3000"
     restart: unless-stopped
@@ -70,7 +70,7 @@ services:
           memory: 128M
 
   mcp-allocations:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/allocations:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/allocations:latest
     ports:
       - "3006:3000"
     restart: unless-stopped
@@ -84,7 +84,7 @@ services:
           memory: 128M
 
   mcp-nsf-awards:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/nsf-awards:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/nsf-awards:latest
     ports:
       - "3007:3000"
     restart: unless-stopped
@@ -97,7 +97,7 @@ services:
           memory: 128M
 
   mcp-announcements:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/announcements:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/announcements:latest
     ports:
       - "3009:3000"
     restart: unless-stopped
@@ -110,7 +110,7 @@ services:
           memory: 128M
 
   mcp-events:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/events:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/events:latest
     ports:
       - "3010:3000"
     restart: unless-stopped
@@ -124,7 +124,7 @@ services:
 
   # Python MCP Server
   mcp-xdmod-data:
-    image: ghcr.io/${GITHUB_REPOSITORY:-connectci/access_mcp}/xdmod-mcp-data:latest
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/xdmod-mcp-data:latest
     ports:
       - "3008:3000"
     restart: unless-stopped
