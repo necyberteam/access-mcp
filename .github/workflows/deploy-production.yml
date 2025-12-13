@@ -100,11 +100,11 @@ jobs:
 
             # Pull latest images
             echo "Pulling latest images..."
-            docker compose pull
+            docker compose -f docker-compose.prod.yml pull
 
             # Restart services with new images
             echo "Restarting services..."
-            docker compose up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
             # Clean up old images
             echo "Cleaning up old images..."
@@ -112,4 +112,4 @@ jobs:
 
             # Show running containers
             echo "Running containers:"
-            docker compose ps
+            docker compose -f docker-compose.prod.yml ps
