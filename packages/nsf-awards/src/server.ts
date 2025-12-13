@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 
 import { BaseAccessServer, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 interface SearchNSFAwardsArgs {
   id?: string;
@@ -50,7 +53,7 @@ interface NSFAward {
 
 export class NSFAwardsServer extends BaseAccessServer {
   constructor() {
-    super("access-mcp-nsf-awards", "0.1.0", "https://api.nsf.gov");
+    super("access-mcp-nsf-awards", version, "https://api.nsf.gov");
   }
 
   protected getTools(): Tool[] {

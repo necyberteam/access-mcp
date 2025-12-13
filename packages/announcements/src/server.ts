@@ -1,5 +1,8 @@
 import { BaseAccessServer, Tool, Resource, CallToolResult } from "@access-mcp/shared";
 import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 interface SearchAnnouncementsArgs {
   tags?: string;
@@ -31,7 +34,7 @@ interface Announcement {
 
 export class AnnouncementsServer extends BaseAccessServer {
   constructor() {
-    super("access-announcements", "0.1.0", "https://support.access-ci.org");
+    super("access-announcements", version, "https://support.access-ci.org");
   }
 
   protected getTools(): Tool[] {

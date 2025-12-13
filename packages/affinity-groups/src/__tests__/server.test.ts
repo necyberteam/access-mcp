@@ -1,5 +1,8 @@
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { AffinityGroupsServer } from "../server.js";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../../package.json");
 
 // Mock the base server
 vi.mock("@access-mcp/shared", () => ({
@@ -33,7 +36,7 @@ describe("AffinityGroupsServer", () => {
     test("should have correct configuration", () => {
       // Test by using the public server interface
       expect(server["serverName"]).toBe("access-mcp-affinity-groups");
-      expect(server["version"]).toBe("0.3.0");
+      expect(server["version"]).toBe(version);
     });
   });
 });

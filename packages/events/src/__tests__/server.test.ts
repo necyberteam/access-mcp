@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach, Mock } from "vitest";
 import { EventsServer } from "../server.js";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../../package.json");
 
 interface MockHttpClient {
   get: Mock<(url: string) => Promise<{ status: number; data: unknown }>>;
@@ -32,7 +35,7 @@ describe("EventsServer", () => {
     it("should initialize with correct server name and version", () => {
       expect(server).toBeDefined();
       expect(server["serverName"]).toBe("access-mcp-events");
-      expect(server["version"]).toBe("0.3.0");
+      expect(server["version"]).toBe(version);
       expect(server["baseURL"]).toBe("https://support.access-ci.org");
     });
 

@@ -1,5 +1,8 @@
 import { BaseAccessServer, handleApiError, Tool, Resource, CallToolResult } from "@access-mcp/shared";
 import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 interface InfrastructureNewsArgs {
   query?: string;
@@ -48,7 +51,7 @@ export class SystemStatusServer extends BaseAccessServer {
   constructor() {
     super(
       "access-mcp-system-status",
-      "0.4.0",
+      version,
       "https://operations-api.access-ci.org",
     );
   }

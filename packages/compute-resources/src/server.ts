@@ -13,6 +13,9 @@ import {
   CallToolResult,
 } from "@access-mcp/shared";
 import { CallToolRequest, ReadResourceRequest, ReadResourceResult, GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 // Interfaces for search_resources tool arguments
 interface SearchResourcesArgs {
@@ -80,7 +83,7 @@ export class ComputeResourcesServer extends BaseAccessServer {
   constructor() {
     super(
       "access-mcp-compute-resources",
-      "0.3.0",
+      version,
       "https://operations-api.access-ci.org",
     );
   }

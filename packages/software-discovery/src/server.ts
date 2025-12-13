@@ -1,6 +1,9 @@
 import { BaseAccessServer, handleApiError, Tool, Resource, CallToolResult } from "@access-mcp/shared";
 import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 interface SoftwareQueryParams {
   software?: string[];
@@ -103,7 +106,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   constructor() {
     super(
       "access-mcp-software-discovery",
-      "0.6.0",
+      version,
       "https://sds-ara-api.access-ci.org",
     );
   }
@@ -150,7 +153,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         timeout: 30000,
         headers: {
           "Content-Type": "application/json",
-          "User-Agent": "access-mcp-software-discovery/0.6.0",
+          "User-Agent": `access-mcp-software-discovery/${version}`,
           ...(apiKey ? { "X-API-Key": apiKey } : {}),
         },
         validateStatus: () => true,

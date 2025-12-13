@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 
 import { BaseAccessServer, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 class XDMoDMetricsServer extends BaseAccessServer {
   constructor() {
-    super("xdmod-charts", "0.5.0", "https://xdmod.access-ci.org");
+    super("xdmod-charts", version, "https://xdmod.access-ci.org");
   }
 
   private getHeaders(): Record<string, string> {

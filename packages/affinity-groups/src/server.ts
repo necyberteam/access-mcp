@@ -7,6 +7,9 @@ import {
   CallToolResult,
 } from "@access-mcp/shared";
 import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 interface SearchAffinityGroupsArgs {
   id?: string;
@@ -17,7 +20,7 @@ interface SearchAffinityGroupsArgs {
 
 export class AffinityGroupsServer extends BaseAccessServer {
   constructor() {
-    super("access-mcp-affinity-groups", "0.3.0");
+    super("access-mcp-affinity-groups", version);
   }
 
   protected getTools(): Tool[] {

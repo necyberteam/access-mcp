@@ -1,6 +1,9 @@
 import { BaseAccessServer, handleApiError, Tool, Resource, CallToolResult } from "@access-mcp/shared";
 import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 interface SearchEventsParams {
   query?: string;
@@ -23,7 +26,7 @@ export class EventsServer extends BaseAccessServer {
   private _eventsHttpClient?: AxiosInstance;
 
   constructor() {
-    super("access-mcp-events", "0.3.0", "https://support.access-ci.org");
+    super("access-mcp-events", version, "https://support.access-ci.org");
   }
 
   protected get httpClient(): AxiosInstance {

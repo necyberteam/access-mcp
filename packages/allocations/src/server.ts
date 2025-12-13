@@ -7,6 +7,9 @@ import {
   Tool,
   CallToolResult,
 } from "@access-mcp/shared";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
 
 /**
  * ACCESS-CI Allocations MCP Server
@@ -78,7 +81,7 @@ export class AllocationsServer extends BaseAccessServer {
   constructor() {
     super(
       "access-allocations",
-      "0.3.0",
+      version,
       "https://allocations.access-ci.org",
     );
     

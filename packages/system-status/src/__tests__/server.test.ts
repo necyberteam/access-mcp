@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach, Mock } from "vitest";
 import { SystemStatusServer } from "../server.js";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../../package.json");
 
 interface MockHttpClient {
   get: Mock<(url: string) => Promise<{ status: number; statusText?: string; data: unknown }>>;
@@ -90,7 +93,7 @@ describe("SystemStatusServer", () => {
     it("should initialize with correct server info", () => {
       expect(server).toBeDefined();
       expect(server["serverName"]).toBe("access-mcp-system-status");
-      expect(server["version"]).toBe("0.4.0");
+      expect(server["version"]).toBe(version);
       expect(server["baseURL"]).toBe("https://operations-api.access-ci.org");
     });
 
