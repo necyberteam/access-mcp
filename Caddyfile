@@ -3,52 +3,102 @@ mcp.access-ci.org {
 
     handle /compute-resources/* {
         uri strip_prefix /compute-resources
-        reverse_proxy mcp-compute-resources:3000
+        reverse_proxy mcp-compute-resources:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /system-status/* {
         uri strip_prefix /system-status
-        reverse_proxy mcp-system-status:3000
+        reverse_proxy mcp-system-status:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /software-discovery/* {
         uri strip_prefix /software-discovery
-        reverse_proxy mcp-software-discovery:3000
+        reverse_proxy mcp-software-discovery:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /xdmod-charts/* {
         uri strip_prefix /xdmod-charts
-        reverse_proxy mcp-xdmod-charts:3000
+        reverse_proxy mcp-xdmod-charts:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /allocations/* {
         uri strip_prefix /allocations
-        reverse_proxy mcp-allocations:3000
+        reverse_proxy mcp-allocations:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /nsf-awards/* {
         uri strip_prefix /nsf-awards
-        reverse_proxy mcp-nsf-awards:3000
+        reverse_proxy mcp-nsf-awards:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /xdmod-data/* {
         uri strip_prefix /xdmod-data
-        reverse_proxy mcp-xdmod-data:3000
+        reverse_proxy mcp-xdmod-data:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /announcements/* {
         uri strip_prefix /announcements
-        reverse_proxy mcp-announcements:3000
+        reverse_proxy mcp-announcements:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /events/* {
         uri strip_prefix /events
-        reverse_proxy mcp-events:3000
+        reverse_proxy mcp-events:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle /affinity-groups/* {
         uri strip_prefix /affinity-groups
-        reverse_proxy mcp-affinity-groups:3000
+        reverse_proxy mcp-affinity-groups:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
     }
 
     handle / {

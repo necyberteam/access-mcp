@@ -27,8 +27,8 @@ services:
   # TypeScript MCP Servers
   mcp-affinity-groups:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/affinity-groups:latest
-    expose:
-      - "3000"
+    ports:
+      - "3011:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -40,8 +40,8 @@ services:
 
   mcp-compute-resources:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/compute-resources:latest
-    expose:
-      - "3000"
+    ports:
+      - "3002:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -53,8 +53,8 @@ services:
 
   mcp-system-status:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/system-status:latest
-    expose:
-      - "3000"
+    ports:
+      - "3003:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -66,8 +66,8 @@ services:
 
   mcp-software-discovery:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/software-discovery:latest
-    expose:
-      - "3000"
+    ports:
+      - "3004:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -80,8 +80,8 @@ services:
 
   mcp-xdmod-charts:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/xdmod-charts:latest
-    expose:
-      - "3000"
+    ports:
+      - "3005:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -93,8 +93,8 @@ services:
 
   mcp-allocations:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/allocations:latest
-    expose:
-      - "3000"
+    ports:
+      - "3006:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -107,8 +107,8 @@ services:
 
   mcp-nsf-awards:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/nsf-awards:latest
-    expose:
-      - "3000"
+    ports:
+      - "3007:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -120,8 +120,8 @@ services:
 
   mcp-announcements:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/announcements:latest
-    expose:
-      - "3000"
+    ports:
+      - "3009:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -133,8 +133,8 @@ services:
 
   mcp-events:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/events:latest
-    expose:
-      - "3000"
+    ports:
+      - "3010:3000"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
@@ -147,8 +147,8 @@ services:
   # Python MCP Server
   mcp-xdmod-data:
     image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/xdmod-mcp-data:latest
-    expose:
-      - "3000"
+    ports:
+      - "3008:3000"
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
