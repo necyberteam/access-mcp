@@ -98,6 +98,9 @@ jobs:
           script: |
             cd ~/access-mcp
 
+            # Login to GitHub Container Registry
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
             # Pull latest images
             echo "Pulling latest images..."
             docker compose -f docker-compose.prod.yml pull
