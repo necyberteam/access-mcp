@@ -191,6 +191,27 @@ describe("AnnouncementsServer Integration Tests", () => {
     }, 10000);
   });
 
+  describe("search with query parameter", () => {
+    it("should perform full-text search", async () => {
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: {
+            query: "ACCESS",
+            limit: 5,
+          },
+        },
+      });
+
+      expect(result.isError).toBeFalsy();
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+
+      expect(responseData).toHaveProperty("items");
+      expect(Array.isArray(responseData.items)).toBe(true);
+    }, 10000);
+  });
+
   describe("API Error Handling", () => {
     it("should handle search with no parameters", async () => {
       const result = await server["handleToolCall"]({
