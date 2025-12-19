@@ -24,7 +24,7 @@ export const servers = [
   {
     "id": "announcements",
     "name": "@access-mcp/announcements",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "MCP server for ACCESS Support Announcements API",
     "main": "dist/index.js",
     "bin": {

@@ -20,7 +20,7 @@ ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
 ## MCP server for ACCESS Support Announcements API
 
 **Package:** `@access-mcp/announcements`
-**Version:** v0.2.0
+**Version:** v0.3.0
 
 [View Details](/servers/announcements)
 
