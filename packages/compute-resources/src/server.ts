@@ -12,7 +12,12 @@ import {
   Resource,
   CallToolResult,
 } from "@access-mcp/shared";
-import { CallToolRequest, ReadResourceRequest, ReadResourceResult, GetPromptResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  CallToolRequest,
+  ReadResourceRequest,
+  ReadResourceResult,
+  GetPromptResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
@@ -81,48 +86,46 @@ interface ComputeResource {
 
 export class ComputeResourcesServer extends BaseAccessServer {
   constructor() {
-    super(
-      "access-mcp-compute-resources",
-      version,
-      "https://operations-api.access-ci.org",
-    );
+    super("access-mcp-compute-resources", version, "https://operations-api.access-ci.org");
   }
 
   protected getTools(): Tool[] {
     return [
       {
         name: "search_resources",
-        description: "Search ACCESS-CI compute resources (list, filter, get details). Returns resource IDs for other services. Returns {total, items}.",
+        description:
+          "Search ACCESS-CI compute resources (list, filter, get details). Returns resource IDs for other services. Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
             id: {
               type: "string",
-              description: "Get specific resource (e.g., 'delta.ncsa.access-ci.org')"
+              description: "Get specific resource (e.g., 'delta.ncsa.access-ci.org')",
             },
             query: {
               type: "string",
-              description: "Search names, descriptions, organizations"
+              description: "Search names, descriptions, organizations",
             },
             type: {
               type: "string",
               enum: ["compute", "storage", "cloud", "gpu", "cpu"],
-              description: "Filter by resource type"
+              description: "Filter by resource type",
             },
             has_gpu: {
               type: "boolean",
-              description: "Filter by GPU: true = only GPU resources, false = only non-GPU resources. Omit to include all resources."
+              description:
+                "Filter by GPU: true = only GPU resources, false = only non-GPU resources. Omit to include all resources.",
             },
             organization: {
               type: "string",
-              description: "Filter by org (NCSA, PSC, Purdue, SDSC, TACC)"
+              description: "Filter by org (NCSA, PSC, Purdue, SDSC, TACC)",
             },
             include_ids: {
               type: "boolean",
               description: "Include resource IDs for other services",
-              default: true
-            }
-          }
+              default: true,
+            },
+          },
         },
       },
       {
@@ -133,10 +136,10 @@ export class ComputeResourcesServer extends BaseAccessServer {
           properties: {
             id: {
               type: "string",
-              description: "Resource ID (use search_resources to find)"
-            }
+              description: "Resource ID (use search_resources to find)",
+            },
           },
-          required: ["id"]
+          required: ["id"],
         },
       },
     ];
@@ -147,29 +150,25 @@ export class ComputeResourcesServer extends BaseAccessServer {
       {
         uri: "accessci://compute-resources",
         name: "ACCESS-CI Compute Resources",
-        description:
-          "Information about ACCESS-CI compute resources, hardware, and software",
+        description: "Information about ACCESS-CI compute resources, hardware, and software",
         mimeType: "application/json",
       },
       {
         uri: "accessci://compute-resources/capabilities-matrix",
         name: "Compute Resource Capabilities Matrix",
-        description:
-          "Comparison of different resource types and their ideal use cases",
+        description: "Comparison of different resource types and their ideal use cases",
         mimeType: "application/json",
       },
       {
         uri: "accessci://compute-resources/gpu-guide",
         name: "GPU Resource Selection Guide",
-        description:
-          "Guidance for selecting appropriate GPU resources for different workloads",
+        description: "Guidance for selecting appropriate GPU resources for different workloads",
         mimeType: "text/markdown",
       },
       {
         uri: "accessci://compute-resources/resource-types",
         name: "Resource Type Taxonomy",
-        description:
-          "Classification of ACCESS-CI resource types and their characteristics",
+        description: "Classification of ACCESS-CI resource types and their characteristics",
         mimeType: "application/json",
       },
     ];
@@ -224,7 +223,7 @@ export class ComputeResourcesServer extends BaseAccessServer {
             resource_type: toolArgs.type as string | undefined,
             has_gpu: toolArgs.has_gpu as boolean | undefined,
             organization: toolArgs.organization as string | undefined,
-            include_resource_ids: toolArgs.include_ids as boolean | undefined
+            include_resource_ids: toolArgs.include_ids as boolean | undefined,
           });
         case "get_resource_hardware":
           return await this.getResourceHardware(toolArgs.id as string);
@@ -313,7 +312,8 @@ export class ComputeResourcesServer extends BaseAccessServer {
           },
         },
         selection_guide: {
-          step_1: "Identify your primary computational pattern (CPU-bound, GPU-accelerated, memory-intensive, data-intensive)",
+          step_1:
+            "Identify your primary computational pattern (CPU-bound, GPU-accelerated, memory-intensive, data-intensive)",
           step_2: "Match to resource type using the comparison matrix above",
           step_3: "Use search_resources tool to find specific systems with those capabilities",
           step_4: "Review hardware specs with get_resource_hardware tool",
@@ -400,7 +400,9 @@ Use **search_resources** with **has_gpu: true** to find GPU-enabled systems.
     throw new Error(`Unknown resource: ${uri}`);
   }
 
-  async handleGetPrompt(request: { params: { name: string; arguments?: Record<string, string> } }): Promise<GetPromptResult> {
+  async handleGetPrompt(request: {
+    params: { name: string; arguments?: Record<string, string> };
+  }): Promise<GetPromptResult> {
     const { name, arguments: args = {} } = request.params;
 
     if (name === "recommend_compute_resource") {
@@ -445,12 +447,13 @@ Use **search_resources** with **has_gpu: true** to find GPU-enabled systems.
       for (const [name, system] of Object.entries(ACCESS_SYSTEMS)) {
         const isRelevant =
           (gpuRelevant && system.gpu_types && system.gpu_types.length > 0) ||
-          (highMemoryRelevant && system.strengths.some(s => s.includes("Memory"))) ||
+          (highMemoryRelevant && system.strengths.some((s) => s.includes("Memory"))) ||
           (!gpuRelevant && !highMemoryRelevant); // Include general-purpose systems
 
         // Filter by experience level if specified
-        const experienceMatch = !experience_level ||
-          system.experience_level.some(level =>
+        const experienceMatch =
+          !experience_level ||
+          system.experience_level.some((level) =>
             level.toLowerCase().includes(experience_level.toLowerCase())
           );
 
@@ -472,38 +475,47 @@ Use **search_resources** with **has_gpu: true** to find GPU-enabled systems.
 
       // Relevant ACCESS systems
       contextSections.push(`**Relevant ACCESS Systems**:
-${Object.entries(relevantSystems).map(([name, sys]) =>
-  `- **${name}** (${sys.organization}): ${sys.description}
+${Object.entries(relevantSystems)
+  .map(
+    ([name, sys]) =>
+      `- **${name}** (${sys.organization}): ${sys.description}
   ${sys.gpu_types ? `GPUs: ${sys.gpu_types.join(", ")}` : ""}
   ${sys.max_memory_per_node ? `Max Memory: ${sys.max_memory_per_node}` : ""}
   Ideal for: ${sys.ideal_for.slice(0, 3).join(", ")}`
-).join("\n\n")}`);
+  )
+  .join("\n\n")}`);
 
       // GPU guide if relevant
       if (gpuRelevant) {
-        const relevantGpuGuides = Object.entries(GPU_SELECTION_GUIDE)
-          .filter(([useCase]) =>
+        const relevantGpuGuides = Object.entries(GPU_SELECTION_GUIDE).filter(
+          ([useCase]) =>
             lowerNeeds.includes(useCase.toLowerCase()) ||
             lowerResearch.includes(useCase.toLowerCase())
-          );
+        );
 
         if (relevantGpuGuides.length > 0) {
           contextSections.push(`**GPU Guidance**:
-${relevantGpuGuides.map(([useCase, guide]) =>
-  `- **${useCase}**: ${guide.recommended_gpu}
+${relevantGpuGuides
+  .map(
+    ([useCase, guide]) =>
+      `- **${useCase}**: ${guide.recommended_gpu}
   Systems: ${guide.recommended_systems.join(", ")}
   ${guide.notes}`
-).join("\n\n")}`);
+  )
+  .join("\n\n")}`);
         }
       }
 
       // Memory requirements if relevant
       if (highMemoryRelevant) {
         contextSections.push(`**Memory Options**:
-${Object.entries(MEMORY_REQUIREMENTS).map(([range, info]) =>
-  `- **${range}**: ${info.description}
+${Object.entries(MEMORY_REQUIREMENTS)
+  .map(
+    ([range, info]) =>
+      `- **${range}**: ${info.description}
   Systems: ${info.recommended_systems.join(", ")}`
-).join("\n")}`);
+  )
+  .join("\n")}`);
       }
 
       // 6. Construct the final prompt
@@ -591,47 +603,50 @@ Consider:
    */
   private readonly ORG_ABBREVIATIONS: Record<string, string[]> = {
     // Major HPC/Supercomputing Centers
-    "NCSA": ["National Center for Supercomputing Applications", "Illinois"],
-    "SDSC": ["San Diego Supercomputer Center"],
-    "PSC": ["Pittsburgh Supercomputing Center"],
-    "TACC": ["Texas Advanced Computing Center"],
-    "NCAR": ["NSF National Center for Atmospheric Research", "National Center for Atmospheric Research"],
-    "NERSC": ["National Energy Research Scientific Computing Center"],
-    "ALCF": ["Argonne Leadership Computing Facility"],
-    "OLCF": ["Oak Ridge Leadership Computing Facility"],
+    NCSA: ["National Center for Supercomputing Applications", "Illinois"],
+    SDSC: ["San Diego Supercomputer Center"],
+    PSC: ["Pittsburgh Supercomputing Center"],
+    TACC: ["Texas Advanced Computing Center"],
+    NCAR: [
+      "NSF National Center for Atmospheric Research",
+      "National Center for Atmospheric Research",
+    ],
+    NERSC: ["National Energy Research Scientific Computing Center"],
+    ALCF: ["Argonne Leadership Computing Facility"],
+    OLCF: ["Oak Ridge Leadership Computing Facility"],
 
     // Universities (common abbreviations)
-    "IU": ["Indiana University"],
-    "UK": ["University of Kentucky"],
-    "TAMU": ["Texas A&M University", "Texas A&M"],
-    "UT": ["University of Texas at Austin"],
-    "TTU": ["Texas Tech University"],
-    "OSU": ["Ohio State University"],
-    "ASU": ["Arizona State University"],
-    "FSU": ["Florida State University"],
-    "PSU": ["Pennsylvania State University", "Penn State"],
-    "MSU": ["Michigan State University"],
-    "USC": ["University of Southern California"],
-    "UCLA": ["University of California, Los Angeles"],
-    "UIUC": ["University of Illinois at Urbana-Champaign", "Illinois"],
-    "MIT": ["Massachusetts Institute of Technology"],
-    "CU": ["University of Colorado"],
+    IU: ["Indiana University"],
+    UK: ["University of Kentucky"],
+    TAMU: ["Texas A&M University", "Texas A&M"],
+    UT: ["University of Texas at Austin"],
+    TTU: ["Texas Tech University"],
+    OSU: ["Ohio State University"],
+    ASU: ["Arizona State University"],
+    FSU: ["Florida State University"],
+    PSU: ["Pennsylvania State University", "Penn State"],
+    MSU: ["Michigan State University"],
+    USC: ["University of Southern California"],
+    UCLA: ["University of California, Los Angeles"],
+    UIUC: ["University of Illinois at Urbana-Champaign", "Illinois"],
+    MIT: ["Massachusetts Institute of Technology"],
+    CU: ["University of Colorado"],
     "CU Boulder": ["University of Colorado Boulder"],
-    "UChicago": ["University of Chicago"],
+    UChicago: ["University of Chicago"],
 
     // Research Computing Consortia & Networks
-    "OSG": ["OSG Consortium", "Open Science Grid"],
-    "OSN": ["Open Storage Network"],
-    "SGCI": ["Science Gateways Center of Excellence", "Science Gateways Community Institute"],
-    "RENCI": ["Renaissance Computing Institute"],
-    "ACCESS": ["ACCESS Support", "Advanced Cyberinfrastructure Coordination Ecosystem"],
-    "XSEDE": ["Extreme Science and Engineering Discovery Environment"], // Legacy
+    OSG: ["OSG Consortium", "Open Science Grid"],
+    OSN: ["Open Storage Network"],
+    SGCI: ["Science Gateways Center of Excellence", "Science Gateways Community Institute"],
+    RENCI: ["Renaissance Computing Institute"],
+    ACCESS: ["ACCESS Support", "Advanced Cyberinfrastructure Coordination Ecosystem"],
+    XSEDE: ["Extreme Science and Engineering Discovery Environment"], // Legacy
   };
 
   private async listComputeResources() {
     // Get all active resource groups
     const response = await this.httpClient.get(
-      "/wh2/cider/v1/access-active-groups/type/resource-catalog.access-ci.org/",
+      "/wh2/cider/v1/access-active-groups/type/resource-catalog.access-ci.org/"
     );
 
     // Also try to get organization information
@@ -646,9 +661,7 @@ Consider:
     // NOTE: Using /organizations/ endpoint (not /access-active-groups/type/organizations.access-ci.org/
     // which returns 0 results). See ACCESS_CI_API_ISSUE_ORGANIZATIONS.md for details.
     try {
-      const orgResponse = await this.httpClient.get(
-        "/wh2/cider/v1/organizations/",
-      );
+      const orgResponse = await this.httpClient.get("/wh2/cider/v1/organizations/");
       if (orgResponse.status === 200 && orgResponse.data?.results) {
         orgResponse.data.results.forEach((org: OrganizationResult) => {
           if (org.organization_id && org.organization_name) {
@@ -662,14 +675,8 @@ Consider:
     }
 
     // Check if the response has the expected structure
-    if (
-      !response.data ||
-      !response.data.results ||
-      !response.data.results.active_groups
-    ) {
-      throw new Error(
-        `Unexpected API response structure. Got: ${JSON.stringify(response.data)}`,
-      );
+    if (!response.data || !response.data.results || !response.data.results.active_groups) {
+      throw new Error(`Unexpected API response structure. Got: ${JSON.stringify(response.data)}`);
     }
 
     const computeResources = response.data.results.active_groups
@@ -677,16 +684,16 @@ Consider:
         // Filter for compute resources (category 1 = "Compute & Storage Resources")
         return (
           group.rollup_info_resourceids &&
-          group.rollup_feature_ids && !group.rollup_feature_ids.includes(137)
+          group.rollup_feature_ids &&
+          !group.rollup_feature_ids.includes(137)
         );
       })
       .map((group: ActiveGroup) => {
-        
         // Map organization IDs to names if available
-        const organizationNames = (group.rollup_organization_ids || []).map((id: number) => 
-          orgMapping.get(id) || id.toString()
+        const organizationNames = (group.rollup_organization_ids || []).map(
+          (id: number) => orgMapping.get(id) || id.toString()
         );
-        
+
         return {
           id: group.info_groupid,
           name: group.group_descriptive_name,
@@ -712,7 +719,7 @@ Consider:
           type: "text" as const,
           text: JSON.stringify({
             total: computeResources.length,
-            items: computeResources
+            items: computeResources,
           }),
         },
       ],
@@ -724,7 +731,7 @@ Consider:
 
     // Get detailed resource information
     const response = await this.httpClient.get(
-      `/wh2/cider/v1/access-active/info_groupid/${sanitizedId}/?format=json`,
+      `/wh2/cider/v1/access-active/info_groupid/${sanitizedId}/?format=json`
     );
 
     // Check for errors
@@ -776,7 +783,7 @@ Consider:
         item.resource_descriptive_name?.toLowerCase().includes("node") ||
         item.resource_descriptive_name?.toLowerCase().includes("core") ||
         item.resource_descriptive_name?.toLowerCase().includes("memory") ||
-        item.resource_descriptive_name?.toLowerCase().includes("gpu"),
+        item.resource_descriptive_name?.toLowerCase().includes("gpu")
     );
 
     // Structure the hardware data for easier consumption
@@ -797,7 +804,7 @@ Consider:
               },
             },
             null,
-            2,
+            2
           ),
         },
       ],
@@ -809,9 +816,9 @@ Consider:
    *
    * @param context - What operation is being performed ('list' | 'search' | 'details')
    */
-  private addDocumentation(context: 'list' | 'search' | 'details' = 'list') {
+  private addDocumentation(context: "list" | "search" | "details" = "list") {
     // For listing resources, provide next-step links
-    if (context === 'list') {
+    if (context === "list") {
       return {
         next_steps: "https://allocations.access-ci.org/get-started",
         resource_catalog: "https://allocations.access-ci.org/resources",
@@ -819,7 +826,7 @@ Consider:
     }
 
     // For search results, documentation is less useful - users already know what they want
-    if (context === 'search') {
+    if (context === "search") {
       return undefined; // Don't clutter search results
     }
 
@@ -856,7 +863,12 @@ Consider:
         structured.memory.push(entry);
       } else if (type === "Storage" || name.includes("storage") || name.includes("disk")) {
         structured.storage.push(entry);
-      } else if (type === "Compute" || name.includes("node") || name.includes("core") || name.includes("cpu")) {
+      } else if (
+        type === "Compute" ||
+        name.includes("node") ||
+        name.includes("core") ||
+        name.includes("cpu")
+      ) {
         structured.compute_nodes.push(entry);
       } else {
         structured.other.push(entry);
@@ -873,38 +885,37 @@ Consider:
 
     return result;
   }
-  
+
   private detectGpuCapability(group: ActiveGroup): boolean {
     // Check if the group has GPU-related features or descriptions
-    const description = (group.group_description || '').toLowerCase();
-    const name = (group.group_descriptive_name || '').toLowerCase();
+    const description = (group.group_description || "").toLowerCase();
+    const name = (group.group_descriptive_name || "").toLowerCase();
 
     return (
-      description.includes('gpu') ||
-      description.includes('graphics') ||
-      name.includes('gpu') ||
-      name.includes('delta') || // Delta is known GPU system
+      description.includes("gpu") ||
+      description.includes("graphics") ||
+      name.includes("gpu") ||
+      name.includes("delta") || // Delta is known GPU system
       (group.rollup_feature_ids?.includes(142) ?? false) // GPU feature ID (if exists)
     );
   }
-  
+
   private determineResourceType(group: ActiveGroup): string {
-    const description = (group.group_description || '').toLowerCase();
-    const name = (group.group_descriptive_name || '').toLowerCase();
-    
-    if (description.includes('cloud') || name.includes('jetstream')) {
-      return 'cloud';
+    const description = (group.group_description || "").toLowerCase();
+    const name = (group.group_descriptive_name || "").toLowerCase();
+
+    if (description.includes("cloud") || name.includes("jetstream")) {
+      return "cloud";
     }
     if (this.detectGpuCapability(group)) {
-      return 'gpu';
+      return "gpu";
     }
-    if (description.includes('storage')) {
-      return 'storage';
+    if (description.includes("storage")) {
+      return "storage";
     }
-    return 'compute';
+    return "compute";
   }
-  
-  
+
   private async searchResources(args: {
     query?: string;
     resource_type?: string;
@@ -926,27 +937,26 @@ Consider:
     // Apply filters
     if (query) {
       const searchTerm = query.toLowerCase();
-      resources = resources.filter((resource: ComputeResource) =>
-        resource.name?.toLowerCase().includes(searchTerm) ||
-        resource.description?.toLowerCase().includes(searchTerm) ||
-        (Array.isArray(resource.organization_names) &&
-         resource.organization_names.some((org: string) =>
-           typeof org === 'string' && org.toLowerCase().includes(searchTerm)
-         ))
+      resources = resources.filter(
+        (resource: ComputeResource) =>
+          resource.name?.toLowerCase().includes(searchTerm) ||
+          resource.description?.toLowerCase().includes(searchTerm) ||
+          (Array.isArray(resource.organization_names) &&
+            resource.organization_names.some(
+              (org: string) => typeof org === "string" && org.toLowerCase().includes(searchTerm)
+            ))
       );
     }
 
     if (resource_type) {
-      resources = resources.filter((resource: ComputeResource) =>
-        resource.resourceType === resource_type
+      resources = resources.filter(
+        (resource: ComputeResource) => resource.resourceType === resource_type
       );
     }
 
     // Only filter by GPU when has_gpu is explicitly true or false (not null/undefined)
     if (has_gpu === true || has_gpu === false) {
-      resources = resources.filter((resource: ComputeResource) =>
-        resource.hasGpu === has_gpu
-      );
+      resources = resources.filter((resource: ComputeResource) => resource.hasGpu === has_gpu);
     }
 
     // Organization filter (ENHANCED: works with partial names, abbreviations, and searches known orgs)
@@ -957,14 +967,12 @@ Consider:
       // Check if input is an abbreviation and expand it to full names
       const searchTerms = [orgLower];
       if (this.ORG_ABBREVIATIONS[orgUpper]) {
-        searchTerms.push(...this.ORG_ABBREVIATIONS[orgUpper].map(n => n.toLowerCase()));
+        searchTerms.push(...this.ORG_ABBREVIATIONS[orgUpper].map((n) => n.toLowerCase()));
       }
 
       // Find matching organization IDs from known organizations using all search terms
       const matchingKnownOrgIds = Object.entries(this.KNOWN_ORGANIZATIONS)
-        .filter(([_, name]) =>
-          searchTerms.some(term => name.toLowerCase().includes(term))
-        )
+        .filter(([_, name]) => searchTerms.some((term) => name.toLowerCase().includes(term)))
         .map(([id, _]) => parseInt(id));
 
       resources = resources.filter((resource: ComputeResource) => {
@@ -973,8 +981,9 @@ Consider:
         }
 
         // Check if any organization name matches any of our search terms
-        const nameMatch = resource.organization_names.some((org: string) =>
-          typeof org === 'string' && searchTerms.some(term => org.toLowerCase().includes(term))
+        const nameMatch = resource.organization_names.some(
+          (org: string) =>
+            typeof org === "string" && searchTerms.some((term) => org.toLowerCase().includes(term))
         );
 
         if (nameMatch) {
@@ -984,7 +993,7 @@ Consider:
         // Also check if the organization IDs match known organizations
         // (This handles cases where organization_names contains IDs as strings)
         if (matchingKnownOrgIds.length > 0 && resource.organization_ids) {
-          const hasMatchingId = matchingKnownOrgIds.some(knownId =>
+          const hasMatchingId = matchingKnownOrgIds.some((knownId) =>
             resource.organization_ids?.includes(knownId)
           );
           if (hasMatchingId) {
@@ -1000,7 +1009,7 @@ Consider:
     if (include_resource_ids) {
       resources = resources.map((resource: ComputeResource) => ({
         ...resource,
-        resource_ids: resource.resourceIds
+        resource_ids: resource.resourceIds,
       }));
     }
 
@@ -1010,11 +1019,10 @@ Consider:
           type: "text" as const,
           text: JSON.stringify({
             total: resources.length,
-            items: resources
+            items: resources,
           }),
         },
       ],
     };
   }
-
 }

@@ -24,7 +24,8 @@ export interface FieldOfScience {
 export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
   "Computer Science": {
     name: "Computer Science",
-    description: "Research in algorithms, AI/ML, data science, cybersecurity, and high-performance computing",
+    description:
+      "Research in algorithms, AI/ML, data science, cybersecurity, and high-performance computing",
     keywords: [
       "machine learning",
       "artificial intelligence",
@@ -60,7 +61,8 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
 
   "Biological Sciences": {
     name: "Biological Sciences",
-    description: "Research in genomics, proteomics, structural biology, systems biology, and bioinformatics",
+    description:
+      "Research in genomics, proteomics, structural biology, systems biology, and bioinformatics",
     keywords: [
       "genomics",
       "proteomics",
@@ -91,9 +93,10 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
     },
   },
 
-  "Physics": {
+  Physics: {
     name: "Physics",
-    description: "Research in high energy physics, astrophysics, condensed matter, and computational physics",
+    description:
+      "Research in high energy physics, astrophysics, condensed matter, and computational physics",
     keywords: [
       "quantum mechanics",
       "particle physics",
@@ -123,7 +126,7 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
     },
   },
 
-  "Chemistry": {
+  Chemistry: {
     name: "Chemistry",
     description: "Research in computational chemistry, molecular modeling, and materials science",
     keywords: [
@@ -137,16 +140,7 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
       "ab initio",
     ],
     typical_resources: ["CPU clusters", "high memory", "GPU acceleration", "fast storage"],
-    common_software: [
-      "Gaussian",
-      "GAMESS",
-      "NWChem",
-      "ORCA",
-      "AMBER",
-      "NAMD",
-      "LAMMPS",
-      "VMD",
-    ],
+    common_software: ["Gaussian", "GAMESS", "NWChem", "ORCA", "AMBER", "NAMD", "LAMMPS", "VMD"],
     allocation_range: {
       min: 75000,
       max: 1000000,
@@ -154,9 +148,10 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
     },
   },
 
-  "Engineering": {
+  Engineering: {
     name: "Engineering",
-    description: "Research in computational engineering, CFD, structural analysis, and design optimization",
+    description:
+      "Research in computational engineering, CFD, structural analysis, and design optimization",
     keywords: [
       "computational fluid dynamics",
       "CFD",
@@ -169,15 +164,7 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
       "aerospace",
     ],
     typical_resources: ["CPU clusters", "high memory", "GPU for visualization", "parallel I/O"],
-    common_software: [
-      "ANSYS",
-      "OpenFOAM",
-      "COMSOL",
-      "ABAQUS",
-      "LS-DYNA",
-      "SU2",
-      "ParaView",
-    ],
+    common_software: ["ANSYS", "OpenFOAM", "COMSOL", "ABAQUS", "LS-DYNA", "SU2", "ParaView"],
     allocation_range: {
       min: 100000,
       max: 1500000,
@@ -187,7 +174,8 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
 
   "Earth Sciences": {
     name: "Earth Sciences",
-    description: "Research in climate modeling, atmospheric science, geophysics, and environmental science",
+    description:
+      "Research in climate modeling, atmospheric science, geophysics, and environmental science",
     keywords: [
       "climate modeling",
       "atmospheric science",
@@ -199,16 +187,7 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
       "environmental science",
     ],
     typical_resources: ["large storage", "CPU clusters", "high I/O", "data analytics"],
-    common_software: [
-      "WRF",
-      "CESM",
-      "NCAR",
-      "netCDF",
-      "GDAL",
-      "Python",
-      "R",
-      "MATLAB",
-    ],
+    common_software: ["WRF", "CESM", "NCAR", "netCDF", "GDAL", "Python", "R", "MATLAB"],
     allocation_range: {
       min: 150000,
       max: 2000000,
@@ -218,7 +197,8 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
 
   "Mathematics and Statistics": {
     name: "Mathematics and Statistics",
-    description: "Research in numerical analysis, optimization, data analytics, and statistical modeling",
+    description:
+      "Research in numerical analysis, optimization, data analytics, and statistical modeling",
     keywords: [
       "numerical analysis",
       "optimization",
@@ -230,16 +210,7 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
       "computational mathematics",
     ],
     typical_resources: ["CPU clusters", "high memory", "GPU for linear algebra"],
-    common_software: [
-      "MATLAB",
-      "R",
-      "Python",
-      "Julia",
-      "Mathematica",
-      "SAS",
-      "SPSS",
-      "Octave",
-    ],
+    common_software: ["MATLAB", "R", "Python", "Julia", "Mathematica", "SAS", "SPSS", "Octave"],
     allocation_range: {
       min: 50000,
       max: 500000,
@@ -249,7 +220,8 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
 
   "Social Sciences": {
     name: "Social Sciences",
-    description: "Research in economics, sociology, political science, and computational social science",
+    description:
+      "Research in economics, sociology, political science, and computational social science",
     keywords: [
       "econometrics",
       "agent-based modeling",
@@ -260,15 +232,7 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
       "survey analysis",
     ],
     typical_resources: ["data analytics", "storage", "CPU clusters for simulations"],
-    common_software: [
-      "R",
-      "Python",
-      "Stata",
-      "SPSS",
-      "NetLogo",
-      "Gephi",
-      "Julia",
-    ],
+    common_software: ["R", "Python", "Stata", "SPSS", "NetLogo", "Gephi", "Julia"],
     allocation_range: {
       min: 25000,
       max: 300000,
@@ -290,16 +254,7 @@ export const FIELDS_OF_SCIENCE: Record<string, FieldOfScience> = {
       "simulation",
     ],
     typical_resources: ["large storage", "CPU clusters", "GPU for visualization", "data pipelines"],
-    common_software: [
-      "Gadget",
-      "FLASH",
-      "Enzo",
-      "Athena",
-      "IRAF",
-      "DS9",
-      "Python",
-      "astropy",
-    ],
+    common_software: ["Gadget", "FLASH", "Enzo", "Athena", "IRAF", "DS9", "Python", "astropy"],
     allocation_range: {
       min: 150000,
       max: 2500000,
@@ -326,7 +281,8 @@ export interface AllocationType {
 export const ALLOCATION_TYPES: Record<string, AllocationType> = {
   Discover: {
     name: "Discover ACCESS Credits",
-    description: "Small allocations for exploring ACCESS resources and conducting preliminary research",
+    description:
+      "Small allocations for exploring ACCESS resources and conducting preliminary research",
     typical_duration: "12 months",
     credit_range: {
       min: 1000,
@@ -417,12 +373,7 @@ export const RESOURCE_TYPES: Record<string, ResourceType> = {
       "Data processing",
       "Simulations",
     ],
-    key_features: [
-      "High core counts",
-      "Good memory bandwidth",
-      "MPI support",
-      "Long-running jobs",
-    ],
+    key_features: ["High core counts", "Good memory bandwidth", "MPI support", "Long-running jobs"],
   },
 
   GPU: {
@@ -435,12 +386,7 @@ export const RESOURCE_TYPES: Record<string, ResourceType> = {
       "Image processing",
       "CFD simulations",
     ],
-    key_features: [
-      "CUDA/ROCm support",
-      "High memory bandwidth",
-      "Tensor cores",
-      "Fast training",
-    ],
+    key_features: ["CUDA/ROCm support", "High memory bandwidth", "Tensor cores", "Fast training"],
   },
 
   "High Memory": {
@@ -452,11 +398,7 @@ export const RESOURCE_TYPES: Record<string, ResourceType> = {
       "In-memory databases",
       "Large-scale graph analysis",
     ],
-    key_features: [
-      "1TB+ memory per node",
-      "Fast memory access",
-      "Large working sets",
-    ],
+    key_features: ["1TB+ memory per node", "Fast memory access", "Large working sets"],
   },
 
   Storage: {
@@ -486,12 +428,7 @@ export const RESOURCE_TYPES: Record<string, ResourceType> = {
       "Interactive computing",
       "Elastic workloads",
     ],
-    key_features: [
-      "On-demand resources",
-      "Virtual machines",
-      "Container support",
-      "API access",
-    ],
+    key_features: ["On-demand resources", "Virtual machines", "Container support", "API access"],
   },
 };
 
@@ -596,7 +533,7 @@ export function getFeatureName(featureCode: number): string {
  * Get feature names for an array of codes
  */
 export function getFeatureNames(featureCodes: number[]): string[] {
-  return featureCodes.map(code => getFeatureName(code));
+  return featureCodes.map((code) => getFeatureName(code));
 }
 
 /**
@@ -617,7 +554,7 @@ export interface AccessSystem {
 }
 
 export const ACCESS_SYSTEMS: Record<string, AccessSystem> = {
-  "Delta": {
+  Delta: {
     name: "Delta",
     organization: "NCSA (University of Illinois)",
     description: "GPU-focused system with NVIDIA A100 and A40 GPUs",
@@ -653,7 +590,7 @@ export const ACCESS_SYSTEMS: Record<string, AccessSystem> = {
     experience_level: ["Beginner", "Intermediate", "Advanced"],
   },
 
-  "Anvil": {
+  Anvil: {
     name: "Anvil",
     organization: "Purdue University",
     description: "Composable subsystem architecture with flexible resource allocation",
@@ -670,7 +607,7 @@ export const ACCESS_SYSTEMS: Record<string, AccessSystem> = {
     experience_level: ["Beginner", "Intermediate", "Advanced"],
   },
 
-  "Expanse": {
+  Expanse: {
     name: "Expanse",
     organization: "SDSC (San Diego Supercomputing Center)",
     description: "Balanced CPU and GPU computing with excellent storage",
@@ -688,7 +625,7 @@ export const ACCESS_SYSTEMS: Record<string, AccessSystem> = {
     experience_level: ["Intermediate", "Advanced"],
   },
 
-  "Stampede3": {
+  Stampede3: {
     name: "Stampede3",
     organization: "TACC (Texas Advanced Computing Center)",
     description: "Leadership-class supercomputer with NVIDIA Grace-Hopper",
@@ -705,7 +642,7 @@ export const ACCESS_SYSTEMS: Record<string, AccessSystem> = {
     experience_level: ["Advanced", "Expert"],
   },
 
-  "Jetstream2": {
+  Jetstream2: {
     name: "Jetstream2",
     organization: "Indiana University",
     description: "Cloud computing platform for interactive science and gateways",

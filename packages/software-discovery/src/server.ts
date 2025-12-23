@@ -1,5 +1,15 @@
-import { BaseAccessServer, handleApiError, Tool, Resource, CallToolResult } from "@access-mcp/shared";
-import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  BaseAccessServer,
+  handleApiError,
+  Tool,
+  Resource,
+  CallToolResult,
+} from "@access-mcp/shared";
+import {
+  CallToolRequest,
+  ReadResourceRequest,
+  ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -104,11 +114,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   private _sdsClient?: AxiosInstance;
 
   constructor() {
-    super(
-      "access-mcp-software-discovery",
-      version,
-      "https://sds-ara-api.access-ci.org",
-    );
+    super("access-mcp-software-discovery", version, "https://sds-ara-api.access-ci.org");
   }
 
   /**
@@ -135,10 +141,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     // Convert delta-gpu.ncsa.access-ci.org -> delta.ncsa.access-ci.org
     // Convert delta-cpu.ncsa.access-ci.org -> delta.ncsa.access-ci.org
     // Convert delta-storage.ncsa.access-ci.org -> delta.ncsa.access-ci.org
-    resourceId = resourceId.replace(/-(gpu|cpu|storage|compute)\./, '.');
+    resourceId = resourceId.replace(/-(gpu|cpu|storage|compute)\./, ".");
 
     // Handle other common patterns
-    resourceId = resourceId.replace(/-(login|data|transfer)\./, '.');
+    resourceId = resourceId.replace(/-(login|data|transfer)\./, ".");
 
     // If already in correct format or unknown format, return as-is
     return resourceId;
@@ -180,7 +186,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
     // Handle the new API response format: { data: [...] }
     const responseData = response.data as ApiResponse | SoftwareItem[];
-    if ('data' in responseData && Array.isArray(responseData.data)) {
+    if ("data" in responseData && Array.isArray(responseData.data)) {
       return responseData.data;
     }
     return Array.isArray(responseData) ? responseData : [];
@@ -190,149 +196,154 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     return [
       {
         name: "search_software",
-        description: "Search software packages on ACCESS-CI HPC resources with fuzzy matching. Returns {total, items}.",
+        description:
+          "Search software packages on ACCESS-CI HPC resources with fuzzy matching. Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Software name to search (e.g., 'python', 'tensorflow', 'gromacs'). Fuzzy matching finds partial matches."
+              description:
+                "Software name to search (e.g., 'python', 'tensorflow', 'gromacs'). Fuzzy matching finds partial matches.",
             },
             resource: {
               type: "string",
-              description: "Filter to resource (e.g., 'anvil', 'delta', 'expanse', 'bridges-2')"
+              description: "Filter to resource (e.g., 'anvil', 'delta', 'expanse', 'bridges-2')",
             },
             fuzzy: {
               type: "boolean",
               description: "Enable fuzzy/partial matching (default: true)",
-              default: true
+              default: true,
             },
             include_ai_metadata: {
               type: "boolean",
               description: "Include AI metadata (tags, research area, software type)",
-              default: true
+              default: true,
             },
             limit: {
               type: "number",
               description: "Max results (default: 100)",
-              default: 100
-            }
+              default: 100,
+            },
           },
           examples: [
             {
               name: "Search for Python",
-              arguments: { query: "python", limit: 10 }
+              arguments: { query: "python", limit: 10 },
             },
             {
               name: "Find TensorFlow on Anvil",
-              arguments: { query: "tensorflow", resource: "anvil" }
+              arguments: { query: "tensorflow", resource: "anvil" },
             },
             {
               name: "Search MPI libraries on Delta",
-              arguments: { query: "mpi", resource: "delta", limit: 20 }
-            }
-          ]
-        }
+              arguments: { query: "mpi", resource: "delta", limit: 20 },
+            },
+          ],
+        },
       },
       {
         name: "list_all_software",
-        description: "List all available software packages on ACCESS-CI resources. Returns {total, items}.",
+        description:
+          "List all available software packages on ACCESS-CI resources. Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
             resource: {
               type: "string",
-              description: "Filter to resource (e.g., 'anvil', 'delta'). Omit for all resources."
+              description: "Filter to resource (e.g., 'anvil', 'delta'). Omit for all resources.",
             },
             include_ai_metadata: {
               type: "boolean",
               description: "Include AI metadata (default: false for compact output)",
-              default: false
+              default: false,
             },
             limit: {
               type: "number",
               description: "Max results (default: 100)",
-              default: 100
-            }
+              default: 100,
+            },
           },
           examples: [
             {
               name: "List all software",
-              arguments: { limit: 50 }
+              arguments: { limit: 50 },
             },
             {
               name: "List software on Delta",
-              arguments: { resource: "delta", limit: 100 }
-            }
-          ]
-        }
+              arguments: { resource: "delta", limit: 100 },
+            },
+          ],
+        },
       },
       {
         name: "get_software_details",
-        description: "Get detailed info about a specific software package including versions and availability. Returns {found, details, other_matches}.",
+        description:
+          "Get detailed info about a specific software package including versions and availability. Returns {found, details, other_matches}.",
         inputSchema: {
           type: "object",
           properties: {
             software_name: {
               type: "string",
-              description: "Software name (e.g., 'tensorflow', 'gromacs', 'python')"
+              description: "Software name (e.g., 'tensorflow', 'gromacs', 'python')",
             },
             resource: {
               type: "string",
-              description: "Filter to specific resource (optional)"
+              description: "Filter to specific resource (optional)",
             },
             fuzzy: {
               type: "boolean",
               description: "Enable fuzzy matching (default: true)",
-              default: true
-            }
+              default: true,
+            },
           },
           required: ["software_name"],
           examples: [
             {
               name: "Get TensorFlow details",
-              arguments: { software_name: "tensorflow" }
+              arguments: { software_name: "tensorflow" },
             },
             {
               name: "Get GROMACS on Expanse",
-              arguments: { software_name: "gromacs", resource: "expanse" }
-            }
-          ]
-        }
+              arguments: { software_name: "gromacs", resource: "expanse" },
+            },
+          ],
+        },
       },
       {
         name: "compare_software_availability",
-        description: "Compare availability of multiple software packages across resources. Returns {comparison, summary}.",
+        description:
+          "Compare availability of multiple software packages across resources. Returns {comparison, summary}.",
         inputSchema: {
           type: "object",
           properties: {
             software_names: {
               type: "array",
               items: { type: "string" },
-              description: "Software packages to compare (e.g., ['tensorflow', 'pytorch'])"
+              description: "Software packages to compare (e.g., ['tensorflow', 'pytorch'])",
             },
             resources: {
               type: "array",
               items: { type: "string" },
-              description: "Resources to check (optional, compares all if omitted)"
-            }
+              description: "Resources to check (optional, compares all if omitted)",
+            },
           },
           required: ["software_names"],
           examples: [
             {
               name: "Compare ML frameworks",
-              arguments: { software_names: ["tensorflow", "pytorch", "cuda"] }
+              arguments: { software_names: ["tensorflow", "pytorch", "cuda"] },
             },
             {
               name: "Check compilers on specific resources",
               arguments: {
                 software_names: ["gcc", "intel", "nvhpc"],
-                resources: ["anvil", "delta", "expanse"]
-              }
-            }
-          ]
-        }
-      }
+                resources: ["anvil", "delta", "expanse"],
+              },
+            },
+          ],
+        },
+      },
     ];
   }
 
@@ -341,8 +352,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       {
         uri: "accessci://software-discovery",
         name: "ACCESS-CI Software Discovery Service",
-        description:
-          "Search and discover software packages available on ACCESS-CI resources",
+        description: "Search and discover software packages available on ACCESS-CI resources",
         mimeType: "application/json",
       },
       {
@@ -366,7 +376,9 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         case "get_software_details":
           return await this.getSoftwareDetails(args as unknown as GetSoftwareDetailsArgs);
         case "compare_software_availability":
-          return await this.compareSoftwareAvailability(args as unknown as CompareSoftwareAvailabilityArgs);
+          return await this.compareSoftwareAvailability(
+            args as unknown as CompareSoftwareAvailabilityArgs
+          );
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
@@ -411,7 +423,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   /**
    * Transform raw API response to enhanced format
    */
-  private transformSoftwareItem(item: SoftwareItem, includeAiMetadata: boolean = true): TransformedSoftware {
+  private transformSoftwareItem(
+    item: SoftwareItem,
+    includeAiMetadata: boolean = true
+  ): TransformedSoftware {
     // Extract resource information from the rps object
     const resources: string[] = [];
     const resourceIds: string[] = [];
@@ -433,8 +448,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     // Note: API returns versions pre-sorted (best effort), first item is latest
     const allVersions: string[] = [];
     const seenVersions = new Set<string>();
-    Object.values(versionsPerResource).forEach(versions => {
-      versions.forEach(v => {
+    Object.values(versionsPerResource).forEach((versions) => {
+      versions.forEach((v) => {
         if (v && !seenVersions.has(v)) {
           seenVersions.add(v);
           allVersions.push(v);
@@ -451,14 +466,18 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       usage_link: item.software_use_link || null,
       available_on_resources: [...new Set(resources)],
       resource_ids: [...new Set(resourceIds)],
-      versions_by_resource: Object.keys(versionsPerResource).length > 0 ? versionsPerResource : undefined,
+      versions_by_resource:
+        Object.keys(versionsPerResource).length > 0 ? versionsPerResource : undefined,
     };
 
     if (includeAiMetadata) {
       result.ai_metadata = {
         description: item.ai_description || null,
         tags: item.ai_general_tags
-          ? item.ai_general_tags.split(',').map((t: string) => t.trim()).filter(Boolean)
+          ? item.ai_general_tags
+              .split(",")
+              .map((t: string) => t.trim())
+              .filter(Boolean)
           : [],
         research_area: item.ai_research_area || null,
         research_discipline: item.ai_research_discipline || null,
@@ -474,13 +493,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   }
 
   private async searchSoftware(args: SearchSoftwareArgs): Promise<CallToolResult> {
-    const {
-      query,
-      resource,
-      fuzzy = true,
-      include_ai_metadata = true,
-      limit = 100
-    } = args;
+    const { query, resource, fuzzy = true, include_ai_metadata = true, limit = 100 } = args;
 
     // Build query params
     const params: SoftwareQueryParams = {};
@@ -511,21 +524,23 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       const limitedResults = results.slice(0, limit);
 
       // Transform results
-      const transformedResults = limitedResults.map(item =>
+      const transformedResults = limitedResults.map((item) =>
         this.transformSoftwareItem(item, include_ai_metadata)
       );
 
       return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            total: transformedResults.length,
-            query: query || null,
-            resource_filter: resource || null,
-            fuzzy_matching: fuzzy,
-            items: transformedResults
-          })
-        }]
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              total: transformedResults.length,
+              query: query || null,
+              resource_filter: resource || null,
+              fuzzy_matching: fuzzy,
+              items: transformedResults,
+            }),
+          },
+        ],
       };
     } catch (error) {
       return this.errorResponse(error instanceof Error ? error.message : String(error));
@@ -533,14 +548,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   }
 
   private async listAllSoftware(args: ListAllSoftwareArgs): Promise<CallToolResult> {
-    const {
-      resource,
-      include_ai_metadata = false,
-      limit = 100
-    } = args;
+    const { resource, include_ai_metadata = false, limit = 100 } = args;
 
     const params: SoftwareQueryParams = {
-      software: ["*"]
+      software: ["*"],
     };
 
     if (resource) {
@@ -556,19 +567,21 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       const limitedResults = results.slice(0, limit);
 
       // Transform results
-      const transformedResults = limitedResults.map(item =>
+      const transformedResults = limitedResults.map((item) =>
         this.transformSoftwareItem(item, include_ai_metadata)
       );
 
       return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            total: transformedResults.length,
-            resource_filter: resource || "all resources",
-            items: transformedResults
-          })
-        }]
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              total: transformedResults.length,
+              resource_filter: resource || "all resources",
+              items: transformedResults,
+            }),
+          },
+        ],
       };
     } catch (error) {
       return this.errorResponse(error instanceof Error ? error.message : String(error));
@@ -576,15 +589,11 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   }
 
   private async getSoftwareDetails(args: GetSoftwareDetailsArgs): Promise<CallToolResult> {
-    const {
-      software_name,
-      resource,
-      fuzzy = true
-    } = args;
+    const { software_name, resource, fuzzy = true } = args;
 
     const params: SoftwareQueryParams = {
       software: [software_name],
-      fuzz_software: fuzzy
+      fuzz_software: fuzzy,
     };
 
     if (resource) {
@@ -598,15 +607,17 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
       if (results.length === 0) {
         return {
-          content: [{
-            type: "text" as const,
-            text: JSON.stringify({
-              software_name,
-              found: false,
-              message: `No software found matching '${software_name}'${resource ? ` on resource '${resource}'` : ''}`,
-              suggestion: "Try a different search term or enable fuzzy matching"
-            })
-          }]
+          content: [
+            {
+              type: "text" as const,
+              text: JSON.stringify({
+                software_name,
+                found: false,
+                message: `No software found matching '${software_name}'${resource ? ` on resource '${resource}'` : ""}`,
+                suggestion: "Try a different search term or enable fuzzy matching",
+              }),
+            },
+          ],
         };
       }
 
@@ -615,39 +626,43 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       const bestMatch = this.transformSoftwareItem(results[0], true);
 
       // If there are multiple matches, include them
-      const otherMatches = results.slice(1, 5).map(item => ({
+      const otherMatches = results.slice(1, 5).map((item) => ({
         name: item.software_name,
-        resources: item.rps ? Object.values(item.rps).map(rp => rp.rp_name) : []
+        resources: item.rps ? Object.values(item.rps).map((rp) => rp.rp_name) : [],
       }));
 
       return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            software_name,
-            found: true,
-            details: bestMatch,
-            other_matches: otherMatches.length > 0 ? otherMatches : undefined
-          })
-        }]
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              software_name,
+              found: true,
+              details: bestMatch,
+              other_matches: otherMatches.length > 0 ? otherMatches : undefined,
+            }),
+          },
+        ],
       };
     } catch (error) {
       return this.errorResponse(error instanceof Error ? error.message : String(error));
     }
   }
 
-  private async compareSoftwareAvailability(args: CompareSoftwareAvailabilityArgs): Promise<CallToolResult> {
+  private async compareSoftwareAvailability(
+    args: CompareSoftwareAvailabilityArgs
+  ): Promise<CallToolResult> {
     const { software_names, resources } = args;
 
     try {
       // Query for all requested software
       const params: SoftwareQueryParams = {
         software: software_names,
-        fuzz_software: true
+        fuzz_software: true,
       };
 
       if (resources && resources.length > 0) {
-        params.rps = resources.map(r => this.normalizeResourceId(r));
+        params.rps = resources.map((r) => this.normalizeResourceId(r));
         params.fuzz_rp = true;
       }
 
@@ -683,40 +698,42 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         const softwareLower = softwareName.toLowerCase();
 
         // Priority matching: exact match first, then starts-with, then contains
-        let foundKey = Object.keys(availabilityMap).find(k => k === softwareLower);
+        let foundKey = Object.keys(availabilityMap).find((k) => k === softwareLower);
         if (!foundKey) {
-          foundKey = Object.keys(availabilityMap).find(k => k.startsWith(softwareLower));
+          foundKey = Object.keys(availabilityMap).find((k) => k.startsWith(softwareLower));
         }
         if (!foundKey) {
-          foundKey = Object.keys(availabilityMap).find(k => k.includes(softwareLower));
+          foundKey = Object.keys(availabilityMap).find((k) => k.includes(softwareLower));
         }
         if (!foundKey) {
-          foundKey = Object.keys(availabilityMap).find(k => softwareLower.includes(k));
+          foundKey = Object.keys(availabilityMap).find((k) => softwareLower.includes(k));
         }
 
         comparison.push({
           software: softwareName,
           found: !!foundKey,
           available_on: foundKey ? Array.from(availabilityMap[foundKey]) : [],
-          resource_count: foundKey ? availabilityMap[foundKey].size : 0
+          resource_count: foundKey ? availabilityMap[foundKey].size : 0,
         });
       }
 
       return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            requested_software: software_names,
-            requested_resources: resources || "all",
-            all_resources_found: Array.from(allResources).sort(),
-            comparison,
-            summary: {
-              total_software_requested: software_names.length,
-              software_found: comparison.filter(c => c.found).length,
-              software_not_found: comparison.filter(c => !c.found).map(c => c.software)
-            }
-          })
-        }]
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              requested_software: software_names,
+              requested_resources: resources || "all",
+              all_resources_found: Array.from(allResources).sort(),
+              comparison,
+              summary: {
+                total_software_requested: software_names.length,
+                software_found: comparison.filter((c) => c.found).length,
+                software_not_found: comparison.filter((c) => !c.found).map((c) => c.software),
+              },
+            }),
+          },
+        ],
       };
     } catch (error) {
       return this.errorResponse(error instanceof Error ? error.message : String(error));
@@ -727,7 +744,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     try {
       // Get a sample of all software
       const results = await this.queryApi({
-        software: ["*"]
+        software: ["*"],
       });
 
       // Extract unique values
@@ -744,7 +761,10 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
         // Collect and count tags
         if (item.ai_general_tags) {
-          const itemTags = item.ai_general_tags.split(',').map(t => t.trim()).filter(Boolean);
+          const itemTags = item.ai_general_tags
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean);
           for (const tag of itemTags) {
             tags.set(tag, (tags.get(tag) || 0) + 1);
           }
@@ -769,23 +789,29 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         .map(([tag, count]) => ({ value: tag, count }));
 
       return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            sample_size: results.length,
-            discovered_values: {
-              research_areas: Array.from(researchAreas).sort(),
-              software_types: Array.from(softwareTypes).sort(),
-              top_tags: sortedTags,
-              resources: Array.from(resources).sort()
-            },
-            api_info: {
-              version: "v1",
-              base_url: "https://sds-ara-api.access-ci.org",
-              supports_fuzzy_search: true
-            }
-          }, null, 2)
-        }]
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                sample_size: results.length,
+                discovered_values: {
+                  research_areas: Array.from(researchAreas).sort(),
+                  software_types: Array.from(softwareTypes).sort(),
+                  top_tags: sortedTags,
+                  resources: Array.from(resources).sort(),
+                },
+                api_info: {
+                  version: "v1",
+                  base_url: "https://sds-ara-api.access-ci.org",
+                  supports_fuzzy_search: true,
+                },
+              },
+              null,
+              2
+            ),
+          },
+        ],
       };
     } catch (error) {
       return this.errorResponse(error instanceof Error ? error.message : String(error));

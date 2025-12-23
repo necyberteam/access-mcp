@@ -6,7 +6,11 @@ import {
   Resource,
   CallToolResult,
 } from "@access-mcp/shared";
-import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  CallToolRequest,
+  ReadResourceRequest,
+  ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
@@ -33,25 +37,25 @@ export class AffinityGroupsServer extends BaseAccessServer {
           properties: {
             id: {
               type: "string",
-              description: "Group ID (omit to list all)"
+              description: "Group ID (omit to list all)",
             },
             include: {
               type: "string",
               enum: ["events", "kb", "all"],
-              description: "Include: events, kb, or all"
+              description: "Include: events, kb, or all",
             },
             query: {
               type: "string",
-              description: "Search KB resources"
+              description: "Search KB resources",
             },
             limit: {
               type: "number",
               description: "Max results (default: 20)",
-              default: 20
-            }
-          }
-        }
-      }
+              default: 20,
+            },
+          },
+        },
+      },
     ];
   }
 
@@ -82,7 +86,9 @@ export class AffinityGroupsServer extends BaseAccessServer {
     }
   }
 
-  private async searchAffinityGroupsRouter(args: SearchAffinityGroupsArgs): Promise<CallToolResult> {
+  private async searchAffinityGroupsRouter(
+    args: SearchAffinityGroupsArgs
+  ): Promise<CallToolResult> {
     const { id, include } = args;
 
     if (!id) {
@@ -104,14 +110,16 @@ export class AffinityGroupsServer extends BaseAccessServer {
       const kbText = kbContent.type === "text" ? kbContent.text : "";
 
       return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            group: JSON.parse(groupText),
-            events: JSON.parse(eventsText),
-            knowledge_base: JSON.parse(kbText)
-          })
-        }]
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              group: JSON.parse(groupText),
+              events: JSON.parse(eventsText),
+              knowledge_base: JSON.parse(kbText),
+            }),
+          },
+        ],
       };
     }
 
@@ -149,9 +157,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
 
   private async getAffinityGroup(groupId: string): Promise<CallToolResult> {
     const sanitizedId = sanitizeGroupId(groupId);
-    const response = await this.httpClient.get(
-      `/1.1/affinity_groups/${sanitizedId}`,
-    );
+    const response = await this.httpClient.get(`/1.1/affinity_groups/${sanitizedId}`);
 
     // Check if response data exists
     if (!response.data) {
@@ -159,10 +165,14 @@ export class AffinityGroupsServer extends BaseAccessServer {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({
-              total: 0,
-              items: []
-            }, null, 2),
+            text: JSON.stringify(
+              {
+                total: 0,
+                items: [],
+              },
+              null,
+              2
+            ),
           },
         ],
       };
@@ -188,10 +198,14 @@ export class AffinityGroupsServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: cleanedGroups.length,
-            items: cleanedGroups
-          }, null, 2),
+          text: JSON.stringify(
+            {
+              total: cleanedGroups.length,
+              items: cleanedGroups,
+            },
+            null,
+            2
+          ),
         },
       ],
     };
@@ -207,10 +221,14 @@ export class AffinityGroupsServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: events.length,
-            items: events
-          }, null, 2),
+          text: JSON.stringify(
+            {
+              total: events.length,
+              items: events,
+            },
+            null,
+            2
+          ),
         },
       ],
     };
@@ -226,10 +244,14 @@ export class AffinityGroupsServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: kbItems.length,
-            items: kbItems
-          }, null, 2),
+          text: JSON.stringify(
+            {
+              total: kbItems.length,
+              items: kbItems,
+            },
+            null,
+            2
+          ),
         },
       ],
     };
@@ -242,20 +264,29 @@ export class AffinityGroupsServer extends BaseAccessServer {
       ? response.data.map((group) => ({
           id: group.field_group_id || group.nid,
           name: group.title, // Changed from title to name for consistency
-          description: group.description?.replace(/<[^>]*>/g, "").replace(/\\n/g, "\n").trim(),
+          description: group.description
+            ?.replace(/<[^>]*>/g, "")
+            .replace(/\\n/g, "\n")
+            .trim(),
           coordinator: group.coordinator_name,
-          category: group.field_affinity_group_category
+          category: group.field_affinity_group_category,
         }))
       : [];
 
     return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          total: groups.length,
-          items: groups
-        }, null, 2)
-      }]
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(
+            {
+              total: groups.length,
+              items: groups,
+            },
+            null,
+            2
+          ),
+        },
+      ],
     };
   }
 }

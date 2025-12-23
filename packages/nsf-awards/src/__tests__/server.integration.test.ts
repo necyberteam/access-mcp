@@ -15,8 +15,8 @@ describe("NSFAwardsServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { id: "2138259" }
-        }
+          arguments: { id: "2138259" },
+        },
       });
 
       expect(result.content).toHaveLength(1);
@@ -33,8 +33,8 @@ describe("NSFAwardsServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { pi: "Smith", limit: 3 }
-        }
+          arguments: { pi: "Smith", limit: 3 },
+        },
       });
 
       expect(result.content).toHaveLength(1);
@@ -50,8 +50,8 @@ describe("NSFAwardsServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { institution: "Stanford University", limit: 3 }
-        }
+          arguments: { institution: "Stanford University", limit: 3 },
+        },
       });
 
       expect(result.content).toHaveLength(1);
@@ -67,8 +67,8 @@ describe("NSFAwardsServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { query: "computer science", limit: 3 }
-        }
+          arguments: { query: "computer science", limit: 3 },
+        },
       });
 
       expect(result.content).toHaveLength(1);
@@ -84,8 +84,8 @@ describe("NSFAwardsServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { pi: "Johnson", limit: 2 }
-        }
+          arguments: { pi: "Johnson", limit: 2 },
+        },
       });
 
       expect(result.content).toHaveLength(1);
@@ -100,8 +100,8 @@ describe("NSFAwardsServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { id: "9999999" }
-        }
+          arguments: { id: "9999999" },
+        },
       });
 
       expect(result).toHaveProperty("isError", true);
@@ -113,8 +113,8 @@ describe("NSFAwardsServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { institution: "MIT", limit: 1 }
-        }
+          arguments: { institution: "MIT", limit: 1 },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -136,19 +136,21 @@ describe("NSFAwardsServer Integration Tests", () => {
   describe("Error Handling with Real API", () => {
     it("should handle API rate limiting gracefully", async () => {
       // Make multiple rapid requests to potentially trigger rate limiting
-      const promises = Array(5).fill(0).map(() =>
-        server["handleToolCall"]({
-          params: {
-            name: "search_nsf_awards",
-            arguments: { id: "2138259" }
-          }
-        }).catch(err => ({ error: err.message }))
-      );
+      const promises = Array(5)
+        .fill(0)
+        .map(() =>
+          server["handleToolCall"]({
+            params: {
+              name: "search_nsf_awards",
+              arguments: { id: "2138259" },
+            },
+          }).catch((err) => ({ error: err.message }))
+        );
 
       const results = await Promise.all(promises);
-      
+
       // At least some requests should succeed
-      const successfulResults = results.filter(r => !r.error);
+      const successfulResults = results.filter((r) => !r.error);
       expect(successfulResults.length).toBeGreaterThan(0);
     }, 30000);
   });
@@ -158,8 +160,8 @@ describe("NSFAwardsServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { id: "2138259" }
-        }
+          arguments: { id: "2138259" },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);

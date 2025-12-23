@@ -88,7 +88,7 @@ describe("ComputeResourcesServer", () => {
     it("should include search_resources tool with universal standard description", () => {
       const tools = server["getTools"]();
 
-      const searchTool = tools.find(t => t.name === "search_resources");
+      const searchTool = tools.find((t) => t.name === "search_resources");
       expect(searchTool).toBeDefined();
       expect(searchTool?.description).toContain("Search ACCESS-CI compute resources");
       expect(searchTool?.description).toContain("Returns {total, items}");
@@ -96,7 +96,7 @@ describe("ComputeResourcesServer", () => {
 
     it("should have consolidated tools", () => {
       const tools = server["getTools"]();
-      const toolNames = tools.map(t => t.name);
+      const toolNames = tools.map((t) => t.name);
 
       expect(toolNames).toContain("search_resources");
       expect(toolNames).toContain("get_resource_hardware");
@@ -108,11 +108,13 @@ describe("ComputeResourcesServer", () => {
     it("should list compute resources with organization names", async () => {
       // Mock resource groups first, then organizations (actual call order)
       mockHttpClient.get
-        .mockResolvedValueOnce({ // Resource groups call (first)
+        .mockResolvedValueOnce({
+          // Resource groups call (first)
           status: 200,
           data: mockResourceGroups,
         })
-        .mockResolvedValueOnce({ // Organizations call (second)
+        .mockResolvedValueOnce({
+          // Organizations call (second)
           status: 200,
           data: mockOrganizations,
         });
@@ -147,7 +149,8 @@ describe("ComputeResourcesServer", () => {
     it("should handle organization lookup failure gracefully", async () => {
       // Mock successful resource groups, failed organization lookup
       mockHttpClient.get
-        .mockResolvedValueOnce({ // Resource groups call succeeds (first)
+        .mockResolvedValueOnce({
+          // Resource groups call succeeds (first)
           status: 200,
           data: mockResourceGroups,
         })
@@ -383,8 +386,12 @@ describe("ComputeResourcesServer", () => {
 
       // Check raw_hardware_items has 2 items (Compute and Storage, Network excluded)
       expect(responseData.raw_hardware_items).toHaveLength(2);
-      expect(responseData.raw_hardware_items.some((h: HardwareItem) => h.cider_type === "Compute")).toBe(true);
-      expect(responseData.raw_hardware_items.some((h: HardwareItem) => h.cider_type === "Storage")).toBe(true);
+      expect(
+        responseData.raw_hardware_items.some((h: HardwareItem) => h.cider_type === "Compute")
+      ).toBe(true);
+      expect(
+        responseData.raw_hardware_items.some((h: HardwareItem) => h.cider_type === "Storage")
+      ).toBe(true);
     });
   });
 

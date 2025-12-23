@@ -9,13 +9,7 @@ export default defineConfig({
     exclude: ["node_modules", "dist"],
     coverage: {
       reporter: ["text", "json", "html"],
-      exclude: [
-        "node_modules/",
-        "dist/",
-        "**/*.d.ts",
-        "**/*.config.*",
-        "**/index.ts",
-      ],
+      exclude: ["node_modules/", "dist/", "**/*.d.ts", "**/*.config.*", "**/index.ts"],
     },
   },
   resolve: {

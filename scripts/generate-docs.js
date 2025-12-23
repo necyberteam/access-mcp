@@ -46,7 +46,7 @@ async function extractServerMetadata(packageName) {
           description: descriptionMatch ? descriptionMatch[1] : `MCP server for ${packageName}`,
           main: "src/server.py",
           bin: {
-            [nameMatch ? nameMatch[1] : packageName]: nameMatch ? nameMatch[1] : packageName
+            [nameMatch ? nameMatch[1] : packageName]: nameMatch ? nameMatch[1] : packageName,
           },
         };
       } catch (err2) {
@@ -69,10 +69,7 @@ async function extractServerMetadata(packageName) {
       readme: readmeContent,
     };
   } catch (error) {
-    console.warn(
-      `⚠️  Could not extract metadata for ${packageName}:`,
-      error.message,
-    );
+    console.warn(`⚠️  Could not extract metadata for ${packageName}:`, error.message);
     return null;
   }
 }

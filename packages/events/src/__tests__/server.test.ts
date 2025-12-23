@@ -51,15 +51,9 @@ describe("EventsServer", () => {
 
       expect(resources).toHaveLength(4);
       expect(resources.map((r) => r.uri)).toContain("accessci://events");
-      expect(resources.map((r) => r.uri)).toContain(
-        "accessci://events/upcoming",
-      );
-      expect(resources.map((r) => r.uri)).toContain(
-        "accessci://events/workshops",
-      );
-      expect(resources.map((r) => r.uri)).toContain(
-        "accessci://events/webinars",
-      );
+      expect(resources.map((r) => r.uri)).toContain("accessci://events/upcoming");
+      expect(resources.map((r) => r.uri)).toContain("accessci://events/workshops");
+      expect(resources.map((r) => r.uri)).toContain("accessci://events/webinars");
     });
   });
 
@@ -385,7 +379,6 @@ describe("EventsServer", () => {
       });
     });
 
-
     describe("Error Handling", () => {
       it("should handle API errors gracefully", async () => {
         mockHttpClient.get.mockResolvedValue({
@@ -506,5 +499,4 @@ describe("EventsServer", () => {
       }).rejects.toThrow("Unknown resource");
     });
   });
-
 });

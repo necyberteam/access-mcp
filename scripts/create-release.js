@@ -21,19 +21,11 @@ async function createRelease() {
     await mkdir(releaseDir, { recursive: true });
 
     // Create release package
-    const releasePackageDir = join(
-      releaseDir,
-      `access-mcp-servers-v${version}`,
-    );
+    const releasePackageDir = join(releaseDir, `access-mcp-servers-v${version}`);
     await mkdir(releasePackageDir, { recursive: true });
 
     // Copy bundled servers
-    const servers = [
-      "affinity-groups",
-      "compute-resources",
-      "system-status",
-      "software-discovery",
-    ];
+    const servers = ["affinity-groups", "compute-resources", "system-status", "software-discovery"];
 
     for (const server of servers) {
       const srcDir = join(bundlesDir, server);
@@ -42,10 +34,7 @@ async function createRelease() {
 
       // Copy files
       await copyFile(join(srcDir, "index.js"), join(destDir, "index.js"));
-      await copyFile(
-        join(srcDir, "package.json"),
-        join(destDir, "package.json"),
-      );
+      await copyFile(join(srcDir, "package.json"), join(destDir, "package.json"));
 
       // Try to copy README if it exists
       try {
@@ -139,16 +128,14 @@ See individual server README files for detailed usage information.
 
     await writeFile(
       join(releasePackageDir, "claude-desktop-config-example.json"),
-      JSON.stringify(exampleConfig, null, 2),
+      JSON.stringify(exampleConfig, null, 2)
     );
 
     // Create zip file
     const zipName = `access-mcp-servers-v${version}.zip`;
     const zipPath = join(releaseDir, zipName);
 
-    execSync(
-      `cd "${releaseDir}" && zip -r "${zipName}" "access-mcp-servers-v${version}"`,
-    );
+    execSync(`cd "${releaseDir}" && zip -r "${zipName}" "access-mcp-servers-v${version}"`);
 
     console.log(`✓ Release created: ${zipPath}`);
     console.log(`✓ Release directory: ${releasePackageDir}`);

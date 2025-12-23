@@ -72,9 +72,7 @@ describe("EventsServer Integration Tests", () => {
           (event: EventItem) =>
             event.title?.toLowerCase().includes("python") ||
             event.description?.toLowerCase().includes("python") ||
-            event.tags?.some((tag: string) =>
-              tag.toLowerCase().includes("python"),
-            ),
+            event.tags?.some((tag: string) => tag.toLowerCase().includes("python"))
         );
         expect(hasMatch).toBe(true);
       }
@@ -162,11 +160,13 @@ describe("EventsServer Integration Tests", () => {
         // Since this is a real API call, skill levels can vary
         // Just verify the filter parameter was processed and skill levels exist
         if (skillLevels.length > 0) {
-          console.log(`Found skill levels: ${[...new Set(skillLevels)].join(', ')}`);
+          console.log(`Found skill levels: ${[...new Set(skillLevels)].join(", ")}`);
           // At least one event should have a skill level when skill_level filter is used
           expect(skillLevels.length).toBeGreaterThan(0);
         } else {
-          console.log("No events with skill_level field found (API may not have beginner events available)");
+          console.log(
+            "No events with skill_level field found (API may not have beginner events available)"
+          );
         }
       }
     }, 10000);

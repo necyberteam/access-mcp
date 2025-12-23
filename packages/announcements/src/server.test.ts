@@ -33,12 +33,12 @@ describe("AnnouncementsServer", () => {
 
   beforeEach(() => {
     server = new AnnouncementsServer();
-    
+
     // Mock the httpClient
     mockHttpClient = {
       get: vi.fn(),
     };
-    
+
     // Override the httpClient getter
     Object.defineProperty(server, "httpClient", {
       get: () => mockHttpClient,
@@ -441,9 +441,24 @@ describe("AnnouncementsServer", () => {
       const mockResponse = {
         status: 200,
         data: [
-          { title: "1", published_date: "2024-03-15", tags: ["gpu", "maintenance"], affinity_group: [] },
-          { title: "2", published_date: "2024-03-14", tags: ["gpu", "network"], affinity_group: [] },
-          { title: "3", published_date: "2024-03-13", tags: ["gpu", "storage"], affinity_group: [] },
+          {
+            title: "1",
+            published_date: "2024-03-15",
+            tags: ["gpu", "maintenance"],
+            affinity_group: [],
+          },
+          {
+            title: "2",
+            published_date: "2024-03-14",
+            tags: ["gpu", "network"],
+            affinity_group: [],
+          },
+          {
+            title: "3",
+            published_date: "2024-03-13",
+            tags: ["gpu", "storage"],
+            affinity_group: [],
+          },
           { title: "4", published_date: "2024-03-12", tags: ["maintenance"], affinity_group: [] },
         ],
       };
@@ -601,7 +616,7 @@ describe("AnnouncementsServer", () => {
               { id: "tag-uuid-1", attributes: { name: "gpu" } },
               { id: "tag-uuid-2", attributes: { name: "maintenance" } },
               { id: "tag-uuid-3", attributes: { name: "hpc" } },
-            ]
+            ],
           }); // bulk tag cache fetch
 
         mockDrupalAuth.post.mockResolvedValue({
@@ -1112,8 +1127,8 @@ describe("AnnouncementsServer", () => {
               attributes: {
                 title: "Test Group",
                 field_group_id: 123,
-                field_affinity_group_category: "Research"
-              }
+                field_affinity_group_category: "Research",
+              },
             },
           ],
         });

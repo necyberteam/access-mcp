@@ -10,7 +10,7 @@ vi.mock("@access-mcp/shared", () => ({
     constructor(
       public serverName: string,
       public version: string,
-      public baseURL?: string,
+      public baseURL?: string
     ) {}
     httpClient = {
       get: vi.fn(),

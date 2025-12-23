@@ -352,8 +352,7 @@ onMounted(() => {
   transition:
     background-color 0.3s ease,
     transform 0.1s ease;
-  margin: var(--access-ci-spacing-xs) var(--access-ci-spacing-xs)
-    var(--access-ci-spacing-xs) 0;
+  margin: var(--access-ci-spacing-xs) var(--access-ci-spacing-xs) var(--access-ci-spacing-xs) 0;
 }
 
 :deep(.vp-doc .button:hover),

@@ -49,14 +49,14 @@ describe("SoftwareDiscoveryServer", () => {
             rp_name: "delta",
             rp_resource_id: ["delta-gpu.ncsa.access-ci.org", "delta-cpu.ncsa.access-ci.org"],
             software_versions: ["2.12", "2.11", "2.10"],
-            rp_software_documentation: "https://docs.ncsa.edu"
+            rp_software_documentation: "https://docs.ncsa.edu",
           },
           "anvil.purdue.access-ci.org": {
             rp_name: "anvil",
             rp_resource_id: ["anvil.purdue.access-ci.org"],
             software_versions: ["2.11"],
-            rp_software_documentation: "https://www.rcac.purdue.edu"
-          }
+            rp_software_documentation: "https://www.rcac.purdue.edu",
+          },
         },
         ai_description: "Deep learning framework for neural networks",
         ai_general_tags: "machine-learning, deep-learning, gpu, python",
@@ -77,14 +77,14 @@ describe("SoftwareDiscoveryServer", () => {
             rp_name: "anvil",
             rp_resource_id: ["anvil.purdue.access-ci.org"],
             software_versions: ["2023.1", "2022.3"],
-            rp_software_documentation: ""
+            rp_software_documentation: "",
           },
           "expanse.sdsc.access-ci.org": {
             rp_name: "expanse",
             rp_resource_id: ["expanse.sdsc.access-ci.org"],
             software_versions: ["2023.1"],
-            rp_software_documentation: ""
-          }
+            rp_software_documentation: "",
+          },
         },
         ai_description: "Molecular dynamics simulation software",
         ai_general_tags: "molecular-dynamics, chemistry, physics, mpi",
@@ -105,8 +105,8 @@ describe("SoftwareDiscoveryServer", () => {
             rp_name: "bridges2",
             rp_resource_id: ["bridges2.psc.access-ci.org"],
             software_versions: ["5.11", "5.10"],
-            rp_software_documentation: ""
-          }
+            rp_software_documentation: "",
+          },
         },
         ai_description: "Scientific visualization and analysis tool",
         ai_general_tags: "visualization, data-analysis, parallel, graphics",
@@ -118,7 +118,7 @@ describe("SoftwareDiscoveryServer", () => {
         ai_core_features: "Parallel data visualization and analysis",
         ai_example_use: "Visualizing computational fluid dynamics results",
       },
-    ]
+    ],
   };
 
   beforeEach(() => {
@@ -180,7 +180,9 @@ describe("SoftwareDiscoveryServer", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.items[0].ai_metadata).toBeDefined();
       expect(responseData.items[0].ai_metadata.tags).toContain("machine-learning");
-      expect(responseData.items[0].ai_metadata.research_area).toBe("Computer & Information Sciences");
+      expect(responseData.items[0].ai_metadata.research_area).toBe(
+        "Computer & Information Sciences"
+      );
       expect(responseData.items[0].ai_metadata.software_class).toBe("Library");
     });
 
@@ -627,25 +629,51 @@ describe("SoftwareDiscoveryServer", () => {
     const mockSortedResults = {
       data: [
         {
-          software_name: "pytorch",  // exact match - first
+          software_name: "pytorch", // exact match - first
           rps: {
-            "anvil.purdue.access-ci.org": { rp_name: "anvil", rp_resource_id: [], software_versions: ["2.0"] },
-            "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: ["2.0"] },
+            "anvil.purdue.access-ci.org": {
+              rp_name: "anvil",
+              rp_resource_id: [],
+              software_versions: ["2.0"],
+            },
+            "delta.ncsa.access-ci.org": {
+              rp_name: "delta",
+              rp_resource_id: [],
+              software_versions: ["2.0"],
+            },
           },
         },
         {
-          software_name: "pytorch-lightning",  // starts with "pytorch" - second
-          rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: ["1.0"] } },
+          software_name: "pytorch-lightning", // starts with "pytorch" - second
+          rps: {
+            "aces.tamu.access-ci.org": {
+              rp_name: "aces",
+              rp_resource_id: [],
+              software_versions: ["1.0"],
+            },
+          },
         },
         {
-          software_name: "gpytorch",  // contains "pytorch" - third (alphabetically before miniforge)
-          rps: { "aces.tamu.access-ci.org": { rp_name: "aces", rp_resource_id: [], software_versions: ["1.0"] } },
+          software_name: "gpytorch", // contains "pytorch" - third (alphabetically before miniforge)
+          rps: {
+            "aces.tamu.access-ci.org": {
+              rp_name: "aces",
+              rp_resource_id: [],
+              software_versions: ["1.0"],
+            },
+          },
         },
         {
-          software_name: "miniforge3_pytorch",  // contains "pytorch" - fourth
-          rps: { "delta.ncsa.access-ci.org": { rp_name: "delta", rp_resource_id: [], software_versions: ["1.0"] } },
+          software_name: "miniforge3_pytorch", // contains "pytorch" - fourth
+          rps: {
+            "delta.ncsa.access-ci.org": {
+              rp_name: "delta",
+              rp_resource_id: [],
+              software_versions: ["1.0"],
+            },
+          },
         },
-      ]
+      ],
     };
 
     it("should preserve API sort order in search_software results", async () => {
@@ -666,10 +694,10 @@ describe("SoftwareDiscoveryServer", () => {
       const names = responseData.items.map((i: TransformedSoftwareResult) => i.name);
 
       // API returns pre-sorted: exact > starts-with > contains (alphabetically within each)
-      expect(names[0]).toBe("pytorch");  // exact match first
-      expect(names[1]).toBe("pytorch-lightning");  // starts-with second
-      expect(names[2]).toBe("gpytorch");  // contains (alphabetically first)
-      expect(names[3]).toBe("miniforge3_pytorch");  // contains (alphabetically second)
+      expect(names[0]).toBe("pytorch"); // exact match first
+      expect(names[1]).toBe("pytorch-lightning"); // starts-with second
+      expect(names[2]).toBe("gpytorch"); // contains (alphabetically first)
+      expect(names[3]).toBe("miniforge3_pytorch"); // contains (alphabetically second)
     });
 
     it("should use first API result as best match in get_software_details", async () => {
@@ -714,7 +742,9 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      const pytorchComparison = responseData.comparison.find((c: SoftwareComparisonResult) => c.software === "pytorch");
+      const pytorchComparison = responseData.comparison.find(
+        (c: SoftwareComparisonResult) => c.software === "pytorch"
+      );
 
       // Uses first result (exact match) from API
       expect(pytorchComparison.found).toBe(true);
@@ -733,7 +763,7 @@ describe("SoftwareDiscoveryServer", () => {
         method: "tools/call",
         params: {
           name: "search_software",
-          arguments: { limit: 10 },  // no query
+          arguments: { limit: 10 }, // no query
         },
       });
 

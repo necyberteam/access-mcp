@@ -38,14 +38,14 @@ describe("AnnouncementsServer Integration Tests", () => {
 
       expect(result.isError).toBeFalsy();
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      
+
       // Check structure
       expect(responseData).toHaveProperty("total");
       expect(responseData).toHaveProperty("items");
 
       // Items should be an array
       expect(Array.isArray(responseData.items)).toBe(true);
-      
+
       // If there are announcements, check their structure
       if (responseData.items.length > 0) {
         const firstAnnouncement = responseData.items[0];
@@ -77,10 +77,9 @@ describe("AnnouncementsServer Integration Tests", () => {
 
       // If maintenance announcements exist, they should contain the tag
       if (responseData.items.length > 0) {
-        const hasMaintenanceTag = responseData.items.some((ann: AnnouncementItem) =>
-          ann.tags && ann.tags.some((tag: string) =>
-            tag.toLowerCase().includes("maintenance")
-          )
+        const hasMaintenanceTag = responseData.items.some(
+          (ann: AnnouncementItem) =>
+            ann.tags && ann.tags.some((tag: string) => tag.toLowerCase().includes("maintenance"))
         );
         // This might not always be true if the API doesn't have maintenance announcements
         console.log("Found maintenance announcements:", hasMaintenanceTag);

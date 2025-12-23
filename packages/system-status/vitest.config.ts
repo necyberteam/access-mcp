@@ -10,12 +10,7 @@ export default defineConfig({
     coverage: {
       provider: "c8",
       reporter: ["text", "json", "html"],
-      exclude: [
-        "node_modules/",
-        "src/**/*.test.ts",
-        "src/**/*.integration.test.ts",
-        "dist/",
-      ],
+      exclude: ["node_modules/", "src/**/*.test.ts", "src/**/*.integration.test.ts", "dist/"],
     },
   },
 });

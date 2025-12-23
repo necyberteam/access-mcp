@@ -9,10 +9,7 @@ export default defineConfig({
   head: [
     ["link", { rel: "icon", href: "/favicon.ico" }],
     ["link", { rel: "preconnect", href: "https://fonts.googleapis.com" }],
-    [
-      "link",
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" },
-    ],
+    ["link", { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" }],
     [
       "link",
       {
@@ -56,11 +53,7 @@ export default defineConfig({
             },
           },
           {
-            scope: [
-              "entity.name.tag",
-              "support.type.property-name",
-              "meta.object-literal.key",
-            ],
+            scope: ["entity.name.tag", "support.type.property-name", "meta.object-literal.key"],
             settings: {
               foreground: "#1a5b6e", // Dark teal for properties
             },

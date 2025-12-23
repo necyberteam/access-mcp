@@ -43,8 +43,8 @@ describe("NSFAwardsServer", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "unknown_tool",
-          arguments: {}
-        }
+          arguments: {},
+        },
       });
 
       expect(result).toHaveProperty("isError", true);
@@ -57,36 +57,38 @@ describe("NSFAwardsServer", () => {
   describe("Search by Award ID", () => {
     const mockAwardResponse = {
       response: {
-        award: [{
-          id: "2138259",
-          title: "Test Award Title",
-          awardeeName: "Test University",
-          piFirstName: "John",
-          piLastName: "Doe",
-          coPDPI: "Jane Smith; Bob Johnson",
-          estimatedTotalAmt: "500000",
-          fundsObligatedAmt: "400000",
-          startDate: "09/01/2021",
-          expDate: "08/31/2024",
-          abstractText: "This is a test abstract for the award.",
-          primaryProgram: "Computer Science",
-          poName: "Program Officer Name",
-          ueiNumber: "TEST123456789"
-        }]
-      }
+        award: [
+          {
+            id: "2138259",
+            title: "Test Award Title",
+            awardeeName: "Test University",
+            piFirstName: "John",
+            piLastName: "Doe",
+            coPDPI: "Jane Smith; Bob Johnson",
+            estimatedTotalAmt: "500000",
+            fundsObligatedAmt: "400000",
+            startDate: "09/01/2021",
+            expDate: "08/31/2024",
+            abstractText: "This is a test abstract for the award.",
+            primaryProgram: "Computer Science",
+            poName: "Program Officer Name",
+            ueiNumber: "TEST123456789",
+          },
+        ],
+      },
     };
 
     it("should fetch individual NSF award successfully", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => mockAwardResponse
+        json: async () => mockAwardResponse,
       });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { id: "2138259" }
-        }
+          arguments: { id: "2138259" },
+        },
       });
 
       expect(result.content).toHaveLength(1);
@@ -101,14 +103,14 @@ describe("NSFAwardsServer", () => {
     it("should handle award not found", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ response: { award: [] } })
+        json: async () => ({ response: { award: [] } }),
       });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { id: "9999999" }
-        }
+          arguments: { id: "9999999" },
+        },
       });
 
       expect(result).toHaveProperty("isError", true);
@@ -121,14 +123,14 @@ describe("NSFAwardsServer", () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
         status: 500,
-        statusText: "Internal Server Error"
+        statusText: "Internal Server Error",
       });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { id: "2138259" }
-        }
+          arguments: { id: "2138259" },
+        },
       });
 
       expect(result).toHaveProperty("isError", true);
@@ -150,7 +152,7 @@ describe("NSFAwardsServer", () => {
             estimatedTotalAmt: "500000",
             startDate: "09/01/2021",
             expDate: "08/31/2024",
-            primaryProgram: "Computer Science"
+            primaryProgram: "Computer Science",
           },
           {
             id: "1234567",
@@ -161,23 +163,23 @@ describe("NSFAwardsServer", () => {
             estimatedTotalAmt: "750000",
             startDate: "01/01/2022",
             expDate: "12/31/2025",
-            primaryProgram: "Mathematics"
-          }
-        ]
-      }
+            primaryProgram: "Mathematics",
+          },
+        ],
+      },
     };
 
     it("should search awards by PI successfully", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => mockPISearchResponse
+        json: async () => mockPISearchResponse,
       });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { pi: "John Smith", limit: 10 }
-        }
+          arguments: { pi: "John Smith", limit: 10 },
+        },
       });
 
       expect(result.content).toHaveLength(1);
@@ -193,22 +195,22 @@ describe("NSFAwardsServer", () => {
       mockFetch
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ response: { award: [] } })
+          json: async () => ({ response: { award: [] } }),
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ response: { award: [] } })
+          json: async () => ({ response: { award: [] } }),
         })
         .mockResolvedValueOnce({
           ok: true,
-          json: async () => ({ response: { award: [] } })
+          json: async () => ({ response: { award: [] } }),
         });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { pi: "NonExistent Person" }
-        }
+          arguments: { pi: "NonExistent Person" },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -220,14 +222,14 @@ describe("NSFAwardsServer", () => {
     it("should respect limit parameter", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => mockPISearchResponse
+        json: async () => mockPISearchResponse,
       });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { pi: "John Smith", limit: 1 }
-        }
+          arguments: { pi: "John Smith", limit: 1 },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -242,26 +244,28 @@ describe("NSFAwardsServer", () => {
     it("should search awards by institution", async () => {
       const mockInstitutionResponse = {
         response: {
-          award: [{
-            id: "1111111",
-            title: "PI Award",
-            awardeeName: "Stanford University",
-            piFirstName: "Jane",
-            piLastName: "Doe"
-          }]
-        }
+          award: [
+            {
+              id: "1111111",
+              title: "PI Award",
+              awardeeName: "Stanford University",
+              piFirstName: "Jane",
+              piLastName: "Doe",
+            },
+          ],
+        },
       };
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => mockInstitutionResponse
+        json: async () => mockInstitutionResponse,
       });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { institution: "Stanford University" }
-        }
+          arguments: { institution: "Stanford University" },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -275,27 +279,29 @@ describe("NSFAwardsServer", () => {
     it("should search awards by keywords", async () => {
       const mockKeywordResponse = {
         response: {
-          award: [{
-            id: "2222222",
-            title: "Machine Learning Research",
-            awardeeName: "MIT",
-            piFirstName: "AI",
-            piLastName: "Researcher",
-            abstractText: "This project focuses on machine learning algorithms..."
-          }]
-        }
+          award: [
+            {
+              id: "2222222",
+              title: "Machine Learning Research",
+              awardeeName: "MIT",
+              piFirstName: "AI",
+              piLastName: "Researcher",
+              abstractText: "This project focuses on machine learning algorithms...",
+            },
+          ],
+        },
       };
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => mockKeywordResponse
+        json: async () => mockKeywordResponse,
       });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { query: "machine learning" }
-        }
+          arguments: { query: "machine learning" },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -321,7 +327,7 @@ describe("NSFAwardsServer", () => {
         abstractText: "Test abstract",
         primaryProgram: "Test Program",
         poName: "Test Officer",
-        ueiNumber: "TEST123"
+        ueiNumber: "TEST123",
       };
 
       const parsed = server["parseNSFAward"](rawAward);
@@ -339,7 +345,7 @@ describe("NSFAwardsServer", () => {
 
     it("should handle missing fields gracefully", async () => {
       const rawAward = {
-        id: "1234567"
+        id: "1234567",
         // Most fields missing
       };
 
@@ -361,8 +367,8 @@ describe("NSFAwardsServer", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { id: "1234567" }
-        }
+          arguments: { id: "1234567" },
+        },
       });
 
       expect(result).toHaveProperty("isError", true);
@@ -374,14 +380,14 @@ describe("NSFAwardsServer", () => {
       mockFetch.mockClear();
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ invalid: "response" })
+        json: async () => ({ invalid: "response" }),
       });
 
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: { id: "1234567" }
-        }
+          arguments: { id: "1234567" },
+        },
       });
 
       expect(result).toHaveProperty("isError", true);
@@ -394,8 +400,8 @@ describe("NSFAwardsServer", () => {
       const result = await server["handleToolCall"]({
         params: {
           name: "search_nsf_awards",
-          arguments: {}
-        }
+          arguments: {},
+        },
       });
 
       expect(result).toHaveProperty("isError", true);
@@ -421,7 +427,7 @@ describe("NSFAwardsServer", () => {
           abstractText: "Test abstract",
           primaryProgram: "Test Program",
           poName: "Test Officer",
-          ueiNumber: "123456"
+          ueiNumber: "123456",
         },
         {
           id: "2",
@@ -436,13 +442,13 @@ describe("NSFAwardsServer", () => {
           abstractText: "Collaborative project",
           primaryProgram: "Test Program",
           poName: "Test Officer",
-          ueiNumber: "789012"
-        }
+          ueiNumber: "789012",
+        },
       ];
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ response: { award: mockAwards } })
+        json: async () => ({ response: { award: mockAwards } }),
       });
 
       const result = await server["handleToolCall"]({
@@ -451,9 +457,9 @@ describe("NSFAwardsServer", () => {
           arguments: {
             institution: "University of Chicago",
             primary_only: true,
-            limit: 10
-          }
-        }
+            limit: 10,
+          },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -479,7 +485,7 @@ describe("NSFAwardsServer", () => {
           abstractText: "Test abstract",
           primaryProgram: "Test Program",
           poName: "Test Officer",
-          ueiNumber: "123456"
+          ueiNumber: "123456",
         },
         {
           id: "2",
@@ -494,13 +500,13 @@ describe("NSFAwardsServer", () => {
           abstractText: "Collaborative project",
           primaryProgram: "Test Program",
           poName: "Test Officer",
-          ueiNumber: "789012"
-        }
+          ueiNumber: "789012",
+        },
       ];
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ response: { award: mockAwards } })
+        json: async () => ({ response: { award: mockAwards } }),
       });
 
       const result = await server["handleToolCall"]({
@@ -509,9 +515,9 @@ describe("NSFAwardsServer", () => {
           arguments: {
             institution: "University of Chicago",
             primary_only: false,
-            limit: 10
-          }
-        }
+            limit: 10,
+          },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);
@@ -536,13 +542,13 @@ describe("NSFAwardsServer", () => {
           abstractText: "Test abstract",
           primaryProgram: "Test Program",
           poName: "Test Officer",
-          ueiNumber: "123456"
-        }
+          ueiNumber: "123456",
+        },
       ];
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ response: { award: mockAwards } })
+        json: async () => ({ response: { award: mockAwards } }),
       });
 
       const result = await server["handleToolCall"]({
@@ -551,9 +557,9 @@ describe("NSFAwardsServer", () => {
           arguments: {
             institution: "University of Chicago",
             primary_only: true,
-            limit: 10
-          }
-        }
+            limit: 10,
+          },
+        },
       });
 
       const response = JSON.parse(result.content[0].text);

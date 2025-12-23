@@ -9,24 +9,24 @@
  * 3. Document the issue for ACCESS-CI team
  */
 
-import axios from 'axios';
+import axios from "axios";
 
-const API_BASE = 'https://operations-api.access-ci.org';
+const API_BASE = "https://operations-api.access-ci.org";
 
 async function investigateOrganizationAPI() {
-  console.log('🔬 Investigating ACCESS-CI Organization API Endpoints\n');
-  console.log('═'.repeat(80) + '\n');
+  console.log("🔬 Investigating ACCESS-CI Organization API Endpoints\n");
+  console.log("═".repeat(80) + "\n");
 
   // Test 1: Organizations endpoint (active-groups pattern)
-  console.log('TEST 1: Active Groups - Organizations\n');
-  console.log('Endpoint: /wh2/cider/v1/access-active-groups/type/organizations.access-ci.org/\n');
+  console.log("TEST 1: Active Groups - Organizations\n");
+  console.log("Endpoint: /wh2/cider/v1/access-active-groups/type/organizations.access-ci.org/\n");
 
   try {
     const response = await axios.get(
       `${API_BASE}/wh2/cider/v1/access-active-groups/type/organizations.access-ci.org/`,
       {
         timeout: 10000,
-        validateStatus: () => true // Accept any status
+        validateStatus: () => true, // Accept any status
       }
     );
 
@@ -46,11 +46,11 @@ async function investigateOrganizationAPI() {
     console.log(`❌ Error: ${error.message}`);
   }
 
-  console.log('\n' + '═'.repeat(80) + '\n');
+  console.log("\n" + "═".repeat(80) + "\n");
 
   // Test 2: Individual organization lookup
-  console.log('TEST 2: Individual Organization Lookup\n');
-  console.log('Endpoint: /wh2/cider/v1/access-active/info_groupid/{orgId}/?format=json\n');
+  console.log("TEST 2: Individual Organization Lookup\n");
+  console.log("Endpoint: /wh2/cider/v1/access-active/info_groupid/{orgId}/?format=json\n");
 
   const testOrgIds = [844, 856, 2058];
 
@@ -61,7 +61,7 @@ async function investigateOrganizationAPI() {
         `${API_BASE}/wh2/cider/v1/access-active/info_groupid/${orgId}/?format=json`,
         {
           timeout: 5000,
-          validateStatus: () => true
+          validateStatus: () => true,
         }
       );
 
@@ -70,18 +70,20 @@ async function investigateOrganizationAPI() {
         console.log(`  Error: ${response.statusText}`);
         console.log(`  Response: ${JSON.stringify(response.data).substring(0, 200)}`);
       } else {
-        console.log(`  Success! Data keys: ${Object.keys(response.data).join(', ')}`);
+        console.log(`  Success! Data keys: ${Object.keys(response.data).join(", ")}`);
       }
     } catch (error) {
       console.log(`  ❌ Error: ${error.message}`);
     }
   }
 
-  console.log('\n' + '═'.repeat(80) + '\n');
+  console.log("\n" + "═".repeat(80) + "\n");
 
   // Test 3: Check what's in the actual compute resources response
-  console.log('TEST 3: Analyze Compute Resources Response\n');
-  console.log('Endpoint: /wh2/cider/v1/access-active-groups/type/resource-catalog.access-ci.org/\n');
+  console.log("TEST 3: Analyze Compute Resources Response\n");
+  console.log(
+    "Endpoint: /wh2/cider/v1/access-active-groups/type/resource-catalog.access-ci.org/\n"
+  );
 
   try {
     const response = await axios.get(
@@ -94,22 +96,23 @@ async function investigateOrganizationAPI() {
 
     if (resources.length > 0) {
       const sample = resources[0];
-      console.log('Sample Resource - All Fields:');
+      console.log("Sample Resource - All Fields:");
       console.log(JSON.stringify(sample, null, 2).substring(0, 1000));
 
-      console.log('\n\nOrganization-Related Fields:');
-      const orgFields = Object.keys(sample).filter(key =>
-        key.toLowerCase().includes('org') ||
-        key.toLowerCase().includes('institution') ||
-        key.toLowerCase().includes('provider')
+      console.log("\n\nOrganization-Related Fields:");
+      const orgFields = Object.keys(sample).filter(
+        (key) =>
+          key.toLowerCase().includes("org") ||
+          key.toLowerCase().includes("institution") ||
+          key.toLowerCase().includes("provider")
       );
 
-      orgFields.forEach(field => {
+      orgFields.forEach((field) => {
         console.log(`  ${field}: ${JSON.stringify(sample[field])}`);
       });
 
       // Check if any resource has organization names (not IDs)
-      console.log('\n\nSearching for resources with organization names...');
+      console.log("\n\nSearching for resources with organization names...");
       let foundOrgNames = false;
 
       for (const resource of resources.slice(0, 10)) {
@@ -119,14 +122,14 @@ async function investigateOrganizationAPI() {
 
           // Check various possible fields
           const possibleNameFields = [
-            'organization_names',
-            'rollup_organization_names',
-            'provider_names',
-            'institution_names',
-            'organization_descriptive_names'
+            "organization_names",
+            "rollup_organization_names",
+            "provider_names",
+            "institution_names",
+            "organization_descriptive_names",
           ];
 
-          possibleNameFields.forEach(field => {
+          possibleNameFields.forEach((field) => {
             if (resource[field]) {
               console.log(`  ${field}: ${JSON.stringify(resource[field])}`);
               foundOrgNames = true;
@@ -136,46 +139,43 @@ async function investigateOrganizationAPI() {
       }
 
       if (!foundOrgNames) {
-        console.log('  ❌ No organization name fields found in any resource');
+        console.log("  ❌ No organization name fields found in any resource");
       }
     }
   } catch (error) {
     console.log(`❌ Error: ${error.message}`);
   }
 
-  console.log('\n' + '═'.repeat(80) + '\n');
+  console.log("\n" + "═".repeat(80) + "\n");
 
   // Test 4: Try alternative endpoint patterns
-  console.log('TEST 4: Alternative Endpoint Patterns\n');
+  console.log("TEST 4: Alternative Endpoint Patterns\n");
 
   const alternativeEndpoints = [
-    '/wh2/cider/v1/organizations/',
-    '/wh2/cider/v1/info-groups/type/organizations/',
-    '/wh2/cider/v1/access-active/organizations/',
-    '/wh2/glue2/v1/organizations/',
-    '/wh2/cider/v1/resource-providers/',
+    "/wh2/cider/v1/organizations/",
+    "/wh2/cider/v1/info-groups/type/organizations/",
+    "/wh2/cider/v1/access-active/organizations/",
+    "/wh2/glue2/v1/organizations/",
+    "/wh2/cider/v1/resource-providers/",
   ];
 
   for (const endpoint of alternativeEndpoints) {
     console.log(`\nTrying: ${endpoint}`);
     try {
-      const response = await axios.get(
-        `${API_BASE}${endpoint}`,
-        {
-          timeout: 5000,
-          validateStatus: () => true
-        }
-      );
+      const response = await axios.get(`${API_BASE}${endpoint}`, {
+        timeout: 5000,
+        validateStatus: () => true,
+      });
 
       console.log(`  Status: ${response.status}`);
 
       if (response.status === 200) {
         console.log(`  ✓ Success!`);
         const dataKeys = Object.keys(response.data);
-        console.log(`  Response keys: ${dataKeys.join(', ')}`);
+        console.log(`  Response keys: ${dataKeys.join(", ")}`);
 
         if (response.data.results) {
-          console.log(`  Results count: ${response.data.results.length || 'N/A'}`);
+          console.log(`  Results count: ${response.data.results.length || "N/A"}`);
         }
       } else if (response.status === 404) {
         console.log(`  ✗ Not Found`);
@@ -187,32 +187,24 @@ async function investigateOrganizationAPI() {
     }
   }
 
-  console.log('\n' + '═'.repeat(80) + '\n');
+  console.log("\n" + "═".repeat(80) + "\n");
 
   // Test 5: Check API documentation endpoint
-  console.log('TEST 5: API Documentation/Schema\n');
+  console.log("TEST 5: API Documentation/Schema\n");
 
-  const docsEndpoints = [
-    '/wh2/cider/v1/',
-    '/wh2/',
-    '/docs/',
-    '/api/',
-  ];
+  const docsEndpoints = ["/wh2/cider/v1/", "/wh2/", "/docs/", "/api/"];
 
   for (const endpoint of docsEndpoints) {
     console.log(`\nTrying: ${endpoint}`);
     try {
-      const response = await axios.get(
-        `${API_BASE}${endpoint}`,
-        {
-          timeout: 5000,
-          validateStatus: () => true,
-          maxRedirects: 0
-        }
-      );
+      const response = await axios.get(`${API_BASE}${endpoint}`, {
+        timeout: 5000,
+        validateStatus: () => true,
+        maxRedirects: 0,
+      });
 
       if (response.status === 200) {
-        console.log(`  ✓ Success! (Content length: ${response.data.length || 'N/A'})`);
+        console.log(`  ✓ Success! (Content length: ${response.data.length || "N/A"})`);
       } else {
         console.log(`  Status: ${response.status}`);
       }
@@ -225,8 +217,8 @@ async function investigateOrganizationAPI() {
     }
   }
 
-  console.log('\n' + '═'.repeat(80) + '\n');
-  console.log('Investigation Complete\n');
+  console.log("\n" + "═".repeat(80) + "\n");
+  console.log("Investigation Complete\n");
 }
 
 // Run the investigation

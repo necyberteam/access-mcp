@@ -21,26 +21,26 @@ describe("Software Discovery Integration Tests", () => {
       const tools = server["getTools"]();
 
       // search_software tool
-      const searchSoftwareTool = tools.find(t => t.name === "search_software");
+      const searchSoftwareTool = tools.find((t) => t.name === "search_software");
       expect(searchSoftwareTool).toBeDefined();
       expect(searchSoftwareTool?.description).toContain("Search software");
       expect(searchSoftwareTool?.description).toContain("fuzzy matching");
       expect(searchSoftwareTool?.inputSchema?.examples).toBeDefined();
 
       // list_all_software tool
-      const listAllTool = tools.find(t => t.name === "list_all_software");
+      const listAllTool = tools.find((t) => t.name === "list_all_software");
       expect(listAllTool).toBeDefined();
       expect(listAllTool?.description).toContain("List all");
       expect(listAllTool?.inputSchema?.examples).toBeDefined();
 
       // get_software_details tool
-      const detailsTool = tools.find(t => t.name === "get_software_details");
+      const detailsTool = tools.find((t) => t.name === "get_software_details");
       expect(detailsTool).toBeDefined();
       expect(detailsTool?.inputSchema?.required).toContain("software_name");
       expect(detailsTool?.inputSchema?.examples).toBeDefined();
 
       // compare_software_availability tool
-      const compareTool = tools.find(t => t.name === "compare_software_availability");
+      const compareTool = tools.find((t) => t.name === "compare_software_availability");
       expect(compareTool).toBeDefined();
       expect(compareTool?.inputSchema?.required).toContain("software_names");
       expect(compareTool?.inputSchema?.examples).toBeDefined();
@@ -51,7 +51,7 @@ describe("Software Discovery Integration Tests", () => {
     it("should search for software with fuzzy matching", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -69,7 +69,7 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
@@ -85,18 +85,18 @@ describe("Software Discovery Integration Tests", () => {
         expect(software).toHaveProperty("available_on_resources");
         expect(Array.isArray(software.available_on_resources)).toBe(true);
 
-        console.log('✅ Search software test passed');
+        console.log("✅ Search software test passed");
         console.log(`   Query: python`);
         console.log(`   Results: ${responseData.total}`);
         console.log(`   First result: ${software.name}`);
-        console.log(`   Available on: ${software.available_on_resources.join(', ')}`);
+        console.log(`   Available on: ${software.available_on_resources.join(", ")}`);
       }
     }, 15000);
 
     it("should search with resource filter", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -115,14 +115,14 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
       expect(responseData).toHaveProperty("resource_filter");
       expect(responseData.resource_filter).toBe("anvil");
 
-      console.log('✅ Resource filter test passed');
+      console.log("✅ Resource filter test passed");
       console.log(`   Resource filter: ${responseData.resource_filter}`);
       console.log(`   Results: ${responseData.total}`);
     }, 15000);
@@ -130,7 +130,7 @@ describe("Software Discovery Integration Tests", () => {
     it("should include AI metadata in search results", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -148,7 +148,7 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
@@ -156,15 +156,15 @@ describe("Software Discovery Integration Tests", () => {
         const software = responseData.items[0];
 
         expect(software.ai_metadata).toBeDefined();
-        expect(software.ai_metadata).toHaveProperty('description');
-        expect(software.ai_metadata).toHaveProperty('tags');
-        expect(software.ai_metadata).toHaveProperty('research_area');
-        expect(software.ai_metadata).toHaveProperty('software_type');
-        expect(software.ai_metadata).toHaveProperty('software_class');
+        expect(software.ai_metadata).toHaveProperty("description");
+        expect(software.ai_metadata).toHaveProperty("tags");
+        expect(software.ai_metadata).toHaveProperty("research_area");
+        expect(software.ai_metadata).toHaveProperty("software_type");
+        expect(software.ai_metadata).toHaveProperty("software_class");
 
         expect(Array.isArray(software.ai_metadata.tags)).toBe(true);
 
-        console.log('✅ AI metadata test passed');
+        console.log("✅ AI metadata test passed");
         console.log(`   Tags: ${JSON.stringify(software.ai_metadata.tags)}`);
         console.log(`   Research Area: ${software.ai_metadata.research_area}`);
         console.log(`   Software Type: ${software.ai_metadata.software_type}`);
@@ -174,7 +174,7 @@ describe("Software Discovery Integration Tests", () => {
     it("should list all software without query", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -191,7 +191,7 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
@@ -201,7 +201,7 @@ describe("Software Discovery Integration Tests", () => {
       expect(Array.isArray(responseData.items)).toBe(true);
       expect(responseData.items.length).toBeLessThanOrEqual(10);
 
-      console.log('✅ List all software test passed');
+      console.log("✅ List all software test passed");
       console.log(`   Total: ${responseData.total}`);
       console.log(`   Returned: ${responseData.items.length}`);
     }, 15000);
@@ -209,7 +209,7 @@ describe("Software Discovery Integration Tests", () => {
     it("should list software for a specific resource", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -227,13 +227,13 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
       expect(responseData.resource_filter).toBe("delta");
 
-      console.log('✅ List software by resource test passed');
+      console.log("✅ List software by resource test passed");
       console.log(`   Resource: ${responseData.resource_filter}`);
       console.log(`   Results: ${responseData.total}`);
     }, 15000);
@@ -241,7 +241,7 @@ describe("Software Discovery Integration Tests", () => {
     it("should get software details", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -258,7 +258,7 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
@@ -271,9 +271,11 @@ describe("Software Discovery Integration Tests", () => {
         expect(responseData.details.available_on_resources).toBeDefined();
         expect(responseData.details.ai_metadata).toBeDefined();
 
-        console.log('✅ Get software details test passed');
+        console.log("✅ Get software details test passed");
         console.log(`   Software: ${responseData.details.name}`);
-        console.log(`   Available on: ${responseData.details.available_on_resources.length} resources`);
+        console.log(
+          `   Available on: ${responseData.details.available_on_resources.length} resources`
+        );
         if (responseData.other_matches) {
           console.log(`   Other matches: ${responseData.other_matches.length}`);
         }
@@ -283,7 +285,7 @@ describe("Software Discovery Integration Tests", () => {
     it("should compare software availability", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -300,7 +302,7 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
@@ -317,18 +319,20 @@ describe("Software Discovery Integration Tests", () => {
         expect(c).toHaveProperty("resource_count");
       });
 
-      console.log('✅ Compare software availability test passed');
-      console.log(`   Requested: ${responseData.requested_software.join(', ')}`);
-      console.log(`   Found: ${responseData.summary.software_found}/${responseData.summary.total_software_requested}`);
+      console.log("✅ Compare software availability test passed");
+      console.log(`   Requested: ${responseData.requested_software.join(", ")}`);
+      console.log(
+        `   Found: ${responseData.summary.software_found}/${responseData.summary.total_software_requested}`
+      );
       responseData.comparison.forEach((c: SoftwareComparisonResult) => {
-        console.log(`   ${c.software}: ${c.found ? c.resource_count + ' resources' : 'not found'}`);
+        console.log(`   ${c.software}: ${c.found ? c.resource_count + " resources" : "not found"}`);
       });
     }, 15000);
 
     it("should compare software on specific resources", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -346,20 +350,20 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
       expect(responseData.requested_resources).toEqual(["anvil", "delta"]);
 
-      console.log('✅ Compare with resource filter test passed');
+      console.log("✅ Compare with resource filter test passed");
       console.log(`   Resources: ${JSON.stringify(responseData.requested_resources)}`);
     }, 15000);
 
     it("should include versions by resource in results", async () => {
       const apiKey = process.env.SDS_API_KEY || process.env.VITE_SDS_API_KEY;
       if (!apiKey) {
-        console.log('Skipping integration test - no API key available');
+        console.log("Skipping integration test - no API key available");
         return;
       }
 
@@ -377,7 +381,7 @@ describe("Software Discovery Integration Tests", () => {
       const responseData = JSON.parse((result.content[0] as TextContent).text);
 
       if (responseData.error) {
-        console.log('API error, skipping validation:', responseData.error);
+        console.log("API error, skipping validation:", responseData.error);
         return;
       }
 
@@ -389,11 +393,11 @@ describe("Software Discovery Integration Tests", () => {
 
         if (software.versions_by_resource) {
           expect(typeof software.versions_by_resource).toBe("object");
-          console.log('✅ Versions by resource test passed');
-          console.log(`   Versions: ${software.versions.join(', ')}`);
+          console.log("✅ Versions by resource test passed");
+          console.log(`   Versions: ${software.versions.join(", ")}`);
           console.log(`   Versions by resource: ${JSON.stringify(software.versions_by_resource)}`);
         } else {
-          console.log('ℹ️  No versions_by_resource data available');
+          console.log("ℹ️  No versions_by_resource data available");
         }
       }
     }, 15000);

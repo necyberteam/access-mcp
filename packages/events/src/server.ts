@@ -1,5 +1,15 @@
-import { BaseAccessServer, handleApiError, Tool, Resource, CallToolResult } from "@access-mcp/shared";
-import { CallToolRequest, ReadResourceRequest, ReadResourceResult } from "@modelcontextprotocol/sdk/types.js";
+import {
+  BaseAccessServer,
+  handleApiError,
+  Tool,
+  Resource,
+  CallToolResult,
+} from "@access-mcp/shared";
+import {
+  CallToolRequest,
+  ReadResourceRequest,
+  ReadResourceResult,
+} from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -55,40 +65,41 @@ export class EventsServer extends BaseAccessServer {
     return [
       {
         name: "search_events",
-        description: "Search ACCESS-CI events (workshops, webinars, training). Returns {total, items}.",
+        description:
+          "Search ACCESS-CI events (workshops, webinars, training). Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Search titles, descriptions, speakers, tags"
+              description: "Search titles, descriptions, speakers, tags",
             },
             type: {
               type: "string",
-              description: "Filter: workshop, webinar, training"
+              description: "Filter: workshop, webinar, training",
             },
             tags: {
               type: "string",
-              description: "Filter: python, gpu, hpc, ml"
+              description: "Filter: python, gpu, hpc, ml",
             },
             date: {
               type: "string",
               description: "Filter by time period",
-              enum: ["today", "upcoming", "past", "this_week", "this_month"]
+              enum: ["today", "upcoming", "past", "this_week", "this_month"],
             },
             skill: {
               type: "string",
               description: "Skill level filter",
-              enum: ["beginner", "intermediate", "advanced"]
+              enum: ["beginner", "intermediate", "advanced"],
             },
             limit: {
               type: "number",
               description: "Max results (default: 50)",
-              default: 50
-            }
-          }
-        }
-      }
+              default: 50,
+            },
+          },
+        },
+      },
     ];
   }
 
@@ -97,8 +108,7 @@ export class EventsServer extends BaseAccessServer {
       {
         uri: "accessci://events",
         name: "ACCESS-CI Events",
-        description:
-          "Comprehensive events data including workshops, webinars, and training",
+        description: "Comprehensive events data including workshops, webinars, and training",
         mimeType: "application/json",
       },
       {
@@ -187,12 +197,12 @@ export class EventsServer extends BaseAccessServer {
     }
 
     // Map universal 'date' to API params
-    const dateMap: Record<string, {start: string, end?: string}> = {
-      today: {start: "today"},
-      upcoming: {start: "today"},
-      past: {start: "-1year", end: "today"},
-      this_week: {start: "today", end: "+1week"},
-      this_month: {start: "today", end: "+1month"}
+    const dateMap: Record<string, { start: string; end?: string }> = {
+      today: { start: "today" },
+      upcoming: { start: "today" },
+      past: { start: "-1year", end: "today" },
+      this_week: { start: "today", end: "+1week" },
+      this_month: { start: "today", end: "+1month" },
     };
 
     if (params.date && dateMap[params.date]) {
@@ -238,19 +248,27 @@ export class EventsServer extends BaseAccessServer {
       ...event,
       tags: Array.isArray(event.tags) ? event.tags : [],
       duration_hours: event.end_date
-        ? Math.round((new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) / 3600000)
+        ? Math.round(
+            (new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) /
+              3600000
+          )
         : null,
-      starts_in_hours: Math.max(0, Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000))
+      starts_in_hours: Math.max(
+        0,
+        Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000)
+      ),
     }));
 
     return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          total: enhancedEvents.length,
-          items: enhancedEvents
-        })
-      }]
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            total: enhancedEvents.length,
+            items: enhancedEvents,
+          }),
+        },
+      ],
     };
   }
 

@@ -19,7 +19,7 @@ export class DrupalAuthProvider {
   constructor(
     private baseUrl: string,
     private username: string,
-    private password: string,
+    private password: string
   ) {
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
@@ -87,10 +87,10 @@ export class DrupalAuthProvider {
     }
 
     return {
-      "Cookie": this.sessionCookie,
+      Cookie: this.sessionCookie,
       "X-CSRF-Token": this.csrfToken,
       "Content-Type": "application/vnd.api+json",
-      "Accept": "application/vnd.api+json",
+      Accept: "application/vnd.api+json",
     };
   }
 

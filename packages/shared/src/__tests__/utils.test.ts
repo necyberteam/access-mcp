@@ -12,7 +12,9 @@ describe("Utils", () => {
     });
 
     test("should throw error for empty string", () => {
-      expect(() => sanitizeGroupId("")).toThrow("groupId parameter is required and cannot be null or undefined");
+      expect(() => sanitizeGroupId("")).toThrow(
+        "groupId parameter is required and cannot be null or undefined"
+      );
     });
   });
 

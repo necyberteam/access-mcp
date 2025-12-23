@@ -25,8 +25,7 @@ export function startWebServer(port: number = 3000) {
         },
         {
           name: "get_compute_resource",
-          description:
-            "Get detailed information about a specific compute resource",
+          description: "Get detailed information about a specific compute resource",
         },
         {
           name: "get_resource_hardware",
@@ -41,8 +40,7 @@ export function startWebServer(port: number = 3000) {
         {
           uri: "accessci://compute-resources",
           name: "ACCESS-CI Compute Resources",
-          description:
-            "Information about ACCESS-CI compute resources, hardware, and software",
+          description: "Information about ACCESS-CI compute resources, hardware, and software",
         },
       ],
     });
@@ -50,8 +48,6 @@ export function startWebServer(port: number = 3000) {
 
   // Start server
   app.listen(port, () => {
-    console.log(
-      `ACCESS-CI Compute Resources web server running on port ${port}`,
-    );
+    console.log(`ACCESS-CI Compute Resources web server running on port ${port}`);
   });
 }

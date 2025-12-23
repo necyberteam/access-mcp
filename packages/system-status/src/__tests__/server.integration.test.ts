@@ -36,8 +36,8 @@ describe("SystemStatusServer Integration Tests", () => {
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
-          arguments: { time: "current", limit: 5 }
-        }
+          arguments: { time: "current", limit: 5 },
+        },
       });
 
       const content = result.content[0] as TextContent;
@@ -64,8 +64,9 @@ describe("SystemStatusServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: {
-          name: "get_infrastructure_news", arguments: { time: "scheduled", limit: 5 }
-        }
+          name: "get_infrastructure_news",
+          arguments: { time: "scheduled", limit: 5 },
+        },
       });
 
       const content = result.content[0] as TextContent;
@@ -81,8 +82,8 @@ describe("SystemStatusServer Integration Tests", () => {
         const maintenance = responseData.maintenance[0];
         expect(maintenance).toHaveProperty("hours_until_start");
         expect(maintenance).toHaveProperty("has_scheduled_time");
-        expect(maintenance.hours_until_start).toSatisfy((val: unknown) =>
-          val === null || typeof val === "number"
+        expect(maintenance.hours_until_start).toSatisfy(
+          (val: unknown) => val === null || typeof val === "number"
         );
       }
     }, 10000);
@@ -91,8 +92,9 @@ describe("SystemStatusServer Integration Tests", () => {
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: {
-          name: "get_infrastructure_news", arguments: { time: "past", limit: 5 }
-        }
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 5 },
+        },
       });
 
       const content = result.content[0] as TextContent;
@@ -110,8 +112,8 @@ describe("SystemStatusServer Integration Tests", () => {
         expect(outage).toHaveProperty("duration_hours");
         expect(outage).toHaveProperty("days_ago");
         expect(outage).toHaveProperty("outage_type");
-        expect(outage.days_ago).toSatisfy((val: unknown) =>
-          val === null || typeof val === "number"
+        expect(outage.days_ago).toSatisfy(
+          (val: unknown) => val === null || typeof val === "number"
         );
       }
     }, 10000);
@@ -121,8 +123,8 @@ describe("SystemStatusServer Integration Tests", () => {
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
-          arguments: { time: "all", limit: 20 }
-        }
+          arguments: { time: "all", limit: 20 },
+        },
       });
 
       const content = result.content[0] as TextContent;
@@ -153,9 +155,9 @@ describe("SystemStatusServer Integration Tests", () => {
           name: "get_infrastructure_news",
           arguments: {
             ids: ["anvil", "bridges", "jetstream"],
-            use_group_api: false
-          }
-        }
+            use_group_api: false,
+          },
+        },
       });
 
       const content = result.content[0] as TextContent;
@@ -186,9 +188,9 @@ describe("SystemStatusServer Integration Tests", () => {
           name: "get_infrastructure_news",
           arguments: {
             ids: ["anvil"],
-            use_group_api: true
-          }
-        }
+            use_group_api: true,
+          },
+        },
       });
 
       const content = result.content[0] as TextContent;
@@ -220,8 +222,8 @@ describe("SystemStatusServer Integration Tests", () => {
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
-          arguments: { time: "current", query: "anvil" }
-        }
+          arguments: { time: "current", query: "anvil" },
+        },
       });
 
       const content = result.content[0] as TextContent;
@@ -233,9 +235,10 @@ describe("SystemStatusServer Integration Tests", () => {
         responseData.outages.forEach((outage: OutageItem) => {
           const matchesFilter =
             outage.Subject?.toLowerCase().includes("anvil") ||
-            outage.AffectedResources?.some((resource: AffectedResource) =>
-              resource.ResourceName?.toLowerCase().includes("anvil") ||
-              resource.ResourceID?.toString().includes("anvil")
+            outage.AffectedResources?.some(
+              (resource: AffectedResource) =>
+                resource.ResourceName?.toLowerCase().includes("anvil") ||
+                resource.ResourceID?.toString().includes("anvil")
             );
           expect(matchesFilter).toBe(true);
         });
@@ -247,13 +250,13 @@ describe("SystemStatusServer Integration Tests", () => {
         "accessci://system-status",
         "accessci://outages/current",
         "accessci://outages/scheduled",
-        "accessci://outages/past"
+        "accessci://outages/past",
       ];
 
       for (const uri of resources) {
         const result = await server["handleResourceRead"]({
           method: "resources/read",
-          params: { uri }
+          params: { uri },
         });
 
         expect(result.contents).toHaveLength(1);
@@ -276,8 +279,8 @@ describe("SystemStatusServer Integration Tests", () => {
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
-          arguments: { time: "current", query: "nonexistent-resource-xyz-12345" }
-        }
+          arguments: { time: "current", query: "nonexistent-resource-xyz-12345" },
+        },
       });
 
       const content = result.content[0] as TextContent;
@@ -292,8 +295,8 @@ describe("SystemStatusServer Integration Tests", () => {
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
-          arguments: { time: "past", limit: 1000 }
-        }
+          arguments: { time: "past", limit: 1000 },
+        },
       });
 
       const content = result.content[0] as TextContent;

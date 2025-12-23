@@ -23,13 +23,11 @@ export function startWebServer(port: number = 3000) {
       tools: [
         {
           name: "get_current_outages",
-          description:
-            "Get current system outages and issues affecting ACCESS-CI resources",
+          description: "Get current system outages and issues affecting ACCESS-CI resources",
         },
         {
           name: "get_scheduled_maintenance",
-          description:
-            "Get scheduled maintenance and future outages for ACCESS-CI resources",
+          description: "Get scheduled maintenance and future outages for ACCESS-CI resources",
         },
         {
           name: "get_system_announcements",
@@ -37,16 +35,14 @@ export function startWebServer(port: number = 3000) {
         },
         {
           name: "check_resource_status",
-          description:
-            "Check the operational status of specific ACCESS-CI resources",
+          description: "Check the operational status of specific ACCESS-CI resources",
         },
       ],
       resources: [
         {
           uri: "accessci://system-status",
           name: "ACCESS-CI System Status",
-          description:
-            "Real-time status of ACCESS-CI infrastructure, outages, and maintenance",
+          description: "Real-time status of ACCESS-CI infrastructure, outages, and maintenance",
         },
       ],
     });

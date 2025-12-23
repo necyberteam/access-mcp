@@ -35,18 +35,15 @@ export function startWebServer(port: number = 3000) {
       mcp_tools: [
         {
           name: "get_affinity_group",
-          description:
-            "Get information about a specific ACCESS-CI affinity group",
+          description: "Get information about a specific ACCESS-CI affinity group",
         },
         {
           name: "get_affinity_group_events",
-          description:
-            "Get events and trainings for a specific ACCESS-CI affinity group",
+          description: "Get events and trainings for a specific ACCESS-CI affinity group",
         },
         {
           name: "get_affinity_group_kb",
-          description:
-            "Get knowledge base resources for a specific ACCESS-CI affinity group",
+          description: "Get knowledge base resources for a specific ACCESS-CI affinity group",
         },
       ],
     });

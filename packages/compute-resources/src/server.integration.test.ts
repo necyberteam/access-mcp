@@ -25,23 +25,23 @@ describe("ComputeResourcesServer Integration Tests", () => {
     // Check for known major resources
     const resourceNames = responseData.items.map((r: ComputeResource) => r.name?.toLowerCase());
     const knownResources = ["delta", "anvil", "bridges", "jetstream"];
-    const foundKnownResources = knownResources.filter(known =>
-      resourceNames.some(name => name.includes(known))
+    const foundKnownResources = knownResources.filter((known) =>
+      resourceNames.some((name) => name.includes(known))
     );
 
     expect(foundKnownResources.length).toBeGreaterThan(2);
 
     // Verify structure of resources
     const firstResource = responseData.items[0];
-    expect(firstResource).toHaveProperty('id');
-    expect(firstResource).toHaveProperty('name');
-    expect(firstResource).toHaveProperty('description');
-    expect(firstResource).toHaveProperty('resourceIds');
-    expect(firstResource).toHaveProperty('hasGpu');
-    expect(firstResource).toHaveProperty('resourceType');
+    expect(firstResource).toHaveProperty("id");
+    expect(firstResource).toHaveProperty("name");
+    expect(firstResource).toHaveProperty("description");
+    expect(firstResource).toHaveProperty("resourceIds");
+    expect(firstResource).toHaveProperty("hasGpu");
+    expect(firstResource).toHaveProperty("resourceType");
 
     console.log(`✅ Found ${responseData.total} compute resources`);
-    console.log(`   Major resources found: ${foundKnownResources.join(', ')}`);
+    console.log(`   Major resources found: ${foundKnownResources.join(", ")}`);
   }, 10000);
 
   it("should search resources with include_ids for service integration", async () => {
@@ -69,7 +69,7 @@ describe("ComputeResourcesServer Integration Tests", () => {
 
     console.log(`✅ Found ${responseData.total} GPU resources with resource IDs`);
     if (responseData.items.length > 0) {
-      console.log(`   First resource IDs: ${responseData.items[0].resource_ids.join(', ')}`);
+      console.log(`   First resource IDs: ${responseData.items[0].resource_ids.join(", ")}`);
     }
   }, 10000);
 
@@ -94,7 +94,7 @@ describe("ComputeResourcesServer Integration Tests", () => {
       console.log(`✅ Found ${responseData.total} cloud resources`);
       console.log(`   First cloud resource: ${cloudResource.name}`);
     } else {
-      console.log('ℹ️  No cloud resources found in current data');
+      console.log("ℹ️  No cloud resources found in current data");
     }
   }, 10000);
 
@@ -132,7 +132,9 @@ describe("ComputeResourcesServer Integration Tests", () => {
         expect(responseData.results.length).toBeGreaterThan(0);
       } else {
         // Skip test if resource not found (API might not have this specific resource)
-        console.log(`⚠️ Resource ${resourceId} not found or API structure changed, skipping validation`);
+        console.log(
+          `⚠️ Resource ${resourceId} not found or API structure changed, skipping validation`
+        );
         return;
       }
 
@@ -170,12 +172,12 @@ describe("ComputeResourcesServer Integration Tests", () => {
 
       // Step 2: Use any of these IDs with other ACCESS-CI services
       const usableResourceId = resourceIds[0];
-      expect(typeof usableResourceId).toBe('string');
+      expect(typeof usableResourceId).toBe("string");
       expect(usableResourceId).toMatch(/\.access-ci\.org$/); // Should be in ACCESS-CI format
 
-      console.log('✅ Resource Discovery Workflow Demonstrated:');
+      console.log("✅ Resource Discovery Workflow Demonstrated:");
       console.log(`   1. Search found: ${deltaResource.name}`);
-      console.log(`   2. Available resource IDs: ${resourceIds.join(', ')}`);
+      console.log(`   2. Available resource IDs: ${resourceIds.join(", ")}`);
       console.log(`   3. Use "${usableResourceId}" with other ACCESS-CI services`);
     }
   }, 10000);
