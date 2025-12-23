@@ -21,6 +21,7 @@ import {
 import axios, { AxiosInstance } from "axios";
 import express, { Express, Request, Response } from "express";
 import { IncomingMessage, ServerResponse } from "node:http";
+import { createLogger, Logger } from "./logger.js";
 
 // Re-export SDK types for convenience
 export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
@@ -28,6 +29,7 @@ export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPro
 export abstract class BaseAccessServer {
   protected server: Server;
   protected transport: StdioServerTransport;
+  protected logger: Logger;
   private _httpClient?: AxiosInstance;
   private _httpServer?: Express;
   private _httpPort?: number;
@@ -36,8 +38,9 @@ export abstract class BaseAccessServer {
   constructor(
     protected serverName: string,
     protected version: string,
-    protected baseURL: string = "https://support.access-ci.org/api",
+    protected baseURL: string = "https://support.access-ci.org/api"
   ) {
+    this.logger = createLogger(serverName);
     this.server = new Server(
       {
         name: serverName,
@@ -49,7 +52,7 @@ export abstract class BaseAccessServer {
           tools: {},
           prompts: {},
         },
-      },
+      }
     );
 
     this.transport = new StdioServerTransport();
@@ -101,15 +104,14 @@ export abstract class BaseAccessServer {
       try {
         return await this.handleToolCall(request);
       } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error("Error handling tool call:", errorMessage);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error("Error handling tool call", { error: errorMessage });
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify({
-                error: errorMessage
+                error: errorMessage,
               }),
             },
           ],
@@ -118,27 +120,23 @@ export abstract class BaseAccessServer {
       }
     });
 
-    this.server.setRequestHandler(
-      ReadResourceRequestSchema,
-      async (request) => {
-        try {
-          return await this.handleResourceRead(request);
-        } catch (error: unknown) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.error("Error reading resource:", errorMessage);
-          return {
-            contents: [
-              {
-                uri: request.params.uri,
-                mimeType: "text/plain",
-                text: `Error: ${errorMessage}`,
-              },
-            ],
-          };
-        }
-      },
-    );
+    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        return await this.handleResourceRead(request);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error("Error reading resource", { error: errorMessage });
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: "text/plain",
+              text: `Error: ${errorMessage}`,
+            },
+          ],
+        };
+      }
+    });
 
     this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
       try {
@@ -153,9 +151,8 @@ export abstract class BaseAccessServer {
       try {
         return await this.handleGetPrompt(request);
       } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error("Error getting prompt:", errorMessage);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error("Error getting prompt", { error: errorMessage });
         throw error;
       }
     });
@@ -265,7 +262,7 @@ export abstract class BaseAccessServer {
     if (options?.httpPort) {
       this._httpPort = options.httpPort;
       await this.startHttpService();
-      console.log(`${this.serverName} HTTP server running on port ${this._httpPort}`);
+      this.logger.info("HTTP server running", { port: this._httpPort });
     } else {
       // Only connect stdio transport when NOT in HTTP mode
       await this.server.connect(this.transport);
@@ -284,26 +281,26 @@ export abstract class BaseAccessServer {
     this._httpServer.use(express.json());
 
     // Health check endpoint
-    this._httpServer.get('/health', (req: Request, res: Response) => {
+    this._httpServer.get("/health", (req: Request, res: Response) => {
       res.json({
         server: this.serverName,
         version: this.version,
-        status: 'healthy',
-        timestamp: new Date().toISOString()
+        status: "healthy",
+        timestamp: new Date().toISOString(),
       });
     });
 
     // SSE endpoint for MCP remote connections
-    this._httpServer.get('/sse', async (req: Request, res: Response) => {
-      console.log(`[${this.serverName}] New SSE connection`);
+    this._httpServer.get("/sse", async (req: Request, res: Response) => {
+      this.logger.debug("New SSE connection");
 
-      const transport = new SSEServerTransport('/messages', res as unknown as ServerResponse);
+      const transport = new SSEServerTransport("/messages", res as unknown as ServerResponse);
       const sessionId = transport.sessionId;
       this._sseTransports.set(sessionId, transport);
 
       // Clean up on disconnect
-      res.on('close', () => {
-        console.log(`[${this.serverName}] SSE connection closed: ${sessionId}`);
+      res.on("close", () => {
+        this.logger.debug("SSE connection closed", { sessionId });
         this._sseTransports.delete(sessionId);
       });
 
@@ -319,7 +316,7 @@ export abstract class BaseAccessServer {
             tools: {},
             prompts: {},
           },
-        },
+        }
       );
 
       // Set up handlers for the SSE server (same as main server)
@@ -329,12 +326,12 @@ export abstract class BaseAccessServer {
     });
 
     // Messages endpoint for SSE POST messages
-    this._httpServer.post('/messages', async (req: Request, res: Response) => {
+    this._httpServer.post("/messages", async (req: Request, res: Response) => {
       const sessionId = req.query.sessionId as string;
       const transport = this._sseTransports.get(sessionId);
 
       if (!transport) {
-        res.status(404).json({ error: 'Session not found' });
+        res.status(404).json({ error: "Session not found" });
         return;
       }
 
@@ -346,24 +343,24 @@ export abstract class BaseAccessServer {
     });
 
     // List available tools endpoint (for inter-server communication)
-    this._httpServer.get('/tools', (req: Request, res: Response) => {
+    this._httpServer.get("/tools", (req: Request, res: Response) => {
       try {
         const tools = this.getTools();
         res.json({ tools });
       } catch (error) {
-        res.status(500).json({ error: 'Failed to list tools' });
+        res.status(500).json({ error: "Failed to list tools" });
       }
     });
 
     // Tool execution endpoint (for inter-server communication)
-    this._httpServer.post('/tools/:toolName', async (req: Request, res: Response) => {
+    this._httpServer.post("/tools/:toolName", async (req: Request, res: Response) => {
       try {
         const { toolName } = req.params;
         const { arguments: args = {} } = req.body;
 
         // Validate that the tool exists
         const tools = this.getTools();
-        const tool = tools.find(t => t.name === toolName);
+        const tool = tools.find((t) => t.name === toolName);
         if (!tool) {
           res.status(404).json({ error: `Tool '${toolName}' not found` });
           return;
@@ -374,8 +371,8 @@ export abstract class BaseAccessServer {
           method: "tools/call",
           params: {
             name: toolName,
-            arguments: args
-          }
+            arguments: args,
+          },
         };
 
         const result = await this.handleToolCall(request);
@@ -388,9 +385,9 @@ export abstract class BaseAccessServer {
 
     // Start HTTP server
     return new Promise<void>((resolve, reject) => {
-      this._httpServer!.listen(this._httpPort!, '0.0.0.0', () => {
+      this._httpServer!.listen(this._httpPort!, "0.0.0.0", () => {
         resolve();
-      }).on('error', reject);
+      }).on("error", reject);
     });
   }
 
@@ -418,15 +415,14 @@ export abstract class BaseAccessServer {
       try {
         return await this.handleToolCall(request);
       } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error("Error handling tool call:", errorMessage);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error("Error handling tool call", { error: errorMessage });
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify({
-                error: errorMessage
+                error: errorMessage,
               }),
             },
           ],
@@ -435,27 +431,23 @@ export abstract class BaseAccessServer {
       }
     });
 
-    server.setRequestHandler(
-      ReadResourceRequestSchema,
-      async (request) => {
-        try {
-          return await this.handleResourceRead(request);
-        } catch (error: unknown) {
-          const errorMessage =
-            error instanceof Error ? error.message : String(error);
-          console.error("Error reading resource:", errorMessage);
-          return {
-            contents: [
-              {
-                uri: request.params.uri,
-                mimeType: "text/plain",
-                text: `Error: ${errorMessage}`,
-              },
-            ],
-          };
-        }
-      },
-    );
+    server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+      try {
+        return await this.handleResourceRead(request);
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error("Error reading resource", { error: errorMessage });
+        return {
+          contents: [
+            {
+              uri: request.params.uri,
+              mimeType: "text/plain",
+              text: `Error: ${errorMessage}`,
+            },
+          ],
+        };
+      }
+    });
 
     server.setRequestHandler(ListPromptsRequestSchema, async () => {
       try {
@@ -469,9 +461,8 @@ export abstract class BaseAccessServer {
       try {
         return await this.handleGetPrompt(request);
       } catch (error: unknown) {
-        const errorMessage =
-          error instanceof Error ? error.message : String(error);
-        console.error("Error getting prompt:", errorMessage);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        this.logger.error("Error getting prompt", { error: errorMessage });
         throw error;
       }
     });
@@ -487,18 +478,26 @@ export abstract class BaseAccessServer {
   ): Promise<unknown> {
     const serviceUrl = this.getServiceEndpoint(serviceName);
     if (!serviceUrl) {
-      throw new Error(`Service '${serviceName}' not found. Check ACCESS_MCP_SERVICES environment variable.`);
+      throw new Error(
+        `Service '${serviceName}' not found. Check ACCESS_MCP_SERVICES environment variable.`
+      );
     }
 
-    const response = await axios.post(`${serviceUrl}/tools/${toolName}`, {
-      arguments: args
-    }, {
-      timeout: 30000,
-      validateStatus: () => true
-    });
+    const response = await axios.post(
+      `${serviceUrl}/tools/${toolName}`,
+      {
+        arguments: args,
+      },
+      {
+        timeout: 30000,
+        validateStatus: () => true,
+      }
+    );
 
     if (response.status !== 200) {
-      throw new Error(`Remote server call failed: ${response.status} ${response.data?.error || response.statusText}`);
+      throw new Error(
+        `Remote server call failed: ${response.status} ${response.data?.error || response.statusText}`
+      );
     }
 
     return response.data;
@@ -513,8 +512,8 @@ export abstract class BaseAccessServer {
     if (!services) return null;
 
     const serviceMap: Record<string, string> = {};
-    services.split(',').forEach(service => {
-      const [name, url] = service.split('=');
+    services.split(",").forEach((service) => {
+      const [name, url] = service.split("=");
       if (name && url) {
         serviceMap[name.trim()] = url.trim();
       }

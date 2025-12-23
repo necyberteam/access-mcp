@@ -14,9 +14,14 @@
   "references": [
     { "path": "./packages/shared" },
     { "path": "./packages/affinity-groups" },
+    { "path": "./packages/allocations" },
+    { "path": "./packages/announcements" },
     { "path": "./packages/compute-resources" },
+    { "path": "./packages/events" },
+    { "path": "./packages/nsf-awards" },
+    { "path": "./packages/software-discovery" },
     { "path": "./packages/system-status" },
-    { "path": "./packages/software-discovery" }
+    { "path": "./packages/xdmod-charts" }
   ],
   "files": []
 }

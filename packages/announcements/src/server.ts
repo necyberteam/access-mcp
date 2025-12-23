@@ -1,5 +1,17 @@
-import { BaseAccessServer, Tool, Resource, CallToolResult, DrupalAuthProvider } from "@access-mcp/shared";
-import { CallToolRequest, ReadResourceRequest, ReadResourceResult, GetPromptResult, Prompt } from "@modelcontextprotocol/sdk/types.js";
+import {
+  BaseAccessServer,
+  Tool,
+  Resource,
+  CallToolResult,
+  DrupalAuthProvider,
+} from "@access-mcp/shared";
+import {
+  CallToolRequest,
+  ReadResourceRequest,
+  ReadResourceResult,
+  GetPromptResult,
+  Prompt,
+} from "@modelcontextprotocol/sdk/types.js";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
@@ -29,12 +41,12 @@ interface AnnouncementFilters {
 }
 
 interface Announcement {
-  uuid?: string;  // Added in API v2.2 update
+  uuid?: string; // Added in API v2.2 update
   title: string;
   body: string;
   published_date: string;
   affinity_group: string | string[];
-  tags: string | string[];  // API returns comma-separated string, we convert to array
+  tags: string | string[]; // API returns comma-separated string, we convert to array
   affiliation: string;
   summary?: string;
 }
@@ -70,6 +82,66 @@ interface DeleteAnnouncementArgs {
 
 interface GetMyAnnouncementsArgs {
   limit?: number;
+}
+
+// JSON:API request/response types for Drupal
+interface JsonApiRelationshipData {
+  type: string;
+  id: string;
+}
+
+interface JsonApiRelationship {
+  data: JsonApiRelationshipData | JsonApiRelationshipData[];
+}
+
+interface JsonApiBodyField {
+  value: string;
+  format?: string;
+  summary?: string;
+}
+
+interface JsonApiLinkField {
+  uri: string;
+  title?: string;
+}
+
+interface JsonApiRequestAttributes {
+  title?: string;
+  moderation_state?: string;
+  body?: JsonApiBodyField;
+  field_published_date?: string;
+  field_affiliation?: string;
+  field_news_external_link?: JsonApiLinkField;
+  field_where_to_share?: string[];
+  [key: string]: unknown; // Allow additional fields
+}
+
+interface JsonApiRequestBody {
+  data: {
+    type: string;
+    id?: string;
+    attributes: JsonApiRequestAttributes;
+    relationships?: Record<string, JsonApiRelationship>;
+  };
+}
+
+interface JsonApiResourceItem {
+  id: string;
+  type: string;
+  attributes?: {
+    drupal_internal__nid?: number;
+    title?: string;
+    status?: boolean;
+    created?: string;
+    name?: string;
+    field_published_date?: string;
+    field_group_id?: string;
+    field_affinity_group_category?: string;
+    body?: {
+      value?: string;
+      summary?: string;
+    };
+  };
 }
 
 // ============================================================================
@@ -112,30 +184,32 @@ export class AnnouncementsServer extends BaseAccessServer {
       // Read operations (existing)
       {
         name: "search_announcements",
-        description: "Search ACCESS announcements (news, updates, notifications). Read-only view of public announcements. For managing your own announcements (update/delete), use get_my_announcements which returns UUIDs. Returns {total, items: [{title, summary, body, published_date, tags, affiliation, affinity_group}]}.",
+        description:
+          "Search ACCESS announcements (news, updates, notifications). Read-only view of public announcements. For managing your own announcements (update/delete), use get_my_announcements which returns UUIDs. Returns {total, items: [{title, summary, body, published_date, tags, affiliation, affinity_group}]}.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
-              description: "Full-text search across title, body, and summary"
+              description: "Full-text search across title, body, and summary",
             },
             tags: {
               type: "string",
-              description: "Filter by topics: gpu, ml, hpc"
+              description: "Filter by topics: gpu, ml, hpc",
             },
             date: {
               type: "string",
-              description: "Time period filter: today, this_week (last 7 days), this_month (last 30 days), past (last year)",
-              enum: ["today", "this_week", "this_month", "past"]
+              description:
+                "Time period filter: today, this_week (last 7 days), this_month (last 30 days), past (last year)",
+              enum: ["today", "this_week", "this_month", "past"],
             },
             limit: {
               type: "number",
               description: "Max results (default: 25)",
-              default: 25
-            }
-          }
-        }
+              default: 25,
+            },
+          },
+        },
       },
       // CRUD operations (new)
       {
@@ -196,51 +270,55 @@ ALWAYS display the edit_url to the user so they can review their draft in Drupal
           properties: {
             title: {
               type: "string",
-              description: "Announcement title - clear and specific, under 100 characters"
+              description: "Announcement title - clear and specific, under 100 characters",
             },
             body: {
               type: "string",
-              description: "Full announcement content. HTML allowed (basic_html format: <p>, <a>, <strong>, <em>, <ul>, <li>)"
+              description:
+                "Full announcement content. HTML allowed (basic_html format: <p>, <a>, <strong>, <em>, <ul>, <li>)",
             },
             summary: {
               type: "string",
-              description: "Brief teaser (1-2 sentences) shown in announcement listings. Required."
+              description: "Brief teaser (1-2 sentences) shown in announcement listings. Required.",
             },
             published_date: {
               type: "string",
-              description: "When to display (YYYY-MM-DD). Defaults to today."
+              description: "When to display (YYYY-MM-DD). Defaults to today.",
             },
             tags: {
               type: "array",
               items: { type: "string" },
-              description: "Tag names (1-6 required for publication). Use list_available_tags to find valid tags."
+              description:
+                "Tag names (1-6 required for publication). Use list_available_tags to find valid tags.",
             },
             affiliation: {
               type: "string",
               description: "Source of announcement",
-              enum: ["ACCESS Collaboration", "Community"]
+              enum: ["ACCESS Collaboration", "Community"],
             },
             affinity_group: {
               type: "string",
-              description: "Affinity group name or UUID. User must be coordinator of the group. Use list_affinity_groups to find valid groups."
+              description:
+                "Affinity group name or UUID. User must be coordinator of the group. Use list_affinity_groups to find valid groups.",
             },
             external_link: {
               type: "object",
               description: "External link related to this announcement",
               properties: {
                 uri: { type: "string", description: "URL (must include https://)" },
-                title: { type: "string", description: "Link text to display" }
+                title: { type: "string", description: "Link text to display" },
               },
-              required: ["uri"]
+              required: ["uri"],
             },
             where_to_share: {
               type: "array",
               items: { type: "string" },
-              description: "Where to share the announcement. Defaults to 'Announcements page' + 'Bi-Weekly Digest'. Options: 'Announcements page', 'Bi-Weekly Digest', 'Affinity Group page', 'Email to Affinity Group'"
-            }
+              description:
+                "Where to share the announcement. Defaults to 'Announcements page' + 'Bi-Weekly Digest'. Options: 'Announcements page', 'Bi-Weekly Digest', 'Affinity Group page', 'Email to Affinity Group'",
+            },
           },
-          required: ["title", "body", "summary"]
-        }
+          required: ["title", "body", "summary"],
+        },
       },
       {
         name: "update_announcement",
@@ -259,50 +337,51 @@ ALWAYS display the edit_url to the user so they can review changes in Drupal.`,
           properties: {
             uuid: {
               type: "string",
-              description: "UUID of the announcement (get from get_my_announcements)"
+              description: "UUID of the announcement (get from get_my_announcements)",
             },
             title: {
               type: "string",
-              description: "New title (only if changing)"
+              description: "New title (only if changing)",
             },
             body: {
               type: "string",
-              description: "New body content (only if changing)"
+              description: "New body content (only if changing)",
             },
             summary: {
               type: "string",
-              description: "New summary (only if changing)"
+              description: "New summary (only if changing)",
             },
             published_date: {
               type: "string",
-              description: "New publication date YYYY-MM-DD (only if changing)"
+              description: "New publication date YYYY-MM-DD (only if changing)",
             },
             tags: {
               type: "array",
               items: { type: "string" },
-              description: "New tags - replaces ALL existing tags (only if changing)"
+              description: "New tags - replaces ALL existing tags (only if changing)",
             },
             affinity_group: {
               type: "string",
-              description: "Affinity group name or UUID. User must be coordinator."
+              description: "Affinity group name or UUID. User must be coordinator.",
             },
             external_link: {
               type: "object",
               description: "External link related to this announcement",
               properties: {
                 uri: { type: "string", description: "URL (must include https://)" },
-                title: { type: "string", description: "Link text to display" }
+                title: { type: "string", description: "Link text to display" },
               },
-              required: ["uri"]
+              required: ["uri"],
             },
             where_to_share: {
               type: "array",
               items: { type: "string" },
-              description: "Where to share the announcement. Options: 'Announcements page', 'Bi-Weekly Digest', 'Affinity Group page', 'Email to Affinity Group'"
-            }
+              description:
+                "Where to share the announcement. Options: 'Announcements page', 'Bi-Weekly Digest', 'Affinity Group page', 'Email to Affinity Group'",
+            },
           },
-          required: ["uuid"]
-        }
+          required: ["uuid"],
+        },
       },
       {
         name: "delete_announcement",
@@ -326,15 +405,16 @@ Returns: {success, uuid}`,
           properties: {
             uuid: {
               type: "string",
-              description: "UUID of the announcement to delete"
+              description: "UUID of the announcement to delete",
             },
             confirmed: {
               type: "boolean",
-              description: "Set to true only after user has explicitly confirmed deletion of THIS specific announcement. Required."
-            }
+              description:
+                "Set to true only after user has explicitly confirmed deletion of THIS specific announcement. Required.",
+            },
           },
-          required: ["uuid", "confirmed"]
-        }
+          required: ["uuid", "confirmed"],
+        },
       },
       {
         name: "get_my_announcements",
@@ -353,10 +433,10 @@ Use this to:
             limit: {
               type: "number",
               description: "Max results (default: 25)",
-              default: 25
-            }
-          }
-        }
+              default: 25,
+            },
+          },
+        },
       },
       {
         name: "get_announcement_context",
@@ -372,9 +452,9 @@ Returns:
 Use this to tailor the announcement creation conversation based on the user's role.`,
         inputSchema: {
           type: "object",
-          properties: {}
-        }
-      }
+          properties: {},
+        },
+      },
     ];
   }
 
@@ -384,8 +464,8 @@ Use this to tailor the announcement creation conversation based on the user's ro
         uri: "accessci://announcements",
         name: "ACCESS Support Announcements",
         description: "Recent announcements and notifications from ACCESS support",
-        mimeType: "application/json"
-      }
+        mimeType: "application/json",
+      },
     ];
   }
 
@@ -397,7 +477,8 @@ Use this to tailor the announcement creation conversation based on the user's ro
         arguments: [
           {
             name: "topic",
-            description: "Brief description of what the announcement is about (optional, helps tailor guidance)",
+            description:
+              "Brief description of what the announcement is about (optional, helps tailor guidance)",
             required: false,
           },
         ],
@@ -410,7 +491,9 @@ Use this to tailor the announcement creation conversation based on the user's ro
     ];
   }
 
-  protected async handleGetPrompt(request: { params: { name: string; arguments?: Record<string, string> } }): Promise<GetPromptResult> {
+  protected async handleGetPrompt(request: {
+    params: { name: string; arguments?: Record<string, string> };
+  }): Promise<GetPromptResult> {
     const { name, arguments: args = {} } = request.params;
 
     if (name === "create_announcement_guide") {
@@ -559,9 +642,9 @@ Which would you like to do?`,
             {
               uri,
               mimeType: "application/json",
-              text: JSON.stringify(announcements, null, 2)
-            }
-          ]
+              text: JSON.stringify(announcements, null, 2),
+            },
+          ],
         };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -570,9 +653,9 @@ Which would you like to do?`,
             {
               uri,
               mimeType: "text/plain",
-              text: `Error loading announcements: ${message}`
-            }
-          ]
+              text: `Error loading announcements: ${message}`,
+            },
+          ],
         };
       }
     }
@@ -604,11 +687,11 @@ Which would you like to do?`,
       params.append("tags", filters.tags);
     }
 
-    const dateMap: Record<string, {start: string, end?: string}> = {
-      today: {start: "today"},
-      this_week: {start: "-1 week", end: "now"},
-      this_month: {start: "-1 month", end: "now"},
-      past: {start: "-1 year", end: "now"}
+    const dateMap: Record<string, { start: string; end?: string }> = {
+      today: { start: "today" },
+      this_week: { start: "-1 week", end: "now" },
+      this_month: { start: "-1 month", end: "now" },
+      past: { start: "-1 year", end: "now" },
     };
 
     if (filters.date && dateMap[filters.date]) {
@@ -635,15 +718,19 @@ Which would you like to do?`,
   }
 
   private enhanceAnnouncements(rawAnnouncements: Announcement[]): Announcement[] {
-    return rawAnnouncements.map(announcement => ({
+    return rawAnnouncements.map((announcement) => ({
       ...announcement,
       // Tags come as comma-separated string from public API, convert to array
       tags: Array.isArray(announcement.tags)
         ? announcement.tags
-        : (typeof announcement.tags === 'string' && announcement.tags.trim()
-            ? announcement.tags.split(',').map((t: string) => t.trim())
-            : []),
-      summary: announcement.summary || (announcement.body ? announcement.body.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : '')
+        : typeof announcement.tags === "string" && announcement.tags.trim()
+          ? announcement.tags.split(",").map((t: string) => t.trim())
+          : [],
+      summary:
+        announcement.summary ||
+        (announcement.body
+          ? announcement.body.replace(/<[^>]*>/g, "").substring(0, 200) + "..."
+          : ""),
     }));
   }
 
@@ -652,13 +739,15 @@ Which would you like to do?`,
     const limited = filters.limit ? announcements.slice(0, filters.limit) : announcements;
 
     return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          total: announcements.length,
-          items: limited
-        })
-      }]
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            total: announcements.length,
+            items: limited,
+          }),
+        },
+      ],
     };
   }
 
@@ -681,8 +770,8 @@ Which would you like to do?`,
 
     throw new Error(
       "Cannot create announcement: No acting user specified.\n\n" +
-      "The ACTING_USER_UID environment variable must be set to the Drupal user ID " +
-      "of the person creating the announcement. This should be configured by the chat system."
+        "The ACTING_USER_UID environment variable must be set to the Drupal user ID " +
+        "of the person creating the announcement. This should be configured by the chat system."
     );
   }
 
@@ -697,11 +786,13 @@ Which would you like to do?`,
     const userUuid = await this.getUserUuidByUid(actingUserUid);
 
     if (!userUuid) {
-      throw new Error(`Could not find user with UID ${actingUserUid}. Verify the ACTING_USER_UID is correct.`);
+      throw new Error(
+        `Could not find user with UID ${actingUserUid}. Verify the ACTING_USER_UID is correct.`
+      );
     }
 
     // Build the JSON:API request body
-    const requestBody: any = {
+    const requestBody: JsonApiRequestBody = {
       data: {
         type: "node--access_news",
         attributes: {
@@ -709,22 +800,22 @@ Which would you like to do?`,
           moderation_state: "draft", // Use content moderation workflow
           body: {
             value: args.body,
-            format: "basic_html"
-          }
+            format: "basic_html",
+          },
         },
         relationships: {
           uid: {
             data: {
               type: "user--user",
-              id: userUuid
-            }
-          }
-        }
-      }
+              id: userUuid,
+            },
+          },
+        },
+      },
     };
 
     // Add optional fields
-    if (args.summary) {
+    if (args.summary && requestBody.data.attributes.body) {
       requestBody.data.attributes.body.summary = args.summary;
     }
 
@@ -732,7 +823,7 @@ Which would you like to do?`,
       requestBody.data.attributes.field_published_date = args.published_date;
     } else {
       // Default to today
-      requestBody.data.attributes.field_published_date = new Date().toISOString().split('T')[0];
+      requestBody.data.attributes.field_published_date = new Date().toISOString().split("T")[0];
     }
 
     if (args.affiliation) {
@@ -743,11 +834,11 @@ Which would you like to do?`,
     if (args.tags && args.tags.length > 0) {
       const tagUuids = await this.getTagUuidsByName(args.tags);
       if (tagUuids.length > 0) {
-        requestBody.data.relationships.field_tags = {
-          data: tagUuids.map(uuid => ({
+        requestBody.data.relationships!.field_tags = {
+          data: tagUuids.map((uuid) => ({
             type: "taxonomy_term--tags",
-            id: uuid
-          }))
+            id: uuid,
+          })),
         };
       }
     }
@@ -756,14 +847,16 @@ Which would you like to do?`,
     if (args.affinity_group) {
       const groupUuid = await this.getAffinityGroupUuid(args.affinity_group);
       if (groupUuid) {
-        requestBody.data.relationships.field_affinity_group_node = {
+        requestBody.data.relationships!.field_affinity_group_node = {
           data: {
             type: "node--affinity_group",
-            id: groupUuid
-          }
+            id: groupUuid,
+          },
         };
       } else {
-        throw new Error(`Affinity group not found: ${args.affinity_group}. Use list_affinity_groups to see groups you coordinate.`);
+        throw new Error(
+          `Affinity group not found: ${args.affinity_group}. Use list_affinity_groups to see groups you coordinate.`
+        );
       }
     }
 
@@ -771,28 +864,32 @@ Which would you like to do?`,
     if (args.external_link) {
       requestBody.data.attributes.field_news_external_link = {
         uri: args.external_link.uri,
-        title: args.external_link.title || ""
+        title: args.external_link.title || "",
       };
     }
 
     // Add where to share (defaults handled by Drupal if not provided)
     if (args.where_to_share && args.where_to_share.length > 0) {
-      requestBody.data.attributes.field_choose_where_to_share_this = this.normalizeWhereToShare(args.where_to_share);
+      requestBody.data.attributes.field_choose_where_to_share_this = this.normalizeWhereToShare(
+        args.where_to_share
+      );
     }
 
     const result = await auth.post("/jsonapi/node/access_news", requestBody);
 
     return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          success: true,
-          message: "Announcement created (draft status)",
-          uuid: result.data?.id,
-          title: result.data?.attributes?.title,
-          edit_url: `${process.env.DRUPAL_API_URL}/node/${result.data?.attributes?.drupal_internal__nid}/edit`
-        })
-      }]
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            success: true,
+            message: "Announcement created (draft status)",
+            uuid: result.data?.id,
+            title: result.data?.attributes?.title,
+            edit_url: `${process.env.DRUPAL_API_URL}/node/${result.data?.attributes?.drupal_internal__nid}/edit`,
+          }),
+        },
+      ],
     };
   }
 
@@ -802,12 +899,12 @@ Which would you like to do?`,
   private async updateAnnouncement(args: UpdateAnnouncementArgs): Promise<CallToolResult> {
     const auth = this.getDrupalAuth();
 
-    const requestBody: any = {
+    const requestBody: JsonApiRequestBody = {
       data: {
         type: "node--access_news",
         id: args.uuid,
-        attributes: {}
-      }
+        attributes: {},
+      },
     };
 
     // Add fields to update
@@ -825,7 +922,7 @@ Which would you like to do?`,
       requestBody.data.attributes.body = {
         value: args.body || existingBody,
         format: "basic_html",
-        summary: args.summary !== undefined ? args.summary : existingSummary
+        summary: args.summary !== undefined ? args.summary : existingSummary,
       };
     }
     // If neither body nor summary provided, don't include body in request at all
@@ -842,10 +939,10 @@ Which would you like to do?`,
           requestBody.data.relationships = {};
         }
         requestBody.data.relationships.field_tags = {
-          data: tagUuids.map(uuid => ({
+          data: tagUuids.map((uuid) => ({
             type: "taxonomy_term--tags",
-            id: uuid
-          }))
+            id: uuid,
+          })),
         };
       }
     }
@@ -860,11 +957,13 @@ Which would you like to do?`,
         requestBody.data.relationships.field_affinity_group_node = {
           data: {
             type: "node--affinity_group",
-            id: groupUuid
-          }
+            id: groupUuid,
+          },
         };
       } else {
-        throw new Error(`Affinity group not found: ${args.affinity_group}. Use list_affinity_groups to see groups you coordinate.`);
+        throw new Error(
+          `Affinity group not found: ${args.affinity_group}. Use list_affinity_groups to see groups you coordinate.`
+        );
       }
     }
 
@@ -872,13 +971,15 @@ Which would you like to do?`,
     if (args.external_link) {
       requestBody.data.attributes.field_news_external_link = {
         uri: args.external_link.uri,
-        title: args.external_link.title || ""
+        title: args.external_link.title || "",
       };
     }
 
     // Update where to share if provided
     if (args.where_to_share && args.where_to_share.length > 0) {
-      requestBody.data.attributes.field_choose_where_to_share_this = this.normalizeWhereToShare(args.where_to_share);
+      requestBody.data.attributes.field_choose_where_to_share_this = this.normalizeWhereToShare(
+        args.where_to_share
+      );
     }
 
     const result = await auth.patch(`/jsonapi/node/access_news/${args.uuid}`, requestBody);
@@ -886,16 +987,18 @@ Which would you like to do?`,
     const baseUrl = process.env.DRUPAL_API_URL;
 
     return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          success: true,
-          message: "Announcement updated",
-          uuid: result.data?.id,
-          title: result.data?.attributes?.title,
-          edit_url: nid ? `${baseUrl}/node/${nid}/edit` : null
-        })
-      }]
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            success: true,
+            message: "Announcement updated",
+            uuid: result.data?.id,
+            title: result.data?.attributes?.title,
+            edit_url: nid ? `${baseUrl}/node/${nid}/edit` : null,
+          }),
+        },
+      ],
     };
   }
 
@@ -906,13 +1009,16 @@ Which would you like to do?`,
     // Enforce confirmation parameter
     if (!args.confirmed) {
       return {
-        content: [{
-          type: "text" as const,
-          text: JSON.stringify({
-            error: "Deletion requires explicit confirmation. You must show the announcement title and status to the user and get explicit confirmation before setting confirmed=true.",
-            uuid: args.uuid
-          })
-        }]
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              error:
+                "Deletion requires explicit confirmation. You must show the announcement title and status to the user and get explicit confirmation before setting confirmed=true.",
+              uuid: args.uuid,
+            }),
+          },
+        ],
       };
     }
 
@@ -921,14 +1027,16 @@ Which would you like to do?`,
     await auth.delete(`/jsonapi/node/access_news/${args.uuid}`);
 
     return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          success: true,
-          message: "Announcement deleted",
-          uuid: args.uuid
-        })
-      }]
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            success: true,
+            message: "Announcement deleted",
+            uuid: args.uuid,
+          }),
+        },
+      ],
     };
   }
 
@@ -943,7 +1051,9 @@ Which would you like to do?`,
     const userUuid = await this.getUserUuidByUid(actingUserUid);
 
     if (!userUuid) {
-      throw new Error(`Could not find user with UID ${actingUserUid}. Verify the ACTING_USER_UID is correct.`);
+      throw new Error(
+        `Could not find user with UID ${actingUserUid}. Verify the ACTING_USER_UID is correct.`
+      );
     }
 
     const limit = args.limit || 25;
@@ -952,7 +1062,7 @@ Which would you like to do?`,
     );
 
     const baseUrl = process.env.DRUPAL_API_URL;
-    const announcements = (result.data || []).map((item: any) => {
+    const announcements = (result.data || []).map((item: JsonApiResourceItem) => {
       const nid = item.attributes?.drupal_internal__nid;
       return {
         uuid: item.id,
@@ -961,21 +1071,25 @@ Which would you like to do?`,
         status: item.attributes?.status ? "published" : "draft",
         created: item.attributes?.created,
         published_date: item.attributes?.field_published_date,
-        summary: item.attributes?.body?.summary ||
-          (item.attributes?.body?.value ?
-            item.attributes.body.value.replace(/<[^>]*>/g, '').substring(0, 200) + '...' : ''),
-        edit_url: nid ? `${baseUrl}/node/${nid}/edit` : null
+        summary:
+          item.attributes?.body?.summary ||
+          (item.attributes?.body?.value
+            ? item.attributes.body.value.replace(/<[^>]*>/g, "").substring(0, 200) + "..."
+            : ""),
+        edit_url: nid ? `${baseUrl}/node/${nid}/edit` : null,
       };
     });
 
     return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          total: announcements.length,
-          items: announcements
-        })
-      }]
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            total: announcements.length,
+            items: announcements,
+          }),
+        },
+      ],
     };
   }
 
@@ -1014,42 +1128,52 @@ Which would you like to do?`,
     // Fetch tags and affinity groups in parallel
     const [tagsResult, groupsResult] = await Promise.all([
       auth.get("/jsonapi/taxonomy_term/tags?page[limit]=100"),
-      auth.get(`/jsonapi/node/affinity_group?filter[field_coordinator.id]=${userUuid}&filter[status]=1&page[limit]=100`)
+      auth.get(
+        `/jsonapi/node/affinity_group?filter[field_coordinator.id]=${userUuid}&filter[status]=1&page[limit]=100`
+      ),
     ]);
 
-    const tags = (tagsResult.data || []).map((item: any) => ({
+    const tags = (tagsResult.data || []).map((item: JsonApiResourceItem) => ({
       name: item.attributes?.name,
-      uuid: item.id
+      uuid: item.id,
     }));
 
-    const affinityGroups = (groupsResult.data || []).map((item: any) => ({
+    const affinityGroups = (groupsResult.data || []).map((item: JsonApiResourceItem) => ({
       id: item.attributes?.field_group_id,
       uuid: item.id,
       name: item.attributes?.title,
-      category: item.attributes?.field_affinity_group_category
+      category: item.attributes?.field_affinity_group_category,
     }));
 
     const isCoordinator = affinityGroups.length > 0;
 
     return {
-      content: [{
-        type: "text" as const,
-        text: JSON.stringify({
-          tags: tags,
-          affinity_groups: affinityGroups,
-          is_coordinator: isCoordinator,
-          affiliations: ["ACCESS Collaboration", "Community"],
-          where_to_share_options: [
-            { value: "Announcements page", description: "Public announcements listing" },
-            { value: "Bi-Weekly Digest", description: "ACCESS Support bi-weekly email digest" },
-            { value: "Affinity Group page", description: "Your affinity group's page (coordinators only)" },
-            { value: "Email to Affinity Group", description: "Direct email to affinity group members (coordinators only)" }
-          ],
-          guidance: isCoordinator
-            ? "User is an affinity group coordinator. Ask about affinity_group association and where_to_share preferences."
-            : "User is not a coordinator. Standard announcement fields apply."
-        })
-      }]
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            tags: tags,
+            affinity_groups: affinityGroups,
+            is_coordinator: isCoordinator,
+            affiliations: ["ACCESS Collaboration", "Community"],
+            where_to_share_options: [
+              { value: "Announcements page", description: "Public announcements listing" },
+              { value: "Bi-Weekly Digest", description: "ACCESS Support bi-weekly email digest" },
+              {
+                value: "Affinity Group page",
+                description: "Your affinity group's page (coordinators only)",
+              },
+              {
+                value: "Email to Affinity Group",
+                description: "Direct email to affinity group members (coordinators only)",
+              },
+            ],
+            guidance: isCoordinator
+              ? "User is an affinity group coordinator. Ask about affinity_group association and where_to_share preferences."
+              : "User is not a coordinator. Standard announcement fields apply.",
+          }),
+        },
+      ],
     };
   }
 
@@ -1098,19 +1222,19 @@ Which would you like to do?`,
     "email to affinity group": "email_to_your_affinity_group",
     "email to your affinity group": "email_to_your_affinity_group",
     // Also accept the raw values
-    "on_the_announcements_page": "on_the_announcements_page",
-    "in_the_access_support_bi_weekly_digest": "in_the_access_support_bi_weekly_digest",
-    "on_your_affinity_group_page": "on_your_affinity_group_page",
-    "email_to_your_affinity_group": "email_to_your_affinity_group",
+    on_the_announcements_page: "on_the_announcements_page",
+    in_the_access_support_bi_weekly_digest: "in_the_access_support_bi_weekly_digest",
+    on_your_affinity_group_page: "on_your_affinity_group_page",
+    email_to_your_affinity_group: "email_to_your_affinity_group",
   };
 
   private normalizeWhereToShare(values: string[]): string[] {
-    return values.map(v => {
+    return values.map((v) => {
       const normalized = AnnouncementsServer.WHERE_TO_SHARE_MAP[v.toLowerCase()];
       if (!normalized) {
         throw new Error(
           `Invalid where_to_share value: "${v}". ` +
-          `Valid options: 'Announcements page', 'Bi-Weekly Digest', 'Affinity Group page', 'Email to Affinity Group'`
+            `Valid options: 'Announcements page', 'Bi-Weekly Digest', 'Affinity Group page', 'Email to Affinity Group'`
         );
       }
       return normalized;

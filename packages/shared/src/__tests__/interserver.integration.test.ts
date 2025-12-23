@@ -13,15 +13,13 @@ describe("Inter-server Communication Integration Tests", () => {
 
   beforeAll(async () => {
     // Start NSF Awards server in HTTP mode
-    const serverPath = path.resolve(
-      process.cwd(),
-      "packages/nsf-awards/dist/index.js"
-    );
+    const serverPath = path.resolve(process.cwd(), "packages/nsf-awards/dist/index.js");
 
     nsfServer = spawn("node", [serverPath], {
       env: {
         ...process.env,
         PORT: String(NSF_PORT),
+        LOG_LEVEL: "info", // Enable info logging to see startup message
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -32,7 +30,8 @@ describe("Inter-server Communication Integration Tests", () => {
         reject(new Error("Server startup timeout"));
       }, 10000);
 
-      nsfServer.stdout?.on("data", (data: Buffer) => {
+      // Logger writes to stderr, not stdout
+      nsfServer.stderr?.on("data", (data: Buffer) => {
         if (data.toString().includes("HTTP server running")) {
           clearTimeout(timeout);
           resolve();
