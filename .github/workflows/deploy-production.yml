@@ -106,11 +106,19 @@ jobs:
             # Login to GitHub Container Registry
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # Pull latest images
-            echo "Pulling latest images..."
-            docker compose -f docker-compose.prod.yml pull
+            # Wait for registry propagation
+            echo "Waiting for registry propagation..."
+            sleep 10
 
-            # Restart services with new images
+            # Pull latest images with retry
+            echo "Pulling latest images..."
+            for i in 1 2 3; do
+              docker compose -f docker-compose.prod.yml pull && break
+              echo "Pull attempt $i failed, retrying in 10s..."
+              sleep 10
+            done
+
+            # Restart services (will use whatever images are available)
             echo "Restarting services..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
@@ -118,6 +126,9 @@ jobs:
             echo "Cleaning up old images..."
             docker image prune -f
 
-            # Show running containers
+            # Show running containers and their image versions
             echo "Running containers:"
             docker compose -f docker-compose.prod.yml ps
+            echo ""
+            echo "Image versions:"
+            docker compose -f docker-compose.prod.yml images
