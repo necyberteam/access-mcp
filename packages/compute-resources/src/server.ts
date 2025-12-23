@@ -111,7 +111,7 @@ export class ComputeResourcesServer extends BaseAccessServer {
             },
             has_gpu: {
               type: "boolean",
-              description: "Filter for GPU resources"
+              description: "Filter by GPU: true = only GPU resources, false = only non-GPU resources. Omit to include all resources."
             },
             organization: {
               type: "string",
@@ -942,7 +942,8 @@ Consider:
       );
     }
 
-    if (has_gpu !== undefined) {
+    // Only filter by GPU when has_gpu is explicitly true or false (not null/undefined)
+    if (has_gpu === true || has_gpu === false) {
       resources = resources.filter((resource: ComputeResource) =>
         resource.hasGpu === has_gpu
       );
