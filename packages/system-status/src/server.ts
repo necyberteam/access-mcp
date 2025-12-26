@@ -273,9 +273,10 @@ export class SystemStatusServer extends BaseAccessServer {
 
     // Enhance outages with status summary
     const enhancedOutages = outages.map((outage: OutageItem): EnhancedOutage => {
-      // Track affected resources
+      // Track affected resources (use ResourceID as fallback if ResourceName is missing)
       outage.AffectedResources?.forEach((resource: AffectedResource) => {
-        affectedResources.add(resource.ResourceName);
+        const resourceIdentifier = resource.ResourceName || resource.ResourceID;
+        if (resourceIdentifier) affectedResources.add(String(resourceIdentifier));
       });
 
       // Categorize severity (basic heuristic)
@@ -349,7 +350,8 @@ export class SystemStatusServer extends BaseAccessServer {
     const enhancedMaintenance = maintenance.map((item: OutageItem): EnhancedOutage => {
       // Track affected resources
       item.AffectedResources?.forEach((resource: AffectedResource) => {
-        affectedResources.add(resource.ResourceName);
+        const resourceIdentifier = resource.ResourceName || resource.ResourceID;
+        if (resourceIdentifier) affectedResources.add(String(resourceIdentifier));
       });
 
       // Check timing - use OutageStart for scheduling
@@ -442,11 +444,10 @@ export class SystemStatusServer extends BaseAccessServer {
 
     // Enhance outages with calculated fields
     const enhancedOutages = pastOutages.map((outage: OutageItem): EnhancedOutage => {
-      // Track affected resources
+      // Track affected resources (use ResourceID as fallback if ResourceName is missing)
       outage.AffectedResources?.forEach((resource: AffectedResource) => {
-        if (resource.ResourceName) {
-          affectedResources.add(resource.ResourceName);
-        }
+        const resourceIdentifier = resource.ResourceName || resource.ResourceID;
+        if (resourceIdentifier) affectedResources.add(String(resourceIdentifier));
       });
 
       // Track outage types
