@@ -162,8 +162,8 @@ export class SystemStatusServer extends BaseAccessServer {
   ): Promise<CallToolResult> {
     const { resource, time = "current", resource_ids, limit, use_group_api = false } = args;
 
-    // Check resource status (returns operational/affected)
-    if (resource_ids && Array.isArray(resource_ids)) {
+    // Check resource status (returns operational/affected) - only if IDs provided
+    if (resource_ids && Array.isArray(resource_ids) && resource_ids.length > 0) {
       return await this.checkResourceStatus(resource_ids, use_group_api);
     }
 
