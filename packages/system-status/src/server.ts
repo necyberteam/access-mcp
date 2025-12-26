@@ -78,7 +78,8 @@ export class SystemStatusServer extends BaseAccessServer {
             time: {
               type: "string",
               enum: ["current", "scheduled", "past", "all"],
-              description: "Period: current (active), scheduled (future), past, all",
+              description:
+                "Time filter. Values: 'current' for active outages, 'scheduled' for future/planned, 'past' for historical, 'all' for everything",
               default: "current",
             },
             ids: {
