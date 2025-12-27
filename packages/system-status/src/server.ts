@@ -4,6 +4,7 @@ import {
   Tool,
   Resource,
   CallToolResult,
+  resolveResourceId,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -57,9 +58,37 @@ interface EnhancedOutage extends OutageItem {
   outage_type?: string;
 }
 
+interface ResourceGroup {
+  info_groupid?: string;
+  group_descriptive_name?: string;
+}
+
 export class SystemStatusServer extends BaseAccessServer {
   constructor() {
     super("access-mcp-system-status", version, "https://operations-api.access-ci.org");
+  }
+
+  /**
+   * Search for resources by name to resolve human-readable names to full IDs.
+   * Used by resolveResourceId callback.
+   */
+  private async searchResourcesByName(query: string): Promise<Array<{ id: string; name: string }>> {
+    try {
+      const response = await this.httpClient.get(
+        "/wh2/cider/v1/access-active-groups/type/resource-catalog.access-ci.org/"
+      );
+      const groups: ResourceGroup[] = response.data.results || [];
+      const queryLower = query.toLowerCase();
+
+      return groups
+        .filter((g) => g.group_descriptive_name?.toLowerCase().includes(queryLower))
+        .map((g) => ({
+          id: g.info_groupid || "",
+          name: g.group_descriptive_name || "",
+        }));
+    } catch {
+      return [];
+    }
   }
 
   protected getTools(): Tool[] {
@@ -85,7 +114,8 @@ export class SystemStatusServer extends BaseAccessServer {
             ids: {
               type: "array",
               items: { type: "string" },
-              description: "Check status for specific resource IDs",
+              description:
+                "Check status for specific resources. Accepts names (e.g., 'Anvil', 'Delta') or full IDs (e.g., 'anvil.purdue.access-ci.org')",
             },
             limit: {
               type: "number",
@@ -577,8 +607,46 @@ export class SystemStatusServer extends BaseAccessServer {
       );
     }
 
+    // Resolve all resource names to IDs first
+    const resolvedIds: string[] = [];
+    const resolutionErrors: Array<{ input: string; error: string }> = [];
+
+    for (const inputId of resourceIds) {
+      const resolved = await resolveResourceId(inputId, (query) =>
+        this.searchResourcesByName(query)
+      );
+      if (resolved.success) {
+        resolvedIds.push(resolved.id);
+      } else {
+        resolutionErrors.push({ input: inputId, error: resolved.error });
+      }
+    }
+
+    // If any resolutions failed, return errors
+    if (resolutionErrors.length > 0) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                error: "Could not resolve some resource names",
+                resolution_errors: resolutionErrors,
+                suggestions: [
+                  "Use full resource IDs (e.g., 'anvil.purdue.access-ci.org')",
+                  "Or use exact resource names (e.g., 'Anvil', 'Delta')",
+                ],
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+
     if (useGroupApi) {
-      return await this.checkResourceStatusViaGroups(resourceIds);
+      return await this.checkResourceStatusViaGroups(resolvedIds);
     }
 
     // Efficient approach: fetch raw current outages data once
@@ -587,7 +655,7 @@ export class SystemStatusServer extends BaseAccessServer {
     );
     const rawOutages: OutageItem[] = response.data.results || [];
 
-    const resourceStatus = resourceIds.map((resourceId) => {
+    const resourceStatus = resolvedIds.map((resourceId) => {
       const affectedOutages = rawOutages.filter((outage: OutageItem) =>
         outage.AffectedResources?.some(
           (resource: AffectedResource) =>
@@ -637,7 +705,7 @@ export class SystemStatusServer extends BaseAccessServer {
           text: JSON.stringify(
             {
               checked_at: new Date().toISOString(),
-              resources_checked: resourceIds.length,
+              resources_checked: resolvedIds.length,
               operational: resourceStatus.filter((r) => r.status === "operational").length,
               affected: resourceStatus.filter((r) => r.status === "affected").length,
               api_method: "direct_outages_check",

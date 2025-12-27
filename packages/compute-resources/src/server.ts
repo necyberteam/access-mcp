@@ -2,6 +2,7 @@ import {
   BaseAccessServer,
   handleApiError,
   sanitizeGroupId,
+  resolveResourceId,
   FIELDS_OF_SCIENCE,
   RESOURCE_TYPES,
   ACCESS_SYSTEMS,
@@ -136,7 +137,8 @@ export class ComputeResourcesServer extends BaseAccessServer {
           properties: {
             id: {
               type: "string",
-              description: "Resource ID (use search_resources to find)",
+              description:
+                "Resource name (e.g., 'Anvil', 'Delta') or full ID (e.g., 'anvil.purdue.access-ci.org')",
             },
           },
           required: ["id"],
@@ -760,7 +762,24 @@ Consider:
     };
   }
 
-  private async getResourceHardware(resourceId: string) {
+  private async getResourceHardware(inputId: string) {
+    // Resolve human-readable name to full resource ID if needed
+    const resolved = await resolveResourceId(inputId, async (query) => {
+      const result = await this.searchResources({ query });
+      const content = result.content[0];
+      if (content.type !== "text") return [];
+      const data = JSON.parse(content.text);
+      return (data.items || []).map((item: ComputeResource) => ({
+        id: item.id || "",
+        name: item.name || "",
+      }));
+    });
+
+    if (!resolved.success) {
+      return this.errorResponse(resolved.error, resolved.suggestion);
+    }
+    const resourceId = resolved.id;
+
     const resourceData = await this.getComputeResource(resourceId);
 
     // Check if getComputeResource returned an error

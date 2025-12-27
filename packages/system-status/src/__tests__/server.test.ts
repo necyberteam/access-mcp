@@ -27,7 +27,7 @@ describe("SystemStatusServer", () => {
       Content: "Critical issue requiring immediate attention",
       OutageStart: "2024-08-27T10:00:00Z",
       OutageEnd: "2024-08-27T11:00:00Z",
-      AffectedResources: [{ ResourceName: "Anvil", ResourceID: "anvil-1" }],
+      AffectedResources: [{ ResourceName: "Anvil", ResourceID: "anvil-1.purdue.access-ci.org" }],
     },
     {
       id: "2",
@@ -35,7 +35,7 @@ describe("SystemStatusServer", () => {
       Content: "Regular maintenance window",
       OutageStart: "2024-08-27T08:00:00Z",
       OutageEnd: "2024-08-27T08:30:00Z",
-      AffectedResources: [{ ResourceName: "Bridges-2", ResourceID: "bridges2-1" }],
+      AffectedResources: [{ ResourceName: "Bridges-2", ResourceID: "bridges2.psc.access-ci.org" }],
     },
   ];
 
@@ -352,11 +352,12 @@ describe("SystemStatusServer", () => {
         data: { results: mockCurrentOutagesData },
       });
 
+      // Use full IDs with dots to skip resolution lookup
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
-          arguments: { ids: ["anvil-1", "unknown-resource"] },
+          arguments: { ids: ["anvil-1.purdue.access-ci.org", "unknown.resource.org"] },
         },
       });
 
@@ -364,11 +365,11 @@ describe("SystemStatusServer", () => {
       const response = JSON.parse(content.text);
       expect(response.api_method).toBe("direct_outages_check");
       expect(response.resources_checked).toBe(2);
-      expect(response.operational).toBe(1); // unknown-resource
-      expect(response.affected).toBe(1); // anvil-1
+      expect(response.operational).toBe(1); // unknown.resource.org
+      expect(response.affected).toBe(1); // anvil-1.purdue.access-ci.org
 
       const anvilStatus = response.resource_status.find(
-        (r: { resource_id: string }) => r.resource_id === "anvil-1"
+        (r: { resource_id: string }) => r.resource_id === "anvil-1.purdue.access-ci.org"
       );
       expect(anvilStatus.status).toBe("affected");
       expect(anvilStatus.severity).toBe("high"); // Emergency maintenance
@@ -380,18 +381,21 @@ describe("SystemStatusServer", () => {
         data: { results: [] }, // No outages for this group
       });
 
+      // Use full ID with dots to skip resolution lookup
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: {
-            ids: ["anvil"],
+            ids: ["anvil.purdue.access-ci.org"],
             use_group_api: true,
           },
         },
       });
 
-      expect(mockHttpClient.get).toHaveBeenCalledWith("/wh2/news/v1/info_groupid/anvil/");
+      expect(mockHttpClient.get).toHaveBeenCalledWith(
+        "/wh2/news/v1/info_groupid/anvil.purdue.access-ci.org/"
+      );
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
@@ -403,12 +407,13 @@ describe("SystemStatusServer", () => {
     it("should handle group API failures gracefully", async () => {
       mockHttpClient.get.mockRejectedValue(new Error("API Error"));
 
+      // Use full ID with dots to skip resolution lookup
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: {
-            ids: ["invalid-resource"],
+            ids: ["invalid.resource.org"],
             use_group_api: true,
           },
         },
@@ -420,6 +425,62 @@ describe("SystemStatusServer", () => {
       expect(response.resource_status[0].status).toBe("unknown");
       expect(response.resource_status[0].api_method).toBe("group_specific_failed");
       expect(response.resource_status[0]).toHaveProperty("error");
+    });
+
+    it("should resolve human-readable name to resource ID", async () => {
+      // First call: resource search for name resolution
+      // Second call: current outages
+      mockHttpClient.get
+        .mockResolvedValueOnce({
+          status: 200,
+          data: {
+            results: [
+              { info_groupid: "anvil.purdue.access-ci.org", group_descriptive_name: "Anvil" },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { results: [] }, // No outages
+        });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { ids: ["Anvil"] },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.resources_checked).toBe(1);
+      expect(response.resource_status[0].resource_id).toBe("anvil.purdue.access-ci.org");
+    });
+
+    it("should return error when resource name is ambiguous", async () => {
+      mockHttpClient.get.mockResolvedValueOnce({
+        status: 200,
+        data: {
+          results: [
+            { info_groupid: "stampede2.tacc.access-ci.org", group_descriptive_name: "Stampede 2" },
+            { info_groupid: "stampede3.tacc.access-ci.org", group_descriptive_name: "Stampede 3" },
+          ],
+        },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { ids: ["Stampede"] },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.error).toContain("Could not resolve");
+      expect(response.resolution_errors[0].error).toContain("Multiple resources match");
     });
   });
 

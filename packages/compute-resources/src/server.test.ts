@@ -364,13 +364,13 @@ describe("ComputeResourcesServer", () => {
         params: {
           name: "get_resource_hardware",
           arguments: {
-            id: "1",
+            id: "delta.ncsa.access-ci.org", // Full ID (contains dot) skips name resolution
           },
         },
       });
 
       const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.resource_id).toBe("1");
+      expect(responseData.resource_id).toBe("delta.ncsa.access-ci.org");
 
       // Hardware is now structured into categories (empty categories are removed)
       // The mock "GPU Nodes with A100" gets categorized as gpus (has "gpu" in name)
@@ -392,6 +392,116 @@ describe("ComputeResourcesServer", () => {
       expect(
         responseData.raw_hardware_items.some((h: HardwareItem) => h.cider_type === "Storage")
       ).toBe(true);
+    });
+
+    it("should resolve human-readable name to resource ID", async () => {
+      // Mock the search_resources call that resolveResourceId makes
+      const mockSearchResponse = {
+        results: {
+          active_groups: [
+            {
+              info_groupid: "anvil.purdue.access-ci.org",
+              group_descriptive_name: "Anvil",
+              group_description: "Purdue Anvil cluster",
+              rollup_organization_ids: [1869],
+              rollup_feature_ids: [142],
+              rollup_info_resourceids: ["anvil.purdue.access-ci.org"],
+            },
+          ],
+        },
+      };
+
+      const mockHardwareData = {
+        results: [
+          {
+            cider_type: "Compute",
+            resource_descriptive_name: "CPU Nodes",
+          },
+        ],
+      };
+
+      // First call is for search_resources (to resolve name), second is for hardware
+      mockHttpClient.get
+        .mockResolvedValueOnce({ status: 200, data: mockSearchResponse })
+        .mockResolvedValueOnce({ status: 200, data: mockSearchResponse }) // org lookup
+        .mockResolvedValueOnce({ status: 200, data: mockHardwareData });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "get_resource_hardware",
+          arguments: {
+            id: "Anvil", // Human-readable name, not full ID
+          },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.resource_id).toBe("anvil.purdue.access-ci.org");
+    });
+
+    it("should return error when multiple resources match", async () => {
+      const mockSearchResponse = {
+        results: {
+          active_groups: [
+            {
+              info_groupid: "stampede2.tacc.access-ci.org",
+              group_descriptive_name: "Stampede 2",
+              group_description: "TACC Stampede 2",
+              rollup_organization_ids: [2058],
+              rollup_feature_ids: [],
+              rollup_info_resourceids: ["stampede2.tacc.access-ci.org"],
+            },
+            {
+              info_groupid: "stampede3.tacc.access-ci.org",
+              group_descriptive_name: "Stampede 3",
+              group_description: "TACC Stampede 3",
+              rollup_organization_ids: [2058],
+              rollup_feature_ids: [],
+              rollup_info_resourceids: ["stampede3.tacc.access-ci.org"],
+            },
+          ],
+        },
+      };
+
+      mockHttpClient.get
+        .mockResolvedValueOnce({ status: 200, data: mockSearchResponse })
+        .mockResolvedValueOnce({ status: 200, data: mockSearchResponse }); // org lookup
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "get_resource_hardware",
+          arguments: {
+            id: "Stampede", // Matches multiple resources
+          },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toContain("Multiple resources match");
+      expect(responseData.error).toContain("Stampede 2");
+      expect(responseData.error).toContain("Stampede 3");
+    });
+
+    it("should return error when no resources match", async () => {
+      const mockSearchResponse = {
+        results: {
+          active_groups: [],
+        },
+      };
+
+      mockHttpClient.get.mockResolvedValueOnce({ status: 200, data: mockSearchResponse });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "get_resource_hardware",
+          arguments: {
+            id: "NonExistentResource",
+          },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.error).toContain("No resource found");
     });
   });
 

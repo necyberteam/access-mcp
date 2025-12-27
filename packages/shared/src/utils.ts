@@ -144,3 +144,89 @@ export const CommonNextSteps = {
     description: `Try these refinements: ${suggestions.join(", ")}`,
   }),
 };
+
+/**
+ * Resource ID Resolution Utilities
+ *
+ * These utilities help resolve human-readable resource names (e.g., "Anvil", "Delta")
+ * to full resource IDs (e.g., "anvil.purdue.access-ci.org").
+ */
+
+export interface ResourceMatch {
+  id: string;
+  name: string;
+}
+
+export type ResolveResult =
+  | { success: true; id: string }
+  | { success: false; error: string; suggestion?: string };
+
+/**
+ * Resolve a human-readable name to a resource ID.
+ *
+ * @param input - The input string (name or ID)
+ * @param searchFn - A function that searches for resources by name and returns matches
+ * @returns ResolveResult with either the resolved ID or an error message
+ *
+ * @example
+ * ```ts
+ * const result = await resolveResourceId("Anvil", async (query) => {
+ *   const resources = await searchResources({ query });
+ *   return resources.map(r => ({ id: r.id, name: r.name }));
+ * });
+ *
+ * if (result.success) {
+ *   console.log(result.id); // "anvil.purdue.access-ci.org"
+ * } else {
+ *   console.log(result.error); // "Multiple resources match..."
+ * }
+ * ```
+ */
+export async function resolveResourceId(
+  input: string,
+  searchFn: (query: string) => Promise<ResourceMatch[]>
+): Promise<ResolveResult> {
+  // If it already looks like a full resource ID (contains dots), return as-is
+  if (input.includes(".")) {
+    return { success: true, id: input };
+  }
+
+  // Search for the resource by name
+  const items = await searchFn(input);
+
+  if (items.length === 0) {
+    return {
+      success: false,
+      error: `No resource found matching '${input}'`,
+      suggestion: "Use the search tool to find valid resource names.",
+    };
+  }
+
+  // Find exact name match first (case-insensitive)
+  const inputLower = input.toLowerCase();
+  const exactMatch = items.find((item) => item.name?.toLowerCase() === inputLower);
+
+  if (exactMatch && exactMatch.id) {
+    return { success: true, id: exactMatch.id };
+  }
+
+  // Multiple partial matches - ask user to be more specific
+  if (items.length > 1) {
+    const names = items.map((i) => i.name).join(", ");
+    return {
+      success: false,
+      error: `Multiple resources match '${input}': ${names}`,
+      suggestion: "Please specify the exact resource name.",
+    };
+  }
+
+  // Single partial match - use it
+  if (items[0].id) {
+    return { success: true, id: items[0].id };
+  }
+
+  return {
+    success: false,
+    error: `Could not resolve resource '${input}'`,
+  };
+}
