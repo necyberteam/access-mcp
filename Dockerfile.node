@@ -17,9 +17,8 @@ COPY packages/${PACKAGE} ./packages/${PACKAGE}
 # Install all dependencies (including dev dependencies for building)
 RUN npm ci
 
-# Build shared first, then the specific package
-RUN cd packages/shared && npm run build
-RUN cd packages/${PACKAGE} && npm run build
+# Build using TypeScript project references (builds shared as dependency automatically)
+RUN npx tsc --build packages/${PACKAGE}
 
 # Production stage
 FROM node:18-alpine AS production

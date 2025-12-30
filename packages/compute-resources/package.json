@@ -39,7 +39,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@access-mcp/shared": "^0.6.0",
+    "@access-mcp/shared": "*",
     "express": "^4.18.0"
   },
   "devDependencies": {

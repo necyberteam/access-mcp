@@ -46,7 +46,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@access-mcp/shared": "^0.6.0",
+    "@access-mcp/shared": "*",
     "@modelcontextprotocol/sdk": "^1.16.0",
     "axios": "^1.7.0",
     "express": "^4.18.0"
