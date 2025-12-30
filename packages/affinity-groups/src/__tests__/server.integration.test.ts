@@ -247,8 +247,9 @@ describe("AffinityGroupsServer Integration Tests", () => {
       expect(result.contents).toHaveLength(1);
       expect(result.contents[0].mimeType).toBe("application/json");
 
-      const textContent = result.contents[0].text;
-      const data = JSON.parse(textContent as string);
+      const content = result.contents[0];
+      const textContent = "text" in content ? content.text : "";
+      const data = JSON.parse(textContent);
       expect(data).toHaveProperty("total");
       expect(data).toHaveProperty("items");
       expect(Array.isArray(data.items)).toBe(true);
