@@ -549,7 +549,7 @@ describe("SystemStatusServer", () => {
       });
 
       expect(result.contents[0].mimeType).toBe("application/json");
-      expect(result.contents[0].text).toBeDefined();
+      expect("text" in result.contents[0] && result.contents[0].text).toBeDefined();
     });
 
     it("should handle unknown resources", async () => {

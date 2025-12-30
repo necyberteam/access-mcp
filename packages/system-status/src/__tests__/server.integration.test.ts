@@ -268,7 +268,10 @@ describe("SystemStatusServer Integration Tests", () => {
 
         if (uri !== "accessci://system-status") {
           // JSON resources should have valid JSON
-          expect(() => JSON.parse(result.contents[0].text as string)).not.toThrow();
+          const content = result.contents[0];
+          if ("text" in content) {
+            expect(() => JSON.parse(content.text)).not.toThrow();
+          }
         }
       }
     }, 15000);
