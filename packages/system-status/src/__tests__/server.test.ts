@@ -434,9 +434,11 @@ describe("SystemStatusServer", () => {
         .mockResolvedValueOnce({
           status: 200,
           data: {
-            results: [
-              { info_groupid: "anvil.purdue.access-ci.org", group_descriptive_name: "Anvil" },
-            ],
+            results: {
+              active_groups: [
+                { info_groupid: "anvil.purdue.access-ci.org", group_descriptive_name: "Anvil" },
+              ],
+            },
           },
         })
         .mockResolvedValueOnce({
@@ -462,10 +464,18 @@ describe("SystemStatusServer", () => {
       mockHttpClient.get.mockResolvedValueOnce({
         status: 200,
         data: {
-          results: [
-            { info_groupid: "stampede2.tacc.access-ci.org", group_descriptive_name: "Stampede 2" },
-            { info_groupid: "stampede3.tacc.access-ci.org", group_descriptive_name: "Stampede 3" },
-          ],
+          results: {
+            active_groups: [
+              {
+                info_groupid: "stampede2.tacc.access-ci.org",
+                group_descriptive_name: "Stampede 2",
+              },
+              {
+                info_groupid: "stampede3.tacc.access-ci.org",
+                group_descriptive_name: "Stampede 3",
+              },
+            ],
+          },
         },
       });
 

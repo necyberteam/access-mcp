@@ -148,13 +148,13 @@ describe("SystemStatusServer Integration Tests", () => {
     }, 15000);
 
     it("should check resource status with direct method", async () => {
-      // Test with common resource names that might exist
+      // Test with human-readable names - these get resolved to full IDs
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: {
-            ids: ["anvil", "bridges", "jetstream"],
+            ids: ["Anvil", "Delta", "Expanse"],
             use_group_api: false,
           },
         },
@@ -170,24 +170,25 @@ describe("SystemStatusServer Integration Tests", () => {
       expect(Array.isArray(responseData.resource_status)).toBe(true);
       expect(responseData.resource_status).toHaveLength(3);
 
-      // Check resource status structure
+      // Check resource status structure - IDs should be resolved to full format
       responseData.resource_status.forEach((resource: ResourceStatus) => {
         expect(resource).toHaveProperty("resource_id");
+        expect(resource.resource_id).toContain(".access-ci.org"); // Resolved to full ID
         expect(resource).toHaveProperty("status");
         expect(["operational", "affected"]).toContain(resource.status);
         expect(resource).toHaveProperty("active_outages");
         expect(Array.isArray(resource.outage_details)).toBe(true);
       });
-    }, 10000);
+    }, 15000);
 
     it("should test group API functionality", async () => {
-      // Test group API with a resource that might have a group ID
+      // Test group API with a human-readable name
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: {
           name: "get_infrastructure_news",
           arguments: {
-            ids: ["anvil"],
+            ids: ["Anvil"],
             use_group_api: true,
           },
         },
@@ -200,7 +201,8 @@ describe("SystemStatusServer Integration Tests", () => {
       expect(responseData.resource_status).toHaveLength(1);
 
       const resourceStatus = responseData.resource_status[0];
-      expect(resourceStatus).toHaveProperty("resource_id", "anvil");
+      expect(resourceStatus.resource_id).toContain("anvil"); // Resolved ID contains anvil
+      expect(resourceStatus.resource_id).toContain(".access-ci.org");
       expect(resourceStatus).toHaveProperty("api_method");
       expect(["group_specific", "group_specific_failed"]).toContain(resourceStatus.api_method);
 
@@ -215,7 +217,7 @@ describe("SystemStatusServer Integration Tests", () => {
         expect(resourceStatus.status).toBe("unknown");
         expect(resourceStatus).toHaveProperty("error");
       }
-    }, 10000);
+    }, 15000);
 
     it("should filter outages by resource correctly", async () => {
       const result = await server["handleToolCall"]({

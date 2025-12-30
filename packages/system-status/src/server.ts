@@ -77,7 +77,7 @@ export class SystemStatusServer extends BaseAccessServer {
       const response = await this.httpClient.get(
         "/wh2/cider/v1/access-active-groups/type/resource-catalog.access-ci.org/"
       );
-      const groups: ResourceGroup[] = response.data.results || [];
+      const groups: ResourceGroup[] = response.data.results?.active_groups || [];
       const queryLower = query.toLowerCase();
 
       return groups
