@@ -110,15 +110,15 @@ Copy and paste this configuration:
 
 Restart the app and ask: *"What GPU resources are available on ACCESS-CI?"*
 
-::: tip No Installation Required
-The hosted servers handle everything. You just need Claude Desktop and npm (for the `mcp-remote` bridge).
+::: tip No Server Installation Required
+The hosted servers handle everything - you don't need to install or run the MCP servers locally. You just need Claude Desktop and [Node.js](https://nodejs.org/) (which includes npm for the `mcp-remote` bridge).
 :::
 
 ---
 
 ## Install Locally
 
-For better performance or offline use, install the servers locally:
+Prefer to run the servers yourself? Install them locally for more control or to customize:
 
 [**📖 Complete Installation Guide →**](/getting-started)
 
