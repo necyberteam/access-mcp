@@ -17,7 +17,12 @@ COPY packages/${PACKAGE} ./packages/${PACKAGE}
 # Install all dependencies (including dev dependencies for building)
 RUN npm ci
 
-# Build using TypeScript project references (builds shared as dependency automatically)
+# Create symlink for workspace package (npm ci doesn't handle partial workspaces)
+RUN mkdir -p node_modules/@access-mcp && \
+    ln -sf ../../packages/shared node_modules/@access-mcp/shared
+
+# Build shared first, then the target package
+RUN npx tsc --build packages/shared
 RUN npx tsc --build packages/${PACKAGE}
 
 # Production stage
