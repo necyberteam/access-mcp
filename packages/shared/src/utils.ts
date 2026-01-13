@@ -186,6 +186,15 @@ export async function resolveResourceId(
   input: string,
   searchFn: (query: string) => Promise<ResourceMatch[]>
 ): Promise<ResolveResult> {
+  // Guard against undefined/null input
+  if (!input) {
+    return {
+      success: false,
+      error: "Resource ID is required",
+      suggestion: "Use search_resources to find valid resource names.",
+    };
+  }
+
   // If it already looks like a full resource ID (contains dots), return as-is
   if (input.includes(".")) {
     return { success: true, id: input };
