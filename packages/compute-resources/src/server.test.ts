@@ -341,16 +341,22 @@ describe("ComputeResourcesServer", () => {
             info_groupid: 1,
             cider_type: "Compute",
             resource_descriptive_name: "GPU Nodes with A100",
+            short_name: "Delta GPU",
+            info_resourceid: "delta-gpu.ncsa.access-ci.org",
           },
           {
             info_groupid: 1,
             cider_type: "Storage",
             resource_descriptive_name: "High-speed storage",
+            short_name: "Delta Storage",
+            info_resourceid: "delta-storage.ncsa.access-ci.org",
           },
           {
             info_groupid: 1,
             cider_type: "Network",
             resource_descriptive_name: "Infiniband network",
+            short_name: "Delta Network",
+            info_resourceid: "delta-network.ncsa.access-ci.org",
           },
         ],
       };

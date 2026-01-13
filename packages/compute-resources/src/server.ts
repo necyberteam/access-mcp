@@ -53,6 +53,8 @@ interface HardwareItem {
   cider_type?: string;
   resource_descriptive_name?: string;
   resource_description?: string;
+  short_name?: string;
+  info_resourceid?: string;
 }
 
 interface StructuredHardware {
@@ -854,7 +856,11 @@ Consider:
   }
 
   /**
-   * Structure raw hardware items into organized categories
+   * Structure raw hardware items into organized categories.
+   *
+   * Uses short_name and info_resourceid for reliable categorization since these
+   * fields follow consistent naming conventions (e.g., "Bridges-2 GPU",
+   * "bridges2-gpu.psc.access-ci.org").
    */
   private structureHardwareInfo(hardwareItems: HardwareItem[]): Partial<StructuredHardware> {
     const structured: StructuredHardware = {
@@ -866,30 +872,50 @@ Consider:
     };
 
     for (const item of hardwareItems) {
-      const name = item.resource_descriptive_name?.toLowerCase() || "";
+      // Use short_name and info_resourceid for categorization - these are more reliable
+      // than resource_descriptive_name which can have ambiguous text like "CPU/GPU cluster"
+      const shortName = item.short_name?.toLowerCase() || "";
+      const resourceId = item.info_resourceid?.toLowerCase() || "";
       const type = item.cider_type;
 
-      // Categorize by type and name
+
       const entry: HardwareEntry = {
         name: item.resource_descriptive_name || "",
         type: item.cider_type || "",
         details: item.resource_description || "",
       };
 
-      if (name.includes("gpu") || name.includes("accelerator")) {
+      // Categorize using the reliable short_name and resource ID patterns
+      // GPU: short_name contains "GPU" (e.g., "Bridges-2 GPU", "Delta GPU")
+      //      or resourceId contains "-gpu" (e.g., "bridges2-gpu.psc.access-ci.org")
+      if (shortName.includes("gpu") || resourceId.includes("-gpu")) {
         structured.gpus.push(entry);
-      } else if (name.includes("memory") || name.includes("ram")) {
-        structured.memory.push(entry);
-      } else if (type === "Storage" || name.includes("storage") || name.includes("disk")) {
-        structured.storage.push(entry);
-      } else if (
-        type === "Compute" ||
-        name.includes("node") ||
-        name.includes("core") ||
-        name.includes("cpu")
+      }
+      // Memory: short_name ends with "EM" or contains "Memory"
+      //         or resourceId contains "-em" (Extreme Memory)
+      else if (
+        shortName.endsWith(" em") ||
+        shortName.includes("memory") ||
+        resourceId.includes("-em.")
       ) {
+        structured.memory.push(entry);
+      }
+      // Storage: cider_type is Storage, or short_name/resourceId indicates storage
+      else if (
+        type === "Storage" ||
+        shortName.includes("storage") ||
+        shortName.includes("ocean") ||
+        resourceId.includes("-ocean") ||
+        resourceId.includes("storage")
+      ) {
+        structured.storage.push(entry);
+      }
+      // Compute: cider_type is Compute (covers RM/regular compute nodes)
+      else if (type === "Compute") {
         structured.compute_nodes.push(entry);
-      } else {
+      }
+      // Other: anything that doesn't fit above
+      else {
         structured.other.push(entry);
       }
     }
