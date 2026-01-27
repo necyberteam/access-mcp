@@ -180,6 +180,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
 
     const response = await this.sdsClient.post("/api/v1", params);
 
+    // Treat 404 as "no results found" - the SDS API returns 404 when query/resource
+    // combination yields no matches, rather than returning an empty result set
+    if (response.status === 404) {
+      return [];
+    }
+
     if (response.status !== 200) {
       throw new Error(`SDS API error: ${response.status}`);
     }
