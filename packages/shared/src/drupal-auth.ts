@@ -1,4 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- Generic HTTP client for untyped JSON:API responses */
 import axios, { AxiosInstance } from "axios";
+import { randomUUID } from "crypto";
 
 /**
  * Authentication provider for Drupal JSON:API using cookie-based auth.
@@ -15,17 +17,35 @@ export class DrupalAuthProvider {
   private userUuid?: string;
   private httpClient: AxiosInstance;
   private isAuthenticated = false;
+  private actingUser?: string;
 
   constructor(
     private baseUrl: string,
     private username: string,
-    private password: string
+    private password: string,
+    actingUser?: string
   ) {
+    this.actingUser = actingUser;
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
       timeout: 30000,
       validateStatus: () => true,
     });
+  }
+
+  /**
+   * Set the acting user (ACCESS ID) for attribution.
+   * This user will be set as the author of created content.
+   */
+  setActingUser(accessId: string): void {
+    this.actingUser = accessId;
+  }
+
+  /**
+   * Get the current acting user
+   */
+  getActingUser(): string | undefined {
+    return this.actingUser;
   }
 
   /**
@@ -86,12 +106,20 @@ export class DrupalAuthProvider {
       throw new Error("Not authenticated. Call ensureAuthenticated() first.");
     }
 
-    return {
+    const headers: Record<string, string> = {
       Cookie: this.sessionCookie,
       "X-CSRF-Token": this.csrfToken,
       "Content-Type": "application/vnd.api+json",
       Accept: "application/vnd.api+json",
+      "X-Request-ID": randomUUID(),
     };
+
+    // Include acting user header if set - Drupal will use this for attribution
+    if (this.actingUser) {
+      headers["X-Acting-User"] = this.actingUser;
+    }
+
+    return headers;
   }
 
   /**

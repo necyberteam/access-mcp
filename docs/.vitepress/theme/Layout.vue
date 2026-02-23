@@ -56,7 +56,7 @@ function initializeAccessCI() {
     '      { name: "NSF Awards", href: "/servers/nsf-awards" },',
     '      { name: "Software Discovery", href: "/servers/software-discovery" },',
     '      { name: "System Status", href: "/servers/system-status" },',
-    '      { name: "XDMoD Charts", href: "/servers/xdmod-charts" },',
+    '      { name: "XDMoD", href: "/servers/xdmod" },',
     '      { name: "XDMoD Data", href: "/servers/xdmod-mcp-data" },',
     "    ],",
     "  },",

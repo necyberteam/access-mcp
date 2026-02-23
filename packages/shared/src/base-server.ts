@@ -21,10 +21,87 @@ import {
 import axios, { AxiosInstance } from "axios";
 import express, { Express, Request, Response } from "express";
 import { IncomingMessage, ServerResponse } from "node:http";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
+import { traceMcpToolCall } from "./telemetry.js";
 
 // Re-export SDK types for convenience
 export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
+
+/**
+ * Request context passed via AsyncLocalStorage for per-request data.
+ * This allows tool handlers to access request-scoped data like the acting user
+ * without needing to thread it through every function call.
+ */
+export interface RequestContext {
+  /**
+   * The ACCESS ID of the user performing the action.
+   * Passed via X-Acting-User header from the agent.
+   * Format: "username@access-ci.org"
+   */
+  actingUser?: string;
+  /**
+   * The Drupal user ID of the acting user.
+   * Passed via X-Acting-User-Uid header from the agent.
+   * Used for content attribution in Drupal.
+   */
+  actingUserUid?: number;
+  /** Unique request ID for tracing (from X-Request-ID header) */
+  requestId?: string;
+}
+
+/** AsyncLocalStorage instance for request context */
+export const requestContextStorage = new AsyncLocalStorage<RequestContext>();
+
+/**
+ * Get the current request context. Returns undefined if called outside a request.
+ */
+export function getRequestContext(): RequestContext | undefined {
+  return requestContextStorage.getStore();
+}
+
+/**
+ * Get the acting user's ACCESS ID from the current request context.
+ * Throws an error if no acting user is set - use this for operations that require attribution.
+ */
+export function getActingUser(): string {
+  const context = getRequestContext();
+  if (!context?.actingUser) {
+    throw new Error(
+      "No acting user specified. The X-Acting-User header must be set to the ACCESS ID " +
+        "(username@access-ci.org) of the person performing this action."
+    );
+  }
+  return context.actingUser;
+}
+
+/**
+ * Get the acting user's Drupal UID from the current request context.
+ * Throws an error if no acting user UID is set - use this for Drupal content attribution.
+ */
+export function getActingUserUid(): number {
+  const context = getRequestContext();
+  if (!context?.actingUserUid) {
+    throw new Error(
+      "No acting user UID specified. The X-Acting-User-Uid header must be set to the Drupal user ID " +
+        "of the person performing this action."
+    );
+  }
+  return context.actingUserUid;
+}
+
+/**
+ * Options for BaseAccessServer constructor
+ */
+export interface BaseAccessServerOptions {
+  /**
+   * Require API key authentication for tool execution endpoints.
+   * When enabled, requests to /tools/:toolName must include a valid
+   * X-Api-Key header matching the MCP_API_KEY environment variable.
+   * Enable this for servers that perform write operations on behalf of users.
+   */
+  requireApiKey?: boolean;
+}
 
 export abstract class BaseAccessServer {
   protected server: Server;
@@ -34,12 +111,19 @@ export abstract class BaseAccessServer {
   private _httpServer?: Express;
   private _httpPort?: number;
   private _sseTransports: Map<string, SSEServerTransport> = new Map();
+  private _requireApiKey: boolean;
 
   constructor(
     protected serverName: string,
     protected version: string,
-    protected baseURL: string = "https://support.access-ci.org/api"
+    protected baseURL: string = "https://support.access-ci.org/api",
+    options: BaseAccessServerOptions = {}
   ) {
+    this._requireApiKey = options.requireApiKey ?? false;
+    // Note: Telemetry is initialized via --import flag in the Dockerfile
+    // This ensures OpenTelemetry is set up BEFORE express/http are imported
+    // See packages/shared/src/telemetry-bootstrap.ts
+
     this.logger = createLogger(serverName);
     this.server = new Server(
       {
@@ -354,33 +438,85 @@ export abstract class BaseAccessServer {
 
     // Tool execution endpoint (for inter-server communication)
     this._httpServer.post("/tools/:toolName", async (req: Request, res: Response) => {
-      try {
-        const { toolName } = req.params;
-        const { arguments: args = {} } = req.body;
+      // Validate API key if required
+      if (this._requireApiKey) {
+        const expectedApiKey = process.env.MCP_API_KEY;
+        const providedApiKey = req.header("X-Api-Key");
 
-        // Validate that the tool exists
-        const tools = this.getTools();
-        const tool = tools.find((t) => t.name === toolName);
-        if (!tool) {
-          res.status(404).json({ error: `Tool '${toolName}' not found` });
+        if (!expectedApiKey) {
+          this.logger.error("MCP_API_KEY environment variable not set but requireApiKey is enabled");
+          res.status(500).json({ error: "Server misconfiguration: API key not configured" });
           return;
         }
 
-        // Execute the tool
-        const request: CallToolRequest = {
-          method: "tools/call",
-          params: {
-            name: toolName,
-            arguments: args,
-          },
-        };
-
-        const result = await this.handleToolCall(request);
-        res.json(result);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        res.status(500).json({ error: errorMessage });
+        if (!providedApiKey || providedApiKey !== expectedApiKey) {
+          this.logger.warn("Unauthorized tool call attempt", {
+            tool: req.params.toolName,
+            hasKey: !!providedApiKey,
+          });
+          res.status(401).json({ error: "Invalid or missing API key" });
+          return;
+        }
       }
+
+      // Extract request context from headers
+      const uidHeader = req.header("X-Acting-User-Uid");
+      const context: RequestContext = {
+        actingUser: req.header("X-Acting-User"),
+        actingUserUid: uidHeader ? parseInt(uidHeader, 10) : undefined,
+        requestId: req.header("X-Request-ID"),
+      };
+
+      const { toolName } = req.params;
+      const { arguments: args = {} } = req.body;
+
+      // Validate that the tool exists (before tracing to avoid noisy spans)
+      const tools = this.getTools();
+      const tool = tools.find((t) => t.name === toolName);
+      if (!tool) {
+        res.status(404).json({ error: `Tool '${toolName}' not found` });
+        return;
+      }
+
+      // Run the handler within the request context
+      await requestContextStorage.run(context, async () => {
+        // Wrap tool execution with OpenTelemetry tracing
+        try {
+          const result = await traceMcpToolCall(toolName, args, async (span) => {
+            // Add server info to span
+            span.setAttribute("mcp.server.name", this.serverName);
+            span.setAttribute("mcp.server.version", this.version);
+
+            // Add request context if available
+            if (context.requestId) {
+              span.setAttribute("mcp.request.id", context.requestId);
+            }
+
+            // Execute the tool
+            const request: CallToolRequest = {
+              method: "tools/call",
+              params: {
+                name: toolName,
+                arguments: args,
+              },
+            };
+
+            const toolResult = await this.handleToolCall(request);
+
+            // Record result info on span
+            if (toolResult.isError) {
+              span.setAttribute("mcp.result.is_error", true);
+            }
+
+            return toolResult;
+          });
+
+          res.json(result);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          res.status(500).json({ error: errorMessage });
+        }
+      });
     });
 
     // Start HTTP server
@@ -469,7 +605,8 @@ export abstract class BaseAccessServer {
   }
 
   /**
-   * Call a tool on another ACCESS-CI MCP server via HTTP
+   * Call a tool on another ACCESS-CI MCP server via HTTP.
+   * Automatically forwards acting user context from the current request.
    */
   protected async callRemoteServer(
     serviceName: string,
@@ -483,6 +620,19 @@ export abstract class BaseAccessServer {
       );
     }
 
+    // Forward acting user context to the remote server
+    const context = getRequestContext();
+    const headers: Record<string, string> = {};
+    if (context?.actingUser) {
+      headers["X-Acting-User"] = context.actingUser;
+    }
+    if (context?.actingUserUid) {
+      headers["X-Acting-User-Uid"] = String(context.actingUserUid);
+    }
+    if (context?.requestId) {
+      headers["X-Request-ID"] = context.requestId;
+    }
+
     const response = await axios.post(
       `${serviceUrl}/tools/${toolName}`,
       {
@@ -491,6 +641,7 @@ export abstract class BaseAccessServer {
       {
         timeout: 30000,
         validateStatus: () => true,
+        headers,
       }
     );
 
