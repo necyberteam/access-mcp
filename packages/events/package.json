@@ -1,6 +1,6 @@
 {
   "name": "@access-mcp/events",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events",
   "type": "module",
   "main": "dist/index.js",
