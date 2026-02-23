@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, Mock } from "vitest";
 import { AnnouncementsServer } from "./server.js";
-import { DrupalAuthProvider } from "@access-mcp/shared";
+import { DrupalAuthProvider, requestContextStorage, RequestContext } from "@access-mcp/shared";
 
 // Mock the DrupalAuthProvider
 vi.mock("@access-mcp/shared", async () => {
@@ -10,6 +10,8 @@ vi.mock("@access-mcp/shared", async () => {
     DrupalAuthProvider: vi.fn().mockImplementation(() => ({
       ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
       getUserUuid: vi.fn().mockReturnValue("user-uuid-123"),
+      setActingUser: vi.fn(),
+      getActingUser: vi.fn(),
       get: vi.fn(),
       post: vi.fn(),
       patch: vi.fn(),
@@ -510,6 +512,8 @@ describe("AnnouncementsServer", () => {
     let mockDrupalAuth: {
       ensureAuthenticated: Mock;
       getUserUuid: Mock;
+      setActingUser: Mock;
+      getActingUser: Mock;
       get: Mock;
       post: Mock;
       patch: Mock;
@@ -521,12 +525,14 @@ describe("AnnouncementsServer", () => {
       process.env.DRUPAL_API_URL = "https://test.drupal.site";
       process.env.DRUPAL_USERNAME = "test_user";
       process.env.DRUPAL_PASSWORD = "test_password";
-      process.env.ACTING_USER_UID = "1985";
+      process.env.ACTING_USER = "testuser@access-ci.org";
 
       // Create a fresh mock for each test
       mockDrupalAuth = {
         ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
         getUserUuid: vi.fn().mockReturnValue("user-uuid-123"),
+        setActingUser: vi.fn(),
+        getActingUser: vi.fn(),
         get: vi.fn(),
         post: vi.fn(),
         patch: vi.fn(),
@@ -541,16 +547,11 @@ describe("AnnouncementsServer", () => {
       delete process.env.DRUPAL_API_URL;
       delete process.env.DRUPAL_USERNAME;
       delete process.env.DRUPAL_PASSWORD;
-      delete process.env.ACTING_USER_UID;
+      delete process.env.ACTING_USER;
     });
 
     describe("create_announcement", () => {
       it("should create an announcement with required fields", async () => {
-        // Mock user UUID lookup for ACTING_USER_UID
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "acting-user-uuid-123" }],
-        });
-
         mockDrupalAuth.post.mockResolvedValue({
           data: {
             id: "new-announcement-uuid",
@@ -568,14 +569,10 @@ describe("AnnouncementsServer", () => {
             arguments: {
               title: "Test Announcement",
               body: "<p>This is a test</p>",
+              summary: "Test summary",
             },
           },
         });
-
-        // Should have looked up the acting user UUID
-        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
-          "/jsonapi/user/user?filter[drupal_internal__uid]=1985"
-        );
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "/jsonapi/node/access_news",
@@ -588,15 +585,8 @@ describe("AnnouncementsServer", () => {
                 body: expect.objectContaining({
                   value: "<p>This is a test</p>",
                   format: "basic_html",
+                  summary: "Test summary",
                 }),
-              }),
-              relationships: expect.objectContaining({
-                uid: {
-                  data: {
-                    type: "user--user",
-                    id: "acting-user-uuid-123",
-                  },
-                },
               }),
             }),
           })
@@ -608,16 +598,13 @@ describe("AnnouncementsServer", () => {
       });
 
       it("should look up tags by name when provided (with caching)", async () => {
-        // Mock user lookup first, then bulk tag fetch for cache
-        mockDrupalAuth.get
-          .mockResolvedValueOnce({ data: [{ id: "acting-user-uuid" }] }) // user lookup
-          .mockResolvedValueOnce({
-            data: [
-              { id: "tag-uuid-1", attributes: { name: "gpu" } },
-              { id: "tag-uuid-2", attributes: { name: "maintenance" } },
-              { id: "tag-uuid-3", attributes: { name: "hpc" } },
-            ],
-          }); // bulk tag cache fetch
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          data: [
+            { id: "tag-uuid-1", attributes: { name: "gpu" } },
+            { id: "tag-uuid-2", attributes: { name: "maintenance" } },
+            { id: "tag-uuid-3", attributes: { name: "hpc" } },
+          ],
+        });
 
         mockDrupalAuth.post.mockResolvedValue({
           data: {
@@ -633,20 +620,16 @@ describe("AnnouncementsServer", () => {
             arguments: {
               title: "Test",
               body: "Body",
+              summary: "Summary",
               tags: ["gpu", "maintenance"],
             },
           },
         });
 
-        // Should have looked up user, then fetched all tags for cache
-        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
-          "/jsonapi/user/user?filter[drupal_internal__uid]=1985"
-        );
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
           "/jsonapi/taxonomy_term/tags?page[limit]=500"
         );
 
-        // Should have created with the correct tag UUIDs
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "/jsonapi/node/access_news",
           expect.objectContaining({
@@ -682,30 +665,118 @@ describe("AnnouncementsServer", () => {
         expect(responseData.error).toContain("DRUPAL_API_URL");
       });
 
-      it("should fail without ACTING_USER_UID", async () => {
-        delete process.env.ACTING_USER_UID;
+      it("should fail without ACTING_USER", async () => {
+        delete process.env.ACTING_USER;
 
         const result = await server["handleToolCall"]({
           method: "tools/call",
           params: {
-            name: "create_announcement",
-            arguments: {
-              title: "Test",
-              body: "Body",
-            },
+            name: "get_my_announcements",
+            arguments: {},
           },
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("ACTING_USER_UID");
         expect(responseData.error).toContain("No acting user specified");
       });
 
-      it("should create announcement with external link", async () => {
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "acting-user-uuid-123" }],
+      it("should use actingUser from request context when env var not set", async () => {
+        delete process.env.ACTING_USER;
+
+        mockDrupalAuth.post.mockResolvedValue({
+          data: {
+            id: "new-announcement-uuid",
+            attributes: {
+              title: "Test",
+              drupal_internal__nid: 12345,
+            },
+          },
         });
 
+        const context: RequestContext = {
+          actingUser: "contextuser@access-ci.org",
+        };
+
+        const result = await requestContextStorage.run(context, async () => {
+          return server["handleToolCall"]({
+            method: "tools/call",
+            params: {
+              name: "create_announcement",
+              arguments: {
+                title: "Test",
+                body: "Body",
+                summary: "Summary",
+              },
+            },
+          });
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.success).toBe(true);
+      });
+
+      it("should prefer request context actingUser over env var", async () => {
+        process.env.ACTING_USER = "envuser@access-ci.org";
+
+        mockDrupalAuth.post.mockResolvedValue({
+          data: {
+            id: "new-announcement-uuid",
+            attributes: { title: "Test" },
+          },
+        });
+
+        const context: RequestContext = {
+          actingUser: "contextuser@access-ci.org",
+        };
+
+        await requestContextStorage.run(context, async () => {
+          return server["handleToolCall"]({
+            method: "tools/call",
+            params: {
+              name: "create_announcement",
+              arguments: {
+                title: "Test",
+                body: "Body",
+                summary: "Summary",
+              },
+            },
+          });
+        });
+
+        // Should have called setActingUser with the context value, not env var
+        expect(mockDrupalAuth.setActingUser).toHaveBeenCalledWith("contextuser@access-ci.org");
+      });
+
+      it("should set actingUser on DrupalAuth from request context", async () => {
+        const context: RequestContext = {
+          actingUser: "researcher@access-ci.org",
+        };
+
+        mockDrupalAuth.post.mockResolvedValue({
+          data: {
+            id: "new-announcement-uuid",
+            attributes: { title: "Test" },
+          },
+        });
+
+        await requestContextStorage.run(context, async () => {
+          return server["handleToolCall"]({
+            method: "tools/call",
+            params: {
+              name: "create_announcement",
+              arguments: {
+                title: "Test",
+                body: "Body",
+                summary: "Summary",
+              },
+            },
+          });
+        });
+
+        expect(mockDrupalAuth.setActingUser).toHaveBeenCalledWith("researcher@access-ci.org");
+      });
+
+      it("should create announcement with external link", async () => {
         mockDrupalAuth.post.mockResolvedValue({
           data: {
             id: "new-announcement-uuid",
@@ -748,10 +819,6 @@ describe("AnnouncementsServer", () => {
       });
 
       it("should create announcement with where_to_share", async () => {
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "acting-user-uuid-123" }],
-        });
-
         mockDrupalAuth.post.mockResolvedValue({
           data: {
             id: "new-announcement-uuid",
@@ -791,10 +858,6 @@ describe("AnnouncementsServer", () => {
       });
 
       it("should fail with invalid where_to_share value", async () => {
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "acting-user-uuid-123" }],
-        });
-
         const result = await server["handleToolCall"]({
           method: "tools/call",
           params: {
@@ -813,14 +876,8 @@ describe("AnnouncementsServer", () => {
       });
 
       it("should create announcement with affinity group", async () => {
-        // User lookup
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "acting-user-uuid-123" }],
-        });
-        // Affinity group lookup by title
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [],
-        });
+        // Affinity group lookup by title (first by field_group_id returns empty, then by title)
+        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
         mockDrupalAuth.get.mockResolvedValueOnce({
           data: [{ id: "group-uuid-456", attributes: { title: "Test Group" } }],
         });
@@ -866,9 +923,6 @@ describe("AnnouncementsServer", () => {
       });
 
       it("should fail when affinity group not found", async () => {
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "acting-user-uuid-123" }],
-        });
         // Both lookups return empty
         mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
         mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
@@ -1064,23 +1118,20 @@ describe("AnnouncementsServer", () => {
     });
 
     describe("get_my_announcements", () => {
-      it("should fetch announcements for acting user", async () => {
-        // First call: user UUID lookup, Second call: announcements
-        mockDrupalAuth.get
-          .mockResolvedValueOnce({ data: [{ id: "acting-user-uuid-456" }] })
-          .mockResolvedValueOnce({
-            data: [
-              {
-                id: "announcement-1",
-                attributes: {
-                  title: "My First Announcement",
-                  status: false,
-                  created: "2024-03-15T10:00:00Z",
-                  body: { value: "<p>Content</p>", summary: "Summary" },
-                },
+      it("should fetch announcements via views endpoint without user UUID lookup", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          data: [
+            {
+              id: "announcement-1",
+              attributes: {
+                title: "My First Announcement",
+                status: false,
+                created: "2024-03-15T10:00:00Z",
+                body: { value: "<p>Content</p>", summary: "Summary" },
               },
-            ],
-          });
+            },
+          ],
+        });
 
         const result = await server["handleToolCall"]({
           method: "tools/call",
@@ -1090,13 +1141,10 @@ describe("AnnouncementsServer", () => {
           },
         });
 
-        // Should look up acting user UUID first
+        // Should make exactly 1 call — no user UUID lookup
+        expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
-          "/jsonapi/user/user?filter[drupal_internal__uid]=1985"
-        );
-        // Then fetch announcements for that user
-        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
-          expect.stringContaining("filter[uid.id]=acting-user-uuid-456")
+          "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=10"
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
@@ -1104,22 +1152,127 @@ describe("AnnouncementsServer", () => {
         expect(responseData.items[0].title).toBe("My First Announcement");
         expect(responseData.items[0].status).toBe("draft");
       });
+
+      it("should use default limit of 25", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
+
+        await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: {},
+          },
+        });
+
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=25"
+        );
+      });
+
+      it("should map published status and build edit_url from nid", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          data: [
+            {
+              id: "ann-published",
+              attributes: {
+                title: "Published One",
+                status: true,
+                drupal_internal__nid: 999,
+                created: "2024-03-15T10:00:00Z",
+                field_published_date: "2024-03-15",
+                body: { value: "<p>Body</p>", summary: "Short summary" },
+              },
+            },
+            {
+              id: "ann-draft",
+              attributes: {
+                title: "Draft One",
+                status: false,
+                drupal_internal__nid: 1000,
+                created: "2024-03-14T10:00:00Z",
+                body: { value: "<p>Draft body</p>" },
+              },
+            },
+          ],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: {},
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.total).toBe(2);
+
+        // Published announcement
+        expect(responseData.items[0].uuid).toBe("ann-published");
+        expect(responseData.items[0].status).toBe("published");
+        expect(responseData.items[0].nid).toBe(999);
+        expect(responseData.items[0].edit_url).toBe("https://test.drupal.site/node/999/edit");
+        expect(responseData.items[0].published_date).toBe("2024-03-15");
+        expect(responseData.items[0].summary).toBe("Short summary");
+
+        // Draft announcement — summary falls back to body text
+        expect(responseData.items[1].uuid).toBe("ann-draft");
+        expect(responseData.items[1].status).toBe("draft");
+        expect(responseData.items[1].edit_url).toBe("https://test.drupal.site/node/1000/edit");
+        expect(responseData.items[1].summary).toContain("Draft body");
+      });
+
+      it("should handle empty results from views endpoint", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: {},
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.total).toBe(0);
+        expect(responseData.items).toEqual([]);
+      });
+
+      it("should use acting user from request context", async () => {
+        delete process.env.ACTING_USER;
+
+        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
+
+        const context: RequestContext = {
+          actingUser: "contextuser@access-ci.org",
+        };
+
+        const result = await requestContextStorage.run(context, async () => {
+          return server["handleToolCall"]({
+            method: "tools/call",
+            params: {
+              name: "get_my_announcements",
+              arguments: {},
+            },
+          });
+        });
+
+        // Should succeed — acting user comes from request context
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.total).toBe(0);
+        expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
+      });
     });
 
     describe("get_announcement_context", () => {
-      it("should return tags and affinity groups for coordinator", async () => {
-        // First call: get user UUID
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "user-uuid-123", attributes: { name: "testuser" } }],
-        });
-        // Second call: get tags (parallel)
+      it("should fetch tags and affinity groups without user UUID lookup", async () => {
+        // Two parallel calls only — no user UUID lookup
         mockDrupalAuth.get.mockResolvedValueOnce({
           data: [
             { id: "tag-1", attributes: { name: "gpu" } },
             { id: "tag-2", attributes: { name: "hpc" } },
           ],
         });
-        // Third call: get affinity groups (parallel)
         mockDrupalAuth.get.mockResolvedValueOnce({
           data: [
             {
@@ -1141,26 +1294,35 @@ describe("AnnouncementsServer", () => {
           },
         });
 
+        // Exactly 2 calls — tags + views affinity groups, no user lookup
+        expect(mockDrupalAuth.get).toHaveBeenCalledTimes(2);
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "/jsonapi/taxonomy_term/tags?page[limit]=100"
+        );
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "/jsonapi/views/mcp_my_affinity_groups/page_1"
+        );
+
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.tags).toHaveLength(2);
         expect(responseData.tags[0].name).toBe("gpu");
+        expect(responseData.tags[1].name).toBe("hpc");
         expect(responseData.affinity_groups).toHaveLength(1);
         expect(responseData.affinity_groups[0].name).toBe("Test Group");
+        expect(responseData.affinity_groups[0].id).toBe(123);
+        expect(responseData.affinity_groups[0].uuid).toBe("group-uuid-1");
+        expect(responseData.affinity_groups[0].category).toBe("Research");
         expect(responseData.is_coordinator).toBe(true);
         expect(responseData.affiliations).toContain("ACCESS Collaboration");
         expect(responseData.affiliations).toContain("Community");
+        expect(responseData.where_to_share_options).toHaveLength(4);
+        expect(responseData.guidance).toContain("coordinator");
       });
 
-      it("should indicate non-coordinator when user has no affinity groups", async () => {
-        // First call: get user UUID
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "user-uuid-123", attributes: { name: "testuser" } }],
-        });
-        // Second call: get tags (parallel)
+      it("should indicate non-coordinator when views returns no affinity groups", async () => {
         mockDrupalAuth.get.mockResolvedValueOnce({
           data: [{ id: "tag-1", attributes: { name: "gpu" } }],
         });
-        // Third call: get affinity groups - empty (parallel)
         mockDrupalAuth.get.mockResolvedValueOnce({
           data: [],
         });
@@ -1176,6 +1338,51 @@ describe("AnnouncementsServer", () => {
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.is_coordinator).toBe(false);
         expect(responseData.affinity_groups).toHaveLength(0);
+        expect(responseData.guidance).toContain("not a coordinator");
+      });
+
+      it("should fail without acting user", async () => {
+        delete process.env.ACTING_USER;
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_announcement_context",
+            arguments: {},
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.error).toContain("No acting user specified");
+        // Should not have made any API calls
+        expect(mockDrupalAuth.get).not.toHaveBeenCalled();
+      });
+
+      it("should use acting user from request context", async () => {
+        delete process.env.ACTING_USER;
+
+        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
+        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
+
+        const context: RequestContext = {
+          actingUser: "contextuser@access-ci.org",
+        };
+
+        const result = await requestContextStorage.run(context, async () => {
+          return server["handleToolCall"]({
+            method: "tools/call",
+            params: {
+              name: "get_announcement_context",
+              arguments: {},
+            },
+          });
+        });
+
+        // Should succeed — acting user from request context
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.tags).toHaveLength(0);
+        expect(responseData.is_coordinator).toBe(false);
+        expect(mockDrupalAuth.get).toHaveBeenCalledTimes(2);
       });
     });
   });
@@ -1263,7 +1470,9 @@ describe("AnnouncementsServer", () => {
         },
       });
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK prompt message content type
       expect((result.messages[0].content as any).text).toContain("GPU availability");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK prompt message content type
       expect((result.messages[1].content as any).text).toContain("GPU availability");
     });
 
@@ -1277,6 +1486,7 @@ describe("AnnouncementsServer", () => {
 
       expect(result.description).toBe("Guide for managing existing announcements");
       expect(result.messages).toHaveLength(2);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP SDK prompt message content type
       expect((result.messages[1].content as any).text).toContain("get_my_announcements");
     });
 

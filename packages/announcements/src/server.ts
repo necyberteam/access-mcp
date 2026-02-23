@@ -4,6 +4,7 @@ import {
   Resource,
   CallToolResult,
   DrupalAuthProvider,
+  getRequestContext,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -155,12 +156,18 @@ export class AnnouncementsServer extends BaseAccessServer {
   private static TAG_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor() {
-    super("access-announcements", version, "https://support.access-ci.org");
+    super("access-announcements", version, "https://support.access-ci.org", {
+      requireApiKey: true,
+    });
   }
 
   /**
    * Get or create the Drupal auth provider for JSON:API write operations.
    * Requires DRUPAL_API_URL, DRUPAL_USERNAME, and DRUPAL_PASSWORD env vars.
+   *
+   * Acting user is determined in priority order:
+   * 1. X-Acting-User header (from request context)
+   * 2. ACTING_USER environment variable (fallback)
    */
   private getDrupalAuth(): DrupalAuthProvider {
     if (!this.drupalAuth) {
@@ -176,6 +183,14 @@ export class AnnouncementsServer extends BaseAccessServer {
 
       this.drupalAuth = new DrupalAuthProvider(baseUrl, username, password);
     }
+
+    // Update acting user from request context (takes priority) or env var (fallback)
+    const context = getRequestContext();
+    const actingUser = context?.actingUser || process.env.ACTING_USER;
+    if (actingUser) {
+      this.drupalAuth.setActingUser(actingUser);
+    }
+
     return this.drupalAuth;
   }
 
@@ -756,42 +771,46 @@ Which would you like to do?`,
   // ============================================================================
 
   /**
-   * Get the acting user's UID from environment variable.
-   * This identifies who the announcement should be attributed to.
+   * Get the acting user's ACCESS ID for content attribution.
+   *
+   * Priority order:
+   * 1. X-Acting-User header (from request context)
+   * 2. ACTING_USER environment variable (fallback)
+   *
+   * Returns the ACCESS ID (e.g., "username@access-ci.org")
    */
-  private getActingUserUid(): number {
-    const envUid = process.env.ACTING_USER_UID;
-    if (envUid) {
-      const parsed = parseInt(envUid, 10);
-      if (!isNaN(parsed)) {
-        return parsed;
-      }
+  private getActingUserAccessId(): string {
+    // Try request context first
+    const context = getRequestContext();
+    if (context?.actingUser) {
+      return context.actingUser;
+    }
+
+    // Fall back to environment variable
+    const envUser = process.env.ACTING_USER;
+    if (envUser) {
+      return envUser;
     }
 
     throw new Error(
       "Cannot create announcement: No acting user specified.\n\n" +
-        "The ACTING_USER_UID environment variable must be set to the Drupal user ID " +
-        "of the person creating the announcement. This should be configured by the chat system."
+        "Either set the X-Acting-User header or the ACTING_USER environment variable " +
+        "to the ACCESS ID (e.g., username@access-ci.org) of the person creating the announcement."
     );
   }
 
   /**
    * Create a new announcement via Drupal JSON:API
+   *
+   * The X-Acting-User header (set by DrupalAuthProvider) tells Drupal which
+   * ACCESS user is creating the content. Drupal handles user resolution.
    */
   private async createAnnouncement(args: CreateAnnouncementArgs): Promise<CallToolResult> {
     const auth = this.getDrupalAuth();
 
-    // Get the acting user - required for proper attribution
-    const actingUserUid = this.getActingUserUid();
-    const userUuid = await this.getUserUuidByUid(actingUserUid);
-
-    if (!userUuid) {
-      throw new Error(
-        `Could not find user with UID ${actingUserUid}. Verify the ACTING_USER_UID is correct.`
-      );
-    }
-
     // Build the JSON:API request body
+    // Note: We don't set the uid relationship - Drupal handles author attribution
+    // based on the X-Acting-User header sent with the request
     const requestBody: JsonApiRequestBody = {
       data: {
         type: "node--access_news",
@@ -803,14 +822,7 @@ Which would you like to do?`,
             format: "basic_html",
           },
         },
-        relationships: {
-          uid: {
-            data: {
-              type: "user--user",
-              id: userUuid,
-            },
-          },
-        },
+        relationships: {},
       },
     };
 
@@ -1041,24 +1053,22 @@ Which would you like to do?`,
   }
 
   /**
-   * Get announcements created by the acting user
+   * Get announcements created by the acting user.
+   *
+   * Uses a Drupal Views page display exposed via jsonapi_views at
+   * /jsonapi/views/mcp_my_announcements/page_1.
+   * The JsonApiViewsUserParameterSubscriber resolves X-Acting-User header to uid
+   * and injects it as the contextual filter argument, so no user UUID lookup is needed.
    */
   private async getMyAnnouncements(args: GetMyAnnouncementsArgs): Promise<CallToolResult> {
     const auth = this.getDrupalAuth();
 
-    // Get the acting user's UUID
-    const actingUserUid = this.getActingUserUid();
-    const userUuid = await this.getUserUuidByUid(actingUserUid);
-
-    if (!userUuid) {
-      throw new Error(
-        `Could not find user with UID ${actingUserUid}. Verify the ACTING_USER_UID is correct.`
-      );
-    }
+    // Ensure acting user is set (will throw if not available)
+    this.getActingUserAccessId();
 
     const limit = args.limit || 25;
     const result = await auth.get(
-      `/jsonapi/node/access_news?filter[uid.id]=${userUuid}&page[limit]=${limit}&sort=-created`
+      `/jsonapi/views/mcp_my_announcements/page_1?page[limit]=${limit}`
     );
 
     const baseUrl = process.env.DRUPAL_API_URL;
@@ -1098,39 +1108,25 @@ Which would you like to do?`,
   // ============================================================================
 
   /**
-   * Get a user's UUID by their Drupal user ID (internal helper)
-   */
-  private async getUserUuidByUid(uid: number): Promise<string | null> {
-    const auth = this.getDrupalAuth();
-    const result = await auth.get(`/jsonapi/user/user?filter[drupal_internal__uid]=${uid}`);
-
-    if (!result.data || result.data.length === 0) {
-      return null;
-    }
-
-    return result.data[0].id;
-  }
-
-  /**
-   * Get announcement context - tags, affinity groups, and options for creating announcements
+   * Get announcement context - tags, affinity groups, and options for creating announcements.
+   *
+   * Uses a Drupal Views page display exposed via jsonapi_views at
+   * /jsonapi/views/mcp_my_affinity_groups/page_1 for affinity groups lookup.
+   * The JsonApiViewsUserParameterSubscriber resolves X-Acting-User header to uid,
+   * so no user UUID lookup is needed.
    */
   private async getAnnouncementContext(): Promise<CallToolResult> {
     const auth = this.getDrupalAuth();
 
-    // Get the acting user's UUID
-    const actingUserUid = this.getActingUserUid();
-    const userUuid = await this.getUserUuidByUid(actingUserUid);
-
-    if (!userUuid) {
-      throw new Error(`Could not find user with UID ${actingUserUid}`);
-    }
+    // Ensure acting user is set (will throw if not available)
+    this.getActingUserAccessId();
 
     // Fetch tags and affinity groups in parallel
+    // Tags use standard JSON:API; affinity groups use a views endpoint
+    // that resolves X-Acting-User to the coordinator filter automatically
     const [tagsResult, groupsResult] = await Promise.all([
       auth.get("/jsonapi/taxonomy_term/tags?page[limit]=100"),
-      auth.get(
-        `/jsonapi/node/affinity_group?filter[field_coordinator.id]=${userUuid}&filter[status]=1&page[limit]=100`
-      ),
+      auth.get("/jsonapi/views/mcp_my_affinity_groups/page_1"),
     ]);
 
     const tags = (tagsResult.data || []).map((item: JsonApiResourceItem) => ({

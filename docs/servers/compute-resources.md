@@ -104,5 +104,5 @@ npm install -g @access-mcp/compute-resources
 ---
 
 **Package:** `@access-mcp/compute-resources`
-**Version:** v0.6.0
+**Version:** v0.7.0
 **Main:** `dist/index.js`

@@ -1,0 +1,37 @@
+{
+  "name": "@access-mcp/jsm",
+  "version": "0.1.0",
+  "description": "MCP server for ACCESS Jira Service Management ticket creation",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "access-mcp-jsm": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "mcp",
+    "access-ci",
+    "jsm",
+    "jira",
+    "service-management",
+    "support"
+  ],
+  "author": "ACCESS-CI",
+  "license": "MIT",
+  "dependencies": {
+    "@access-mcp/shared": "*",
+    "@modelcontextprotocol/sdk": "^0.5.0",
+    "axios": "^1.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

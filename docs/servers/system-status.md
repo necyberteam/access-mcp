@@ -29,11 +29,11 @@ Get infrastructure status, outages, and maintenance information for ACCESS-CI re
 **Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `resource` | string | Filter by resource name (e.g., "delta", "bridges2") |
 | `time` | enum | Time period: `current`, `scheduled`, `past`, `all` (default: "current") |
-| `resource_ids` | array | Check status for specific resource IDs |
+| `resource` | string | Filter by resource name (e.g., "delta", "bridges2", "anvil") |
+| `outage_type` | enum | Filter by type: `Full`, `Partial`, `Degraded`, `Reconfiguration` |
+| `ids` | array | Check operational status for specific resources by name or ID |
 | `limit` | number | Max results (default: 50 for "all", 100 for "past") |
-| `use_group_api` | boolean | Use resource group API for status checking (default: false) |
 
 **Examples:**
 ```javascript
@@ -46,12 +46,20 @@ get_infrastructure_news({ time: "scheduled" })
 // Get comprehensive overview
 get_infrastructure_news({ time: "all" })
 
-// Check current status for specific resource
+// Filter to a specific resource
 get_infrastructure_news({ resource: "delta", time: "current" })
 
-// Check operational status of specific resources
+// Filter by outage type
+get_infrastructure_news({ outage_type: "Full" })
+
+// Check operational status of specific resources (by name or ID)
 get_infrastructure_news({
-  resource_ids: ["delta.ncsa.access-ci.org", "bridges2.psc.access-ci.org"]
+  ids: ["Anvil", "Delta", "Bridges-2"]
+})
+
+// Or using full resource IDs
+get_infrastructure_news({
+  ids: ["delta.ncsa.access-ci.org", "bridges2.psc.access-ci.org"]
 })
 
 // Get past outages with limit
@@ -80,9 +88,12 @@ npm install -g @access-mcp/system-status
 ## Resources
 
 - `accessci://system-status` - Current operational status of all ACCESS-CI resources
+- `accessci://outages/current` - Currently active outages
+- `accessci://outages/scheduled` - Upcoming scheduled maintenance
+- `accessci://outages/past` - Historical outages
 
 ---
 
 **Package:** `@access-mcp/system-status`
-**Version:** v0.5.0
+**Version:** v0.7.0
 **Main:** `dist/index.js`

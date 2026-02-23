@@ -4,6 +4,8 @@ import {
   Tool,
   Resource,
   CallToolResult,
+  DrupalAuthProvider,
+  getRequestContext,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -24,19 +26,78 @@ interface SearchEventsParams {
   limit?: number;
 }
 
+interface GetMyEventsParams {
+  limit?: number;
+}
+
 interface RawEvent {
   title?: string;
   start_date?: string;
   end_date?: string;
-  tags?: string[];
+  event_type?: string;
+  skill_level?: string;
+  tags?: string | string[];
   [key: string]: unknown;
 }
 
 export class EventsServer extends BaseAccessServer {
   private _eventsHttpClient?: AxiosInstance;
+  private drupalAuth?: DrupalAuthProvider;
 
   constructor() {
-    super("access-mcp-events", version, "https://support.access-ci.org");
+    super("access-mcp-events", version, "https://support.access-ci.org", {
+      requireApiKey: true,
+    });
+  }
+
+  /**
+   * Get or create the Drupal auth provider for authenticated operations.
+   * Requires DRUPAL_API_URL, DRUPAL_USERNAME, and DRUPAL_PASSWORD env vars.
+   */
+  private getDrupalAuth(): DrupalAuthProvider {
+    if (!this.drupalAuth) {
+      const baseUrl = process.env.DRUPAL_API_URL;
+      const username = process.env.DRUPAL_USERNAME;
+      const password = process.env.DRUPAL_PASSWORD;
+
+      if (!baseUrl || !username || !password) {
+        throw new Error(
+          "Authenticated operations require DRUPAL_API_URL, DRUPAL_USERNAME, and DRUPAL_PASSWORD environment variables"
+        );
+      }
+
+      this.drupalAuth = new DrupalAuthProvider(baseUrl, username, password);
+    }
+
+    // Update acting user from request context or env var
+    const context = getRequestContext();
+    const actingUser = context?.actingUser || process.env.ACTING_USER;
+    if (actingUser) {
+      this.drupalAuth.setActingUser(actingUser);
+    }
+
+    return this.drupalAuth;
+  }
+
+  /**
+   * Get the acting user's ACCESS ID for filtering.
+   */
+  private getActingUserAccessId(): string {
+    const context = getRequestContext();
+    if (context?.actingUser) {
+      return context.actingUser;
+    }
+
+    const envUser = process.env.ACTING_USER;
+    if (envUser) {
+      return envUser;
+    }
+
+    throw new Error(
+      "Cannot get user events: No acting user specified.\n\n" +
+        "Either set the X-Acting-User header or the ACTING_USER environment variable " +
+        "to the ACCESS ID (e.g., username@access-ci.org)."
+    );
   }
 
   protected get httpClient(): AxiosInstance {
@@ -100,6 +161,25 @@ export class EventsServer extends BaseAccessServer {
           },
         },
       },
+      {
+        name: "get_my_events",
+        description: `Get events created by or associated with the authenticated user.
+
+Returns events the user has created or is associated with, including unpublished/draft events.
+Requires authentication via X-Acting-User header or ACTING_USER environment variable.
+
+Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: {
+              type: "number",
+              description: "Max results (default: 50)",
+              default: 50,
+            },
+          },
+        },
+      },
     ];
   }
 
@@ -139,6 +219,8 @@ export class EventsServer extends BaseAccessServer {
       switch (name) {
         case "search_events":
           return await this.searchEvents(args as SearchEventsParams);
+        case "get_my_events":
+          return await this.getMyEvents(args as GetMyEventsParams);
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
@@ -213,20 +295,9 @@ export class EventsServer extends BaseAccessServer {
       }
     }
 
-    // Faceted filters
-    let filterIndex = 0;
-    if (params.type) {
-      url.searchParams.set(`f[${filterIndex}]`, `custom_event_type:${params.type}`);
-      filterIndex++;
-    }
-    if (params.tags) {
-      url.searchParams.set(`f[${filterIndex}]`, `custom_event_tags:${params.tags}`);
-      filterIndex++;
-    }
-    if (params.skill) {
-      url.searchParams.set(`f[${filterIndex}]`, `skill_level:${params.skill}`);
-      filterIndex++;
-    }
+    // Note: faceted filters (f[0]=field:value) are not supported on the
+    // data_export API display — they're bound to the page display in Drupal.
+    // Type, tags, and skill filters are applied client-side in getEvents().
 
     return url.toString();
   }
@@ -239,7 +310,30 @@ export class EventsServer extends BaseAccessServer {
       throw new Error(`API error ${response.status}`);
     }
 
-    let events: RawEvent[] = response.data || [];
+    // Ensure response is an array (non-array means unexpected response like 403 HTML)
+    let events: RawEvent[] = Array.isArray(response.data) ? response.data : [];
+
+    // Client-side filters (faceted search not available on data_export display)
+    if (params.type) {
+      const typeFilter = params.type.toLowerCase();
+      events = events.filter(
+        (e) => (e.event_type as string || "").toLowerCase() === typeFilter
+      );
+    }
+    if (params.tags) {
+      const tagFilter = params.tags.toLowerCase();
+      events = events.filter((e) => {
+        const tags = typeof e.tags === "string" ? e.tags : Array.isArray(e.tags) ? e.tags.join(",") : "";
+        return tags.toLowerCase().includes(tagFilter);
+      });
+    }
+    if (params.skill) {
+      const skillFilter = params.skill.toLowerCase();
+      events = events.filter(
+        (e) => (e.skill_level as string || "").toLowerCase() === skillFilter
+      );
+    }
+
     if (params.limit && events.length > params.limit) {
       events = events.slice(0, params.limit);
     }
@@ -292,5 +386,48 @@ export class EventsServer extends BaseAccessServer {
     }
 
     return await this.getEvents(params);
+  }
+
+  /**
+   * Get events for the authenticated user via the unified Drupal view.
+   * Uses the /jsonapi/views/event_instance_mine/my_events_page endpoint
+   * which filters by X-Acting-User header.
+   */
+  private async getMyEvents(params: GetMyEventsParams): Promise<CallToolResult> {
+    const auth = this.getDrupalAuth();
+
+    // Ensure we have an acting user
+    this.getActingUserAccessId();
+
+    const limit = params.limit || 50;
+
+    // Use the unified view endpoint - it respects X-Acting-User header
+    const result = await auth.get(
+      `/jsonapi/views/event_instance_mine/my_events_page?page[limit]=${limit}`
+    );
+
+    // JSON:API views return data in a different format
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON:API response shape is dynamic
+    const events = (result.data || []).map((item: any) => ({
+      id: item.id,
+      type: item.type,
+      title: item.attributes?.title,
+      start_date: item.attributes?.field_start_date || item.attributes?.start_date,
+      end_date: item.attributes?.field_end_date || item.attributes?.end_date,
+      status: item.attributes?.status ? "published" : "draft",
+      ...item.attributes,
+    }));
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            total: events.length,
+            items: events,
+          }),
+        },
+      ],
+    };
   }
 }

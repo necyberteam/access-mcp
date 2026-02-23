@@ -73,5 +73,5 @@ npm install -g @access-mcp/affinity-groups
 ---
 
 **Package:** `@access-mcp/affinity-groups`
-**Version:** v0.4.0
+**Version:** v0.4.1
 **Main:** `dist/index.js`

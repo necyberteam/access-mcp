@@ -331,13 +331,32 @@ Once configured, you can ask Claude:
 - "Get my usage data using the data server for the last 6 months"
 - "Test the XDMoD data analytics framework"
 
-## Comparison with XDMoD Charts Server
+## Comparison with XDMoD Server (@access-mcp/xdmod)
 
-This data server aims to provide:
-- **Better data manipulation** with pandas
-- **Cleaner user data extraction** 
-- **More intuitive API** for complex queries
-- **Framework integration** when available
+The TypeScript `@access-mcp/xdmod` server handles **public data** (no auth):
+- Charts, images, and portal links (`public_user=true`)
+- Metadata discovery: `describe_realms`, `describe_fields`, `get_dimension_values`
+
+This Python `xdmod-mcp-data` server handles **authenticated data**:
+- Per-user usage queries via the XDMoD DataWarehouse library
+- Complex filtered extractions with pandas
+- NSF funding integration
+- Analysis templates and smart filters
+
+## Per-User Token Architecture (TODO)
+
+The `XDMOD_API_TOKEN` is currently a **single static env var** — not per-user.
+
+**Current limitations:**
+- Personal data tools (`get_user_data`, `get_raw_data`) require a token from the XDMoD portal (My Profile > API Token)
+- The static token acts as a service-level credential, not tied to any specific user
+- Discovery tools (`describe_fields`, `describe_realms`) also require this token since they use the DataWarehouse library
+
+**Future approach:**
+1. Store per-user XDMoD API tokens in Drupal user profiles
+2. Pass via the `X-Acting-User` header flow (already in place for JWT auth)
+3. Have `xdmod-data` resolve the per-user token per request
+4. Until then, `xdmod-data` only works with a static service-level token
 
 ## Development
 
