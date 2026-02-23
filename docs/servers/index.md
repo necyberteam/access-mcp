@@ -6,7 +6,7 @@ ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
 ## MCP server for ACCESS-CI Affinity Groups API
 
 **Package:** `@access-mcp/affinity-groups`
-**Version:** v0.4.0
+**Version:** v0.4.1
 
 [View Details](/servers/affinity-groups)
 
@@ -27,7 +27,7 @@ ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
 ## MCP server for ACCESS-CI Compute Resources API
 
 **Package:** `@access-mcp/compute-resources`
-**Version:** v0.6.0
+**Version:** v0.7.0
 
 [View Details](/servers/compute-resources)
 
@@ -55,16 +55,16 @@ ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
 ## MCP server for ACCESS-CI System Status and Outages API
 
 **Package:** `@access-mcp/system-status`
-**Version:** v0.5.0
+**Version:** v0.7.0
 
 [View Details](/servers/system-status)
 
-## MCP server for XDMoD Charts and Visualizations
+## MCP server for XDMoD public data: charts, visualizations, and metadata discovery
 
-**Package:** `@access-mcp/xdmod-charts`
-**Version:** v0.5.0
+**Package:** `@access-mcp/xdmod`
+**Version:** v0.6.0
 
-[View Details](/servers/xdmod-charts)
+[View Details](/servers/xdmod)
 
 ## Python MCP server for XDMoD data access and analytics
 

@@ -39,7 +39,7 @@ Connect Claude Desktop to our hosted MCP servers. Add this to your Claude Deskto
       "command": "npx",
       "args": ["mcp-remote", "http://45.79.215.140:3004/sse"]
     },
-    "access-xdmod-charts": {
+    "access-xdmod": {
       "command": "npx",
       "args": ["mcp-remote", "http://45.79.215.140:3005/sse"]
     },

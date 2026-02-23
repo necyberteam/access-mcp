@@ -37,7 +37,7 @@ Copy and paste this configuration:
       "command": "npx",
       "args": ["mcp-remote", "http://45.79.215.140:3004/sse"]
     },
-    "access-xdmod-charts": {
+    "access-xdmod": {
       "command": "npx",
       "args": ["mcp-remote", "http://45.79.215.140:3005/sse"]
     },
@@ -86,7 +86,7 @@ All servers are available through the hosted configuration above:
 | Compute Resources | 3002 | Hardware specifications and capabilities |
 | System Status | 3003 | Outages and maintenance schedules |
 | Software Discovery | 3004 | Software packages across resources |
-| XDMoD Charts | 3005 | Usage statistics and visualizations |
+| XDMoD | 3005 | Usage statistics, visualizations, and metadata discovery |
 | Allocations | 3006 | Research projects and allocations |
 | NSF Awards | 3007 | NSF funding data |
 | XDMoD Data | 3008 | Python analytics for XDMoD |
@@ -133,7 +133,7 @@ access-mcp/
 │   ├── nsf-awards/          # NSF Awards API server
 │   ├── software-discovery/  # Software Discovery API server
 │   ├── system-status/       # System Status API server
-│   ├── xdmod-charts/        # XDMoD Charts server
+│   ├── xdmod/               # XDMoD public data server
 │   └── xdmod-mcp-data/      # XDMoD Data server (Python)
 ├── docs/                    # This documentation site
 └── scripts/                 # Build and deployment scripts

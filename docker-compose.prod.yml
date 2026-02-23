@@ -16,7 +16,7 @@ services:
       - mcp-compute-resources
       - mcp-system-status
       - mcp-software-discovery
-      - mcp-xdmod-charts
+      - mcp-xdmod
       - mcp-allocations
       - mcp-nsf-awards
       - mcp-xdmod-data
@@ -78,8 +78,8 @@ services:
         limits:
           memory: 128M
 
-  mcp-xdmod-charts:
-    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/xdmod-charts:latest
+  mcp-xdmod:
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/xdmod:latest
     ports:
       - "3005:3000"
     restart: unless-stopped
@@ -126,6 +126,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DRUPAL_API_URL=${DRUPAL_API_URL:-https://support.access-ci.org}
+      - DRUPAL_USERNAME=${DRUPAL_USERNAME}
+      - DRUPAL_PASSWORD=${DRUPAL_PASSWORD}
+      - MCP_API_KEY=${MCP_API_KEY}
     deploy:
       resources:
         limits:
@@ -139,6 +143,10 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DRUPAL_API_URL=${DRUPAL_API_URL:-https://support.access-ci.org}
+      - DRUPAL_USERNAME=${DRUPAL_USERNAME}
+      - DRUPAL_PASSWORD=${DRUPAL_PASSWORD}
+      - MCP_API_KEY=${MCP_API_KEY}
     deploy:
       resources:
         limits:

@@ -148,7 +148,7 @@ async function main() {
     "nsf-awards",
     "software-discovery",
     "system-status",
-    "xdmod-charts",
+    "xdmod",
     "xdmod-mcp-data",
   ];
 

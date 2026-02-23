@@ -31,9 +31,9 @@ mcp.access-ci.org {
         }
     }
 
-    handle /xdmod-charts/* {
-        uri strip_prefix /xdmod-charts
-        reverse_proxy mcp-xdmod-charts:3000 {
+    handle /xdmod/* {
+        uri strip_prefix /xdmod
+        reverse_proxy mcp-xdmod:3000 {
             flush_interval -1
             transport http {
                 read_timeout 0
@@ -108,7 +108,7 @@ Available endpoints:
 - /compute-resources/sse
 - /system-status/sse
 - /software-discovery/sse
-- /xdmod-charts/sse
+- /xdmod/sse
 - /allocations/sse
 - /nsf-awards/sse
 - /xdmod-data/sse

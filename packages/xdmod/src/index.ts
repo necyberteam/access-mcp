@@ -1,0 +1,1187 @@
+#!/usr/bin/env node
+
+import { BaseAccessServer, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import { createRequire } from "module";
+const require = createRequire(import.meta.url);
+const { version } = require("../package.json");
+
+// Static realm metadata discovered from the live XDMoD API at xdmod.access-ci.org.
+// Statistics were discovered by requesting get_data with no statistic parameter
+// (returns all available fields in metaData.fields), then querying each individually
+// to get the display name. Last updated: 2026-02-22.
+const REALM_STATISTICS: Record<
+  string,
+  { description: string; statistics: Record<string, string> }
+> = {
+  Accounts: {
+    description: "ACCESS user account tracking — accounts associated with allocations and job activity",
+    statistics: {
+      unique_account_count: "Number of Accounts: Created",
+      unique_account_with_jobs_count: "Number of Accounts: Created w/Jobs",
+    },
+  },
+  Allocations: {
+    description: "Allocation and project tracking — active allocations, PIs, and resource usage in SUs/ACEs",
+    statistics: {
+      active_allocation_count: "Number of Projects: Active",
+      active_pi_count: "Number of PIs: Active",
+      active_resallocation_count: "Number of Allocations: Active",
+      allocated_nu: "NUs: Allocated",
+      allocated_raw_su: "CPU Core Hours: Allocated",
+      allocated_su: "XD SUs: Allocated",
+      allocated_ace: "ACCESS Credit Equivalents: Allocated (SU)",
+      rate_of_usage: "Allocation Usage Rate (XD SU/Hour)",
+      rate_of_usage_ace: "Allocation Usage Rate ACEs (SU/Hour)",
+      used_su: "XD SUs: Used",
+      used_ace: "ACCESS Credit Equivalents: Used (SU)",
+    },
+  },
+  Cloud: {
+    description: "Cloud and virtualized compute environment metrics",
+    statistics: {
+      cloud_num_sessions_ended: "Number of Sessions Ended",
+      cloud_num_sessions_started: "Number of Sessions Started",
+      cloud_num_sessions_running: "Number of Sessions Active",
+      cloud_wall_time: "Wall Hours: Total",
+      cloud_core_time: "CPU Hours: Total",
+      cloud_avg_wallduration_hours: "Wall Hours: Per Session",
+      cloud_avg_cores_reserved: "Average Cores Reserved Weighted By Wall Hours",
+      cloud_avg_memory_reserved: "Average Memory Reserved Weighted By Wall Hours (Bytes)",
+      cloud_avg_rv_storage_reserved: "Average Root Volume Storage Reserved Weighted By Wall Hours (Bytes)",
+      cloud_core_utilization: "Core Hour Utilization (%)",
+      gateway_session_count: "Number of Sessions Ended via Gateway",
+    },
+  },
+  Gateways: {
+    description: "Science gateway job metrics — jobs submitted through ACCESS gateways",
+    statistics: {
+      job_count: "Number of Jobs Ended",
+      running_job_count: "Number of Jobs Running",
+      started_job_count: "Number of Jobs Started",
+      submitted_job_count: "Number of Jobs Submitted",
+      total_cpu_hours: "CPU Hours: Total",
+      total_node_hours: "Node Hours: Total",
+      total_wallduration_hours: "Wall Hours: Total",
+      total_waitduration_hours: "Wait Hours: Total",
+      avg_cpu_hours: "CPU Hours: Per Job",
+      avg_node_hours: "Node Hours: Per Job",
+      avg_wallduration_hours: "Wall Hours: Per Job",
+      avg_waitduration_hours: "Wait Hours: Per Job",
+      avg_processors: "Job Size: Per Job (Core Count)",
+      max_processors: "Job Size: Max (Core Count)",
+      min_processors: "Job Size: Min (Core Count)",
+      normalized_avg_processors: "Job Size: Normalized (% of Total Cores)",
+      avg_job_size_weighted_by_cpu_hours: "Job Size: Weighted By CPU Hours (Core Count)",
+      avg_job_size_weighted_by_xd_su: "Job Size: Weighted By XD SUs (Core Count)",
+      avg_job_size_weighted_by_ace: "Job Size: Weighted By ACEs (Core Count)",
+      total_su: "XD SUs Charged: Total",
+      avg_su: "XD SUs Charged: Per Job",
+      total_nu: "NUs Charged: Total",
+      avg_nu: "NUs Charged: Per Job",
+      total_ace: "ACCESS Credit Equivalents Charged: Total (SU)",
+      avg_ace: "ACCESS Credit Equivalents Charged: Per Job (SU)",
+      rate_of_usage: "Allocation Usage Rate (XD SU/Hour)",
+      rate_of_usage_ace: "Allocation Usage Rate ACEs (SU/Hour)",
+      expansion_factor: "User Expansion Factor",
+      utilization: "ACCESS CPU Utilization (%)",
+      active_resource_count: "Number of Resources: Active",
+      active_institution_count: "Number of Institutions: Active",
+      active_gateway_count: "Number of Gateways: Active",
+      active_gwuser_count: "Number of Gateway Users: Active",
+    },
+  },
+  Jobs: {
+    description: "Job accounting and resource usage metrics from job schedulers",
+    statistics: {
+      job_count: "Number of Jobs Ended",
+      running_job_count: "Number of Jobs Running",
+      started_job_count: "Number of Jobs Started",
+      submitted_job_count: "Number of Jobs Submitted",
+      total_cpu_hours: "CPU Hours: Total",
+      total_node_hours: "Node Hours: Total",
+      total_wallduration_hours: "Wall Hours: Total",
+      total_waitduration_hours: "Wait Hours: Total",
+      avg_cpu_hours: "CPU Hours: Per Job",
+      avg_node_hours: "Node Hours: Per Job",
+      avg_wallduration_hours: "Wall Hours: Per Job",
+      avg_waitduration_hours: "Wait Hours: Per Job",
+      avg_processors: "Job Size: Per Job (Core Count)",
+      max_processors: "Job Size: Max (Core Count)",
+      min_processors: "Job Size: Min (Core Count)",
+      normalized_avg_processors: "Job Size: Normalized (% of Total Cores)",
+      avg_job_size_weighted_by_cpu_hours: "Job Size: Weighted By CPU Hours (Core Count)",
+      avg_job_size_weighted_by_xd_su: "Job Size: Weighted By XD SUs (Core Count)",
+      avg_job_size_weighted_by_ace: "Job Size: Weighted By ACEs (Core Count)",
+      total_su: "XD SUs Charged: Total",
+      avg_su: "XD SUs Charged: Per Job",
+      total_nu: "NUs Charged: Total",
+      avg_nu: "NUs Charged: Per Job",
+      total_ace: "ACCESS Credit Equivalents Charged: Total (SU)",
+      avg_ace: "ACCESS Credit Equivalents Charged: Per Job (SU)",
+      rate_of_usage: "Allocation Usage Rate (XD SU/Hour)",
+      rate_of_usage_ace: "Allocation Usage Rate ACEs (SU/Hour)",
+      expansion_factor: "User Expansion Factor",
+      utilization: "ACCESS CPU Utilization (%)",
+      gateway_job_count: "Number of Jobs via Gateway",
+      active_person_count: "Number of Users: Active",
+      active_pi_count: "Number of PIs: Active",
+      active_resource_count: "Number of Resources: Active",
+      active_allocation_count: "Number of Allocations: Active",
+      active_institution_count: "Number of Institutions: Active",
+    },
+  },
+  Requests: {
+    description: "Allocation request/proposal tracking",
+    statistics: {
+      request_count: "Number of Proposals",
+      project_count: "Number of Projects",
+    },
+  },
+  ResourceSpecifications: {
+    description: "Resource hardware specifications — CPU/GPU counts, node hours, and capacity metrics",
+    statistics: {
+      total_cpu_core_hours: "CPU Hours: Total",
+      allocated_cpu_core_hours: "CPU Hours: Allocated",
+      total_gpu_hours: "GPU Hours: Total",
+      allocated_gpu_hours: "GPU Hours: Allocated",
+      total_gpu_node_hours: "GPU Node Hours: Total",
+      allocated_gpu_node_hours: "GPU Node Hours: Allocated",
+      total_cpu_node_hours: "CPU Node Hours: Total",
+      allocated_cpu_node_hours: "CPU Node Hours: Allocated",
+      total_avg_number_of_cpu_cores: "Average Number of CPU Cores: Total",
+      allocated_avg_number_of_cpu_cores: "Average Number of CPU Cores: Allocated",
+      total_avg_number_of_gpus: "Average Number of GPUs: Total",
+      allocated_avg_number_of_gpus: "Average Number of GPUs: Allocated",
+      total_avg_number_of_cpu_nodes: "Average Number of CPU Nodes: Total",
+      allocated_avg_number_of_cpu_nodes: "Average Number of CPU Nodes: Allocated",
+      total_avg_number_of_gpu_nodes: "Average Number of GPU Nodes: Total",
+      allocated_avg_number_of_gpu_nodes: "Average Number of GPU Nodes: Allocated",
+      ace_total: "ACCESS Credit Equivalents Available: Total (SU)",
+      ace_allocated: "ACCESS Credit Equivalents Available: Allocated (SU)",
+    },
+  },
+  Storage: {
+    description: "File system and storage usage metrics (requires authentication — not available for public queries)",
+    statistics: {
+      user_count: "User Count",
+      avg_physical_usage: "Physical Usage (Bytes)",
+      avg_logical_usage: "Logical Usage (Bytes)",
+      avg_file_count: "File Count",
+      avg_hard_threshold: "Quota: Hard Threshold (Bytes)",
+      avg_soft_threshold: "Quota: Soft Threshold (Bytes)",
+    },
+  },
+  SUPREMM: {
+    description: "Detailed job performance analytics — CPU, GPU, memory, network, and I/O metrics from monitoring",
+    statistics: {
+      job_count: "Number of Jobs Ended",
+      short_job_count: "Number of Short Jobs Ended",
+      running_job_count: "Number of Jobs Running",
+      started_job_count: "Number of Jobs Started",
+      submitted_job_count: "Number of Jobs Submitted",
+      wall_time: "CPU Hours: Total",
+      wall_time_per_job: "Wall Hours: Per Job",
+      wait_time: "Wait Hours: Total",
+      wait_time_per_job: "Wait Hours: Per Job",
+      requested_wall_time: "Wall Hours: Requested: Total",
+      requested_wall_time_per_job: "Wall Hours: Requested: Per Job",
+      wall_time_accuracy: "Wall Time Accuracy (%)",
+      cpu_time_user: "CPU Hours: User: Total",
+      cpu_time_system: "CPU Hours: System: Total",
+      cpu_time_idle: "CPU Hours: Idle: Total",
+      avg_percent_cpu_user: "Avg CPU %: User: weighted by core-hour",
+      avg_percent_cpu_system: "Avg CPU %: System: weighted by core-hour",
+      avg_percent_cpu_idle: "Avg CPU %: Idle: weighted by core-hour",
+      avg_cpuusercv_per_core: "Avg: CPU User CV: weighted by core-hour",
+      avg_cpuuserimb_per_core: "Avg: CPU User Imbalance: weighted by core-hour (%)",
+      gpu_time: "GPU Hours: Total",
+      avg_percent_gpu_usage: "Avg GPU usage: weighted by GPU hour (GPU %)",
+      avg_flops_per_core: "Avg: FLOPS: Per Core weighted by core-hour (ops/s)",
+      avg_cpiref_per_core: "Avg: CPI: Per Core weighted by core-hour",
+      avg_cpldref_per_core: "Avg: CPLD: Per Core weighted by core-hour",
+      avg_memory_per_core: "Avg: Memory: Per Core weighted by core-hour (bytes)",
+      avg_total_memory_per_core: "Avg: Total Memory: Per Core weighted by core-hour (bytes)",
+      avg_max_memory_per_core: "Avg: Max Memory: weighted by core-hour (%)",
+      avg_mem_bw_per_core: "Avg: Memory Bandwidth: Per Core weighted by core-hour (bytes/s)",
+      avg_ib_rx_bytes: "Avg: InfiniBand rate: Per Node weighted by node-hour (bytes/s)",
+      avg_homogeneity: "Avg: Homogeneity: weighted by node-hour (%)",
+      avg_net_eth0_rx: "Avg: eth0 receive rate: Per Node weighted by node-hour (bytes/s)",
+      avg_net_eth0_tx: "Avg: eth0 transmit rate: Per Node weighted by node-hour (bytes/s)",
+      avg_net_ib0_rx: "Avg: ib0 receive rate: Per Node weighted by node-hour (bytes/s)",
+      avg_net_ib0_tx: "Avg: ib0 transmit rate: Per Node weighted by node-hour (bytes/s)",
+      avg_netdrv_lustre_rx: "Avg: lustre receive rate: Per Node weighted by node-hour (bytes/s)",
+      avg_netdrv_lustre_tx: "Avg: lustre transmit rate: Per Node weighted by node-hour (bytes/s)",
+      avg_block_sda_rd_bytes: "Avg: block sda read rate: Per Node weighted by node-hour (bytes/s)",
+      avg_block_sda_wr_bytes: "Avg: block sda write rate: Per Node weighted by node-hour (bytes/s)",
+      avg_block_sda_rd_ios: "Avg: block sda read ops rate: Per Node weighted by node-hour (ops/s)",
+      avg_block_sda_wr_ios: "Avg: block sda write ops rate: Per Node weighted by node-hour (ops/s)",
+      avg_netdir_home_write: "Avg: /home write rate: Per Node weighted by node-hour (bytes/s)",
+      avg_netdir_scratch_write: "Avg: /scratch write rate: Per Node weighted by node-hour (bytes/s)",
+      avg_netdir_work_write: "Avg: /work write rate: Per Node weighted by node-hour (bytes/s)",
+      total_su: "XD SUs Charged: Total",
+      avg_su: "XD SUs Charged: Per Job",
+      total_ace: "ACCESS Credit Equivalents Charged: Total (SU)",
+      avg_ace: "ACCESS Credit Equivalents Charged: Per Job (SU)",
+      active_pi_count: "Number of PIs: Active",
+      active_app_count: "Number of Applications: Active",
+    },
+  },
+};
+
+interface MenuEntry {
+  text?: string;
+  id?: string;
+  realm?: string;
+  group_by?: string;
+  node_type?: string;
+  [key: string]: unknown;
+}
+
+export class XDMoDMetricsServer extends BaseAccessServer {
+  private menuCache: { data: MenuEntry[]; timestamp: number } | null = null;
+  private static readonly MENU_CACHE_TTL = 1000 * 60 * 30; // 30 minutes
+
+  constructor() {
+    super("xdmod", version, "https://xdmod.access-ci.org");
+  }
+
+  private getHeaders(): Record<string, string> {
+    return {
+      "Content-Type": "application/x-www-form-urlencoded",
+    };
+  }
+
+  /**
+   * Fetch the XDMoD menu tree (public_user=true). Cached in memory.
+   */
+  private async fetchMenus(): Promise<MenuEntry[]> {
+    if (this.menuCache && Date.now() - this.menuCache.timestamp < XDMoDMetricsServer.MENU_CACHE_TTL) {
+      return this.menuCache.data;
+    }
+
+    const response = await fetch(`${this.baseURL}/controllers/user_interface.php`, {
+      method: "POST",
+      headers: this.getHeaders(),
+      body: new URLSearchParams({
+        operation: "get_menus",
+        public_user: "true",
+        node: "category_",
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch XDMoD menus: HTTP ${response.status}`);
+    }
+
+    const json = await response.json();
+    const data: MenuEntry[] = json.data ?? json ?? [];
+    this.menuCache = { data, timestamp: Date.now() };
+    return data;
+  }
+
+  /**
+   * Resolve a filter value to a numeric XDMoD dimension ID.
+   * If the value is already numeric, returns it as-is.
+   * Otherwise searches the dimension API for a matching entry.
+   */
+  private async resolveFilterId(
+    realm: string,
+    dimension: string,
+    value: string
+  ): Promise<string> {
+    // Already numeric — use as-is
+    if (/^\d+$/.test(value)) return value;
+
+    const response = await fetch(
+      `${this.baseURL}/controllers/metric_explorer.php`,
+      {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: new URLSearchParams({
+          operation: "get_dimension",
+          public_user: "true",
+          realm,
+          dimension_id: dimension,
+          start: "0",
+          limit: "200",
+        }),
+      }
+    );
+
+    if (!response.ok) return value; // fallback to original
+
+    const json = await response.json();
+    const items: { id?: string; name?: string; short_name?: string }[] =
+      json.data ?? [];
+
+    const lower = value.toLowerCase();
+    // Normalize: strip hyphens/extra spaces for fuzzy matching (e.g., "Bridges-2" vs "Bridges 2 RM")
+    const normalize = (s: string) => s.toLowerCase().replace(/[-_]/g, " ").replace(/\s+/g, " ").trim();
+    const normalized = normalize(value);
+
+    // 1. Exact name match
+    const exact = items.find(
+      (i) =>
+        i.name?.toLowerCase() === lower ||
+        i.short_name?.toLowerCase() === lower
+    );
+    if (exact?.id) return exact.id;
+
+    // 2. All items whose name contains the search term (or vice versa)
+    const matches = items.filter(
+      (i) => {
+        const normName = normalize(i.name ?? "");
+        return (
+          normName.includes(normalized) ||
+          normalized.includes(normName) ||
+          i.name?.toLowerCase().includes(lower) ||
+          lower.includes(i.name?.toLowerCase() ?? "___")
+        );
+      }
+    );
+    if (matches.length === 1) return matches[0].id ?? value;
+    if (matches.length > 1) {
+      // Multiple matches — return all IDs so XDMoD includes all
+      return matches.map((m) => m.id).filter(Boolean).join(",");
+    }
+
+    return value; // no match found, pass through
+  }
+
+  /**
+   * Resolve all filter values in a filters object to numeric IDs.
+   * Supports both string values and arrays of strings (for multi-value filters).
+   */
+  private async resolveFilters(
+    realm: string,
+    filters: Record<string, unknown>
+  ): Promise<Record<string, string>> {
+    const resolved: Record<string, string> = {};
+    for (const [dimension, value] of Object.entries(filters)) {
+      if (Array.isArray(value)) {
+        // Multi-value filter: resolve each and join with commas
+        const ids = await Promise.all(
+          value.map((v: unknown) =>
+            this.resolveFilterId(realm, dimension, String(v))
+          )
+        );
+        resolved[dimension] = ids.join(",");
+      } else {
+        resolved[dimension] = await this.resolveFilterId(
+          realm,
+          dimension,
+          String(value)
+        );
+      }
+    }
+    return resolved;
+  }
+
+  // Realms available for public (unauthenticated) queries.
+  // Storage requires authentication and is excluded.
+  private static readonly PUBLIC_REALMS = Object.keys(REALM_STATISTICS)
+    .filter((r) => r !== "Storage")
+    .sort();
+
+  protected getTools(): Tool[] {
+    const tools: Tool[] = [
+      {
+        name: "get_chart_data",
+        description:
+          "Fetch numeric data from XDMoD. Filters accept names (auto-resolved to IDs). " +
+          "Stats by realm — Jobs: job_count, total_cpu_hours, total_su, active_person_count; " +
+          "Allocations: allocated_ace, used_ace, active_allocation_count; Accounts: unique_account_count; " +
+          "Gateways: active_gateway_count, job_count; SUPREMM: gpu_time, short_job_count, avg_flops_per_core, wall_time_accuracy; " +
+          "Cloud: cloud_num_sessions_started; ResourceSpecifications: total_avg_number_of_gpus; Requests: project_count.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            realm: {
+              type: "string",
+              description:
+                'Data realm. Jobs=job counts/CPU hours/SUs/active users; ' +
+                'Allocations=ACEs/SUs allocated+used/active allocations/PIs; Accounts=user account counts; ' +
+                'Gateways=gateway job counts/active gateways; SUPREMM=GPU time/CPU perf/FLOPS/short jobs/memory; ' +
+                'Cloud=VM sessions/core hours; ResourceSpecifications=GPU+CPU node counts/capacity; ' +
+                'Requests=proposals/projects submitted.',
+              enum: XDMoDMetricsServer.PUBLIC_REALMS,
+            },
+            group_by: {
+              type: "string",
+              description:
+                'Dimension to group by. Use "none" for overall totals, or a dimension like "resource", "person", "pi", "institution", "gateway", "fieldofscience". Call describe_fields to see all dimensions for a realm.',
+            },
+            statistic: {
+              type: "string",
+              description:
+                'Exact statistic ID — must match the realm. Use describe_fields to discover all options. ' +
+                'Jobs: job_count, total_cpu_hours, total_su, active_person_count, gateway_job_count. ' +
+                'Allocations: allocated_ace, used_ace, active_allocation_count, active_pi_count. ' +
+                'SUPREMM: gpu_time, short_job_count, wall_time_accuracy, avg_flops_per_core, avg_percent_gpu_usage. ' +
+                'Requests: project_count, request_count. Accounts: unique_account_count.',
+            },
+            start_date: {
+              type: "string",
+              description: "Start date in YYYY-MM-DD format",
+              format: "date",
+            },
+            end_date: {
+              type: "string",
+              description: "End date in YYYY-MM-DD format",
+              format: "date",
+            },
+            dataset_type: {
+              type: "string",
+              description: 'Dataset type (default: "timeseries")',
+              enum: ["timeseries", "aggregate"],
+              default: "timeseries",
+            },
+            display_type: {
+              type: "string",
+              description: 'Display type (default: "line")',
+              enum: ["line", "bar", "pie", "scatter"],
+              default: "line",
+            },
+            combine_type: {
+              type: "string",
+              description: 'How to combine data (default: "side")',
+              enum: ["side", "stack", "percent"],
+              default: "side",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of data series to return (default: 10)",
+              default: 10,
+            },
+            offset: {
+              type: "number",
+              description: "Offset for pagination (default: 0)",
+              default: 0,
+            },
+            log_scale: {
+              type: "string",
+              description: 'Use logarithmic scale (default: "n")',
+              enum: ["y", "n"],
+              default: "n",
+            },
+            filters: {
+              type: "object",
+              description:
+                'Filter by dimension. Keys are dimension names (e.g., "resource", "pi", "fieldofscience"). ' +
+                'Values can be names (e.g., {"resource": "Delta"}) or numeric IDs — names are auto-resolved.',
+              additionalProperties: {
+                type: "string",
+              },
+            },
+          },
+          required: ["realm", "group_by", "statistic", "start_date", "end_date"],
+        },
+      },
+      {
+        name: "get_chart_image",
+        description:
+          "Get chart image (SVG, PNG, or PDF) for a specific statistic. Use PNG format for direct display in Claude Desktop.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            realm: {
+              type: "string",
+              description: 'The data realm. Use describe_realms to see all.',
+              enum: XDMoDMetricsServer.PUBLIC_REALMS,
+            },
+            group_by: {
+              type: "string",
+              description: 'Dimension to group by. Use describe_fields for options.',
+            },
+            statistic: {
+              type: "string",
+              description: 'The statistic. Use describe_fields for available statistics per realm.',
+            },
+            start_date: {
+              type: "string",
+              description: "Start date in YYYY-MM-DD format",
+              format: "date",
+            },
+            end_date: {
+              type: "string",
+              description: "End date in YYYY-MM-DD format",
+              format: "date",
+            },
+            format: {
+              type: "string",
+              description: "Image format (svg, png, pdf)",
+              enum: ["svg", "png", "pdf"],
+              default: "svg",
+            },
+            width: {
+              type: "number",
+              description: "Image width in pixels",
+              default: 916,
+            },
+            height: {
+              type: "number",
+              description: "Image height in pixels",
+              default: 484,
+            },
+            dataset_type: {
+              type: "string",
+              description: 'Dataset type (default: "timeseries")',
+              enum: ["timeseries", "aggregate"],
+              default: "timeseries",
+            },
+            display_type: {
+              type: "string",
+              description: 'Display type (default: "line")',
+              enum: ["line", "bar", "pie", "scatter"],
+              default: "line",
+            },
+            combine_type: {
+              type: "string",
+              description: 'How to combine data (default: "side")',
+              enum: ["side", "stack", "percent"],
+              default: "side",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of data series to return (default: 10)",
+              default: 10,
+            },
+            offset: {
+              type: "number",
+              description: "Offset for pagination (default: 0)",
+              default: 0,
+            },
+            log_scale: {
+              type: "string",
+              description: 'Use logarithmic scale (default: "n")',
+              enum: ["y", "n"],
+              default: "n",
+            },
+            filters: {
+              type: "object",
+              description:
+                'Filter by dimension. Keys are dimension names (e.g., "resource", "pi", "fieldofscience"). ' +
+                'Values can be names (e.g., "Delta") or numeric IDs — names are auto-resolved.',
+              additionalProperties: {
+                type: "string",
+              },
+            },
+          },
+          required: ["realm", "group_by", "statistic", "start_date", "end_date"],
+        },
+      },
+      {
+        name: "get_chart_link",
+        description:
+          "Generate a direct URL to view an interactive chart in the XDMoD web portal. Use this when users want to explore data interactively, apply additional filters, or share charts with collaborators. The web interface provides more filtering options than the API.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            realm: {
+              type: "string",
+              description: 'The data realm. Use describe_realms to see all.',
+              enum: XDMoDMetricsServer.PUBLIC_REALMS,
+            },
+            group_by: {
+              type: "string",
+              description: 'Dimension to group by. Use describe_fields for options.',
+            },
+            statistic: {
+              type: "string",
+              description: 'The statistic. Use describe_fields for available statistics per realm.',
+            },
+          },
+          required: ["realm", "group_by", "statistic"],
+        },
+      },
+      {
+        name: "describe_realms",
+        description:
+          "List all available XDMoD data realms (Jobs, SUPREMM, Cloud, Storage, etc.) with their available dimensions and statistics. Use this when you need to know what data categories exist or where to find specific metrics (e.g., GPU metrics are in the SUPREMM realm). No authentication required.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
+      {
+        name: "describe_fields",
+        description:
+          "List all dimensions and statistics for a realm. Use this only when you need to discover a statistic ID not listed in get_chart_data's description. Returns group_by dimensions and statistic IDs with labels.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            realm: {
+              type: "string",
+              description: 'XDMoD realm to describe.',
+              enum: XDMoDMetricsServer.PUBLIC_REALMS,
+              default: "Jobs",
+            },
+          },
+          required: ["realm"],
+        },
+      },
+      {
+        name: "get_dimension_values",
+        description:
+          "Get the list of filter values for a dimension in a realm. For example, get all available resources, all institutions, or all fields of science. Use this to discover valid filter values before calling get_chart_data. No authentication required.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            realm: {
+              type: "string",
+              description: 'XDMoD realm (e.g., "Jobs", "SUPREMM")',
+            },
+            dimension: {
+              type: "string",
+              description:
+                'Dimension to get values for (e.g., "resource", "person", "institution", "fieldofscience", "jobsize", "queue")',
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of values to return (default: 200)",
+              default: 200,
+            },
+          },
+          required: ["realm", "dimension"],
+        },
+      },
+    ];
+
+    return tools;
+  }
+
+  protected getResources(): Resource[] {
+    return [];
+  }
+
+  protected async handleToolCall(request: {
+    method: "tools/call";
+    params: { name: string; arguments?: Record<string, unknown> };
+  }): Promise<CallToolResult> {
+    const { name, arguments: args = {} } = request.params;
+    // console.log(`[XDMoD] Tool called: ${name}`, args);
+
+    switch (name) {
+      case "get_chart_data":
+        return await this.getChartData({
+          realm: args.realm as string,
+          group_by: args.group_by as string,
+          statistic: args.statistic as string,
+          start_date: args.start_date as string,
+          end_date: args.end_date as string,
+          dataset_type: (args.dataset_type as string) || "timeseries",
+          display_type: (args.display_type as string) || "line",
+          combine_type: (args.combine_type as string) || "side",
+          limit: (args.limit as number) || 10,
+          offset: (args.offset as number) || 0,
+          log_scale: (args.log_scale as string) || "n",
+          filters: args.filters as Record<string, string> | undefined,
+        });
+
+      case "get_chart_image":
+        return await this.getChartImage({
+          realm: args.realm as string,
+          group_by: args.group_by as string,
+          statistic: args.statistic as string,
+          start_date: args.start_date as string,
+          end_date: args.end_date as string,
+          format: (args.format as string) || "svg",
+          width: (args.width as number) || 916,
+          height: (args.height as number) || 484,
+          dataset_type: (args.dataset_type as string) || "timeseries",
+          display_type: (args.display_type as string) || "line",
+          combine_type: (args.combine_type as string) || "side",
+          limit: (args.limit as number) || 10,
+          offset: (args.offset as number) || 0,
+          log_scale: (args.log_scale as string) || "n",
+          filters: args.filters as Record<string, string> | undefined,
+        });
+
+      case "get_chart_link":
+        return await this.getChartLink(
+          args.realm as string,
+          args.group_by as string,
+          args.statistic as string
+        );
+
+      case "describe_realms":
+        return await this.describeRealms();
+
+      case "describe_fields":
+        return await this.describeFields(args.realm as string);
+
+      case "get_dimension_values":
+        return await this.getDimensionValues(
+          args.realm as string,
+          args.dimension as string,
+          (args.limit as number) || 200
+        );
+
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  }
+
+  private async getChartData(params: {
+    realm: string;
+    group_by: string;
+    statistic: string;
+    start_date: string;
+    end_date: string;
+    dataset_type: string;
+    display_type?: string;
+    combine_type?: string;
+    limit?: number;
+    offset?: number;
+    log_scale?: string;
+    filters?: Record<string, string>;
+  }) {
+    try {
+      // Resolve text filter values to numeric IDs
+      const resolvedFilters = params.filters
+        ? await this.resolveFilters(params.realm, params.filters)
+        : undefined;
+
+      const urlParams = new URLSearchParams({
+        operation: "get_charts",
+        public_user: "true",
+        dataset_type: params.dataset_type,
+        format: "hc_jsonstore",
+        width: "916",
+        height: "484",
+        realm: params.realm,
+        group_by: params.group_by,
+        statistic: params.statistic,
+        start_date: params.start_date,
+        end_date: params.end_date,
+      });
+
+      if (params.display_type) urlParams.append("display_type", params.display_type);
+      if (params.combine_type) urlParams.append("combine_type", params.combine_type);
+      if (params.limit !== undefined) urlParams.append("limit", params.limit.toString());
+      if (params.offset !== undefined) urlParams.append("offset", params.offset.toString());
+      if (params.log_scale) urlParams.append("log_scale", params.log_scale);
+
+      if (resolvedFilters) {
+        for (const [key, value] of Object.entries(resolvedFilters)) {
+          urlParams.append(`${key}_filter`, value);
+        }
+      }
+
+      const response = await fetch(`${this.baseURL}/controllers/user_interface.php`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: urlParams,
+      });
+
+      const data = await response.json();
+
+      // Check for XDMoD error responses (e.g., invalid statistic name)
+      if (!response.ok || data.success === false) {
+        const xdmodMsg = data.message || `HTTP ${response.status}`;
+        // Provide actionable guidance
+        const ref = REALM_STATISTICS[params.realm];
+        let hint = "";
+        if (xdmodMsg.includes("No Statistic found") && ref) {
+          const validStats = Object.keys(ref.statistics).join(", ");
+          hint = `\n\nValid statistics for ${params.realm}: ${validStats}`;
+        }
+        throw new Error(`XDMoD error: ${xdmodMsg}${hint}`);
+      }
+
+      let resultText = `Chart Data for ${params.statistic} (${params.realm}):\n\n`;
+
+      if (data.data && data.data.length > 0) {
+        const chartInfo = data.data[0];
+
+        if (chartInfo.group_description) {
+          resultText += `**Group Description:**\n${chartInfo.group_description}\n\n`;
+        }
+
+        if (chartInfo.description) {
+          resultText += `**Chart Description:**\n${chartInfo.description}\n\n`;
+        }
+
+        if (chartInfo.chart_title) {
+          resultText += `**Chart Title:** ${chartInfo.chart_title}\n\n`;
+        }
+
+        resultText += `**Raw Data:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+      } else {
+        resultText += "No data available for the specified parameters.";
+      }
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: resultText,
+          },
+        ],
+      };
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch chart data: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private async getChartImage(params: {
+    realm: string;
+    group_by: string;
+    statistic: string;
+    start_date: string;
+    end_date: string;
+    format: string;
+    width: number;
+    height: number;
+    dataset_type: string;
+    display_type?: string;
+    combine_type?: string;
+    limit?: number;
+    offset?: number;
+    log_scale?: string;
+    filters?: Record<string, string>;
+  }) {
+    try {
+      // Resolve text filter values to numeric IDs
+      const resolvedFilters = params.filters
+        ? await this.resolveFilters(params.realm, params.filters)
+        : undefined;
+
+      const urlParams = new URLSearchParams({
+        operation: "get_charts",
+        public_user: "true",
+        dataset_type: params.dataset_type,
+        format: params.format,
+        width: params.width.toString(),
+        height: params.height.toString(),
+        realm: params.realm,
+        group_by: params.group_by,
+        statistic: params.statistic,
+        start_date: params.start_date,
+        end_date: params.end_date,
+      });
+
+      if (params.display_type) urlParams.append("display_type", params.display_type);
+      if (params.combine_type) urlParams.append("combine_type", params.combine_type);
+      if (params.limit !== undefined) urlParams.append("limit", params.limit.toString());
+      if (params.offset !== undefined) urlParams.append("offset", params.offset.toString());
+      if (params.log_scale) urlParams.append("log_scale", params.log_scale);
+
+      if (resolvedFilters) {
+        for (const [key, value] of Object.entries(resolvedFilters)) {
+          urlParams.append(`${key}_filter`, value);
+        }
+      }
+
+      const response = await fetch(`${this.baseURL}/controllers/user_interface.php`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: urlParams,
+      });
+
+      if (!response.ok) {
+        // Try to parse error message from XDMoD
+        try {
+          const errorData = await response.json();
+          const ref = REALM_STATISTICS[params.realm];
+          let hint = "";
+          if (errorData.message?.includes("No Statistic found") && ref) {
+            hint = `\n\nValid statistics for ${params.realm}: ${Object.keys(ref.statistics).join(", ")}`;
+          }
+          throw new Error(`XDMoD error: ${errorData.message || response.statusText}${hint}`);
+        } catch (parseErr) {
+          if (parseErr instanceof Error && parseErr.message.startsWith("XDMoD error")) throw parseErr;
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+      }
+
+      if (params.format === "png") {
+        // For PNG, get binary data and convert to base64
+        const imageBuffer = await response.arrayBuffer();
+        const base64Data = Buffer.from(imageBuffer).toString("base64");
+
+        // Return with MCP-compliant image format that was working
+        return {
+          content: [
+            {
+              type: "image" as const,
+              data: base64Data,
+              mimeType: "image/png",
+            },
+            {
+              type: "text" as const,
+              text:
+                `\nChart Details:\n` +
+                `- Statistic: ${params.statistic}\n` +
+                `- Realm: ${params.realm}\n` +
+                `- Group By: ${params.group_by}\n` +
+                `- Date Range: ${params.start_date} to ${params.end_date}\n` +
+                `- Size: ${params.width}x${params.height} pixels`,
+            },
+          ],
+        };
+      } else {
+        // For SVG and other text formats
+        const imageData = await response.text();
+
+        if (params.format === "svg") {
+          // For SVG, provide helpful message about using PNG instead
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text:
+                  `SVG Chart for ${params.statistic} (${params.realm})\n\n` +
+                  `⚠️ SVG format doesn't display directly in Claude Desktop.\n\n` +
+                  `**Recommended:** Use PNG format for direct image display:\n` +
+                  `\`\`\`\n` +
+                  `format: "png"\n` +
+                  `\`\`\`\n\n` +
+                  `**Chart Details:**\n` +
+                  `- Statistic: ${params.statistic}\n` +
+                  `- Realm: ${params.realm}\n` +
+                  `- Group By: ${params.group_by}\n` +
+                  `- Date Range: ${params.start_date} to ${params.end_date}\n` +
+                  `- Size: ${params.width}x${params.height} pixels\n\n` +
+                  `**To view this SVG chart:**\n` +
+                  `1. Copy the SVG code below\n` +
+                  `2. Save it to a .svg file and open in your browser\n\n` +
+                  `\`\`\`svg\n${imageData}\n\`\`\``,
+              },
+            ],
+          };
+        } else {
+          // For PDF and other formats, return as text
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text:
+                  `Chart Image (${params.format.toUpperCase()}) for ${params.statistic}:\n\n` +
+                  `**Parameters:** Realm: ${params.realm}, Group By: ${params.group_by}, ` +
+                  `Date Range: ${params.start_date} to ${params.end_date}\n\n` +
+                  `**To view this chart:**\n` +
+                  `1. Copy the ${params.format.toUpperCase()} data below\n` +
+                  `2. Save it to a file with .${params.format} extension\n` +
+                  `3. Open the file in your browser or image viewer\n\n` +
+                  `**${params.format.toUpperCase()} Data:**\n\`\`\`${params.format}\n${imageData}\n\`\`\``,
+              },
+            ],
+          };
+        }
+      }
+    } catch (error) {
+      throw new Error(
+        `Failed to fetch chart image: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private async getChartLink(realm: string, groupBy: string, statistic: string) {
+    // Construct the URL parameters for XDMoD portal
+    const urlParams = new URLSearchParams({
+      node: "statistic",
+      realm: realm,
+      group_by: groupBy,
+      statistic: statistic,
+    });
+
+    const chartUrl = `https://xdmod.access-ci.org/index.php#tg_usage?${urlParams.toString()}`;
+
+    const responseText =
+      `Direct link to view chart in XDMoD portal:\n\n${chartUrl}\n\n` +
+      `**Chart Parameters:**\n` +
+      `- Realm: ${realm}\n` +
+      `- Group By: ${groupBy}\n` +
+      `- Statistic: ${statistic}\n\n` +
+      `You can use this URL to view the interactive chart directly in the XDMoD web interface. ` +
+      `Use the portal's filtering options to narrow down to specific resources, users, or other criteria.`;
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: responseText,
+        },
+      ],
+    };
+  }
+
+  // --- Discovery tools (public, no auth required) ---
+
+  private async describeRealms(): Promise<CallToolResult> {
+    try {
+      const menus = await this.fetchMenus();
+
+      // Extract unique realm names from menu entries
+      const liveRealms = new Set<string>();
+      for (const entry of menus) {
+        if (entry.realm) {
+          liveRealms.add(entry.realm);
+        }
+      }
+
+      let text = "**Available XDMoD Realms**\n\n";
+
+      // Merge live data with static reference
+      const allRealms = new Set([...liveRealms, ...Object.keys(REALM_STATISTICS)]);
+      for (const realm of [...allRealms].sort()) {
+        const ref = REALM_STATISTICS[realm];
+        const isLive = liveRealms.has(realm);
+
+        text += `### ${realm}`;
+        if (!isLive) text += " (reference only)";
+        text += "\n";
+
+        if (ref) {
+          text += `${ref.description}\n`;
+          // Count dimensions from live API menu entries
+          const dims = menus.filter((e) => e.realm === realm);
+          if (dims.length > 0) {
+            text += `- **Dimensions:** ${dims.length} available\n`;
+          }
+          text += `- **Statistics:** ${Object.keys(ref.statistics).length} available\n`;
+        } else {
+          // Count dimensions from menu entries
+          const dims = menus.filter((e) => e.realm === realm);
+          text += `- **Dimensions from API:** ${dims.length} entries\n`;
+        }
+        text += "\n";
+      }
+
+      text += "Use `describe_fields` with a specific realm for full details.\n";
+
+      return { content: [{ type: "text" as const, text }] };
+    } catch (error) {
+      throw new Error(
+        `Failed to describe realms: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private async describeFields(realm: string): Promise<CallToolResult> {
+    try {
+      const menus = await this.fetchMenus();
+
+      // Filter menu entries for this realm to get dimensions
+      const realmEntries = menus.filter((e) => e.realm === realm);
+      const ref = REALM_STATISTICS[realm];
+
+      if (realmEntries.length === 0 && !ref) {
+        const allRealms = new Set(menus.map((e) => e.realm).filter(Boolean));
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Realm "${realm}" not found. Available realms: ${[...allRealms].sort().join(", ")}`,
+            },
+          ],
+        };
+      }
+
+      let text = `**Fields for Realm: ${realm}**\n\n`;
+
+      // Dimensions from live API
+      text += "**Dimensions (group_by values):**\n";
+      if (realmEntries.length > 0) {
+        const seen = new Set<string>();
+        for (const entry of realmEntries) {
+          const groupBy = entry.group_by || entry.id || "";
+          if (groupBy && !seen.has(groupBy)) {
+            seen.add(groupBy);
+            text += `- \`${groupBy}\``;
+            if (entry.text) text += ` — ${entry.text}`;
+            text += "\n";
+          }
+        }
+      } else {
+        text += "No dimension data available from API.\n";
+      }
+
+      // Statistics from static reference
+      text += "\n**Statistics:**\n";
+      if (ref) {
+        for (const [id, label] of Object.entries(ref.statistics)) {
+          text += `- \`${id}\` — ${label}\n`;
+        }
+      } else {
+        text += "No static statistics reference available for this realm.\n";
+        text += "Try using `get_chart_data` with common statistics like `total_cpu_hours` or `job_count`.\n";
+      }
+
+      text += `\nUse \`get_dimension_values\` to see available filter values for any dimension.\n`;
+
+      return { content: [{ type: "text" as const, text }] };
+    } catch (error) {
+      throw new Error(
+        `Failed to describe fields: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private async getDimensionValues(
+    realm: string,
+    dimension: string,
+    limit: number
+  ): Promise<CallToolResult> {
+    try {
+      const response = await fetch(`${this.baseURL}/controllers/metric_explorer.php`, {
+        method: "POST",
+        headers: this.getHeaders(),
+        body: new URLSearchParams({
+          operation: "get_dimension",
+          public_user: "true",
+          realm: realm,
+          dimension_id: dimension,
+          start: "0",
+          limit: limit.toString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const json = await response.json();
+      const totalCount = json.totalCount ?? 0;
+      const data: { id?: string; name?: string; short_name?: string }[] = json.data ?? [];
+
+      let text = `**${dimension} values in ${realm}** (${totalCount} total)\n\n`;
+
+      if (data.length === 0) {
+        text += "No values found. Check that the realm and dimension are valid.\n";
+      } else {
+        for (const item of data) {
+          const name = item.name || item.short_name || item.id || "unknown";
+          text += `- ${name}`;
+          if (item.id && item.id !== name) text += ` (id: ${item.id})`;
+          text += "\n";
+        }
+        if (totalCount > data.length) {
+          text += `\n... and ${totalCount - data.length} more. Increase \`limit\` to see more.\n`;
+        }
+      }
+
+      return { content: [{ type: "text" as const, text }] };
+    } catch (error) {
+      throw new Error(
+        `Failed to get dimension values: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+}
+
+// Start the server
+async function main() {
+  const server = new XDMoDMetricsServer();
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : undefined;
+  await server.start(port ? { httpPort: port } : undefined);
+}
+
+main().catch(() => {
+  // Log errors to a file instead of stderr to avoid interfering with JSON-RPC
+  process.exit(1);
+});

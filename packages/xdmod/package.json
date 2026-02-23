@@ -1,11 +1,11 @@
 {
-  "name": "@access-mcp/xdmod-charts",
-  "version": "0.5.0",
-  "description": "MCP server for XDMoD Charts and Visualizations",
+  "name": "@access-mcp/xdmod",
+  "version": "0.6.0",
+  "description": "MCP server for XDMoD public data: charts, visualizations, and metadata discovery",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "access-xdmod-charts": "dist/index.js"
+    "access-xdmod": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -26,9 +26,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/necyberteam/access-mcp.git",
-    "directory": "packages/xdmod-charts"
+    "directory": "packages/xdmod"
   },
-  "homepage": "https://github.com/necyberteam/access-mcp/tree/main/packages/xdmod-charts",
+  "homepage": "https://github.com/necyberteam/access-mcp/tree/main/packages/xdmod",
   "bugs": {
     "url": "https://github.com/necyberteam/access-mcp/issues"
   },

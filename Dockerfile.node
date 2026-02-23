@@ -50,5 +50,6 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD node -e "console.log('Server healthy')" || exit 1
 
-# Start the server
-CMD ["sh", "-c", "node packages/${PACKAGE}/dist/index.js"]
+# Start the server with telemetry bootstrap loaded first
+# The --import flag ensures OpenTelemetry is initialized before express/http are loaded
+CMD ["sh", "-c", "node --import ./packages/shared/dist/telemetry-bootstrap.js packages/${PACKAGE}/dist/index.js"]

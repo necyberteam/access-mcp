@@ -10,6 +10,9 @@ dist/
 .env
 .env.local
 
+# Local dev docker overrides
+docker-compose.override.yml
+
 # IDE
 .vscode/
 .idea/

@@ -319,14 +319,17 @@ class BaseAccessServer(ABC):
 
                 result = await self.handle_tool_call(tool_name, arguments)
 
-                return web.json_response({
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": json.dumps(result, indent=2) if not isinstance(result, str) else result
-                        }
-                    ]
-                })
+                # handle_tool_call returns List[TextContent] for MCP,
+                # but the REST API needs plain JSON serialization
+                if isinstance(result, list) and result and hasattr(result[0], 'text'):
+                    # Already TextContent objects — extract their text/type
+                    content = [{"type": item.type, "text": item.text} for item in result]
+                elif isinstance(result, str):
+                    content = [{"type": "text", "text": result}]
+                else:
+                    content = [{"type": "text", "text": json.dumps(result, indent=2)}]
+
+                return web.json_response({"content": content})
 
             except Exception as e:
                 return web.json_response(

@@ -21,7 +21,7 @@
     { "path": "./packages/nsf-awards" },
     { "path": "./packages/software-discovery" },
     { "path": "./packages/system-status" },
-    { "path": "./packages/xdmod-charts" }
+    { "path": "./packages/xdmod" }
   ],
   "files": []
 }

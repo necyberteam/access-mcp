@@ -1,0 +1,612 @@
+import { describe, test, expect, vi, beforeEach } from "vitest";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const { version } = require("../../package.json");
+
+// Mock fetch globally
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+
+// Prevent process.exit from killing vitest
+vi.spyOn(process, "exit").mockImplementation((() => {}) as never);
+
+// Mock the base server — include start() so main() doesn't crash
+vi.mock("@access-mcp/shared", () => ({
+  BaseAccessServer: class MockBaseAccessServer {
+    constructor(
+      public serverName: string,
+      public version: string,
+      public baseURL?: string
+    ) {}
+    httpClient = { get: vi.fn() };
+    async start() {}
+  },
+  handleApiError: vi.fn((error: unknown) =>
+    error instanceof Error ? error.message : "Unknown error"
+  ),
+}));
+
+// Sample menu data matching XDMoD API response format
+const SAMPLE_MENU_DATA = [
+  { text: "by Resource", realm: "Jobs", group_by: "resource", node_type: "group_by" },
+  { text: "by Person", realm: "Jobs", group_by: "person", node_type: "group_by" },
+  { text: "by PI", realm: "Jobs", group_by: "pi", node_type: "group_by" },
+  { text: "by Institution", realm: "Jobs", group_by: "institution", node_type: "group_by" },
+  { text: "by Resource", realm: "SUPREMM", group_by: "resource", node_type: "group_by" },
+  { text: "by Person", realm: "SUPREMM", group_by: "person", node_type: "group_by" },
+  { text: "by Resource", realm: "Cloud", group_by: "resource", node_type: "group_by" },
+];
+
+const SAMPLE_DIMENSION_VALUES = {
+  totalCount: 3,
+  data: [
+    { id: "delta.ncsa.xsede.org", name: "Delta", short_name: "Delta" },
+    { id: "bridges2.psc.xsede.org", name: "Bridges-2", short_name: "Bridges-2" },
+    { id: "expanse.sdsc.xsede.org", name: "Expanse", short_name: "Expanse" },
+  ],
+};
+
+const SAMPLE_CHART_DATA = {
+  data: [
+    {
+      chart_title: "Total CPU Hours",
+      group_description: "All Jobs",
+      description: "CPU usage over time",
+    },
+  ],
+};
+
+// Helper: create a mock Response
+function mockResponse(body: unknown, ok = true, status = 200): Response {
+  return {
+    ok,
+    status,
+    statusText: ok ? "OK" : "Error",
+    json: async () => body,
+    text: async () => (typeof body === "string" ? body : JSON.stringify(body)),
+    arrayBuffer: async () => new ArrayBuffer(0),
+    headers: new Headers(),
+  } as Response;
+}
+
+// Helper to extract text from CallToolResult content
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getText(result: { content: any[] }): string {
+  const item = result.content[0];
+  return item.text ?? "";
+}
+
+// Import the server class (after mocks are in place)
+const { XDMoDMetricsServer } = await import("../index.js");
+
+describe("XDMoDMetricsServer", () => {
+  let server: InstanceType<typeof XDMoDMetricsServer>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    server = new XDMoDMetricsServer();
+    // Clear the menu cache between tests
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (server as any).menuCache = null;
+  });
+
+  describe("basic configuration", () => {
+    test("should be instantiable", () => {
+      expect(server).toBeDefined();
+      expect(server).toBeInstanceOf(XDMoDMetricsServer);
+    });
+
+    test("should have correct server name", () => {
+      expect(server["serverName"]).toBe("xdmod");
+    });
+
+    test("should have correct version", () => {
+      expect(server["version"]).toBe(version);
+    });
+
+    test("should have correct base URL", () => {
+      expect(server["baseURL"]).toBe("https://xdmod.access-ci.org");
+    });
+  });
+
+  describe("getTools()", () => {
+    test("should return 6 tools", () => {
+      const tools = server["getTools"]();
+      expect(tools).toHaveLength(6);
+    });
+
+    test("should include chart tools", () => {
+      const tools = server["getTools"]();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const names = tools.map((t: any) => t.name);
+      expect(names).toContain("get_chart_data");
+      expect(names).toContain("get_chart_image");
+      expect(names).toContain("get_chart_link");
+    });
+
+    test("should include discovery tools", () => {
+      const tools = server["getTools"]();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const names = tools.map((t: any) => t.name);
+      expect(names).toContain("describe_realms");
+      expect(names).toContain("describe_fields");
+      expect(names).toContain("get_dimension_values");
+    });
+
+    test("describe_realms should require no parameters", () => {
+      const tools = server["getTools"]();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tool = tools.find((t: any) => t.name === "describe_realms");
+      expect(tool?.inputSchema.required).toEqual([]);
+    });
+
+    test("describe_fields should require realm parameter", () => {
+      const tools = server["getTools"]();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tool = tools.find((t: any) => t.name === "describe_fields");
+      expect(tool?.inputSchema.required).toEqual(["realm"]);
+    });
+
+    test("get_dimension_values should require realm and dimension", () => {
+      const tools = server["getTools"]();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const tool = tools.find((t: any) => t.name === "get_dimension_values");
+      expect(tool?.inputSchema.required).toEqual(["realm", "dimension"]);
+    });
+  });
+
+  describe("handleToolCall()", () => {
+    test("should throw on unknown tool", async () => {
+      await expect(
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "nonexistent_tool", arguments: {} },
+        })
+      ).rejects.toThrow("Unknown tool: nonexistent_tool");
+    });
+  });
+
+  describe("fetchMenus()", () => {
+    test("should call XDMoD API with correct parameters", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      await server["fetchMenus"]();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://xdmod.access-ci.org/controllers/user_interface.php");
+      expect(options.method).toBe("POST");
+
+      const body = options.body as URLSearchParams;
+      expect(body.get("operation")).toBe("get_menus");
+      expect(body.get("public_user")).toBe("true");
+      expect(body.get("node")).toBe("category_");
+    });
+
+    test("should cache menu results", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      const first = await server["fetchMenus"]();
+      const second = await server["fetchMenus"]();
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(first).toEqual(second);
+    });
+
+    test("should refresh cache after TTL expires", async () => {
+      mockFetch.mockResolvedValue(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      await server["fetchMenus"]();
+
+      // Simulate expired cache
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (server as any).menuCache.timestamp = Date.now() - 1000 * 60 * 31;
+
+      await server["fetchMenus"]();
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    test("should throw on API error", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(null, false, 500));
+
+      await expect(server["fetchMenus"]()).rejects.toThrow(
+        "Failed to fetch XDMoD menus: HTTP 500"
+      );
+    });
+
+    test("should handle response without data wrapper", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(SAMPLE_MENU_DATA));
+
+      const result = await server["fetchMenus"]();
+      expect(result).toEqual(SAMPLE_MENU_DATA);
+    });
+  });
+
+  describe("describe_realms tool", () => {
+    test("should list realms from API and static reference", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "describe_realms", arguments: {} },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("Jobs");
+      expect(text).toContain("SUPREMM");
+      expect(text).toContain("Cloud");
+      expect(text).toContain("Storage");
+      expect(text).toContain("reference only");
+    });
+
+    test("should include dimension and statistics counts", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "describe_realms", arguments: {} },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("Dimensions");
+      expect(text).toContain("Statistics");
+    });
+
+    test("should propagate API errors", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(null, false, 500));
+
+      await expect(
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "describe_realms", arguments: {} },
+        })
+      ).rejects.toThrow("Failed to describe realms");
+    });
+  });
+
+  describe("describe_fields tool", () => {
+    test("should return dimensions and statistics for Jobs realm", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "describe_fields", arguments: { realm: "Jobs" } },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("resource");
+      expect(text).toContain("person");
+      expect(text).toContain("pi");
+      expect(text).toContain("institution");
+      expect(text).toContain("total_cpu_hours");
+      expect(text).toContain("job_count");
+      expect(text).toContain("CPU Hours: Total");
+    });
+
+    test("should return SUPREMM statistics", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "describe_fields", arguments: { realm: "SUPREMM" } },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("gpu_time");
+      expect(text).toContain("GPU Hours: Total");
+      expect(text).toContain("avg_percent_gpu_usage");
+    });
+
+    test("should return error for unknown realm", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "describe_fields", arguments: { realm: "FakeRealm" } },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("not found");
+      expect(text).toContain("Available realms");
+    });
+
+    test("should use static data when realm has no API entries", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: SAMPLE_MENU_DATA }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "describe_fields", arguments: { realm: "Storage" } },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("Storage");
+      expect(text).toContain("avg_logical_usage");
+    });
+
+    test("should deduplicate dimension entries", async () => {
+      const dupeMenus = [
+        { realm: "Jobs", group_by: "resource", text: "By Resource", id: "resource" },
+        { realm: "Jobs", group_by: "resource", text: "By Resource (dup)", id: "resource" },
+      ];
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: dupeMenus }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "describe_fields", arguments: { realm: "Jobs" } },
+      });
+
+      const text = getText(result);
+      const matches = text.match(/`resource`/g);
+      expect(matches).toHaveLength(1);
+    });
+  });
+
+  describe("get_dimension_values tool", () => {
+    test("should call metric_explorer API with correct parameters", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(SAMPLE_DIMENSION_VALUES));
+
+      await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_dimension_values",
+          arguments: { realm: "Jobs", dimension: "resource" },
+        },
+      });
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://xdmod.access-ci.org/controllers/metric_explorer.php");
+      expect(options.method).toBe("POST");
+
+      const body = options.body as URLSearchParams;
+      expect(body.get("operation")).toBe("get_dimension");
+      expect(body.get("public_user")).toBe("true");
+      expect(body.get("realm")).toBe("Jobs");
+      expect(body.get("dimension_id")).toBe("resource");
+      expect(body.get("limit")).toBe("200");
+    });
+
+    test("should format dimension values in response", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(SAMPLE_DIMENSION_VALUES));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_dimension_values",
+          arguments: { realm: "Jobs", dimension: "resource" },
+        },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("Delta");
+      expect(text).toContain("Bridges-2");
+      expect(text).toContain("Expanse");
+      expect(text).toContain("3 total");
+    });
+
+    test("should use custom limit parameter", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(SAMPLE_DIMENSION_VALUES));
+
+      await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_dimension_values",
+          arguments: { realm: "Jobs", dimension: "resource", limit: 50 },
+        },
+      });
+
+      const body = mockFetch.mock.calls[0][1].body as URLSearchParams;
+      expect(body.get("limit")).toBe("50");
+    });
+
+    test("should show truncation message when more values exist", async () => {
+      const manyValues = {
+        totalCount: 500,
+        data: [
+          { id: "1", name: "Resource A" },
+          { id: "2", name: "Resource B" },
+        ],
+      };
+      mockFetch.mockResolvedValueOnce(mockResponse(manyValues));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_dimension_values",
+          arguments: { realm: "Jobs", dimension: "resource" },
+        },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("498 more");
+    });
+
+    test("should handle empty dimension values", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ totalCount: 0, data: [] }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_dimension_values",
+          arguments: { realm: "Jobs", dimension: "nonexistent" },
+        },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("No values found");
+    });
+
+    test("should throw on API error", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(null, false, 500));
+
+      await expect(
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_dimension_values",
+            arguments: { realm: "Jobs", dimension: "resource" },
+          },
+        })
+      ).rejects.toThrow("Failed to get dimension values");
+    });
+  });
+
+  describe("get_chart_data tool", () => {
+    test("should call user_interface API with correct chart parameters", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(SAMPLE_CHART_DATA));
+
+      await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_chart_data",
+          arguments: {
+            realm: "Jobs",
+            group_by: "none",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+          },
+        },
+      });
+
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://xdmod.access-ci.org/controllers/user_interface.php");
+
+      const body = options.body as URLSearchParams;
+      expect(body.get("operation")).toBe("get_charts");
+      expect(body.get("public_user")).toBe("true");
+      expect(body.get("realm")).toBe("Jobs");
+      expect(body.get("group_by")).toBe("none");
+      expect(body.get("statistic")).toBe("total_cpu_hours");
+      expect(body.get("start_date")).toBe("2024-01-01");
+      expect(body.get("end_date")).toBe("2024-12-31");
+    });
+
+    test("should format chart data response", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse(SAMPLE_CHART_DATA));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_chart_data",
+          arguments: {
+            realm: "Jobs",
+            group_by: "none",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+          },
+        },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("total_cpu_hours");
+      expect(text).toContain("Jobs");
+      expect(text).toContain("Total CPU Hours");
+    });
+
+    test("should handle empty chart data", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({ data: [] }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_chart_data",
+          arguments: {
+            realm: "Jobs",
+            group_by: "none",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+          },
+        },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("No data available");
+    });
+  });
+
+  describe("get_chart_link tool", () => {
+    test("should generate correct portal URL", async () => {
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_chart_link",
+          arguments: {
+            realm: "Jobs",
+            group_by: "resource",
+            statistic: "total_cpu_hours",
+          },
+        },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("https://xdmod.access-ci.org/index.php#tg_usage");
+      expect(text).toContain("realm=Jobs");
+      expect(text).toContain("group_by=resource");
+      expect(text).toContain("statistic=total_cpu_hours");
+    });
+  });
+
+  describe("get_chart_image tool", () => {
+    test("should request PNG and return image content", async () => {
+      const fakeBuffer = new ArrayBuffer(8);
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => fakeBuffer,
+        headers: new Headers(),
+      } as Response);
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_chart_image",
+          arguments: {
+            realm: "Jobs",
+            group_by: "none",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+            format: "png",
+          },
+        },
+      });
+
+      expect(result.content[0].type).toBe("image");
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect((result.content[0] as any).mimeType).toBe("image/png");
+    });
+
+    test("should request SVG and return text content", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => "<svg>chart</svg>",
+        headers: new Headers(),
+      } as Response);
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_chart_image",
+          arguments: {
+            realm: "Jobs",
+            group_by: "none",
+            statistic: "total_cpu_hours",
+            start_date: "2024-01-01",
+            end_date: "2024-12-31",
+            format: "svg",
+          },
+        },
+      });
+
+      expect(result.content[0].type).toBe("text");
+      const text = getText(result);
+      expect(text).toContain("SVG");
+      expect(text).toContain("<svg>chart</svg>");
+    });
+  });
+});

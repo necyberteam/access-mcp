@@ -1,6 +1,6 @@
-# XDMoD Charts MCP Server
+# XDMoD MCP Server
 
-MCP server for charts and visualizations from XDMoD (XD Metrics on Demand) Usage Analytics API. Generate SVG, PNG, and PDF charts, portal links, and advanced research visualizations.
+MCP server for public XDMoD data: charts, visualizations, metadata discovery, and dimension values from the XDMoD (XD Metrics on Demand) Usage Analytics API.
 
 ## Usage Examples
 
@@ -94,7 +94,7 @@ Detailed performance analytics and system metrics:
 ## Installation
 
 ```bash
-npm install -g @access-mcp/xdmod-charts
+npm install -g @access-mcp/xdmod
 ```
 
 ## Configuration
@@ -102,18 +102,12 @@ npm install -g @access-mcp/xdmod-charts
 ```json
 {
   "mcpServers": {
-    "xdmod-charts": {
+    "xdmod": {
       "command": "npx",
-      "args": ["@access-mcp/xdmod-charts"]
+      "args": ["@access-mcp/xdmod"]
     }
   }
 }
 ```
 
 No authentication required - the server accesses publicly available system-wide metrics data.
-
----
-
-**Package:** `@access-mcp/xdmod-charts`
-**Version:** v0.5.0
-**Main:** `dist/index.js`

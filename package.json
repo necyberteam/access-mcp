@@ -4,7 +4,7 @@
   "description": "MCP servers for ACCESS-CI APIs",
   "type": "module",
   "scripts": {
-    "build": "npm run build --workspace=@access-mcp/shared && npm run build --workspace=@access-mcp/affinity-groups && npm run build --workspace=@access-mcp/compute-resources && npm run build --workspace=@access-mcp/system-status && npm run build --workspace=@access-mcp/software-discovery && npm run build --workspace=@access-mcp/xdmod-charts && npm run build --workspace=@access-mcp/allocations && npm run build --workspace=@access-mcp/nsf-awards && npm run build --workspace=@access-mcp/events",
+    "build": "npm run build --workspace=@access-mcp/shared && npm run build --workspace=@access-mcp/affinity-groups && npm run build --workspace=@access-mcp/compute-resources && npm run build --workspace=@access-mcp/system-status && npm run build --workspace=@access-mcp/software-discovery && npm run build --workspace=@access-mcp/xdmod && npm run build --workspace=@access-mcp/allocations && npm run build --workspace=@access-mcp/nsf-awards && npm run build --workspace=@access-mcp/events",
     "build:clean": "npm run clean && npm run build",
     "clean": "rm -rf packages/*/dist",
     "build:all": "node scripts/build-all.js",
@@ -39,10 +39,12 @@
     "@typescript-eslint/parser": "^6.0.0",
     "@vitest/coverage-v8": "^2.1.9",
     "@vitest/ui": "^2.0.0",
+    "ajv-formats": "^3.0.1",
     "esbuild": "^0.25.8",
     "eslint": "^8.0.0",
     "prettier": "^3.0.0",
     "typescript": "^5.0.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "zod-to-json-schema": "^3.25.1"
   }
 }

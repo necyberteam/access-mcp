@@ -1,5 +1,11 @@
 # Docker Compose file for ACCESS-CI MCP Servers
 
+x-otel-env: &otel-env
+  OTEL_ENABLED: ${OTEL_ENABLED:-true}
+  OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-https://api.honeycomb.io}
+  OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+  HONEYCOMB_DATASET: ${HONEYCOMB_DATASET:-access-ci}
+
 services:
   # TypeScript MCP Servers
   mcp-affinity-groups:
@@ -12,8 +18,9 @@ services:
       - "3011:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
     deploy:
       resources:
         limits:
@@ -29,8 +36,9 @@ services:
       - "3002:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
     deploy:
       resources:
         limits:
@@ -46,8 +54,9 @@ services:
       - "3003:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
     deploy:
       resources:
         limits:
@@ -63,26 +72,28 @@ services:
       - "3004:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - SDS_API_KEY=${SDS_API_KEY}
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
+      SDS_API_KEY: ${SDS_API_KEY}
     deploy:
       resources:
         limits:
           memory: 128M
 
-  mcp-xdmod-charts:
+  mcp-xdmod:
     build:
       context: .
       dockerfile: Dockerfile.node
       args:
-        PACKAGE: xdmod-charts
+        PACKAGE: xdmod
     ports:
       - "3005:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
     deploy:
       resources:
         limits:
@@ -98,9 +109,10 @@ services:
       - "3006:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
-      - ACCESS_MCP_SERVICES=${ACCESS_MCP_SERVICES}
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
+      ACCESS_MCP_SERVICES: ${ACCESS_MCP_SERVICES}
     deploy:
       resources:
         limits:
@@ -116,8 +128,9 @@ services:
       - "3007:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
     deploy:
       resources:
         limits:
@@ -133,8 +146,14 @@ services:
       - "3009:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
+      DRUPAL_API_URL: ${DRUPAL_API_URL:-https://support.access-ci.org}
+      DRUPAL_USERNAME: ${DRUPAL_USERNAME:-}
+      DRUPAL_PASSWORD: ${DRUPAL_PASSWORD:-}
+      ACTING_USER: ${ACTING_USER:-}
+      MCP_API_KEY: ${MCP_API_KEY}
     deploy:
       resources:
         limits:
@@ -150,12 +169,43 @@ services:
       - "3010:3000"
     restart: unless-stopped
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
+      DRUPAL_API_URL: ${DRUPAL_API_URL:-https://support.access-ci.org}
+      DRUPAL_USERNAME: ${DRUPAL_USERNAME:-}
+      DRUPAL_PASSWORD: ${DRUPAL_PASSWORD:-}
+      ACTING_USER: ${ACTING_USER:-}
+      MCP_API_KEY: ${MCP_API_KEY}
     deploy:
       resources:
         limits:
           memory: 128M
+
+  mcp-jsm:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: jsm
+    ports:
+      - "3012:3000"
+    restart: unless-stopped
+    environment:
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
+      JSM_PROXY_URL: ${JSM_PROXY_URL:-https://access-jsm-api.netlify.app}
+      MCP_API_KEY: ${MCP_API_KEY}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # Python MCP Server
   mcp-xdmod-data:

@@ -344,7 +344,7 @@ class XDMoDPythonServer(BaseAccessServer):
         else:
             next_steps.append("API token configured")
             
-        next_steps.append("Compare with @access-mcp/xdmod-charts server results")
+        next_steps.append("Compare with @access-mcp/xdmod server results")
         
         formatted_steps = '\n'.join(f"{i+1}. {step}" for i, step in enumerate(next_steps))
 

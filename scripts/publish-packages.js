@@ -14,7 +14,7 @@ const PACKAGES = [
   "allocations",
   "nsf-awards",
   "announcements",
-  "xdmod-charts",
+  "xdmod",
 ];
 
 function runCommand(command, options = {}) {

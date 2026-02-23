@@ -53,7 +53,7 @@ async function main() {
     ["access_mcp-mcp-compute-resources-1", "3002"],
     ["access_mcp-mcp-system-status-1", "3003"],
     ["access_mcp-mcp-software-discovery-1", "3004"],
-    ["access_mcp-mcp-xdmod-charts-1", "3005"],
+    ["access_mcp-mcp-xdmod-1", "3005"],
     ["access_mcp-mcp-nsf-awards-1", "3007"],
     ["access_mcp-mcp-xdmod-data-1", "3008"],
   ];

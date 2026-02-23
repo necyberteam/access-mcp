@@ -53,7 +53,7 @@ This document proposes standardization improvements for ACCESS-CI MCP server too
   events: Array<...>
 }
 
-// Pattern B: Wrapped in data field (xdmod-charts)
+// Pattern B: Wrapped in data field (xdmod)
 {
   data: Array<...>
 }
