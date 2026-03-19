@@ -1265,14 +1265,7 @@ describe("AnnouncementsServer", () => {
     });
 
     describe("get_announcement_context", () => {
-      it("should fetch tags and affinity groups without user UUID lookup", async () => {
-        // Two parallel calls only — no user UUID lookup
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [
-            { id: "tag-1", attributes: { name: "gpu" } },
-            { id: "tag-2", attributes: { name: "hpc" } },
-          ],
-        });
+      it("should fetch affinity groups without tags", async () => {
         mockDrupalAuth.get.mockResolvedValueOnce({
           data: [
             {
@@ -1294,24 +1287,17 @@ describe("AnnouncementsServer", () => {
           },
         });
 
-        // Exactly 2 calls — tags + views affinity groups, no user lookup
-        expect(mockDrupalAuth.get).toHaveBeenCalledTimes(2);
-        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
-          "/jsonapi/taxonomy_term/tags?page[limit]=100"
-        );
+        // Only 1 call — affinity groups view, no tags fetch
+        expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
           "/jsonapi/views/mcp_my_affinity_groups/page_1"
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.tags).toHaveLength(2);
-        expect(responseData.tags[0].name).toBe("gpu");
-        expect(responseData.tags[1].name).toBe("hpc");
+        // Should NOT return tags
+        expect(responseData).not.toHaveProperty("tags");
         expect(responseData.affinity_groups).toHaveLength(1);
         expect(responseData.affinity_groups[0].name).toBe("Test Group");
-        expect(responseData.affinity_groups[0].id).toBe(123);
-        expect(responseData.affinity_groups[0].uuid).toBe("group-uuid-1");
-        expect(responseData.affinity_groups[0].category).toBe("Research");
         expect(responseData.is_coordinator).toBe(true);
         expect(responseData.affiliations).toContain("ACCESS Collaboration");
         expect(responseData.affiliations).toContain("Community");
@@ -1320,9 +1306,6 @@ describe("AnnouncementsServer", () => {
       });
 
       it("should indicate non-coordinator when views returns no affinity groups", async () => {
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [{ id: "tag-1", attributes: { name: "gpu" } }],
-        });
         mockDrupalAuth.get.mockResolvedValueOnce({
           data: [],
         });
@@ -1354,14 +1337,12 @@ describe("AnnouncementsServer", () => {
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.error).toContain("No acting user specified");
-        // Should not have made any API calls
         expect(mockDrupalAuth.get).not.toHaveBeenCalled();
       });
 
       it("should use acting user from request context", async () => {
         delete process.env.ACTING_USER;
 
-        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
         mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
 
         const context: RequestContext = {
@@ -1378,11 +1359,116 @@ describe("AnnouncementsServer", () => {
           });
         });
 
-        // Should succeed — acting user from request context
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.tags).toHaveLength(0);
+        expect(responseData).not.toHaveProperty("tags");
         expect(responseData.is_coordinator).toBe(false);
-        expect(mockDrupalAuth.get).toHaveBeenCalledTimes(2);
+        expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe("suggest_tags", () => {
+      it("should return error when text is too short", async () => {
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "suggest_tags",
+            arguments: { text: "Short text" },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.error).toContain("at least 100 characters");
+      });
+
+      it("should return error when text is empty", async () => {
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "suggest_tags",
+            arguments: { text: "" },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.error).toContain("at least 100 characters");
+      });
+
+      it("should return suggested tags on success", async () => {
+        const longText = "A".repeat(150);
+        mockDrupalAuth.post.mockResolvedValueOnce({
+          tags: [
+            { tid: 1, name: "ai", uuid: "uuid-1" },
+            { tid: 2, name: "hpc", uuid: "uuid-2" },
+          ],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "suggest_tags",
+            arguments: { text: longText },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.suggested_tags).toEqual(["ai", "hpc"]);
+        expect(responseData.tag_details).toHaveLength(2);
+      });
+
+      it("should truncate results to the specified limit", async () => {
+        const longText = "A".repeat(150);
+        mockDrupalAuth.post.mockResolvedValueOnce({
+          tags: [
+            { tid: 1, name: "ai", uuid: "uuid-1" },
+            { tid: 2, name: "hpc", uuid: "uuid-2" },
+            { tid: 3, name: "gpu", uuid: "uuid-3" },
+          ],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "suggest_tags",
+            arguments: { text: longText, limit: 2 },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.suggested_tags).toHaveLength(2);
+        expect(responseData.tag_details).toHaveLength(2);
+      });
+    });
+
+    describe("suggest_summary", () => {
+      it("should return error when text is too short", async () => {
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "suggest_summary",
+            arguments: { text: "Short text" },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.error).toContain("at least 100 characters");
+      });
+
+      it("should return summary on success", async () => {
+        const longText = "A".repeat(150);
+        mockDrupalAuth.post.mockResolvedValueOnce({
+          summary: "A test summary of the content.",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "suggest_summary",
+            arguments: { text: longText },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.summary).toBe("A test summary of the content.");
       });
     });
   });

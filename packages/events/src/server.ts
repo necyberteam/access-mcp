@@ -262,16 +262,16 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     }
   }
 
+  // Allowed values for the Drupal view's exposed items_per_page pager.
+  private static readonly ALLOWED_PAGE_SIZES = [25, 50, 100, 250, 500];
+
   private buildEventsUrl(params: SearchEventsParams): string {
     const url = new URL("/api/2.2/events", this.baseURL);
 
+    // Map requested limit to nearest allowed page size
     const limit = params.limit || 50;
-    let itemsPerPage = 50;
-    if (limit >= 100) itemsPerPage = 100;
-    else if (limit >= 75) itemsPerPage = 75;
-    else if (limit >= 50) itemsPerPage = 50;
-    else if (limit >= 25) itemsPerPage = 25;
-    else itemsPerPage = 25;
+    const itemsPerPage = EventsServer.ALLOWED_PAGE_SIZES.find((s) => s >= limit)
+      || EventsServer.ALLOWED_PAGE_SIZES[EventsServer.ALLOWED_PAGE_SIZES.length - 1];
     url.searchParams.set("items_per_page", String(itemsPerPage));
 
     if (params.query) {
@@ -295,9 +295,16 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
       }
     }
 
-    // Note: faceted filters (f[0]=field:value) are not supported on the
-    // data_export API display — they're bound to the page display in Drupal.
-    // Type, tags, and skill filters are applied client-side in getEvents().
+    // Server-side exposed filters on the Drupal data_export display
+    if (params.type) {
+      url.searchParams.set("event_type", params.type);
+    }
+    if (params.tags) {
+      url.searchParams.set("tags", params.tags);
+    }
+    if (params.skill) {
+      url.searchParams.set("skill_level", params.skill);
+    }
 
     return url.toString();
   }
@@ -313,27 +320,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     // Ensure response is an array (non-array means unexpected response like 403 HTML)
     let events: RawEvent[] = Array.isArray(response.data) ? response.data : [];
 
-    // Client-side filters (faceted search not available on data_export display)
-    if (params.type) {
-      const typeFilter = params.type.toLowerCase();
-      events = events.filter(
-        (e) => (e.event_type as string || "").toLowerCase() === typeFilter
-      );
-    }
-    if (params.tags) {
-      const tagFilter = params.tags.toLowerCase();
-      events = events.filter((e) => {
-        const tags = typeof e.tags === "string" ? e.tags : Array.isArray(e.tags) ? e.tags.join(",") : "";
-        return tags.toLowerCase().includes(tagFilter);
-      });
-    }
-    if (params.skill) {
-      const skillFilter = params.skill.toLowerCase();
-      events = events.filter(
-        (e) => (e.skill_level as string || "").toLowerCase() === skillFilter
-      );
-    }
-
+    // Trim to requested limit (Drupal pager uses fixed page sizes)
     if (params.limit && events.length > params.limit) {
       events = events.slice(0, params.limit);
     }
