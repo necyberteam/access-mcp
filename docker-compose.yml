@@ -154,6 +154,8 @@ services:
       DRUPAL_PASSWORD: ${DRUPAL_PASSWORD:-}
       ACTING_USER: ${ACTING_USER:-}
       MCP_API_KEY: ${MCP_API_KEY}
+    extra_hosts:
+      - "accessmatch.ddev.site:host-gateway"
     deploy:
       resources:
         limits:
@@ -177,6 +179,8 @@ services:
       DRUPAL_PASSWORD: ${DRUPAL_PASSWORD:-}
       ACTING_USER: ${ACTING_USER:-}
       MCP_API_KEY: ${MCP_API_KEY}
+    extra_hosts:
+      - "accessmatch.ddev.site:host-gateway"
     deploy:
       resources:
         limits:

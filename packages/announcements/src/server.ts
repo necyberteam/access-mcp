@@ -458,16 +458,47 @@ Use this to:
         description: `Get user context and options BEFORE creating an announcement. Call this first.
 
 Returns:
-- tags: Available tags for announcements [{name, uuid}]
 - affinity_groups: Groups the user coordinates (empty if not a coordinator)
 - is_coordinator: Boolean - if true, ask about affinity_group and where_to_share
 - affiliations: Available affiliation options
 - where_to_share_options: Available sharing options (only relevant for coordinators)
 
-Use this to tailor the announcement creation conversation based on the user's role.`,
+Does NOT return tags — use suggest_tags after the user provides content.`,
         inputSchema: {
           type: "object",
           properties: {},
+        },
+      },
+      {
+        name: "suggest_tags",
+        description: `Suggest relevant tags for announcement content. Call this AFTER the user provides their announcement body text. Returns up to 6 AI-suggested tags based on the content. The user can accept, remove, or request different tags.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            text: {
+              type: "string",
+              description: "The announcement body text to analyze for tag suggestions. Must be at least 100 characters.",
+            },
+            limit: {
+              type: "number",
+              description: "Maximum number of tags to suggest (default: 6)",
+            },
+          },
+          required: ["text"],
+        },
+      },
+      {
+        name: "suggest_summary",
+        description: `Generate a concise summary for announcement content. Call this to auto-generate a summary from the announcement body. Returns a summary of up to 150 characters.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            text: {
+              type: "string",
+              description: "The announcement body text to summarize. Must be at least 100 characters.",
+            },
+          },
+          required: ["text"],
         },
       },
     ];
@@ -530,9 +561,9 @@ Use this to tailor the announcement creation conversation based on the user's ro
             role: "assistant",
             content: {
               type: "text",
-              text: `I'll help you create an ACCESS announcement. Let me first check your available options and coordinator status.
+              text: `I'll help you create an ACCESS announcement. Let me check your options first.
 
-First, I'll call \`get_announcement_context\` to see what tags are available and whether you coordinate any affinity groups.
+Once you provide the content, I'll suggest relevant tags and generate a summary automatically.
 
 **Required Information:**
 
@@ -636,6 +667,10 @@ Which would you like to do?`,
         // Helper operations
         case "get_announcement_context":
           return await this.getAnnouncementContext();
+        case "suggest_tags":
+          return await this.suggestTags(args as { text: string; limit?: number });
+        case "suggest_summary":
+          return await this.suggestSummary(args as { text: string });
 
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
@@ -1121,18 +1156,9 @@ Which would you like to do?`,
     // Ensure acting user is set (will throw if not available)
     this.getActingUserAccessId();
 
-    // Fetch tags and affinity groups in parallel
-    // Tags use standard JSON:API; affinity groups use a views endpoint
-    // that resolves X-Acting-User to the coordinator filter automatically
-    const [tagsResult, groupsResult] = await Promise.all([
-      auth.get("/jsonapi/taxonomy_term/tags?page[limit]=100"),
-      auth.get("/jsonapi/views/mcp_my_affinity_groups/page_1"),
-    ]);
-
-    const tags = (tagsResult.data || []).map((item: JsonApiResourceItem) => ({
-      name: item.attributes?.name,
-      uuid: item.id,
-    }));
+    // Fetch affinity groups the user coordinates.
+    // Tags are NOT fetched here — use suggest_tags tool after the user provides content.
+    const groupsResult = await auth.get("/jsonapi/views/mcp_my_affinity_groups/page_1");
 
     const affinityGroups = (groupsResult.data || []).map((item: JsonApiResourceItem) => ({
       id: item.attributes?.field_group_id,
@@ -1148,7 +1174,6 @@ Which would you like to do?`,
         {
           type: "text" as const,
           text: JSON.stringify({
-            tags: tags,
             affinity_groups: affinityGroups,
             is_coordinator: isCoordinator,
             affiliations: ["ACCESS Collaboration", "Community"],
@@ -1171,6 +1196,67 @@ Which would you like to do?`,
         },
       ],
     };
+  }
+
+  /**
+   * Suggest tags for announcement content using Drupal's AI tag suggestion service.
+   */
+  private static readonly JSON_HEADERS = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+  };
+
+  private async suggestTags(args: { text: string; limit?: number }): Promise<CallToolResult> {
+    if (!args.text || args.text.length < 100) {
+      return this.errorResponse("Text must be at least 100 characters for tag suggestions.");
+    }
+
+    const auth = this.getDrupalAuth();
+    const limit = args.limit || 6;
+    const result = await auth.post("/api/suggest-tags", {
+      text: args.text,
+      limit,
+    }, AnnouncementsServer.JSON_HEADERS);
+
+    if (result.tags) {
+      const tags = result.tags.slice(0, limit);
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({
+            suggested_tags: tags.map((t: { name: string; uuid: string }) => t.name),
+            tag_details: tags,
+          }),
+        }],
+      };
+    }
+
+    return this.errorResponse(result.error || "Tag suggestion failed");
+  }
+
+  /**
+   * Generate a summary for announcement content using Drupal's AI summary service.
+   */
+  private async suggestSummary(args: { text: string }): Promise<CallToolResult> {
+    if (!args.text || args.text.length < 100) {
+      return this.errorResponse("Text must be at least 100 characters for summary generation.");
+    }
+
+    const auth = this.getDrupalAuth();
+    const result = await auth.post("/api/suggest-summary", {
+      text: args.text,
+    }, AnnouncementsServer.JSON_HEADERS);
+
+    if (result.summary) {
+      return {
+        content: [{
+          type: "text" as const,
+          text: JSON.stringify({ summary: result.summary }),
+        }],
+      };
+    }
+
+    return this.errorResponse(result.error || "Summary generation failed");
   }
 
   /**

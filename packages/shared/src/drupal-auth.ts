@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- Generic HTTP client for untyped JSON:API responses */
 import axios, { AxiosInstance } from "axios";
 import { randomUUID } from "crypto";
+import https from "https";
 
 /**
  * Authentication provider for Drupal JSON:API using cookie-based auth.
@@ -26,10 +27,19 @@ export class DrupalAuthProvider {
     actingUser?: string
   ) {
     this.actingUser = actingUser;
+
+    // Skip TLS verification for local dev domains (DDEV self-signed certs).
+    const isLocalDev = /\.(ddev\.site|localhost|local)$/.test(
+      new URL(this.baseUrl).hostname
+    );
+
     this.httpClient = axios.create({
       baseURL: this.baseUrl,
       timeout: 30000,
       validateStatus: () => true,
+      ...(isLocalDev && {
+        httpsAgent: new https.Agent({ rejectUnauthorized: false }),
+      }),
     });
   }
 
@@ -99,9 +109,12 @@ export class DrupalAuthProvider {
   }
 
   /**
-   * Get headers required for authenticated JSON:API requests
+   * Get headers required for authenticated requests.
+   *
+   * Defaults to JSON:API content type. Pass overrides for non-JSON:API
+   * endpoints (e.g., { "Content-Type": "application/json" }).
    */
-  getAuthHeaders(): Record<string, string> {
+  getAuthHeaders(overrides?: Record<string, string>): Record<string, string> {
     if (!this.isAuthenticated || !this.sessionCookie || !this.csrfToken) {
       throw new Error("Not authenticated. Call ensureAuthenticated() first.");
     }
@@ -112,6 +125,7 @@ export class DrupalAuthProvider {
       "Content-Type": "application/vnd.api+json",
       Accept: "application/vnd.api+json",
       "X-Request-ID": randomUUID(),
+      ...overrides,
     };
 
     // Include acting user header if set - Drupal will use this for attribution
@@ -166,13 +180,16 @@ export class DrupalAuthProvider {
   }
 
   /**
-   * Make an authenticated POST request to JSON:API
+   * Make an authenticated POST request.
+   *
+   * Defaults to JSON:API content type. Pass headerOverrides for non-JSON:API
+   * endpoints (e.g., { "Content-Type": "application/json", Accept: "application/json" }).
    */
-  async post(path: string, data: any): Promise<any> {
+  async post(path: string, data: any, headerOverrides?: Record<string, string>): Promise<any> {
     await this.ensureAuthenticated();
 
     const response = await this.httpClient.post(path, data, {
-      headers: this.getAuthHeaders(),
+      headers: this.getAuthHeaders(headerOverrides),
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -180,7 +197,7 @@ export class DrupalAuthProvider {
       await this.ensureAuthenticated();
 
       const retryResponse = await this.httpClient.post(path, data, {
-        headers: this.getAuthHeaders(),
+        headers: this.getAuthHeaders(headerOverrides),
       });
 
       return this.handleResponse(retryResponse);
