@@ -92,31 +92,31 @@ describe("EventsServer", () => {
       expect(url).toContain("end_date_relative=%2B1month");
     });
 
-    it("should include type as exposed filter", () => {
+    it("should include type as faceted filter", () => {
       const url = server["buildEventsUrl"]({ type: "workshop" });
-      expect(url).toContain("event_type=workshop");
+      expect(url).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
     });
 
-    it("should include tags as exposed filter", () => {
+    it("should include tags as faceted filter", () => {
       const url = server["buildEventsUrl"]({ tags: "python" });
-      expect(url).toContain("tags=python");
+      expect(url).toContain("f%5B0%5D=custom_event_tags%3Apython");
     });
 
-    it("should include skill as exposed filter", () => {
+    it("should include skill as faceted filter", () => {
       const url = server["buildEventsUrl"]({ skill: "beginner" });
-      expect(url).toContain("skill_level=beginner");
+      expect(url).toContain("f%5B0%5D=skill_level%3Abeginner");
     });
 
-    it("should include all filters as query params", () => {
+    it("should include multiple faceted filters with incrementing index", () => {
       const url = server["buildEventsUrl"]({
         type: "workshop",
         tags: "python",
         skill: "beginner",
       });
 
-      expect(url).toContain("event_type=workshop");
-      expect(url).toContain("tags=python");
-      expect(url).toContain("skill_level=beginner");
+      expect(url).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
+      expect(url).toContain("f%5B1%5D=custom_event_tags%3Apython");
+      expect(url).toContain("f%5B2%5D=skill_level%3Abeginner");
     });
 
     it("should include search_api_fulltext for query parameter", () => {
@@ -138,8 +138,8 @@ describe("EventsServer", () => {
       expect(url).toContain("search_api_fulltext=gpu");
       expect(url).toContain("beginning_date_relative=today");
       expect(url).toContain("end_date_relative=%2B1week");
-      expect(url).toContain("event_type=webinar");
-      expect(url).toContain("skill_level=intermediate");
+      expect(url).toContain("f%5B0%5D=custom_event_type%3Awebinar");
+      expect(url).toContain("f%5B1%5D=skill_level%3Aintermediate");
     });
   });
 
@@ -225,7 +225,7 @@ describe("EventsServer", () => {
         expect(calledUrl).toContain("end_date_relative=%2B1month");
       });
 
-      it("should pass type filter to Drupal", async () => {
+      it("should pass type as faceted filter to Drupal", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: [mockEventsData[0]],
@@ -242,10 +242,10 @@ describe("EventsServer", () => {
         });
 
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("event_type=workshop");
+        expect(calledUrl).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
       });
 
-      it("should pass skill filter to Drupal", async () => {
+      it("should pass skill as faceted filter to Drupal", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: [mockEventsData[0]],
@@ -262,10 +262,10 @@ describe("EventsServer", () => {
         });
 
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("skill_level=beginner");
+        expect(calledUrl).toContain("f%5B0%5D=skill_level%3Abeginner");
       });
 
-      it("should pass tags filter to Drupal", async () => {
+      it("should pass tags as faceted filter to Drupal", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: mockEventsData,
@@ -282,7 +282,7 @@ describe("EventsServer", () => {
         });
 
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("tags=python");
+        expect(calledUrl).toContain("f%5B0%5D=custom_event_tags%3Apython");
       });
 
       it("should apply limit to events", async () => {
@@ -352,7 +352,7 @@ describe("EventsServer", () => {
         expect(responseData.items).toHaveLength(2);
       });
 
-      it("should pass all filters to Drupal in URL", async () => {
+      it("should combine query params and faceted filters", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: [mockEventsData[0]],
@@ -375,8 +375,8 @@ describe("EventsServer", () => {
         expect(calledUrl).toContain("search_api_fulltext=Python");
         expect(calledUrl).toContain("beginning_date_relative=today");
         expect(calledUrl).toContain("end_date_relative=%2B1week");
-        expect(calledUrl).toContain("event_type=workshop");
-        expect(calledUrl).toContain("skill_level=beginner");
+        expect(calledUrl).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
+        expect(calledUrl).toContain("f%5B1%5D=skill_level%3Abeginner");
       });
     });
 

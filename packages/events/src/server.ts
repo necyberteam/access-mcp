@@ -295,15 +295,16 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
       }
     }
 
-    // Server-side exposed filters on the Drupal data_export display
+    // Faceted filters — uses Drupal's f[0]=field:value format
+    let facetIndex = 0;
     if (params.type) {
-      url.searchParams.set("event_type", params.type);
+      url.searchParams.set(`f[${facetIndex++}]`, `custom_event_type:${params.type}`);
     }
     if (params.tags) {
-      url.searchParams.set("tags", params.tags);
+      url.searchParams.set(`f[${facetIndex++}]`, `custom_event_tags:${params.tags}`);
     }
     if (params.skill) {
-      url.searchParams.set("skill_level", params.skill);
+      url.searchParams.set(`f[${facetIndex++}]`, `skill_level:${params.skill}`);
     }
 
     return url.toString();
