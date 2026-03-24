@@ -117,29 +117,47 @@ async function main() {
   } else {
     console.log("\n🚀 Publishing packages to npm...");
 
-    if (!skipShared) {
-      // Publish shared package first (others depend on it)
-      console.log("\n📦 Publishing shared package first...");
-      runCommand("npm publish --access public", { cwd: "packages/shared" });
+    // Publish all packages, shared first (others depend on it)
+    const orderedPackages = skipShared ? PACKAGES.slice(1) : PACKAGES;
+    let publishedCount = 0;
+    let skippedCount = 0;
 
-      // Wait a moment for npm to propagate
-      console.log("⏳ Waiting for npm to propagate...");
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-    }
+    for (const packageName of orderedPackages) {
+      const packageJson = JSON.parse(
+        readFileSync(join("packages", packageName, "package.json"), "utf8")
+      );
+      const localVersion = packageJson.version;
+      const npmName = packageJson.name;
 
-    // Publish server packages
-    const serverPackages = PACKAGES.slice(1); // All packages except 'shared'
+      // Check if this version is already published
+      try {
+        const npmVersion = execSync(`npm view ${npmName} version 2>/dev/null`, {
+          encoding: "utf8",
+        }).trim();
+        if (npmVersion === localVersion) {
+          console.log(`\n⏭️  ${packageName}@${localVersion} already published, skipping`);
+          skippedCount++;
+          continue;
+        }
+      } catch {
+        // Package not on npm yet, proceed with publish
+      }
 
-    // Publish server packages with individual error handling
-    for (const packageName of serverPackages) {
-      console.log(`\n📦 Publishing ${packageName}...`);
+      console.log(`\n📦 Publishing ${packageName}@${localVersion}...`);
       try {
         execSync("npm publish --access public", {
           stdio: "inherit",
           encoding: "utf8",
           cwd: `packages/${packageName}`,
         });
-        console.log(`✅ ${packageName} published successfully!`);
+        console.log(`✅ ${packageName}@${localVersion} published successfully!`);
+        publishedCount++;
+
+        // Wait for npm to propagate after shared (others depend on it)
+        if (packageName === "shared") {
+          console.log("⏳ Waiting for npm to propagate shared package...");
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+        }
       } catch (error) {
         console.error(`❌ Failed to publish ${packageName}:`, error.message);
         if (error.message.includes("EOTP") || error.message.includes("one-time password")) {
@@ -149,9 +167,10 @@ async function main() {
           );
         }
         console.error("Continuing with remaining packages...");
-        // Don't exit, continue with other packages
       }
     }
+
+    console.log(`\n📊 Published: ${publishedCount}, Skipped: ${skippedCount}`);
   }
 
   console.log("\n🎉 Publishing complete!");

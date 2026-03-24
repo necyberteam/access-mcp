@@ -506,6 +506,89 @@ describe("XDMoDMetricsServer", () => {
       expect(text).toContain("Total CPU Hours");
     });
 
+    test("should include parsed summary for aggregate grouped data", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({
+        data: [{
+          chart_title: "Wait Hours: Per Job",
+          group_description: "Queue",
+          description: "Average wait time",
+          hc_jsonstore: {
+            layout: {
+              annotations: [{ name: "title", text: "Wait Hours: Per Job" }],
+            },
+            data: [{
+              name: "Wait Hours: Per Job",
+              x: ["gpuA100x4", "cpu", "gpuA40x4"],
+              y: [21.93, 9.36, 7.90],
+            }],
+          },
+        }],
+      }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_chart_data",
+          arguments: {
+            realm: "Jobs",
+            group_by: "queue",
+            statistic: "avg_waitduration_hours",
+            start_date: "2026-03-17",
+            end_date: "2026-03-23",
+            dataset_type: "aggregate",
+          },
+        },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("Wait Hours: Per Job by queue:");
+      expect(text).toContain("gpuA100x4: 21.9300");
+      expect(text).toContain("cpu: 9.3600");
+      expect(text).toContain("gpuA40x4: 7.9000");
+      expect(text).not.toContain("```json");
+    });
+
+    test("should include parsed summary for timeseries grouped data", async () => {
+      mockFetch.mockResolvedValueOnce(mockResponse({
+        data: [{
+          chart_title: "Wait Hours: Per Job",
+          group_description: "Queue",
+          description: "Average wait time",
+          hc_jsonstore: {
+            layout: {
+              annotations: [{ name: "title", text: "Wait Hours: Per Job" }],
+            },
+            data: [
+              { name: "1. gpuA100x4", y: [20.0, 22.0, null, 21.0] },
+              { name: "gap connector", y: [] },
+              { name: "2. cpu", y: [9.0, 10.0, 9.5] },
+            ],
+          },
+        }],
+      }));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_chart_data",
+          arguments: {
+            realm: "Jobs",
+            group_by: "queue",
+            statistic: "avg_waitduration_hours",
+            start_date: "2026-03-17",
+            end_date: "2026-03-23",
+            dataset_type: "timeseries",
+          },
+        },
+      });
+
+      const text = getText(result);
+      expect(text).toContain("Wait Hours: Per Job by queue");
+      expect(text).toContain("1. gpuA100x4: avg 21.0000 (3 data points)");
+      expect(text).toContain("2. cpu: avg 9.5000 (3 data points)");
+      expect(text).not.toContain("gap connector");
+    });
+
     test("should handle empty chart data", async () => {
       mockFetch.mockResolvedValueOnce(mockResponse({ data: [] }));
 
