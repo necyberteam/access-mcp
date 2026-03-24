@@ -807,7 +807,45 @@ export class XDMoDMetricsServer extends BaseAccessServer {
           resultText += `**Chart Title:** ${chartInfo.chart_title}\n\n`;
         }
 
-        resultText += `**Raw Data:**\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+        // Extract a human-readable summary from the chart data so LLMs
+        // don't have to parse the raw Plotly chart JSON structure.
+        // Aggregate grouped data has one trace with x=categories, y=values.
+        // Timeseries grouped data has one trace per category with y=values over time.
+        const hcData = chartInfo.hc_jsonstore?.data;
+        const chartTitle = chartInfo.hc_jsonstore?.layout?.annotations?.find(
+          (a: { name?: string }) => a.name === "title"
+        )?.text || params.statistic;
+
+        if (hcData && hcData.length > 0) {
+          const trace = hcData[0];
+          if (params.dataset_type === "aggregate" && trace.x && trace.y) {
+            resultText += `**${chartTitle} by ${params.group_by}:**\n`;
+            for (let i = 0; i < trace.x.length; i++) {
+              const label = trace.x[i];
+              const value = trace.y[i];
+              if (typeof value === "number") {
+                resultText += `- ${label}: ${value.toFixed(4)}\n`;
+              } else {
+                resultText += `- ${label}: ${value}\n`;
+              }
+            }
+            resultText += "\n";
+          } else if (params.dataset_type === "timeseries") {
+            resultText += `**${chartTitle} by ${params.group_by} (${params.start_date} to ${params.end_date}):**\n`;
+            for (const series of hcData) {
+              if (series.name && !series.name.toLowerCase().includes("gap connector")) {
+                const values = (series.y || []).filter((v: unknown) => v !== null);
+                if (values.length > 0) {
+                  const avg = (values as number[]).reduce((a: number, b: number) => a + b, 0) / values.length;
+                  resultText += `- ${series.name}: avg ${avg.toFixed(4)} (${values.length} data points)\n`;
+                }
+              }
+            }
+            resultText += "\n";
+          }
+        }
+
+        resultText += `*Use get_chart_image or get_chart_link for visual charts.*`;
       } else {
         resultText += "No data available for the specified parameters.";
       }
