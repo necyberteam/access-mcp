@@ -156,19 +156,54 @@ class TestXDMoDPythonServer:
         """Test that server provides expected tools"""
         server = XDMoDPythonServer()
         tools = server.get_tools()
-        
+
         tool_names = [tool.name for tool in tools]
         expected_tools = [
-            "debug_python_auth",
-            "get_user_data_python", 
-            "test_data_framework",
+            "get_user_data",
             "get_raw_data",
-            "describe_raw_realms",
-            "describe_raw_fields"
+            "describe_fields",
+            "describe_realms",
         ]
-        
+
         for expected_tool in expected_tools:
             assert expected_tool in tool_names
+
+    def test_session_token_priority(self):
+        """Test that session header token takes priority over env var"""
+        with patch.dict(os.environ, {'XDMOD_API_TOKEN': 'env-token'}):
+            server = XDMoDPythonServer()
+
+            # Without session, should use env token
+            assert server.api_token == 'env-token'
+
+            # Simulate an SSE session with a header token
+            from xdmod_mcp_data.base_server import SSESession
+            session = SSESession('test-session-id')
+            session.headers['X-XDMoD-Token'] = 'session-token'
+            server._sessions['test-session-id'] = session
+            server._current_session_id = 'test-session-id'
+
+            # Should now use session token
+            assert server.api_token == 'session-token'
+
+            # Clear session, should fall back to env
+            server._current_session_id = None
+            assert server.api_token == 'env-token'
+
+    def test_session_token_without_env(self):
+        """Test session token works when no env var is set"""
+        with patch.dict(os.environ, {}, clear=True):
+            server = XDMoDPythonServer()
+            assert server.api_token is None
+
+            # Add session token
+            from xdmod_mcp_data.base_server import SSESession
+            session = SSESession('test-session-id')
+            session.headers['X-XDMoD-Token'] = 'session-token'
+            server._sessions['test-session-id'] = session
+            server._current_session_id = 'test-session-id'
+
+            assert server.api_token == 'session-token'
 
 
 class TestXDMoDPythonIntegration:

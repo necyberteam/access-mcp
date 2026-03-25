@@ -26,6 +26,7 @@ class SSESession:
         self.session_id = session_id
         self.queue: asyncio.Queue = asyncio.Queue()
         self.initialized = False
+        self.headers: Dict[str, str] = {}  # Headers from the SSE connection request
 
 
 class BaseAccessServer(ABC):
@@ -37,6 +38,7 @@ class BaseAccessServer(ABC):
         self.base_url = base_url or "https://access-ci.org"
         self.server = Server(server_name)
         self._sessions: Dict[str, SSESession] = {}
+        self._current_session_id: Optional[str] = None  # Set during message handling
         self._setup_handlers()
 
     @abstractmethod
@@ -48,6 +50,13 @@ class BaseAccessServer(ABC):
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> Any:
         """Handle tool execution"""
         pass
+
+    def get_session_header(self, session_id: str, header_name: str) -> Optional[str]:
+        """Get a header value from an SSE session's connection request"""
+        session = self._sessions.get(session_id)
+        if session:
+            return session.headers.get(header_name)
+        return None
 
     def _setup_handlers(self):
         """Setup MCP tool handlers"""
@@ -144,17 +153,20 @@ class BaseAccessServer(ABC):
                 # Execute tool
                 result = await self.handle_tool_call(tool_name, arguments)
 
-                # Format result as TextContent
-                if isinstance(result, str):
-                    text = result
+                # Format result as MCP content
+                if isinstance(result, list) and result and hasattr(result[0], 'text'):
+                    # Already TextContent objects
+                    content = [{"type": item.type, "text": item.text} for item in result]
+                elif isinstance(result, str):
+                    content = [{"type": "text", "text": result}]
                 else:
-                    text = json.dumps(result, indent=2)
+                    content = [{"type": "text", "text": json.dumps(result, indent=2)}]
 
                 return {
                     "jsonrpc": "2.0",
                     "id": msg_id,
                     "result": {
-                        "content": [{"type": "text", "text": text}]
+                        "content": content
                     }
                 }
 
@@ -212,6 +224,11 @@ class BaseAccessServer(ABC):
         async def sse_handler(request: web_request.Request):
             session_id = str(uuid.uuid4())
             session = SSESession(session_id)
+            # Store select headers from the SSE connection for per-session config
+            for header_name in ('X-XDMoD-Token',):
+                value = request.headers.get(header_name)
+                if value:
+                    session.headers[header_name] = value
             self._sessions[session_id] = session
 
             response = web.StreamResponse(
@@ -263,6 +280,9 @@ class BaseAccessServer(ABC):
 
             try:
                 data = await request.json()
+
+                # Set current session for tool calls to access session headers
+                self._current_session_id = session_id
 
                 # Handle the JSONRPC message
                 response = await self._handle_jsonrpc_message(session, data)

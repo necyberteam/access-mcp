@@ -22,8 +22,17 @@ from .base_server import BaseAccessServer
 
 class XDMoDPythonServer(BaseAccessServer):
     def __init__(self):
-        super().__init__("xdmod-mcp-data", "0.2.0", "https://xdmod.access-ci.org")
-        self.api_token = os.getenv("XDMOD_API_TOKEN")
+        super().__init__("xdmod-mcp-data", "0.3.1", "https://xdmod.access-ci.org")
+        self._env_api_token = os.getenv("XDMOD_API_TOKEN")
+
+    @property
+    def api_token(self) -> str | None:
+        """Get the effective API token: per-session header takes priority over env var"""
+        if self._current_session_id:
+            session_token = self.get_session_header(self._current_session_id, "X-XDMoD-Token")
+            if session_token:
+                return session_token
+        return self._env_api_token
     
     def get_tools(self) -> List[Tool]:
         """Return list of available tools"""
