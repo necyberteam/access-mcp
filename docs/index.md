@@ -45,15 +45,15 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 
 ## Try It Now
 
-Want to try ACCESS-CI MCP servers without installing anything? Connect Claude Desktop to our hosted servers in seconds.
+Connect your AI assistant to ACCESS-CI services in seconds. These servers work with any MCP-compatible client — Claude Desktop, VS Code, Cursor, Windsurf, and more.
 
-### 1. Install Claude Desktop
+### 1. Install an MCP Client
 
-Download [Claude Desktop](https://claude.ai/download) for macOS or Windows.
+Download [Claude Desktop](https://claude.ai/download) or use any AI tool that supports MCP.
 
 ### 2. Add This Configuration
 
-Open your Claude Desktop config file:
+For Claude Desktop, open your config file:
 - **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 
@@ -64,54 +64,54 @@ Copy and paste this configuration:
   "mcpServers": {
     "access-compute-resources": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3002/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/compute-resources/sse"]
     },
     "access-system-status": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3003/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/system-status/sse"]
     },
     "access-software-discovery": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3004/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/software-discovery/sse"]
     },
     "access-xdmod": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3005/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod/sse"]
     },
     "access-allocations": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3006/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/allocations/sse"]
     },
     "access-nsf-awards": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3007/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/sse"]
     },
     "access-xdmod-data": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3008/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse"]
     },
     "access-announcements": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3009/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/sse"]
     },
     "access-events": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3010/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/events/sse"]
     },
     "access-affinity-groups": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3011/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/sse"]
     }
   }
 }
 ```
 
-### 3. Restart Claude Desktop
+### 3. Restart and Ask
 
-Restart the app and ask: *"What GPU resources are available on ACCESS-CI?"*
+Restart your AI tool and ask: *"What GPU resources are available on ACCESS-CI?"*
 
 ::: tip No Server Installation Required
-The hosted servers handle everything - you don't need to install or run the MCP servers locally. You just need Claude Desktop and [Node.js](https://nodejs.org/) (which includes npm for the `mcp-remote` bridge).
+The hosted servers handle everything — you don't need to install or run the MCP servers locally. You just need an MCP-compatible AI client and [Node.js](https://nodejs.org/) (which includes npm for the `mcp-remote` bridge).
 :::
 
 ---

@@ -4,10 +4,10 @@ export default defineConfig({
   title: "ACCESS-CI MCP Servers",
   description: "Model Context Protocol servers for ACCESS-CI APIs",
 
-  base: "/",
+  base: "/docs/",
 
   head: [
-    ["link", { rel: "icon", href: "/favicon.ico" }],
+    ["link", { rel: "icon", href: "/docs/favicon.ico" }],
     ["link", { rel: "preconnect", href: "https://fonts.googleapis.com" }],
     ["link", { rel: "preconnect", href: "https://fonts.gstatic.com", crossorigin: "" }],
     [

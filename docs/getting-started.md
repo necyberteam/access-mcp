@@ -1,18 +1,14 @@
 # Getting Started
 
-Connect Claude Desktop to ACCESS-CI MCP servers and start exploring cyberinfrastructure resources.
+Connect your AI assistant to ACCESS-CI services and start exploring cyberinfrastructure resources. These servers use the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), an open standard supported by Claude Desktop, VS Code, Cursor, Windsurf, and other AI tools.
 
 ## Quick Start (Recommended)
 
-Use our hosted servers - no installation required beyond Claude Desktop.
+Use our hosted servers — no installation required. Just configure your AI tool to connect.
 
-### 1. Install Claude Desktop
+### Claude Desktop Setup
 
-Download and install [Claude Desktop](https://claude.ai/download) for macOS or Windows.
-
-### 2. Configure Claude Desktop
-
-Open your Claude Desktop config file:
+Download [Claude Desktop](https://claude.ai/download) if you don't have it, then open your config file:
 
 | Platform | Config File Location |
 |----------|---------------------|
@@ -27,43 +23,43 @@ Copy and paste this configuration:
   "mcpServers": {
     "access-compute-resources": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3002/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/compute-resources/sse"]
     },
     "access-system-status": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3003/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/system-status/sse"]
     },
     "access-software-discovery": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3004/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/software-discovery/sse"]
     },
     "access-xdmod": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3005/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod/sse"]
     },
     "access-allocations": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3006/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/allocations/sse"]
     },
     "access-nsf-awards": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3007/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/sse"]
     },
     "access-xdmod-data": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3008/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse"]
     },
     "access-announcements": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3009/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/sse"]
     },
     "access-events": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3010/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/events/sse"]
     },
     "access-affinity-groups": {
       "command": "npx",
-      "args": ["mcp-remote", "http://45.79.215.140:3011/sse"]
+      "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/sse"]
     }
   }
 }
@@ -75,24 +71,34 @@ Restart Claude Desktop, then try asking:
 
 > "What GPU resources are available on ACCESS-CI?"
 
-Claude will query the MCP servers and provide information about available resources.
+### Other MCP Clients
+
+These servers work with any MCP-compatible client. The connection URL pattern is:
+
+```
+https://mcp.access-ci.org/<server-name>/sse
+```
+
+For example, in VS Code with the Claude Code extension or Cursor, configure your MCP servers using the URLs from the table below.
 
 ## Available Servers
 
-All servers are available through the hosted configuration above:
+All servers are hosted at `https://mcp.access-ci.org`:
 
-| Server | Port | Description |
-|--------|------|-------------|
-| Compute Resources | 3002 | Hardware specifications and capabilities |
-| System Status | 3003 | Outages and maintenance schedules |
-| Software Discovery | 3004 | Software packages across resources |
-| XDMoD | 3005 | Usage statistics, visualizations, and metadata discovery |
-| Allocations | 3006 | Research projects and allocations |
-| NSF Awards | 3007 | NSF funding data |
-| XDMoD Data | 3008 | Python analytics for XDMoD |
-| Announcements | 3009 | Community news and updates |
-| Events | 3010 | Workshops, webinars, training |
-| Affinity Groups | 3011 | Community groups and knowledge base |
+| Server | Endpoint | Description |
+|--------|----------|-------------|
+| Compute Resources | `/compute-resources/sse` | Hardware specifications and capabilities |
+| System Status | `/system-status/sse` | Outages and maintenance schedules |
+| Software Discovery | `/software-discovery/sse` | Software packages across resources |
+| XDMoD | `/xdmod/sse` | Usage statistics, visualizations, and metadata discovery |
+| Allocations | `/allocations/sse` | Research projects and allocations |
+| NSF Awards | `/nsf-awards/sse` | NSF funding data |
+| XDMoD Data | `/xdmod-data/sse` | Python analytics for XDMoD |
+| Announcements | `/announcements/sse` | Community news and updates |
+| Events | `/events/sse` | Workshops, webinars, training |
+| Affinity Groups | `/affinity-groups/sse` | Community groups and knowledge base |
+
+All endpoints are at `https://mcp.access-ci.org`.
 
 ---
 
@@ -239,7 +245,7 @@ See `.github/workflows/deploy-production.yml` for details.
 
 ### "Server disconnected" Error
 
-- Verify the hosted servers are accessible: `curl http://45.79.215.140:3002/health`
+- Verify the hosted servers are accessible: `curl https://mcp.access-ci.org/compute-resources/sse`
 - Check your internet connection
 - Restart Claude Desktop
 

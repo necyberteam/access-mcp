@@ -23,7 +23,7 @@ MCP server for public XDMoD data: charts, visualizations, metadata discovery, an
 
 ### `get_chart_data`
 
-Get chart data and metadata for a specific statistic. Returns a parsed summary of the data (grouped values for aggregate queries, per-series averages for timeseries). Use `get_chart_image` or `get_chart_link` for visual charts.
+Get chart data and metadata for a specific statistic.
 
 **Parameters:**
 | Parameter | Type | Description |
@@ -115,5 +115,5 @@ No authentication required - the server accesses publicly available system-wide 
 ---
 
 **Package:** `@access-mcp/xdmod`
-**Version:** v0.6.0
+**Version:** v0.7.0
 **Main:** `dist/index.js`

@@ -99,10 +99,19 @@ mcp.access-ci.org {
         }
     }
 
+    handle /docs/* {
+        uri strip_prefix /docs
+        reverse_proxy https://access-mcp.netlify.app {
+            header_up Host access-mcp.netlify.app
+        }
+    }
+
     handle / {
         respond "ACCESS-CI MCP Servers
 
-Available endpoints:
+Documentation: https://mcp.access-ci.org/docs/
+
+Available MCP endpoints:
 - /compute-resources/sse
 - /system-status/sse
 - /software-discovery/sse

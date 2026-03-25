@@ -20,7 +20,7 @@ ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
 ## MCP server for ACCESS Support Announcements API
 
 **Package:** `@access-mcp/announcements`
-**Version:** v0.3.0
+**Version:** v0.3.1
 
 [View Details](/servers/announcements)
 
@@ -34,7 +34,7 @@ ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
 ## ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events
 
 **Package:** `@access-mcp/events`
-**Version:** v0.3.0
+**Version:** v0.3.1
 
 [View Details](/servers/events)
 
@@ -62,7 +62,7 @@ ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
 ## MCP server for XDMoD public data: charts, visualizations, and metadata discovery
 
 **Package:** `@access-mcp/xdmod`
-**Version:** v0.6.0
+**Version:** v0.7.0
 
 [View Details](/servers/xdmod)
 
