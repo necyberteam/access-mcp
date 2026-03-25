@@ -573,4 +573,77 @@ describe("API Key Authentication", () => {
       expect(data.error).toContain("Server misconfiguration");
     });
   });
+
+  describe("SSE messages endpoint with requireApiKey", () => {
+    it("should reject SSE messages without API key", async () => {
+      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(401);
+      const data = await response.json();
+      expect(data.error).toContain("Invalid or missing API key");
+    });
+
+    it("should reject SSE messages with incorrect API key", async () => {
+      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": "wrong-key",
+        },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(401);
+      const data = await response.json();
+      expect(data.error).toContain("Invalid or missing API key");
+    });
+
+    it("should accept SSE messages with correct API key (then 404 for missing session)", async () => {
+      const response = await fetch(`${baseUrl}/messages?sessionId=nonexistent`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": TEST_API_KEY,
+        },
+        body: JSON.stringify({}),
+      });
+
+      // Should pass auth and hit the session-not-found check
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toContain("Session not found");
+    });
+
+    it("should allow SSE connection without API key", async () => {
+      const response = await fetch(`${baseUrl}/sse`);
+      // SSE endpoint should accept the connection (returns 200 with event stream)
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/event-stream");
+      // Close the connection
+      response.body?.cancel();
+    });
+
+    it("should return 500 for SSE messages when MCP_API_KEY not configured", async () => {
+      delete process.env.MCP_API_KEY;
+
+      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Api-Key": "some-key",
+        },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(500);
+      const data = await response.json();
+      expect(data.error).toContain("Server misconfiguration");
+    });
+  });
 });

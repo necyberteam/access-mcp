@@ -1,6 +1,4 @@
 mcp.access-ci.org {
-    tls internal
-
     handle /compute-resources/* {
         uri strip_prefix /compute-resources
         reverse_proxy mcp-compute-resources:3000 {
@@ -116,5 +114,14 @@ Available endpoints:
 - /events/sse
 - /affinity-groups/sse
 " 200
+    }
+}
+
+ask.cnct.ci {
+    reverse_proxy host.docker.internal:8080 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
     }
 }

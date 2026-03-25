@@ -43,3 +43,6 @@ __pycache__/
 *.backup
 *.bak
 *.tmp
+
+# Superpowers planning docs
+docs/superpowers/
