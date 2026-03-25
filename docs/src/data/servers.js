@@ -24,7 +24,7 @@ export const servers = [
   {
     "id": "announcements",
     "name": "@access-mcp/announcements",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "MCP server for ACCESS Support Announcements API",
     "main": "dist/index.js",
     "bin": {
@@ -46,7 +46,7 @@ export const servers = [
   {
     "id": "events",
     "name": "@access-mcp/events",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "description": "ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events",
     "main": "dist/index.js",
     "bin": {
@@ -90,7 +90,7 @@ export const servers = [
   {
     "id": "xdmod",
     "name": "@access-mcp/xdmod",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "description": "MCP server for XDMoD public data: charts, visualizations, and metadata discovery",
     "main": "dist/index.js",
     "bin": {
