@@ -100,10 +100,13 @@ mcp.access-ci.org {
     }
 
     handle /docs/* {
-        uri strip_prefix /docs
         reverse_proxy https://access-mcp.netlify.app {
             header_up Host access-mcp.netlify.app
         }
+    }
+
+    handle /docs {
+        redir /docs/ permanent
     }
 
     handle / {
