@@ -53,7 +53,15 @@ Connect Claude Desktop to our hosted MCP servers. Add this to your Claude Deskto
     },
     "access-xdmod-data": {
       "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse"]
+      "args": [
+        "mcp-remote",
+        "https://mcp.access-ci.org/xdmod-data/sse",
+        "--header",
+        "X-XDMoD-Token:${XDMOD_API_TOKEN}"
+      ],
+      "env": {
+        "XDMOD_API_TOKEN": "your-token-here"
+      }
     },
     "access-announcements": {
       "command": "npx",
