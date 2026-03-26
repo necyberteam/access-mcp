@@ -45,18 +45,6 @@ Copy and paste this configuration:
       "command": "npx",
       "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/sse"]
     },
-    "access-xdmod-data": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://mcp.access-ci.org/xdmod-data/sse",
-        "--header",
-        "X-XDMoD-Token:${XDMOD_API_TOKEN}"
-      ],
-      "env": {
-        "XDMOD_API_TOKEN": "your-token-here"
-      }
-    },
     "access-announcements": {
       "command": "npx",
       "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/sse"]
@@ -101,26 +89,32 @@ All servers are hosted at `https://mcp.access-ci.org`:
 | XDMoD | `/xdmod/sse` | Usage statistics, visualizations, and metadata discovery |
 | Allocations | `/allocations/sse` | Research projects and allocations |
 | NSF Awards | `/nsf-awards/sse` | NSF funding data |
-| XDMoD Data | `/xdmod-data/sse` | Python analytics for XDMoD (requires personal API token) |
+| XDMoD Data | `/xdmod-data/sse` | Data analytics for jobs, allocations, cloud usage, and resource metrics (requires API token) |
 | Announcements | `/announcements/sse` | Community news and updates |
 | Events | `/events/sse` | Workshops, webinars, training |
 | Affinity Groups | `/affinity-groups/sse` | Community groups and knowledge base |
 
 All endpoints are at `https://mcp.access-ci.org`.
 
-### XDMoD Data: Personal API Token
+### Optional: XDMoD Data Analytics
 
-The XDMoD Data server provides access to your personal usage analytics and requires your own XDMoD API token. To get one:
+The servers above work without any setup beyond copy-pasting the config. The **XDMoD Data** server is different — it provides deep analytics across jobs, allocations, cloud usage, resource specifications, and more using the XDMoD data analytics framework. It requires a personal API token.
+
+To set it up:
 
 1. Sign in to [xdmod.access-ci.org](https://xdmod.access-ci.org) with your ACCESS credentials
 2. Click **My Profile** in the top-right corner
 3. Click the **API Token** tab
 4. Generate and copy your token
 
-Add the token to the `access-xdmod-data` entry in your config as shown above. The token is passed via a header and never enters the AI conversation context.
+Then add this to your `mcpServers` config, replacing `your-token-here` with your token:
 
-::: tip The other 9 servers work without any token or authentication.
-:::
+```json
+"access-xdmod-data": {
+  "command": "npx",
+  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse", "--header", "X-XDMoD-Token:your-token-here"]
+}
+```
 
 ---
 

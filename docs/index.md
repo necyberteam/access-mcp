@@ -86,18 +86,6 @@ Copy and paste this configuration:
       "command": "npx",
       "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/sse"]
     },
-    "access-xdmod-data": {
-      "command": "npx",
-      "args": [
-        "mcp-remote",
-        "https://mcp.access-ci.org/xdmod-data/sse",
-        "--header",
-        "X-XDMoD-Token:${XDMOD_API_TOKEN}"
-      ],
-      "env": {
-        "XDMOD_API_TOKEN": "your-token-here"
-      }
-    },
     "access-announcements": {
       "command": "npx",
       "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/sse"]
@@ -111,6 +99,15 @@ Copy and paste this configuration:
       "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/sse"]
     }
   }
+}
+```
+
+**Optional: XDMoD Data Analytics** — requires a personal API token from [xdmod.access-ci.org](https://xdmod.access-ci.org) (My Profile → API Token). Add this to your config:
+
+```json
+"access-xdmod-data": {
+  "command": "npx",
+  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse", "--header", "X-XDMoD-Token:your-token-here"]
 }
 ```
 
