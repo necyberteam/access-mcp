@@ -39,6 +39,8 @@ jobs:
             dockerfile: Dockerfile.node
           - package: events
             dockerfile: Dockerfile.node
+          - package: jsm
+            dockerfile: Dockerfile.node
           # Python MCP server
           - package: xdmod-mcp-data
             dockerfile: Dockerfile.python
@@ -132,3 +134,39 @@ jobs:
             echo ""
             echo "Image versions:"
             docker compose -f docker-compose.prod.yml images
+
+      - name: Smoke test MCP servers
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.PRODUCTION_HOST }}
+          username: github
+          key: ${{ secrets.PRODUCTION_SSH_KEY }}
+          script: |
+            echo "Waiting for services to be ready..."
+            sleep 15
+
+            FAILED=0
+
+            # Check each MCP server health endpoint
+            for server in compute-resources system-status software-discovery xdmod allocations nsf-awards xdmod-data announcements events affinity-groups jsm; do
+              PORT=$(docker port "access-mcp-mcp-${server}-1" 3000/tcp 2>/dev/null | head -1 | cut -d: -f2)
+              if [ -z "$PORT" ]; then
+                echo "FAIL: mcp-${server} — container not running"
+                FAILED=1
+                continue
+              fi
+              if curl -sf "http://localhost:${PORT}/health" > /dev/null 2>&1; then
+                echo "OK: mcp-${server}"
+              else
+                echo "FAIL: mcp-${server} — health check failed"
+                FAILED=1
+              fi
+            done
+
+            if [ "$FAILED" -ne 0 ]; then
+              echo ""
+              echo "One or more MCP servers failed health checks"
+              exit 1
+            fi
+            echo ""
+            echo "All MCP servers healthy"

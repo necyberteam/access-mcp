@@ -99,6 +99,16 @@ mcp.access-ci.org {
         }
     }
 
+    handle /jsm/* {
+        uri strip_prefix /jsm
+        reverse_proxy mcp-jsm:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
+    }
+
     @docs-no-slash path /docs
     redir @docs-no-slash /docs/ permanent
 
@@ -125,6 +135,7 @@ Available MCP endpoints:
 - /announcements/sse
 - /events/sse
 - /affinity-groups/sse
+- /jsm/sse
 " 200
     }
 }

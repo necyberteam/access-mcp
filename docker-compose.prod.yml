@@ -26,6 +26,7 @@ services:
       - mcp-announcements
       - mcp-events
       - mcp-affinity-groups
+      - mcp-jsm
 
   # TypeScript MCP Servers
   mcp-affinity-groups:
@@ -149,6 +150,21 @@ services:
       - DRUPAL_API_URL=${DRUPAL_API_URL:-https://support.access-ci.org}
       - DRUPAL_USERNAME=${DRUPAL_USERNAME}
       - DRUPAL_PASSWORD=${DRUPAL_PASSWORD}
+      - MCP_API_KEY=${MCP_API_KEY}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-jsm:
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/jsm:latest
+    ports:
+      - "3012:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - JSM_PROXY_URL=${JSM_PROXY_URL:-https://access-jsm-api.netlify.app}
       - MCP_API_KEY=${MCP_API_KEY}
     deploy:
       resources:
