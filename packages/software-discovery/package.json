@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "@access-mcp/shared": "^0.8.0",
-    "@modelcontextprotocol/sdk": "^1.16.0",
+    "@modelcontextprotocol/sdk": "^1.28.0",
     "axios": "^1.7.7"
   },
   "devDependencies": {

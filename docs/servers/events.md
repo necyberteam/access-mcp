@@ -76,5 +76,5 @@ npm install -g @access-mcp/events
 ---
 
 **Package:** `@access-mcp/events`
-**Version:** v0.3.1
+**Version:** v0.4.0
 **Main:** `dist/index.js`

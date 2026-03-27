@@ -2,7 +2,7 @@ export const servers = [
   {
     "id": "affinity-groups",
     "name": "@access-mcp/affinity-groups",
-    "version": "0.4.1",
+    "version": "0.5.0",
     "description": "MCP server for ACCESS-CI Affinity Groups API",
     "main": "dist/index.js",
     "bin": {
@@ -13,7 +13,7 @@ export const servers = [
   {
     "id": "allocations",
     "name": "@access-mcp/allocations",
-    "version": "0.5.1",
+    "version": "0.6.0",
     "description": "MCP server for ACCESS-CI Allocations and Research Projects API",
     "main": "dist/index.js",
     "bin": {
@@ -24,7 +24,7 @@ export const servers = [
   {
     "id": "announcements",
     "name": "@access-mcp/announcements",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "description": "MCP server for ACCESS Support Announcements API",
     "main": "dist/index.js",
     "bin": {
@@ -35,7 +35,7 @@ export const servers = [
   {
     "id": "compute-resources",
     "name": "@access-mcp/compute-resources",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "MCP server for ACCESS-CI Compute Resources API",
     "main": "dist/index.js",
     "bin": {
@@ -46,7 +46,7 @@ export const servers = [
   {
     "id": "events",
     "name": "@access-mcp/events",
-    "version": "0.3.1",
+    "version": "0.4.0",
     "description": "ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events",
     "main": "dist/index.js",
     "bin": {
@@ -57,7 +57,7 @@ export const servers = [
   {
     "id": "nsf-awards",
     "name": "@access-mcp/nsf-awards",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "description": "MCP server for NSF awards and funding integration",
     "main": "dist/index.js",
     "bin": {
@@ -68,7 +68,7 @@ export const servers = [
   {
     "id": "software-discovery",
     "name": "@access-mcp/software-discovery",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "description": "ACCESS-CI Software Discovery Service MCP server",
     "main": "dist/index.js",
     "bin": {
@@ -79,7 +79,7 @@ export const servers = [
   {
     "id": "system-status",
     "name": "@access-mcp/system-status",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "MCP server for ACCESS-CI System Status and Outages API",
     "main": "dist/index.js",
     "bin": {
@@ -90,7 +90,7 @@ export const servers = [
   {
     "id": "xdmod",
     "name": "@access-mcp/xdmod",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "MCP server for XDMoD public data: charts, visualizations, and metadata discovery",
     "main": "dist/index.js",
     "bin": {
@@ -101,7 +101,7 @@ export const servers = [
   {
     "id": "xdmod-mcp-data",
     "name": "xdmod-mcp-data",
-    "version": "0.3.0",
+    "version": "0.4.0",
     "description": "Python MCP server for XDMoD data access and analytics",
     "main": "src/server.py",
     "bin": {

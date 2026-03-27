@@ -95,5 +95,5 @@ npm install -g @access-mcp/system-status
 ---
 
 **Package:** `@access-mcp/system-status`
-**Version:** v0.7.0
+**Version:** v0.8.0
 **Main:** `dist/index.js`

@@ -303,6 +303,20 @@ export abstract class BaseAccessServer {
       });
     });
 
+    // Ensure Accept header includes required values for Streamable HTTP.
+    // Some MCP clients (including Claude Code) don't send the full Accept header
+    // required by the SDK, causing 406 errors.
+    this._httpServer.use("/mcp", (req: Request, _res: Response, next) => {
+      const accept = req.headers.accept || "";
+      const parts: string[] = [];
+      if (!accept.includes("application/json")) parts.push("application/json");
+      if (!accept.includes("text/event-stream")) parts.push("text/event-stream");
+      if (parts.length > 0) {
+        req.headers.accept = accept ? `${accept}, ${parts.join(", ")}` : parts.join(", ");
+      }
+      next();
+    });
+
     // Streamable HTTP endpoint for MCP connections
     // Handles POST (messages), GET (SSE stream), DELETE (session cleanup)
     const handleMcpRequest = async (req: Request, res: Response) => {
