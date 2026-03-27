@@ -6,7 +6,25 @@ Connect your AI assistant to ACCESS-CI services and start exploring cyberinfrast
 
 Use our hosted servers — no installation required. Just configure your AI tool to connect.
 
-### Claude Desktop Setup
+### Claude Code (CLI)
+
+Run these commands to add all servers globally:
+
+```bash
+claude mcp add access-compute-resources --transport http https://mcp.access-ci.org/compute-resources/mcp -s user
+claude mcp add access-system-status --transport http https://mcp.access-ci.org/system-status/mcp -s user
+claude mcp add access-software-discovery --transport http https://mcp.access-ci.org/software-discovery/mcp -s user
+claude mcp add access-xdmod --transport http https://mcp.access-ci.org/xdmod/mcp -s user
+claude mcp add access-allocations --transport http https://mcp.access-ci.org/allocations/mcp -s user
+claude mcp add access-nsf-awards --transport http https://mcp.access-ci.org/nsf-awards/mcp -s user
+claude mcp add access-announcements --transport http https://mcp.access-ci.org/announcements/mcp -s user
+claude mcp add access-events --transport http https://mcp.access-ci.org/events/mcp -s user
+claude mcp add access-affinity-groups --transport http https://mcp.access-ci.org/affinity-groups/mcp -s user
+```
+
+Restart Claude Code, then try asking: *"What GPU resources are available on ACCESS-CI?"*
+
+### Claude Desktop
 
 Download [Claude Desktop](https://claude.ai/download) if you don't have it, then open your config file:
 
@@ -16,62 +34,56 @@ Download [Claude Desktop](https://claude.ai/download) if you don't have it, then
 | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Linux | `~/.config/Claude/claude_desktop_config.json` |
 
-Copy and paste this configuration:
+Copy and paste this configuration (requires [Node.js](https://nodejs.org/)):
 
 ```json
 {
   "mcpServers": {
     "access-compute-resources": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/compute-resources/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/compute-resources/mcp"]
     },
     "access-system-status": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/system-status/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/system-status/mcp"]
     },
     "access-software-discovery": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/software-discovery/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/software-discovery/mcp"]
     },
     "access-xdmod": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/xdmod/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod/mcp"]
     },
     "access-allocations": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/allocations/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/allocations/mcp"]
     },
     "access-nsf-awards": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/nsf-awards/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/mcp"]
     },
     "access-announcements": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/announcements/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/mcp"]
     },
     "access-events": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/events/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/events/mcp"]
     },
     "access-affinity-groups": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/affinity-groups/mcp"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/mcp"]
     }
   }
 }
 ```
 
-No additional software required — Claude Desktop connects directly to the hosted servers.
-
-### 3. Restart and Test
-
-Restart Claude Desktop, then try asking:
-
-> "What GPU resources are available on ACCESS-CI?"
+Restart Claude Desktop, then try asking: *"What GPU resources are available on ACCESS-CI?"*
 
 ### Other MCP Clients
 
-These servers work with any MCP-compatible client that supports Streamable HTTP. The connection URL pattern is:
+These servers work with any MCP-compatible client. The connection URL pattern is:
 
 ```
 https://mcp.access-ci.org/<server-name>/mcp
@@ -107,15 +119,16 @@ To set it up:
 3. Click the **API Token** tab
 4. Generate and copy your token
 
-Then add this to your `mcpServers` config, replacing `your-token-here` with your token:
+**Claude Code:**
+```bash
+claude mcp add access-xdmod-data --transport http https://mcp.access-ci.org/xdmod-data/mcp --header "X-XDMoD-Token:your-token-here" -s user
+```
 
+**Claude Desktop** — add this to your `mcpServers` config:
 ```json
 "access-xdmod-data": {
-  "type": "streamable-http",
-  "url": "https://mcp.access-ci.org/xdmod-data/mcp",
-  "headers": {
-    "X-XDMoD-Token": "your-token-here"
-  }
+  "command": "npx",
+  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/mcp", "--header", "X-XDMoD-Token:your-token-here"]
 }
 ```
 

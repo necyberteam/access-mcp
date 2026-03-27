@@ -47,79 +47,32 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 
 Connect your AI assistant to ACCESS-CI services in seconds. These servers work with any MCP-compatible client — Claude Desktop, VS Code, Cursor, Windsurf, and more.
 
-### 1. Install an MCP Client
+### Claude Code (CLI)
 
-Download [Claude Desktop](https://claude.ai/download) or use any AI tool that supports MCP.
+Add all servers with one command per server:
 
-### 2. Add This Configuration
-
-For Claude Desktop, open your config file:
-- **macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-
-Copy and paste this configuration:
-
-```json
-{
-  "mcpServers": {
-    "access-compute-resources": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/compute-resources/mcp"
-    },
-    "access-system-status": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/system-status/mcp"
-    },
-    "access-software-discovery": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/software-discovery/mcp"
-    },
-    "access-xdmod": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/xdmod/mcp"
-    },
-    "access-allocations": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/allocations/mcp"
-    },
-    "access-nsf-awards": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/nsf-awards/mcp"
-    },
-    "access-announcements": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/announcements/mcp"
-    },
-    "access-events": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/events/mcp"
-    },
-    "access-affinity-groups": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/affinity-groups/mcp"
-    }
-  }
-}
+```bash
+claude mcp add access-compute-resources --transport http https://mcp.access-ci.org/compute-resources/mcp -s user
+claude mcp add access-system-status --transport http https://mcp.access-ci.org/system-status/mcp -s user
+claude mcp add access-software-discovery --transport http https://mcp.access-ci.org/software-discovery/mcp -s user
+claude mcp add access-xdmod --transport http https://mcp.access-ci.org/xdmod/mcp -s user
+claude mcp add access-allocations --transport http https://mcp.access-ci.org/allocations/mcp -s user
+claude mcp add access-nsf-awards --transport http https://mcp.access-ci.org/nsf-awards/mcp -s user
+claude mcp add access-announcements --transport http https://mcp.access-ci.org/announcements/mcp -s user
+claude mcp add access-events --transport http https://mcp.access-ci.org/events/mcp -s user
+claude mcp add access-affinity-groups --transport http https://mcp.access-ci.org/affinity-groups/mcp -s user
 ```
 
-**Optional: XDMoD Data Analytics** — requires a personal API token from [xdmod.access-ci.org](https://xdmod.access-ci.org) (My Profile → API Token). Add this to your config:
+### Claude Desktop
 
-```json
-"access-xdmod-data": {
-  "type": "streamable-http",
-  "url": "https://mcp.access-ci.org/xdmod-data/mcp",
-  "headers": {
-    "X-XDMoD-Token": "your-token-here"
-  }
-}
-```
+See the [**Getting Started guide**](/getting-started) for Claude Desktop configuration.
 
-### 3. Restart and Ask
+### Restart and Ask
 
 Restart your AI tool and ask: *"What GPU resources are available on ACCESS-CI?"*
 
 ::: tip No Server Installation Required
-The hosted servers handle everything — you just need an MCP-compatible AI client like Claude Desktop. No additional software required.
+The hosted servers handle everything — you just need an MCP-compatible AI client. No additional software required for Claude Code.
 :::
 
 ---

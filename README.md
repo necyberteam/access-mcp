@@ -19,67 +19,22 @@ This repository contains MCP servers that provide programmatic access to:
 
 ### Try It Now (Hosted Servers)
 
-Connect Claude Desktop to our hosted MCP servers. Add this to your Claude Desktop config:
-
-**macOS:** `~/Library/Application Support/Claude/claude_desktop_config.json`
-**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "access-compute-resources": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/compute-resources/mcp"
-    },
-    "access-system-status": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/system-status/mcp"
-    },
-    "access-software-discovery": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/software-discovery/mcp"
-    },
-    "access-xdmod": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/xdmod/mcp"
-    },
-    "access-allocations": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/allocations/mcp"
-    },
-    "access-nsf-awards": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/nsf-awards/mcp"
-    },
-    "access-announcements": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/announcements/mcp"
-    },
-    "access-events": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/events/mcp"
-    },
-    "access-affinity-groups": {
-      "type": "streamable-http",
-      "url": "https://mcp.access-ci.org/affinity-groups/mcp"
-    }
-  }
-}
+**Claude Code (CLI):**
+```bash
+claude mcp add access-compute-resources --transport http https://mcp.access-ci.org/compute-resources/mcp -s user
+claude mcp add access-system-status --transport http https://mcp.access-ci.org/system-status/mcp -s user
+claude mcp add access-software-discovery --transport http https://mcp.access-ci.org/software-discovery/mcp -s user
+claude mcp add access-xdmod --transport http https://mcp.access-ci.org/xdmod/mcp -s user
+claude mcp add access-allocations --transport http https://mcp.access-ci.org/allocations/mcp -s user
+claude mcp add access-nsf-awards --transport http https://mcp.access-ci.org/nsf-awards/mcp -s user
+claude mcp add access-announcements --transport http https://mcp.access-ci.org/announcements/mcp -s user
+claude mcp add access-events --transport http https://mcp.access-ci.org/events/mcp -s user
+claude mcp add access-affinity-groups --transport http https://mcp.access-ci.org/affinity-groups/mcp -s user
 ```
 
-Restart Claude Desktop and ask: *"What GPU resources are available on ACCESS-CI?"*
+**Claude Desktop:** See [full setup guide](https://mcp.access-ci.org/docs/getting-started) for config file instructions.
 
-**Optional: XDMoD Data Analytics** — requires a personal API token from [xdmod.access-ci.org](https://xdmod.access-ci.org) (My Profile → API Token). Add this to your config:
-
-```json
-"access-xdmod-data": {
-  "type": "streamable-http",
-  "url": "https://mcp.access-ci.org/xdmod-data/mcp",
-  "headers": {
-    "X-XDMoD-Token": "your-token-here"
-  }
-}
-```
+Restart and ask: *"What GPU resources are available on ACCESS-CI?"*
 
 ### Install Locally (npm)
 
