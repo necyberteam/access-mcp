@@ -184,6 +184,28 @@ describe("BaseAccessServer HTTP Mode", () => {
       }
     });
   });
+
+  describe("Legacy SSE endpoint", () => {
+    it("should accept SSE connections on /sse", async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1000);
+
+      try {
+        const response = await fetch(`${baseUrl}/sse`, {
+          signal: controller.signal,
+        });
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/event-stream");
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name !== "AbortError") {
+          throw e;
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+    });
+  });
 });
 
 describe("BaseAccessServer helper methods", () => {
@@ -652,6 +674,60 @@ describe("API Key Authentication", () => {
       expect(response.status).toBe(500);
       const data = await response.json();
       expect(data.error).toContain("Server misconfiguration");
+    });
+  });
+
+  describe("Legacy SSE /messages endpoint with requireApiKey", () => {
+    it("should reject messages without API key", async () => {
+      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(401);
+      const data = await response.json();
+      expect(data.error).toContain("Invalid or missing API key");
+    });
+
+    it("should reject messages with incorrect API key", async () => {
+      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Api-Key": "wrong-key" },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(401);
+      const data = await response.json();
+      expect(data.error).toContain("Invalid or missing API key");
+    });
+
+    it("should accept messages with correct API key (then 404 for missing session)", async () => {
+      const response = await fetch(`${baseUrl}/messages?sessionId=nonexistent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Api-Key": TEST_API_KEY },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toContain("Session not found");
+    });
+
+    it("should allow SSE connection without API key", async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 1000);
+
+      try {
+        const response = await fetch(`${baseUrl}/sse`, { signal: controller.signal });
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-type")).toContain("text/event-stream");
+        response.body?.cancel();
+      } catch (e: unknown) {
+        if (e instanceof Error && e.name !== "AbortError") throw e;
+      } finally {
+        clearTimeout(timeout);
+      }
     });
   });
 });

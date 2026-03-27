@@ -1,6 +1,7 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   GetPromptRequestSchema,
@@ -113,6 +114,7 @@ export abstract class BaseAccessServer {
   private _httpServer?: Express;
   private _httpPort?: number;
   private _streamableTransports: Map<string, StreamableHTTPServerTransport> = new Map();
+  private _sseTransports: Map<string, SSEServerTransport> = new Map();
   private _requireApiKey: boolean;
 
   constructor(
@@ -408,6 +410,66 @@ export abstract class BaseAccessServer {
     this._httpServer.post("/mcp", handleMcpRequest);
     this._httpServer.get("/mcp", handleMcpRequest);
     this._httpServer.delete("/mcp", handleMcpRequest);
+
+    // Legacy SSE endpoint for clients that don't support Streamable HTTP
+    // (Claude Desktop via mcp-remote, older MCP clients)
+    this._httpServer.get("/sse", async (req: Request, res: Response) => {
+      this.logger.debug("New SSE connection");
+
+      const transport = new SSEServerTransport("/messages", res as unknown as ServerResponse);
+      const sessionId = transport.sessionId;
+      this._sseTransports.set(sessionId, transport);
+
+      res.on("close", () => {
+        this.logger.debug("SSE connection closed", { sessionId });
+        this._sseTransports.delete(sessionId);
+      });
+
+      const sseServer = new Server(
+        { name: this.serverName, version: this.version },
+        { capabilities: { resources: {}, tools: {}, prompts: {} } }
+      );
+
+      this.setupServerHandlers(sseServer);
+      await sseServer.connect(transport);
+    });
+
+    // Legacy messages endpoint for SSE transport
+    this._httpServer.post("/messages", async (req: Request, res: Response) => {
+      if (this._requireApiKey) {
+        const expectedApiKey = process.env.MCP_API_KEY;
+        const providedApiKey = req.header("X-Api-Key");
+
+        if (!expectedApiKey) {
+          this.logger.error("MCP_API_KEY environment variable not set but requireApiKey is enabled");
+          res.status(500).json({ error: "Server misconfiguration: API key not configured" });
+          return;
+        }
+
+        if (!providedApiKey || providedApiKey !== expectedApiKey) {
+          this.logger.warn("Unauthorized SSE message attempt", {
+            sessionId: req.query.sessionId,
+            hasKey: !!providedApiKey,
+          });
+          res.status(401).json({ error: "Invalid or missing API key. This server requires authentication for tool execution." });
+          return;
+        }
+      }
+
+      const sessionId = req.query.sessionId as string;
+      const transport = this._sseTransports.get(sessionId);
+
+      if (!transport) {
+        res.status(404).json({ error: "Session not found" });
+        return;
+      }
+
+      await transport.handlePostMessage(
+        req as unknown as IncomingMessage,
+        res as unknown as ServerResponse,
+        req.body
+      );
+    });
 
     // List available tools endpoint (for inter-server communication)
     this._httpServer.get("/tools", (req: Request, res: Response) => {
