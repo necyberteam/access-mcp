@@ -22,7 +22,7 @@ from .base_server import BaseAccessServer
 
 class XDMoDPythonServer(BaseAccessServer):
     def __init__(self):
-        super().__init__("xdmod-mcp-data", "0.3.1", "https://xdmod.access-ci.org")
+        super().__init__("xdmod-mcp-data", "0.4.0", "https://xdmod.access-ci.org")
         self._env_api_token = os.getenv("XDMOD_API_TOKEN")
 
     @property

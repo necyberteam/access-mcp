@@ -1,6 +1,6 @@
 {
   "name": "@access-mcp/xdmod",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "MCP server for XDMoD public data: charts, visualizations, and metadata discovery",
   "type": "module",
   "main": "dist/index.js",
@@ -33,7 +33,7 @@
     "url": "https://github.com/necyberteam/access-mcp/issues"
   },
   "dependencies": {
-    "@access-mcp/shared": "*"
+    "@access-mcp/shared": "^0.8.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
