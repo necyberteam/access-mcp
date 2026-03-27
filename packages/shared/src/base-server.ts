@@ -303,20 +303,6 @@ export abstract class BaseAccessServer {
       });
     });
 
-    // Ensure Accept header includes required values for Streamable HTTP.
-    // Some MCP clients (including Claude Code) don't send the full Accept header
-    // required by the SDK, causing 406 errors.
-    this._httpServer.use("/mcp", (req: Request, _res: Response, next) => {
-      const accept = req.headers.accept || "";
-      const parts: string[] = [];
-      if (!accept.includes("application/json")) parts.push("application/json");
-      if (!accept.includes("text/event-stream")) parts.push("text/event-stream");
-      if (parts.length > 0) {
-        req.headers.accept = accept ? `${accept}, ${parts.join(", ")}` : parts.join(", ");
-      }
-      next();
-    });
-
     // Streamable HTTP endpoint for MCP connections
     // Handles POST (messages), GET (SSE stream), DELETE (session cleanup)
     const handleMcpRequest = async (req: Request, res: Response) => {
@@ -394,8 +380,26 @@ export abstract class BaseAccessServer {
         return;
       }
 
+      // Fix Accept header for clients that send */* instead of the explicit
+      // values required by the SDK (e.g., Claude Code). The SDK's Hono adapter
+      // reads from rawHeaders (immutable), so we must replace the Accept entry there.
+      const rawReq = req as unknown as IncomingMessage;
+      const accept = rawReq.headers.accept || "";
+      if (!accept.includes("application/json") || !accept.includes("text/event-stream")) {
+        const fixedAccept = "application/json, text/event-stream";
+        rawReq.headers.accept = fixedAccept;
+        // Also fix rawHeaders since Hono reads from there
+        const rawHeaders = rawReq.rawHeaders;
+        for (let i = 0; i < rawHeaders.length; i += 2) {
+          if (rawHeaders[i].toLowerCase() === "accept") {
+            rawHeaders[i + 1] = fixedAccept;
+            break;
+          }
+        }
+      }
+
       await transport.handleRequest(
-        req as unknown as IncomingMessage,
+        rawReq,
         res as unknown as ServerResponse,
         req.body
       );
