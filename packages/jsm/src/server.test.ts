@@ -26,6 +26,8 @@ describe("JsmServer", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.JSM_PROXY_URL = "http://fake-proxy";
+    delete process.env.JSM_DRY_RUN;
     server = new JsmServer();
 
     // Create mock proxy client
@@ -467,6 +469,169 @@ describe("JsmServer", () => {
       expect(resources).toHaveLength(1);
       expect(resources[0].uri).toBe("accessci://jsm/ticket-types");
       expect(resources[0].name).toBe("ACCESS JSM Ticket Types");
+    });
+  });
+
+  describe("Dry-run mode", () => {
+    it("should return dry-run response for create_support_ticket when JSM_DRY_RUN=true", async () => {
+      process.env.JSM_DRY_RUN = "true";
+      const dryRunServer = new JsmServer();
+
+      const result = await dryRunServer["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "create_support_ticket",
+          arguments: {
+            summary: "Test dry run ticket",
+            description: "This should not create a real ticket",
+            user_email: "test@test.com",
+            user_name: "Test User",
+          },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.success).toBe(true);
+      expect(responseData.ticket_key).toMatch(/^DRYRUN-/);
+      expect(responseData.message).toContain("[DRY RUN]");
+      expect(responseData.message).toContain("Test dry run ticket");
+
+      // axios should NOT have been called
+      expect(axios.create).not.toHaveBeenCalled();
+
+      delete process.env.JSM_DRY_RUN;
+    });
+
+    it.each(["true", "TRUE", "True", "1", "yes", "YES"])
+    ("should enable dry-run for JSM_DRY_RUN=%s", async (value) => {
+      process.env.JSM_DRY_RUN = value;
+      const dryRunServer = new JsmServer();
+
+      const result = await dryRunServer["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "create_support_ticket",
+          arguments: {
+            summary: "Dry run test",
+            description: "Testing",
+            user_email: "test@test.com",
+            user_name: "Test",
+          },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.ticket_key).toMatch(/^DRYRUN-/);
+
+      delete process.env.JSM_DRY_RUN;
+    });
+
+    it.each(["false", "FALSE", "False", "0", "no", ""])
+    ("should NOT enable dry-run for JSM_DRY_RUN=%s", async (value) => {
+      process.env.JSM_DRY_RUN = value;
+      process.env.JSM_PROXY_URL = "http://fake-proxy";
+      const server = new JsmServer();
+
+      mockProxyClient = { post: vi.fn() };
+      (axios.create as Mock).mockReturnValue(mockProxyClient);
+
+      mockProxyClient.post.mockResolvedValue({
+        status: 200,
+        data: {
+          success: true,
+          data: { ticketKey: "ACCESS-99999", ticketUrl: "http://example.com" },
+        },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "create_support_ticket",
+          arguments: {
+            summary: "Real ticket",
+            description: "Testing",
+            user_email: "test@test.com",
+            user_name: "Test",
+          },
+        },
+      });
+
+      expect(mockProxyClient.post).toHaveBeenCalled();
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.ticket_key).toBe("ACCESS-99999");
+
+      delete process.env.JSM_DRY_RUN;
+      delete process.env.JSM_PROXY_URL;
+    });
+
+    it("should increment dry-run ticket keys", async () => {
+      process.env.JSM_DRY_RUN = "true";
+      const dryRunServer = new JsmServer();
+
+      const call = (summary: string) =>
+        dryRunServer["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "create_support_ticket",
+            arguments: {
+              summary,
+              description: "Testing",
+              user_email: "test@test.com",
+              user_name: "Test",
+            },
+          },
+        });
+
+      const r1 = await call("First");
+      const r2 = await call("Second");
+      const r3 = await call("Third");
+
+      expect(JSON.parse((r1.content[0] as TextContent).text).ticket_key).toBe("DRYRUN-001");
+      expect(JSON.parse((r2.content[0] as TextContent).text).ticket_key).toBe("DRYRUN-002");
+      expect(JSON.parse((r3.content[0] as TextContent).text).ticket_key).toBe("DRYRUN-003");
+
+      delete process.env.JSM_DRY_RUN;
+    });
+  });
+
+  describe("Missing proxy URL", () => {
+    it("should fail ticket creation when JSM_PROXY_URL is unset and dry-run is off", async () => {
+      delete process.env.JSM_PROXY_URL;
+      delete process.env.JSM_DRY_RUN;
+      const server = new JsmServer();
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "create_support_ticket",
+          arguments: {
+            summary: "Should fail",
+            description: "No proxy URL",
+            user_email: "test@test.com",
+            user_name: "Test",
+          },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.error).toContain("JSM_PROXY_URL not configured");
+    });
+
+    it("should still return ticket types when proxy URL is missing", async () => {
+      delete process.env.JSM_PROXY_URL;
+      delete process.env.JSM_DRY_RUN;
+      const server = new JsmServer();
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_ticket_types",
+          arguments: {},
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.ticket_types).toHaveLength(3);
     });
   });
 

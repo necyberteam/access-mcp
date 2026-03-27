@@ -164,7 +164,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - JSM_PROXY_URL=${JSM_PROXY_URL:-https://access-jsm-api.netlify.app}
+      - JSM_PROXY_URL=${JSM_PROXY_URL}
+      - JSM_DRY_RUN=false
       - MCP_API_KEY=${MCP_API_KEY}
     deploy:
       resources:

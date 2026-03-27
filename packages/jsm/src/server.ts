@@ -15,8 +15,6 @@ const { version } = require("../package.json");
 // Constants
 // ============================================================================
 
-const DEFAULT_PROXY_URL = "https://access-jsm-api.netlify.app";
-
 /** Service Desk IDs */
 const SERVICE_DESK = {
   SUPPORT: 2,
@@ -79,6 +77,12 @@ const IDENTITY_PROVIDERS = [
   "Other",
 ] as const;
 
+/** Parse JSM_DRY_RUN env var. Enabled for "true", "1", "yes" (case-insensitive). */
+function isDryRunEnabled(): boolean {
+  const val = (process.env.JSM_DRY_RUN ?? "").toLowerCase();
+  return val === "true" || val === "1" || val === "yes";
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -138,14 +142,31 @@ interface TicketRequestBody {
 
 export class JsmServer extends BaseAccessServer {
   private _proxyClient?: AxiosInstance;
+  private readonly dryRun: boolean;
+  private dryRunCounter = 0;
 
   constructor() {
+    const proxyUrl = process.env.JSM_PROXY_URL ?? "";
+    const dryRun = isDryRunEnabled();
+
+    if (!proxyUrl && !dryRun) {
+      console.warn(
+        "[access-mcp-jsm] WARNING: JSM_PROXY_URL is not set and JSM_DRY_RUN is not enabled. " +
+        "Ticket creation will fail. Set JSM_PROXY_URL or enable JSM_DRY_RUN."
+      );
+    }
+
     super(
       "access-mcp-jsm",
       version,
-      process.env.JSM_PROXY_URL || DEFAULT_PROXY_URL,
+      proxyUrl || "http://unconfigured",
       { requireApiKey: true }
     );
+    this.dryRun = dryRun;
+
+    if (dryRun) {
+      this.logger.info("JSM dry-run mode ENABLED — no tickets will be created");
+    }
   }
 
   private get proxyClient(): AxiosInstance {
@@ -457,6 +478,40 @@ export class JsmServer extends BaseAccessServer {
   }
 
   private async submitTicket(body: TicketRequestBody, endpoint: string): Promise<CallToolResult> {
+    if (this.dryRun) {
+      this.dryRunCounter++;
+      const key = `DRYRUN-${String(this.dryRunCounter).padStart(3, "0")}`;
+      const summary = body.requestFieldValues.summary ?? "unknown";
+
+      this.logger.info("Dry-run ticket submission", {
+        key,
+        endpoint,
+        serviceDeskId: body.serviceDeskId,
+        requestTypeId: body.requestTypeId,
+        summary: summary.slice(0, 80),
+      });
+      this.logger.debug("Dry-run full request body", { body });
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              success: true,
+              ticket_key: key,
+              ticket_url: null,
+              message: `[DRY RUN] Ticket not created. Would have submitted: ${summary}`,
+            }),
+          },
+        ],
+      };
+    }
+
+    if (!process.env.JSM_PROXY_URL) {
+      this.logger.error("Ticket creation blocked — JSM_PROXY_URL not configured");
+      return this.errorResponse("JSM_PROXY_URL not configured — cannot create tickets");
+    }
+
     this.logger.info("Submitting ticket", {
       endpoint,
       serviceDeskId: body.serviceDeskId,
