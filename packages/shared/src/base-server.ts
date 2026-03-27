@@ -1,6 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
   GetPromptRequestSchema,
@@ -17,10 +17,12 @@ import {
   CallToolRequest,
   ReadResourceRequest,
   GetPromptRequest,
+  isInitializeRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
 import express, { Express, Request, Response } from "express";
 import { IncomingMessage, ServerResponse } from "node:http";
+import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
 import { traceMcpToolCall } from "./telemetry.js";
@@ -110,7 +112,7 @@ export abstract class BaseAccessServer {
   private _httpClient?: AxiosInstance;
   private _httpServer?: Express;
   private _httpPort?: number;
-  private _sseTransports: Map<string, SSEServerTransport> = new Map();
+  private _streamableTransports: Map<string, StreamableHTTPServerTransport> = new Map();
   private _requireApiKey: boolean;
 
   constructor(
@@ -166,80 +168,7 @@ export abstract class BaseAccessServer {
   }
 
   private setupHandlers() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
-      try {
-        return { tools: this.getTools() };
-      } catch (error: unknown) {
-        // Silent error handling for MCP compatibility
-        return { tools: [] };
-      }
-    });
-
-    this.server.setRequestHandler(ListResourcesRequestSchema, async () => {
-      try {
-        return { resources: this.getResources() };
-      } catch (error: unknown) {
-        // Silent error handling for MCP compatibility
-        return { resources: [] };
-      }
-    });
-
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      try {
-        return await this.handleToolCall(request);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error("Error handling tool call", { error: errorMessage });
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify({
-                error: errorMessage,
-              }),
-            },
-          ],
-          isError: true,
-        };
-      }
-    });
-
-    this.server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
-      try {
-        return await this.handleResourceRead(request);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error("Error reading resource", { error: errorMessage });
-        return {
-          contents: [
-            {
-              uri: request.params.uri,
-              mimeType: "text/plain",
-              text: `Error: ${errorMessage}`,
-            },
-          ],
-        };
-      }
-    });
-
-    this.server.setRequestHandler(ListPromptsRequestSchema, async () => {
-      try {
-        return { prompts: this.getPrompts() };
-      } catch (error: unknown) {
-        // Silent error handling for MCP compatibility
-        return { prompts: [] };
-      }
-    });
-
-    this.server.setRequestHandler(GetPromptRequestSchema, async (request) => {
-      try {
-        return await this.handleGetPrompt(request);
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error("Error getting prompt", { error: errorMessage });
-        throw error;
-      }
-    });
+    this.setupServerHandlers(this.server);
   }
 
   protected abstract getTools(): Tool[];
@@ -356,7 +285,7 @@ export abstract class BaseAccessServer {
   }
 
   /**
-   * Start HTTP service layer with SSE support for remote MCP connections
+   * Start HTTP service layer with Streamable HTTP support for remote MCP connections
    */
   private async startHttpService(): Promise<void> {
     if (!this._httpPort) return;
@@ -374,47 +303,11 @@ export abstract class BaseAccessServer {
       });
     });
 
-    // SSE endpoint for MCP remote connections
-    this._httpServer.get("/sse", async (req: Request, res: Response) => {
-      this.logger.debug("New SSE connection");
-
-      const transport = new SSEServerTransport("/messages", res as unknown as ServerResponse);
-      const sessionId = transport.sessionId;
-      this._sseTransports.set(sessionId, transport);
-
-      // Clean up on disconnect
-      res.on("close", () => {
-        this.logger.debug("SSE connection closed", { sessionId });
-        this._sseTransports.delete(sessionId);
-      });
-
-      // Create a new server instance for this SSE connection
-      const sseServer = new Server(
-        {
-          name: this.serverName,
-          version: this.version,
-        },
-        {
-          capabilities: {
-            resources: {},
-            tools: {},
-            prompts: {},
-          },
-        }
-      );
-
-      // Set up handlers for the SSE server (same as main server)
-      this.setupServerHandlers(sseServer);
-
-      await sseServer.connect(transport);
-    });
-
-    // Messages endpoint for SSE POST messages
-    this._httpServer.post("/messages", async (req: Request, res: Response) => {
-      // Validate API key on SSE message endpoint when requireApiKey is enabled.
-      // This prevents unauthenticated users from executing write tools on
-      // public hosted servers while keeping SSE connections open for tool discovery.
-      if (this._requireApiKey) {
+    // Streamable HTTP endpoint for MCP connections
+    // Handles POST (messages), GET (SSE stream), DELETE (session cleanup)
+    const handleMcpRequest = async (req: Request, res: Response) => {
+      // Validate API key for POST requests when requireApiKey is enabled
+      if (req.method === "POST" && this._requireApiKey) {
         const expectedApiKey = process.env.MCP_API_KEY;
         const providedApiKey = req.header("X-Api-Key");
 
@@ -425,8 +318,7 @@ export abstract class BaseAccessServer {
         }
 
         if (!providedApiKey || providedApiKey !== expectedApiKey) {
-          this.logger.warn("Unauthorized SSE message attempt", {
-            sessionId: req.query.sessionId,
+          this.logger.warn("Unauthorized MCP request attempt", {
             hasKey: !!providedApiKey,
           });
           res.status(401).json({ error: "Invalid or missing API key. This server requires authentication for tool execution." });
@@ -434,20 +326,70 @@ export abstract class BaseAccessServer {
         }
       }
 
-      const sessionId = req.query.sessionId as string;
-      const transport = this._sseTransports.get(sessionId);
+      // Check for existing session
+      const sessionId = req.headers["mcp-session-id"] as string | undefined;
+      let transport: StreamableHTTPServerTransport;
 
-      if (!transport) {
+      if (sessionId && this._streamableTransports.has(sessionId)) {
+        transport = this._streamableTransports.get(sessionId)!;
+      } else if (!sessionId && req.method === "POST") {
+        // New session — check if this is an initialize request
+        const body = req.body;
+        if (body && isInitializeRequest(body)) {
+          this.logger.debug("New Streamable HTTP session");
+          transport = new StreamableHTTPServerTransport({
+            sessionIdGenerator: () => randomUUID(),
+          });
+
+          // Create a new server instance for this session
+          const mcpServer = new Server(
+            {
+              name: this.serverName,
+              version: this.version,
+            },
+            {
+              capabilities: {
+                resources: {},
+                tools: {},
+                prompts: {},
+              },
+            }
+          );
+
+          this.setupServerHandlers(mcpServer);
+          await mcpServer.connect(transport);
+
+          // Store transport by session ID after connection
+          if (transport.sessionId) {
+            this._streamableTransports.set(transport.sessionId, transport);
+          }
+
+          // Clean up on close
+          transport.onclose = () => {
+            if (transport.sessionId) {
+              this.logger.debug("Streamable HTTP session closed", { sessionId: transport.sessionId });
+              this._streamableTransports.delete(transport.sessionId);
+            }
+          };
+        } else {
+          res.status(400).json({ error: "Bad Request: First request must be an initialize request" });
+          return;
+        }
+      } else {
         res.status(404).json({ error: "Session not found" });
         return;
       }
 
-      await transport.handlePostMessage(
+      await transport.handleRequest(
         req as unknown as IncomingMessage,
         res as unknown as ServerResponse,
         req.body
       );
-    });
+    };
+
+    this._httpServer.post("/mcp", handleMcpRequest);
+    this._httpServer.get("/mcp", handleMcpRequest);
+    this._httpServer.delete("/mcp", handleMcpRequest);
 
     // List available tools endpoint (for inter-server communication)
     this._httpServer.get("/tools", (req: Request, res: Response) => {

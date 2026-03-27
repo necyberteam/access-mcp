@@ -125,17 +125,17 @@ mcp.access-ci.org {
 Documentation: https://mcp.access-ci.org/docs/
 
 Available MCP endpoints:
-- /compute-resources/sse
-- /system-status/sse
-- /software-discovery/sse
-- /xdmod/sse
-- /allocations/sse
-- /nsf-awards/sse
-- /xdmod-data/sse
-- /announcements/sse
-- /events/sse
-- /affinity-groups/sse
-- /jsm/sse
+- /compute-resources/mcp
+- /system-status/mcp
+- /software-discovery/mcp
+- /xdmod/mcp
+- /allocations/mcp
+- /nsf-awards/mcp
+- /xdmod-data/mcp
+- /announcements/mcp
+- /events/mcp
+- /affinity-groups/mcp
+- /jsm/mcp
 " 200
     }
 }

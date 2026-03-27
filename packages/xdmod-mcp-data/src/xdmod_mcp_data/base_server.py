@@ -2,43 +2,67 @@
 """
 Python Base ACCESS Server
 
-Provides HTTP and SSE support for MCP servers to run in Docker containers,
+Provides Streamable HTTP and stdio support for MCP servers,
 equivalent to the TypeScript BaseAccessServer functionality.
 """
 
 import asyncio
-import os
-import uuid
+import contextlib
+import contextvars
 import json
+import os
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from aiohttp import web, web_request
-from mcp.server import Server
+import uvicorn
+from mcp.server.lowlevel import Server
 from mcp.server.stdio import stdio_server
+from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import Tool, TextContent
+from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import JSONResponse, Response
+from starlette.routing import Mount, Route
+
+# Context variable for per-request headers (accessible from tool handlers)
+_request_headers: contextvars.ContextVar[Dict[str, str]] = contextvars.ContextVar('request_headers', default={})
 
 
-class SSESession:
-    """Represents an active SSE session"""
-    def __init__(self, session_id: str):
-        self.session_id = session_id
-        self.queue: asyncio.Queue = asyncio.Queue()
-        self.initialized = False
-        self.headers: Dict[str, str] = {}  # Headers from the SSE connection request
+def get_request_header(name: str) -> Optional[str]:
+    """Get a header value from the current request context"""
+    return _request_headers.get({}).get(name)
+
+
+class HeaderCaptureMiddleware(BaseHTTPMiddleware):
+    """Middleware that captures select request headers into context variables"""
+    CAPTURED_HEADERS = ('x-xdmod-token',)
+
+    async def dispatch(self, request: Request, call_next):
+        headers = {}
+        for name in self.CAPTURED_HEADERS:
+            value = request.headers.get(name)
+            if value:
+                headers[name] = value
+        token = _request_headers.set(headers)
+        try:
+            return await call_next(request)
+        finally:
+            _request_headers.reset(token)
 
 
 class BaseAccessServer(ABC):
-    """Base class for ACCESS-CI MCP servers with HTTP and SSE support"""
+    """Base class for ACCESS-CI MCP servers with Streamable HTTP and stdio support"""
 
     def __init__(self, server_name: str, version: str, base_url: Optional[str] = None):
         self.server_name = server_name
         self.version = version
         self.base_url = base_url or "https://access-ci.org"
         self.server = Server(server_name)
-        self._sessions: Dict[str, SSESession] = {}
-        self._current_session_id: Optional[str] = None  # Set during message handling
+        self._session_manager: Optional[StreamableHTTPSessionManager] = None
         self._setup_handlers()
 
     @abstractmethod
@@ -50,13 +74,6 @@ class BaseAccessServer(ABC):
     async def handle_tool_call(self, name: str, arguments: Dict[str, Any]) -> Any:
         """Handle tool execution"""
         pass
-
-    def get_session_header(self, session_id: str, header_name: str) -> Optional[str]:
-        """Get a header value from an SSE session's connection request"""
-        session = self._sessions.get(session_id)
-        if session:
-            return session.headers.get(header_name)
-        return None
 
     def _setup_handlers(self):
         """Setup MCP tool handlers"""
@@ -88,225 +105,31 @@ class BaseAccessServer(ABC):
                 self.server.create_initialization_options(),
             )
 
-    async def _handle_jsonrpc_message(self, session: SSESession, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Handle incoming JSONRPC message and return response"""
-        method = message.get("method")
-        msg_id = message.get("id")
-        params = message.get("params", {})
+    def create_starlette_app(self) -> Starlette:
+        """Create the Starlette ASGI application with all routes and middleware.
 
-        try:
-            if method == "initialize":
-                session.initialized = True
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "result": {
-                        "protocolVersion": "2024-11-05",
-                        "capabilities": {
-                            "tools": {},
-                            "resources": {}
-                        },
-                        "serverInfo": {
-                            "name": self.server_name,
-                            "version": self.version
-                        }
-                    }
-                }
-
-            elif method == "notifications/initialized":
-                # No response needed for notifications
-                return None
-
-            elif method == "tools/list":
-                tools = self.get_tools()
-                tools_data = [
-                    {
-                        "name": tool.name,
-                        "description": tool.description,
-                        "inputSchema": tool.inputSchema
-                    }
-                    for tool in tools
-                ]
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "result": {"tools": tools_data}
-                }
-
-            elif method == "tools/call":
-                tool_name = params.get("name")
-                arguments = params.get("arguments", {})
-
-                # Validate tool exists
-                tools = self.get_tools()
-                tool_exists = any(t.name == tool_name for t in tools)
-                if not tool_exists:
-                    return {
-                        "jsonrpc": "2.0",
-                        "id": msg_id,
-                        "error": {
-                            "code": -32601,
-                            "message": f"Tool '{tool_name}' not found"
-                        }
-                    }
-
-                # Execute tool
-                result = await self.handle_tool_call(tool_name, arguments)
-
-                # Format result as MCP content
-                if isinstance(result, list) and result and hasattr(result[0], 'text'):
-                    # Already TextContent objects
-                    content = [{"type": item.type, "text": item.text} for item in result]
-                elif isinstance(result, str):
-                    content = [{"type": "text", "text": result}]
-                else:
-                    content = [{"type": "text", "text": json.dumps(result, indent=2)}]
-
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "result": {
-                        "content": content
-                    }
-                }
-
-            elif method == "resources/list":
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "result": {"resources": []}
-                }
-
-            elif method == "prompts/list":
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "error": {
-                        "code": -32601,
-                        "message": "Method not found"
-                    }
-                }
-
-            else:
-                return {
-                    "jsonrpc": "2.0",
-                    "id": msg_id,
-                    "error": {
-                        "code": -32601,
-                        "message": f"Method '{method}' not found"
-                    }
-                }
-
-        except Exception as e:
-            return {
-                "jsonrpc": "2.0",
-                "id": msg_id,
-                "error": {
-                    "code": -32603,
-                    "message": str(e)
-                }
-            }
-
-    async def _start_http_server(self, port: int):
-        """Start HTTP server with SSE support for Docker deployment"""
-        app = web.Application()
+        This is separated from _start_http_server so tests can access the app
+        via httpx.ASGITransport without starting a real server.
+        """
+        self._session_manager = StreamableHTTPSessionManager(
+            app=self.server,
+        )
 
         # Health check endpoint
-        async def health(request: web_request.Request):
-            return web.json_response({
+        async def health(request: Request) -> JSONResponse:
+            return JSONResponse({
                 "server": self.server_name,
                 "version": self.version,
                 "status": "healthy",
                 "timestamp": datetime.utcnow().isoformat() + "Z"
             })
 
-        # SSE endpoint
-        async def sse_handler(request: web_request.Request):
-            session_id = str(uuid.uuid4())
-            session = SSESession(session_id)
-            # Store select headers from the SSE connection for per-session config
-            for header_name in ('X-XDMoD-Token',):
-                value = request.headers.get(header_name)
-                if value:
-                    session.headers[header_name] = value
-            self._sessions[session_id] = session
+        # MCP Streamable HTTP endpoint (POST/GET/DELETE) as raw ASGI app
+        async def mcp_asgi_app(scope, receive, send):
+            await self._session_manager.handle_request(scope, receive, send)
 
-            response = web.StreamResponse(
-                status=200,
-                reason='OK',
-                headers={
-                    'Content-Type': 'text/event-stream',
-                    'Cache-Control': 'no-cache, no-transform',
-                    'Connection': 'keep-alive',
-                }
-            )
-            await response.prepare(request)
-
-            # Send endpoint event with session ID
-            endpoint_event = f"event: endpoint\ndata: /messages?sessionId={session_id}\n\n"
-            await response.write(endpoint_event.encode('utf-8'))
-
-            try:
-                # Keep connection alive and send queued messages
-                while True:
-                    try:
-                        # Wait for messages with timeout for keepalive
-                        message = await asyncio.wait_for(session.queue.get(), timeout=30)
-                        event_data = f"event: message\ndata: {json.dumps(message)}\n\n"
-                        await response.write(event_data.encode('utf-8'))
-                    except asyncio.TimeoutError:
-                        # Send keepalive comment
-                        await response.write(b": keepalive\n\n")
-            except (asyncio.CancelledError, ConnectionResetError):
-                pass
-            finally:
-                # Cleanup session
-                if session_id in self._sessions:
-                    del self._sessions[session_id]
-
-            return response
-
-        # Messages endpoint for JSONRPC
-        async def messages_handler(request: web_request.Request):
-            session_id = request.query.get('sessionId')
-
-            if not session_id or session_id not in self._sessions:
-                return web.json_response(
-                    {"error": "Session not found"},
-                    status=404
-                )
-
-            session = self._sessions[session_id]
-
-            try:
-                data = await request.json()
-
-                # Set current session for tool calls to access session headers
-                self._current_session_id = session_id
-
-                # Handle the JSONRPC message
-                response = await self._handle_jsonrpc_message(session, data)
-
-                if response:
-                    # Queue response to be sent via SSE
-                    await session.queue.put(response)
-
-                # Return accepted status
-                return web.Response(status=202, text="Accepted")
-
-            except json.JSONDecodeError:
-                return web.json_response(
-                    {"error": "Invalid JSON"},
-                    status=400
-                )
-            except Exception as e:
-                return web.json_response(
-                    {"error": str(e)},
-                    status=500
-                )
-
-        # List tools endpoint (REST API)
-        async def list_tools(request: web_request.Request):
+        # List tools endpoint (REST API for inter-server communication)
+        async def list_tools(request: Request) -> JSONResponse:
             tools = self.get_tools()
             tools_data = [
                 {
@@ -316,67 +139,75 @@ class BaseAccessServer(ABC):
                 }
                 for tool in tools
             ]
-            return web.json_response({"tools": tools_data})
+            return JSONResponse({"tools": tools_data})
 
-        # Tool execution endpoint (REST API)
-        async def execute_tool(request: web_request.Request):
-            tool_name = request.match_info['tool_name']
+        # Tool execution endpoint (REST API for inter-server communication)
+        async def execute_tool(request: Request) -> JSONResponse:
+            tool_name = request.path_params['tool_name']
 
             try:
-                if request.content_type == 'application/json':
-                    data = await request.json()
-                    arguments = data.get('arguments', {})
-                else:
-                    arguments = {}
+                body = await request.json()
+                arguments = body.get('arguments', {})
+            except Exception:
+                arguments = {}
 
-                tools = self.get_tools()
-                tool_exists = any(t.name == tool_name for t in tools)
-                if not tool_exists:
-                    return web.json_response(
-                        {"error": f"Tool '{tool_name}' not found"},
-                        status=404
-                    )
+            tools = self.get_tools()
+            tool_exists = any(t.name == tool_name for t in tools)
+            if not tool_exists:
+                return JSONResponse(
+                    {"error": f"Tool '{tool_name}' not found"},
+                    status_code=404
+                )
 
+            try:
                 result = await self.handle_tool_call(tool_name, arguments)
 
-                # handle_tool_call returns List[TextContent] for MCP,
-                # but the REST API needs plain JSON serialization
+                # Format result for REST API
                 if isinstance(result, list) and result and hasattr(result[0], 'text'):
-                    # Already TextContent objects — extract their text/type
                     content = [{"type": item.type, "text": item.text} for item in result]
                 elif isinstance(result, str):
                     content = [{"type": "text", "text": result}]
                 else:
                     content = [{"type": "text", "text": json.dumps(result, indent=2)}]
 
-                return web.json_response({"content": content})
+                return JSONResponse({"content": content})
 
             except Exception as e:
-                return web.json_response(
+                return JSONResponse(
                     {"error": str(e)},
-                    status=500
+                    status_code=500
                 )
 
-        # Register routes
-        app.router.add_get('/health', health)
-        app.router.add_get('/sse', sse_handler)
-        app.router.add_post('/messages', messages_handler)
-        app.router.add_get('/tools', list_tools)
-        app.router.add_post('/tools/{tool_name}', execute_tool)
+        @contextlib.asynccontextmanager
+        async def lifespan(app: Starlette) -> AsyncIterator[None]:
+            async with self._session_manager.run():
+                yield
 
-        # Start server
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, '0.0.0.0', port)
+        return Starlette(
+            debug=False,
+            lifespan=lifespan,
+            routes=[
+                Route('/health', health, methods=['GET']),
+                Mount('/mcp', app=mcp_asgi_app),
+                Route('/tools', list_tools, methods=['GET']),
+                Route('/tools/{tool_name}', execute_tool, methods=['POST']),
+            ],
+            middleware=[
+                Middleware(HeaderCaptureMiddleware),
+            ],
+        )
+
+    async def _start_http_server(self, port: int):
+        """Start HTTP server with Streamable HTTP transport for Docker deployment"""
+        starlette_app = self.create_starlette_app()
 
         print(f"{self.server_name} HTTP server running on port {port}")
-        await site.start()
 
-        # Keep server running
-        try:
-            while True:
-                await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            pass
-        finally:
-            await runner.cleanup()
+        config = uvicorn.Config(
+            starlette_app,
+            host="0.0.0.0",
+            port=port,
+            log_level="info",
+        )
+        server = uvicorn.Server(config)
+        await server.serve()

@@ -22,44 +22,46 @@ Copy and paste this configuration:
 {
   "mcpServers": {
     "access-compute-resources": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/compute-resources/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/compute-resources/mcp"
     },
     "access-system-status": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/system-status/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/system-status/mcp"
     },
     "access-software-discovery": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/software-discovery/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/software-discovery/mcp"
     },
     "access-xdmod": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/xdmod/mcp"
     },
     "access-allocations": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/allocations/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/allocations/mcp"
     },
     "access-nsf-awards": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/nsf-awards/mcp"
     },
     "access-announcements": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/announcements/mcp"
     },
     "access-events": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/events/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/events/mcp"
     },
     "access-affinity-groups": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/affinity-groups/mcp"
     }
   }
 }
 ```
+
+No additional software required — Claude Desktop connects directly to the hosted servers.
 
 ### 3. Restart and Test
 
@@ -69,13 +71,11 @@ Restart Claude Desktop, then try asking:
 
 ### Other MCP Clients
 
-These servers work with any MCP-compatible client. The connection URL pattern is:
+These servers work with any MCP-compatible client that supports Streamable HTTP. The connection URL pattern is:
 
 ```
-https://mcp.access-ci.org/<server-name>/sse
+https://mcp.access-ci.org/<server-name>/mcp
 ```
-
-For example, in VS Code with the Claude Code extension or Cursor, configure your MCP servers using the URLs from the table below.
 
 ## Available Servers
 
@@ -83,16 +83,16 @@ All servers are hosted at `https://mcp.access-ci.org`:
 
 | Server | Endpoint | Description |
 |--------|----------|-------------|
-| Compute Resources | `/compute-resources/sse` | Hardware specifications and capabilities |
-| System Status | `/system-status/sse` | Outages and maintenance schedules |
-| Software Discovery | `/software-discovery/sse` | Software packages across resources |
-| XDMoD | `/xdmod/sse` | Usage statistics, visualizations, and metadata discovery |
-| Allocations | `/allocations/sse` | Research projects and allocations |
-| NSF Awards | `/nsf-awards/sse` | NSF funding data |
-| XDMoD Data | `/xdmod-data/sse` | Data analytics for jobs, allocations, cloud usage, and resource metrics (requires API token) |
-| Announcements | `/announcements/sse` | Community news and updates |
-| Events | `/events/sse` | Workshops, webinars, training |
-| Affinity Groups | `/affinity-groups/sse` | Community groups and knowledge base |
+| Compute Resources | `/compute-resources/mcp` | Hardware specifications and capabilities |
+| System Status | `/system-status/mcp` | Outages and maintenance schedules |
+| Software Discovery | `/software-discovery/mcp` | Software packages across resources |
+| XDMoD | `/xdmod/mcp` | Usage statistics, visualizations, and metadata discovery |
+| Allocations | `/allocations/mcp` | Research projects and allocations |
+| NSF Awards | `/nsf-awards/mcp` | NSF funding data |
+| XDMoD Data | `/xdmod-data/mcp` | Data analytics for jobs, allocations, cloud usage, and resource metrics (requires API token) |
+| Announcements | `/announcements/mcp` | Community news and updates |
+| Events | `/events/mcp` | Workshops, webinars, training |
+| Affinity Groups | `/affinity-groups/mcp` | Community groups and knowledge base |
 
 All endpoints are at `https://mcp.access-ci.org`.
 
@@ -111,8 +111,11 @@ Then add this to your `mcpServers` config, replacing `your-token-here` with your
 
 ```json
 "access-xdmod-data": {
-  "command": "npx",
-  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse", "--header", "X-XDMoD-Token:your-token-here"]
+  "type": "streamable-http",
+  "url": "https://mcp.access-ci.org/xdmod-data/mcp",
+  "headers": {
+    "X-XDMoD-Token": "your-token-here"
+  }
 }
 ```
 
@@ -176,8 +179,8 @@ Then configure Claude Desktop to use your local server:
 {
   "mcpServers": {
     "access-compute-resources-dev": {
-      "command": "npx",
-      "args": ["mcp-remote", "http://localhost:3002/sse"]
+      "type": "streamable-http",
+      "url": "http://localhost:3002/mcp"
     }
   }
 }
@@ -228,14 +231,14 @@ Update the Claude Desktop config to point to your server:
 {
   "mcpServers": {
     "access-compute-resources": {
-      "command": "npx",
-      "args": ["mcp-remote", "http://YOUR_SERVER_IP:3002/sse"]
+      "type": "streamable-http",
+      "url": "http://YOUR_SERVER_IP:3002/mcp"
     }
   }
 }
 ```
 
-Replace `YOUR_SERVER_IP` with your server's hostname or IP. Ensure firewall allows ports 3002-3011.
+Replace `YOUR_SERVER_IP` with your server's hostname or IP. Ensure firewall allows ports 3002-3012.
 
 ### Environment Variables
 
@@ -261,7 +264,7 @@ See `.github/workflows/deploy-production.yml` for details.
 
 ### "Server disconnected" Error
 
-- Verify the hosted servers are accessible: `curl https://mcp.access-ci.org/compute-resources/sse`
+- Verify the hosted servers are accessible: `curl https://mcp.access-ci.org/compute-resources/health`
 - Check your internet connection
 - Restart Claude Desktop
 

@@ -63,40 +63,40 @@ Copy and paste this configuration:
 {
   "mcpServers": {
     "access-compute-resources": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/compute-resources/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/compute-resources/mcp"
     },
     "access-system-status": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/system-status/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/system-status/mcp"
     },
     "access-software-discovery": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/software-discovery/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/software-discovery/mcp"
     },
     "access-xdmod": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/xdmod/mcp"
     },
     "access-allocations": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/allocations/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/allocations/mcp"
     },
     "access-nsf-awards": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/nsf-awards/mcp"
     },
     "access-announcements": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/announcements/mcp"
     },
     "access-events": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/events/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/events/mcp"
     },
     "access-affinity-groups": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/sse"]
+      "type": "streamable-http",
+      "url": "https://mcp.access-ci.org/affinity-groups/mcp"
     }
   }
 }
@@ -106,8 +106,11 @@ Copy and paste this configuration:
 
 ```json
 "access-xdmod-data": {
-  "command": "npx",
-  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse", "--header", "X-XDMoD-Token:your-token-here"]
+  "type": "streamable-http",
+  "url": "https://mcp.access-ci.org/xdmod-data/mcp",
+  "headers": {
+    "X-XDMoD-Token": "your-token-here"
+  }
 }
 ```
 
@@ -116,7 +119,7 @@ Copy and paste this configuration:
 Restart your AI tool and ask: *"What GPU resources are available on ACCESS-CI?"*
 
 ::: tip No Server Installation Required
-The hosted servers handle everything — you don't need to install or run the MCP servers locally. You just need an MCP-compatible AI client and [Node.js](https://nodejs.org/) (which includes npm for the `mcp-remote` bridge).
+The hosted servers handle everything — you just need an MCP-compatible AI client like Claude Desktop. No additional software required.
 :::
 
 ---

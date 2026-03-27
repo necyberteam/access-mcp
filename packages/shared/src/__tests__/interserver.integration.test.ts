@@ -112,20 +112,24 @@ describe("Inter-server Communication Integration Tests", () => {
     });
   });
 
-  describe("SSE Endpoint", () => {
-    it("should accept SSE connections on /sse", async () => {
+  describe("Streamable HTTP Endpoint", () => {
+    it("should accept initialize request on /mcp", async () => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000);
 
       try {
-        const response = await fetch(`${NSF_URL}/sse`, {
+        const response = await fetch(`${NSF_URL}/mcp`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", method: "initialize", id: 1, params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1.0" } } }),
           signal: controller.signal,
         });
 
         expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toContain("text/event-stream");
       } catch (e: unknown) {
-        // AbortError is expected
         if (e instanceof Error && e.name !== "AbortError") {
           throw e;
         }

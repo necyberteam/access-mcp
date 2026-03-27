@@ -27,11 +27,11 @@ class XDMoDPythonServer(BaseAccessServer):
 
     @property
     def api_token(self) -> str | None:
-        """Get the effective API token: per-session header takes priority over env var"""
-        if self._current_session_id:
-            session_token = self.get_session_header(self._current_session_id, "X-XDMoD-Token")
-            if session_token:
-                return session_token
+        """Get the effective API token: per-request header takes priority over env var"""
+        from .base_server import get_request_header
+        request_token = get_request_header("x-xdmod-token")
+        if request_token:
+            return request_token
         return self._env_api_token
     
     def get_tools(self) -> List[Tool]:

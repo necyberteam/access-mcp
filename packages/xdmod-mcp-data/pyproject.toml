@@ -26,12 +26,13 @@ classifiers = [
     "Topic :: System :: Distributed Computing",
 ]
 dependencies = [
-    "mcp>=0.9.0",
+    "mcp>=1.14.0",
     "pandas>=2.0.0",
     "requests>=2.31.0",
     "numpy>=1.24.0",
     "xdmod-data>=1.0.0",
-    "aiohttp>=3.8.0",
+    "starlette>=0.27.0",
+    "uvicorn>=0.20.0",
     "python-dotenv>=1.0.0",
 ]
 
@@ -64,6 +65,7 @@ addopts = "-v"
 markers = [
     "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
 ]
+anyio_backend = "asyncio"
 
 [tool.mypy]
 python_version = "3.8"

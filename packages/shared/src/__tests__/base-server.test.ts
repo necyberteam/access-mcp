@@ -158,20 +158,24 @@ describe("BaseAccessServer HTTP Mode", () => {
     });
   });
 
-  describe("SSE endpoint", () => {
-    it("should accept SSE connections", async () => {
+  describe("Streamable HTTP endpoint", () => {
+    it("should accept initialize request on /mcp", async () => {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 1000);
+      const timeout = setTimeout(() => controller.abort(), 2000);
 
       try {
-        const response = await fetch(`${baseUrl}/sse`, {
+        const response = await fetch(`${baseUrl}/mcp`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json, text/event-stream",
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", method: "initialize", id: 1, params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1.0" } } }),
           signal: controller.signal,
         });
 
         expect(response.status).toBe(200);
-        expect(response.headers.get("content-type")).toContain("text/event-stream");
       } catch (e: unknown) {
-        // AbortError is expected when we timeout
         if (e instanceof Error && e.name !== "AbortError") {
           throw e;
         }
@@ -574,71 +578,75 @@ describe("API Key Authentication", () => {
     });
   });
 
-  describe("SSE messages endpoint with requireApiKey", () => {
-    it("should reject SSE messages without API key", async () => {
-      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+  describe("Streamable HTTP /mcp endpoint with requireApiKey", () => {
+    it("should reject POST without API key", async () => {
+      const response = await fetch(`${baseUrl}/mcp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ jsonrpc: "2.0", method: "initialize", id: 1, params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1.0" } } }),
       });
 
       expect(response.status).toBe(401);
+
       const data = await response.json();
       expect(data.error).toContain("Invalid or missing API key");
     });
 
-    it("should reject SSE messages with incorrect API key", async () => {
-      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+    it("should reject POST with incorrect API key", async () => {
+      const response = await fetch(`${baseUrl}/mcp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Api-Key": "wrong-key",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ jsonrpc: "2.0", method: "initialize", id: 1, params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1.0" } } }),
       });
 
       expect(response.status).toBe(401);
+
       const data = await response.json();
       expect(data.error).toContain("Invalid or missing API key");
     });
 
-    it("should accept SSE messages with correct API key (then 404 for missing session)", async () => {
-      const response = await fetch(`${baseUrl}/messages?sessionId=nonexistent`, {
+    it("should accept POST with correct API key for initialize", async () => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/event-stream",
+          "X-Api-Key": TEST_API_KEY,
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", method: "initialize", id: 1, params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1.0" } } }),
+      });
+
+      expect(response.status).toBe(200);
+    });
+
+    it("should reject non-initialize POST without session ID", async () => {
+      const response = await fetch(`${baseUrl}/mcp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Api-Key": TEST_API_KEY,
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ jsonrpc: "2.0", method: "tools/list", id: 1, params: {} }),
       });
 
-      // Should pass auth and hit the session-not-found check
-      expect(response.status).toBe(404);
-      const data = await response.json();
-      expect(data.error).toContain("Session not found");
+      expect(response.status).toBe(400);
     });
 
-    it("should allow SSE connection without API key", async () => {
-      const response = await fetch(`${baseUrl}/sse`);
-      // SSE endpoint should accept the connection (returns 200 with event stream)
-      expect(response.status).toBe(200);
-      expect(response.headers.get("content-type")).toContain("text/event-stream");
-      // Close the connection
-      response.body?.cancel();
-    });
-
-    it("should return 500 for SSE messages when MCP_API_KEY not configured", async () => {
+    it("should return 500 when MCP_API_KEY not configured", async () => {
       delete process.env.MCP_API_KEY;
 
-      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
+      const response = await fetch(`${baseUrl}/mcp`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "X-Api-Key": "some-key",
         },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ jsonrpc: "2.0", method: "initialize", id: 1, params: { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "test", version: "1.0" } } }),
       });
 
       expect(response.status).toBe(500);
