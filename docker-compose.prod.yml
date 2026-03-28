@@ -41,6 +41,10 @@ services:
       - CILOGON_CLIENT_ID=${CILOGON_CLIENT_ID}
       - CILOGON_CLIENT_SECRET=${CILOGON_CLIENT_SECRET}
       - OAUTH_EXTERNAL_BASE_URL=https://mcp.access-ci.org/auth
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
+      - HONEYCOMB_DATASET=${HONEYCOMB_DATASET:-access-ci-mcp}
     deploy:
       resources:
         limits:
