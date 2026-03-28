@@ -94,9 +94,9 @@ export class EventsServer extends BaseAccessServer {
     }
 
     throw new Error(
-      "Cannot get user events: No acting user specified.\n\n" +
-        "Either set the X-Acting-User header or the ACTING_USER environment variable " +
-        "to the ACCESS ID (e.g., username@access-ci.org)."
+      "Authentication required: No acting user specified.\n\n" +
+        "Please authenticate with your ACCESS-CI credentials to use this tool. " +
+        "If using Claude, add this server as an authenticated connector via Customize > Connectors."
     );
   }
 

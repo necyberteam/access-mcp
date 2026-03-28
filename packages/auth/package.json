@@ -1,0 +1,24 @@
+{
+  "name": "@access-mcp/auth",
+  "version": "0.1.0",
+  "description": "OAuth auth service for ACCESS-CI MCP servers (CILogon proxy)",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "access-mcp-auth": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "express": "^5.1.0",
+    "axios": "^1.7.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

@@ -828,9 +828,9 @@ Which would you like to do?`,
     }
 
     throw new Error(
-      "Cannot create announcement: No acting user specified.\n\n" +
-        "Either set the X-Acting-User header or the ACTING_USER environment variable " +
-        "to the ACCESS ID (e.g., username@access-ci.org) of the person creating the announcement."
+      "Authentication required: No acting user specified.\n\n" +
+        "Please authenticate with your ACCESS-CI credentials to use this tool. " +
+        "If using Claude, add this server as an authenticated connector via Customize > Connectors."
     );
   }
 

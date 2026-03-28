@@ -19,22 +19,11 @@ This repository contains MCP servers that provide programmatic access to:
 
 ### Try It Now (Hosted Servers)
 
-**Claude Code:**
-```bash
-claude mcp add access-compute-resources -s user -- npx mcp-remote https://mcp.access-ci.org/compute-resources/sse
-claude mcp add access-system-status -s user -- npx mcp-remote https://mcp.access-ci.org/system-status/sse
-claude mcp add access-software-discovery -s user -- npx mcp-remote https://mcp.access-ci.org/software-discovery/sse
-claude mcp add access-xdmod -s user -- npx mcp-remote https://mcp.access-ci.org/xdmod/sse
-claude mcp add access-allocations -s user -- npx mcp-remote https://mcp.access-ci.org/allocations/sse
-claude mcp add access-nsf-awards -s user -- npx mcp-remote https://mcp.access-ci.org/nsf-awards/sse
-claude mcp add access-announcements -s user -- npx mcp-remote https://mcp.access-ci.org/announcements/sse
-claude mcp add access-events -s user -- npx mcp-remote https://mcp.access-ci.org/events/sse
-claude mcp add access-affinity-groups -s user -- npx mcp-remote https://mcp.access-ci.org/affinity-groups/sse
-```
+**Claude Desktop / claude.ai:** Open **Customize** > **Connectors** > **Add custom connector** and paste a server URL (e.g., `https://mcp.access-ci.org/compute-resources/sse`). No software needed.
 
-**Claude Desktop:** See [full setup guide](https://mcp.access-ci.org/docs/getting-started) for config file instructions.
+**Claude Code:** See [full setup guide](https://mcp.access-ci.org/docs/getting-started) for CLI commands.
 
-Requires [Node.js](https://nodejs.org/) 20+. Restart and ask: *"What GPU resources are available on ACCESS-CI?"*
+See the [full setup guide](https://mcp.access-ci.org/docs/getting-started) for all server URLs. Then ask: *"What GPU resources are available on ACCESS-CI?"*
 
 ### Install Locally (npm)
 

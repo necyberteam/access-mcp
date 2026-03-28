@@ -295,6 +295,37 @@ export abstract class BaseAccessServer {
     this._httpServer = express();
     this._httpServer.use(express.json());
 
+    // Optional Bearer token extraction for OAuth-authenticated MCP clients.
+    // If a Bearer token is present, verify it via CILogon userinfo and
+    // populate RequestContext.actingUser. Never rejects — lets tools decide.
+    const oauthVerifyUrl = process.env.OAUTH_VERIFY_URL;
+    if (oauthVerifyUrl) {
+      this._httpServer.use(async (req: Request, _res: Response, next) => {
+        const authHeader = req.header("Authorization");
+        if (authHeader?.startsWith("Bearer ")) {
+          const token = authHeader.slice(7);
+          try {
+            const verifyResponse = await axios.post(
+              oauthVerifyUrl,
+              {},
+              { headers: { Authorization: `Bearer ${token}` }, timeout: 5000, validateStatus: () => true }
+            );
+            if (verifyResponse.status === 200 && verifyResponse.data?.extra?.eppn) {
+              const context: RequestContext = {
+                actingUser: verifyResponse.data.extra.eppn,
+                requestId: req.header("X-Request-ID") || randomUUID(),
+              };
+              return requestContextStorage.run(context, () => next());
+            }
+          } catch {
+            // Token verification failed — continue without identity
+            this.logger.debug("Bearer token verification failed, continuing unauthenticated");
+          }
+        }
+        next();
+      });
+    }
+
     // Health check endpoint
     this._httpServer.get("/health", (req: Request, res: Response) => {
       res.json({

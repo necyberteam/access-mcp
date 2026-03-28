@@ -47,32 +47,20 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 
 Connect your AI assistant to ACCESS-CI services in seconds. These servers work with any MCP-compatible client — Claude Desktop, VS Code, Cursor, Windsurf, and more.
 
+### Claude Desktop / claude.ai
+
+1. Open **Customize** > **Connectors** > **Add custom connector**
+2. Paste a server URL (e.g., `https://mcp.access-ci.org/compute-resources/sse`)
+3. Repeat for each server — see the [**Getting Started guide**](/getting-started) for all URLs
+
+No software to install. Ask: *"What GPU resources are available on ACCESS-CI?"*
+
 ### Claude Code
 
-Add all servers with one command per server:
+See the [**Getting Started guide**](/getting-started) for CLI setup commands.
 
-```bash
-claude mcp add access-compute-resources -s user -- npx mcp-remote https://mcp.access-ci.org/compute-resources/sse
-claude mcp add access-system-status -s user -- npx mcp-remote https://mcp.access-ci.org/system-status/sse
-claude mcp add access-software-discovery -s user -- npx mcp-remote https://mcp.access-ci.org/software-discovery/sse
-claude mcp add access-xdmod -s user -- npx mcp-remote https://mcp.access-ci.org/xdmod/sse
-claude mcp add access-allocations -s user -- npx mcp-remote https://mcp.access-ci.org/allocations/sse
-claude mcp add access-nsf-awards -s user -- npx mcp-remote https://mcp.access-ci.org/nsf-awards/sse
-claude mcp add access-announcements -s user -- npx mcp-remote https://mcp.access-ci.org/announcements/sse
-claude mcp add access-events -s user -- npx mcp-remote https://mcp.access-ci.org/events/sse
-claude mcp add access-affinity-groups -s user -- npx mcp-remote https://mcp.access-ci.org/affinity-groups/sse
-```
-
-### Claude Desktop
-
-See the [**Getting Started guide**](/getting-started) for Claude Desktop configuration.
-
-### Restart and Ask
-
-Restart your AI tool and ask: *"What GPU resources are available on ACCESS-CI?"*
-
-::: tip
-Requires [Node.js](https://nodejs.org/) 20 or later.
+::: tip No Installation Required
+Just add the server URLs as connectors — no Node.js, no config files.
 :::
 
 ---

@@ -4,9 +4,31 @@ Connect your AI assistant to ACCESS-CI services and start exploring cyberinfrast
 
 ## Quick Start (Recommended)
 
-Use our hosted servers — no installation required. Just configure your AI tool to connect.
+Use our hosted servers — no installation required.
 
-### Claude Code
+### Claude Desktop / claude.ai (Recommended)
+
+Add ACCESS servers as connectors — no software to install:
+
+1. Open **Customize** (palette icon) > **Connectors**
+2. Click **"Add custom connector"**
+3. Add each server URL:
+
+| Server | URL |
+|--------|-----|
+| Compute Resources | `https://mcp.access-ci.org/compute-resources/sse` |
+| System Status | `https://mcp.access-ci.org/system-status/sse` |
+| Software Discovery | `https://mcp.access-ci.org/software-discovery/sse` |
+| XDMoD | `https://mcp.access-ci.org/xdmod/sse` |
+| Allocations | `https://mcp.access-ci.org/allocations/sse` |
+| NSF Awards | `https://mcp.access-ci.org/nsf-awards/sse` |
+| Announcements | `https://mcp.access-ci.org/announcements/sse` |
+| Events | `https://mcp.access-ci.org/events/sse` |
+| Affinity Groups | `https://mcp.access-ci.org/affinity-groups/sse` |
+
+Leave OAuth fields blank — no authentication needed. Try asking: *"What GPU resources are available on ACCESS-CI?"*
+
+### Claude Code (CLI)
 
 Run these commands to add all servers:
 
@@ -22,68 +44,11 @@ claude mcp add access-events -s user -- npx mcp-remote https://mcp.access-ci.org
 claude mcp add access-affinity-groups -s user -- npx mcp-remote https://mcp.access-ci.org/affinity-groups/sse
 ```
 
-Restart Claude Code, then try asking: *"What GPU resources are available on ACCESS-CI?"*
-
-### Claude Desktop
-
-Download [Claude Desktop](https://claude.ai/download) if you don't have it, then open your config file:
-
-| Platform | Config File Location |
-|----------|---------------------|
-| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
-| Linux | `~/.config/Claude/claude_desktop_config.json` |
-
-Copy and paste this configuration:
-
-```json
-{
-  "mcpServers": {
-    "access-compute-resources": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/compute-resources/sse"]
-    },
-    "access-system-status": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/system-status/sse"]
-    },
-    "access-software-discovery": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/software-discovery/sse"]
-    },
-    "access-xdmod": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod/sse"]
-    },
-    "access-allocations": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/allocations/sse"]
-    },
-    "access-nsf-awards": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/sse"]
-    },
-    "access-announcements": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/sse"]
-    },
-    "access-events": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/events/sse"]
-    },
-    "access-affinity-groups": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/sse"]
-    }
-  }
-}
-```
-
-Requires [Node.js](https://nodejs.org/) 20 or later. Restart Claude Desktop, then try asking: *"What GPU resources are available on ACCESS-CI?"*
+Requires [Node.js](https://nodejs.org/) 20+. Restart Claude Code after adding.
 
 ### Other MCP Clients
 
-These servers work with any MCP-compatible client via `npx mcp-remote`. The connection URL pattern is:
+These servers work with any MCP-compatible client. The connection URL pattern is:
 
 ```
 https://mcp.access-ci.org/<server-name>/sse

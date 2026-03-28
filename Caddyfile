@@ -1,4 +1,32 @@
 mcp.access-ci.org {
+    # OAuth auth service
+    handle /auth/* {
+        uri strip_prefix /auth
+        reverse_proxy mcp-auth:3000
+    }
+
+    # OAuth endpoints advertised by metadata (SDK generates root-level paths)
+    handle /authorize {
+        reverse_proxy mcp-auth:3000
+    }
+    handle /token {
+        reverse_proxy mcp-auth:3000
+    }
+    handle /register {
+        reverse_proxy mcp-auth:3000
+    }
+    handle /revoke {
+        reverse_proxy mcp-auth:3000
+    }
+
+    # OAuth well-known endpoints (served by auth service for all servers)
+    handle /.well-known/oauth-protected-resource/* {
+        reverse_proxy mcp-auth:3000
+    }
+    handle /.well-known/oauth-authorization-server {
+        reverse_proxy mcp-auth:3000
+    }
+
     handle /compute-resources/* {
         uri strip_prefix /compute-resources
         reverse_proxy mcp-compute-resources:3000 {

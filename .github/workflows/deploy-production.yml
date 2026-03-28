@@ -37,6 +37,8 @@ jobs:
             dockerfile: Dockerfile.node
           - package: announcements
             dockerfile: Dockerfile.node
+          - package: auth
+            dockerfile: Dockerfile.node
           - package: events
             dockerfile: Dockerfile.node
           - package: jsm

@@ -27,6 +27,24 @@ services:
       - mcp-events
       - mcp-affinity-groups
       - mcp-jsm
+      - mcp-auth
+
+  # OAuth Auth Service
+  mcp-auth:
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/auth:latest
+    ports:
+      - "3013:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - CILOGON_CLIENT_ID=${CILOGON_CLIENT_ID}
+      - CILOGON_CLIENT_SECRET=${CILOGON_CLIENT_SECRET}
+      - OAUTH_EXTERNAL_BASE_URL=https://mcp.access-ci.org/auth
+    deploy:
+      resources:
+        limits:
+          memory: 128M
 
   # TypeScript MCP Servers
   mcp-affinity-groups:
@@ -142,6 +160,7 @@ services:
       - DRUPAL_PASSWORD=${DRUPAL_PASSWORD}
       - MCP_API_KEY=${MCP_API_KEY}
       - MCP_PATH_PREFIX=/announcements
+      - OAUTH_VERIFY_URL=http://mcp-auth:3000/verify
     deploy:
       resources:
         limits:
@@ -160,6 +179,7 @@ services:
       - DRUPAL_PASSWORD=${DRUPAL_PASSWORD}
       - MCP_API_KEY=${MCP_API_KEY}
       - MCP_PATH_PREFIX=/events
+      - OAUTH_VERIFY_URL=http://mcp-auth:3000/verify
     deploy:
       resources:
         limits:
