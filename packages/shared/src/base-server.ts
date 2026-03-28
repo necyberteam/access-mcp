@@ -416,7 +416,10 @@ export abstract class BaseAccessServer {
     this._httpServer.get("/sse", async (req: Request, res: Response) => {
       this.logger.debug("New SSE connection");
 
-      const transport = new SSEServerTransport("/messages", res as unknown as ServerResponse);
+      // Use MCP_PATH_PREFIX env var to construct the correct messages path
+      // when behind a reverse proxy that strips path prefixes (e.g., Caddy).
+      const pathPrefix = process.env.MCP_PATH_PREFIX || "";
+      const transport = new SSEServerTransport(`${pathPrefix}/messages`, res as unknown as ServerResponse);
       const sessionId = transport.sessionId;
       this._sseTransports.set(sessionId, transport);
 
