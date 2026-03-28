@@ -37,16 +37,20 @@ app.use(express.urlencoded({ extended: true }));
 // Claude discovers OAuth by fetching /.well-known/oauth-protected-resource/<server-path>
 // from the server URL it was given. We serve this for all server paths,
 // pointing to our auth service as the authorization server.
-app.get("/.well-known/oauth-protected-resource/:path+", (req, res) => {
-  // Extract the resource path (e.g., /compute-resources/sse → compute-resources/sse)
-  const resourcePath = (req.params as Record<string, string>)["path+"];
-  res.json({
-    resource: `https://mcp.access-ci.org/${resourcePath}`,
-    authorization_servers: [EXTERNAL_BASE_URL],
-    scopes_supported: ["openid", "email", "org.cilogon.userinfo"],
-    resource_name: "ACCESS-CI MCP Servers",
-    resource_documentation: "https://mcp.access-ci.org/docs/",
-  });
+app.use((req, res, next) => {
+  const prefix = "/.well-known/oauth-protected-resource/";
+  if (req.method === "GET" && req.path.startsWith(prefix)) {
+    const resourcePath = req.path.slice(prefix.length);
+    res.json({
+      resource: `https://mcp.access-ci.org/${resourcePath}`,
+      authorization_servers: [EXTERNAL_BASE_URL],
+      scopes_supported: ["openid", "email", "org.cilogon.userinfo"],
+      resource_name: "ACCESS-CI MCP Servers",
+      resource_documentation: "https://mcp.access-ci.org/docs/",
+    });
+    return;
+  }
+  next();
 });
 
 // Health check
