@@ -37,9 +37,9 @@ app.use(express.urlencoded({ extended: true }));
 // Claude discovers OAuth by fetching /.well-known/oauth-protected-resource/<server-path>
 // from the server URL it was given. We serve this for all server paths,
 // pointing to our auth service as the authorization server.
-app.get("/.well-known/oauth-protected-resource/*", (req, res) => {
+app.get("/.well-known/oauth-protected-resource/:path+", (req, res) => {
   // Extract the resource path (e.g., /compute-resources/sse → compute-resources/sse)
-  const resourcePath = req.path.replace("/.well-known/oauth-protected-resource/", "");
+  const resourcePath = (req.params as Record<string, string>)["path+"];
   res.json({
     resource: `https://mcp.access-ci.org/${resourcePath}`,
     authorization_servers: [EXTERNAL_BASE_URL],
