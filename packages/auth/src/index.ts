@@ -34,6 +34,12 @@ app.set("trust proxy", 1); // Behind Caddy reverse proxy
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Request logging
+app.use((req, _res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
+
 // Protected resource metadata for all MCP servers.
 // Claude discovers OAuth by fetching /.well-known/oauth-protected-resource/<server-path>
 // from the server URL it was given. We serve this for all server paths,
