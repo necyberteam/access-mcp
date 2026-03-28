@@ -94,14 +94,19 @@ app.post("/verify", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
+      console.log("POST /verify - no Bearer token");
       res.status(401).json({ error: "Missing Bearer token" });
       return;
     }
 
     const token = authHeader.slice(7);
+    console.log(`POST /verify - token: ${token.substring(0, 20)}...`);
     const authInfo = await provider.verifyAccessToken(token);
+    console.log(`POST /verify - verified: ${JSON.stringify(authInfo.extra)}`);
     res.json(authInfo);
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.log(`POST /verify - failed: ${msg}`);
     res.status(401).json({ error: "Invalid token" });
   }
 });
