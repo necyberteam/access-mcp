@@ -6,20 +6,20 @@ Connect your AI assistant to ACCESS-CI services and start exploring cyberinfrast
 
 Use our hosted servers — no installation required. Just configure your AI tool to connect.
 
-### Claude Code (CLI)
+### Claude Code
 
-Run these commands to add all servers globally:
+Run these commands to add all servers:
 
 ```bash
-claude mcp add access-compute-resources --transport sse https://mcp.access-ci.org/compute-resources/sse -s user
-claude mcp add access-system-status --transport sse https://mcp.access-ci.org/system-status/sse -s user
-claude mcp add access-software-discovery --transport sse https://mcp.access-ci.org/software-discovery/sse -s user
-claude mcp add access-xdmod --transport sse https://mcp.access-ci.org/xdmod/sse -s user
-claude mcp add access-allocations --transport sse https://mcp.access-ci.org/allocations/sse -s user
-claude mcp add access-nsf-awards --transport sse https://mcp.access-ci.org/nsf-awards/sse -s user
-claude mcp add access-announcements --transport sse https://mcp.access-ci.org/announcements/sse -s user
-claude mcp add access-events --transport sse https://mcp.access-ci.org/events/sse -s user
-claude mcp add access-affinity-groups --transport sse https://mcp.access-ci.org/affinity-groups/sse -s user
+claude mcp add access-compute-resources -s user -- npx mcp-remote https://mcp.access-ci.org/compute-resources/sse
+claude mcp add access-system-status -s user -- npx mcp-remote https://mcp.access-ci.org/system-status/sse
+claude mcp add access-software-discovery -s user -- npx mcp-remote https://mcp.access-ci.org/software-discovery/sse
+claude mcp add access-xdmod -s user -- npx mcp-remote https://mcp.access-ci.org/xdmod/sse
+claude mcp add access-allocations -s user -- npx mcp-remote https://mcp.access-ci.org/allocations/sse
+claude mcp add access-nsf-awards -s user -- npx mcp-remote https://mcp.access-ci.org/nsf-awards/sse
+claude mcp add access-announcements -s user -- npx mcp-remote https://mcp.access-ci.org/announcements/sse
+claude mcp add access-events -s user -- npx mcp-remote https://mcp.access-ci.org/events/sse
+claude mcp add access-affinity-groups -s user -- npx mcp-remote https://mcp.access-ci.org/affinity-groups/sse
 ```
 
 Restart Claude Code, then try asking: *"What GPU resources are available on ACCESS-CI?"*
@@ -40,50 +40,50 @@ Copy and paste this configuration:
 {
   "mcpServers": {
     "access-compute-resources": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/compute-resources/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/compute-resources/sse"]
     },
     "access-system-status": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/system-status/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/system-status/sse"]
     },
     "access-software-discovery": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/software-discovery/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/software-discovery/sse"]
     },
     "access-xdmod": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/xdmod/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod/sse"]
     },
     "access-allocations": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/allocations/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/allocations/sse"]
     },
     "access-nsf-awards": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/nsf-awards/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/sse"]
     },
     "access-announcements": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/announcements/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/sse"]
     },
     "access-events": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/events/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/events/sse"]
     },
     "access-affinity-groups": {
-      "type": "sse",
-      "url": "https://mcp.access-ci.org/affinity-groups/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/sse"]
     }
   }
 }
 ```
 
-No additional software required. Restart Claude Desktop, then try asking: *"What GPU resources are available on ACCESS-CI?"*
+Requires [Node.js](https://nodejs.org/) 20 or later. Restart Claude Desktop, then try asking: *"What GPU resources are available on ACCESS-CI?"*
 
 ### Other MCP Clients
 
-These servers work with any MCP-compatible client. The SSE connection URL pattern is:
+These servers work with any MCP-compatible client via `npx mcp-remote`. The connection URL pattern is:
 
 ```
 https://mcp.access-ci.org/<server-name>/sse
@@ -121,10 +121,10 @@ To set it up:
 
 **Claude Code:**
 ```bash
-claude mcp add access-xdmod-data --transport sse https://mcp.access-ci.org/xdmod-data/sse --header "X-XDMoD-Token:your-token-here" -s user
+claude mcp add access-xdmod-data -s user -- npx mcp-remote https://mcp.access-ci.org/xdmod-data/sse --header "X-XDMoD-Token:your-token-here"
 ```
 
-**Claude Desktop** — XDMoD Data requires a custom header for your API token, which Claude Desktop's SSE config doesn't support directly. Use `npx mcp-remote` instead:
+**Claude Desktop** — add this to your `mcpServers` config:
 ```json
 "access-xdmod-data": {
   "command": "npx",
@@ -192,8 +192,8 @@ Then configure Claude Desktop to use your local server:
 {
   "mcpServers": {
     "access-compute-resources-dev": {
-      "type": "sse",
-      "url": "http://localhost:3002/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "http://localhost:3002/sse"]
     }
   }
 }
@@ -244,8 +244,8 @@ Update the Claude Desktop config to point to your server:
 {
   "mcpServers": {
     "access-compute-resources": {
-      "type": "sse",
-      "url": "http://YOUR_SERVER_IP:3002/sse"
+      "command": "npx",
+      "args": ["mcp-remote", "http://YOUR_SERVER_IP:3002/sse"]
     }
   }
 }

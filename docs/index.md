@@ -47,20 +47,20 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 
 Connect your AI assistant to ACCESS-CI services in seconds. These servers work with any MCP-compatible client — Claude Desktop, VS Code, Cursor, Windsurf, and more.
 
-### Claude Code (CLI)
+### Claude Code
 
 Add all servers with one command per server:
 
 ```bash
-claude mcp add access-compute-resources --transport sse https://mcp.access-ci.org/compute-resources/sse -s user
-claude mcp add access-system-status --transport sse https://mcp.access-ci.org/system-status/sse -s user
-claude mcp add access-software-discovery --transport sse https://mcp.access-ci.org/software-discovery/sse -s user
-claude mcp add access-xdmod --transport sse https://mcp.access-ci.org/xdmod/sse -s user
-claude mcp add access-allocations --transport sse https://mcp.access-ci.org/allocations/sse -s user
-claude mcp add access-nsf-awards --transport sse https://mcp.access-ci.org/nsf-awards/sse -s user
-claude mcp add access-announcements --transport sse https://mcp.access-ci.org/announcements/sse -s user
-claude mcp add access-events --transport sse https://mcp.access-ci.org/events/sse -s user
-claude mcp add access-affinity-groups --transport sse https://mcp.access-ci.org/affinity-groups/sse -s user
+claude mcp add access-compute-resources -s user -- npx mcp-remote https://mcp.access-ci.org/compute-resources/sse
+claude mcp add access-system-status -s user -- npx mcp-remote https://mcp.access-ci.org/system-status/sse
+claude mcp add access-software-discovery -s user -- npx mcp-remote https://mcp.access-ci.org/software-discovery/sse
+claude mcp add access-xdmod -s user -- npx mcp-remote https://mcp.access-ci.org/xdmod/sse
+claude mcp add access-allocations -s user -- npx mcp-remote https://mcp.access-ci.org/allocations/sse
+claude mcp add access-nsf-awards -s user -- npx mcp-remote https://mcp.access-ci.org/nsf-awards/sse
+claude mcp add access-announcements -s user -- npx mcp-remote https://mcp.access-ci.org/announcements/sse
+claude mcp add access-events -s user -- npx mcp-remote https://mcp.access-ci.org/events/sse
+claude mcp add access-affinity-groups -s user -- npx mcp-remote https://mcp.access-ci.org/affinity-groups/sse
 ```
 
 ### Claude Desktop
@@ -71,8 +71,8 @@ See the [**Getting Started guide**](/getting-started) for Claude Desktop configu
 
 Restart your AI tool and ask: *"What GPU resources are available on ACCESS-CI?"*
 
-::: tip No Server Installation Required
-The hosted servers handle everything — you just need an MCP-compatible AI client. No additional software required for Claude Code.
+::: tip
+Requires [Node.js](https://nodejs.org/) 20 or later.
 :::
 
 ---
