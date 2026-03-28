@@ -21,15 +21,15 @@ This repository contains MCP servers that provide programmatic access to:
 
 **Claude Code (CLI):**
 ```bash
-claude mcp add access-compute-resources --transport http https://mcp.access-ci.org/compute-resources/mcp -s user
-claude mcp add access-system-status --transport http https://mcp.access-ci.org/system-status/mcp -s user
-claude mcp add access-software-discovery --transport http https://mcp.access-ci.org/software-discovery/mcp -s user
-claude mcp add access-xdmod --transport http https://mcp.access-ci.org/xdmod/mcp -s user
-claude mcp add access-allocations --transport http https://mcp.access-ci.org/allocations/mcp -s user
-claude mcp add access-nsf-awards --transport http https://mcp.access-ci.org/nsf-awards/mcp -s user
-claude mcp add access-announcements --transport http https://mcp.access-ci.org/announcements/mcp -s user
-claude mcp add access-events --transport http https://mcp.access-ci.org/events/mcp -s user
-claude mcp add access-affinity-groups --transport http https://mcp.access-ci.org/affinity-groups/mcp -s user
+claude mcp add access-compute-resources --transport sse https://mcp.access-ci.org/compute-resources/sse -s user
+claude mcp add access-system-status --transport sse https://mcp.access-ci.org/system-status/sse -s user
+claude mcp add access-software-discovery --transport sse https://mcp.access-ci.org/software-discovery/sse -s user
+claude mcp add access-xdmod --transport sse https://mcp.access-ci.org/xdmod/sse -s user
+claude mcp add access-allocations --transport sse https://mcp.access-ci.org/allocations/sse -s user
+claude mcp add access-nsf-awards --transport sse https://mcp.access-ci.org/nsf-awards/sse -s user
+claude mcp add access-announcements --transport sse https://mcp.access-ci.org/announcements/sse -s user
+claude mcp add access-events --transport sse https://mcp.access-ci.org/events/sse -s user
+claude mcp add access-affinity-groups --transport sse https://mcp.access-ci.org/affinity-groups/sse -s user
 ```
 
 **Claude Desktop:** See [full setup guide](https://mcp.access-ci.org/docs/getting-started) for config file instructions.

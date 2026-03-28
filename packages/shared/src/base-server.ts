@@ -438,27 +438,10 @@ export abstract class BaseAccessServer {
     });
 
     // Legacy messages endpoint for SSE transport
+    // Note: No API key check here — SSE is for public MCP client connections.
+    // Write operations are protected by requiring ACTING_USER and Drupal auth server-side.
+    // The API key check on /tools/:toolName protects inter-server REST calls.
     this._httpServer.post("/messages", async (req: Request, res: Response) => {
-      if (this._requireApiKey) {
-        const expectedApiKey = process.env.MCP_API_KEY;
-        const providedApiKey = req.header("X-Api-Key");
-
-        if (!expectedApiKey) {
-          this.logger.error("MCP_API_KEY environment variable not set but requireApiKey is enabled");
-          res.status(500).json({ error: "Server misconfiguration: API key not configured" });
-          return;
-        }
-
-        if (!providedApiKey || providedApiKey !== expectedApiKey) {
-          this.logger.warn("Unauthorized SSE message attempt", {
-            sessionId: req.query.sessionId,
-            hasKey: !!providedApiKey,
-          });
-          res.status(401).json({ error: "Invalid or missing API key. This server requires authentication for tool execution." });
-          return;
-        }
-      }
-
       const sessionId = req.query.sessionId as string;
       const transport = this._sseTransports.get(sessionId);
 

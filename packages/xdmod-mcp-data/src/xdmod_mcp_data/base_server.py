@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 import uvicorn
 from mcp.server.lowlevel import Server
+from mcp.server.sse import SseServerTransport
 from mcp.server.stdio import stdio_server
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
 from mcp.types import Tool, TextContent
@@ -178,6 +179,39 @@ class BaseAccessServer(ABC):
                     status_code=500
                 )
 
+        # Legacy SSE transport for clients that don't support Streamable HTTP.
+        # Note: Per-request header propagation (e.g., X-XDMoD-Token) does NOT work
+        # over SSE — headers arrive on separate GET/POST requests. Use Streamable HTTP
+        # or the REST /tools/:toolName endpoint for token-authenticated access.
+        path_prefix = os.environ.get("MCP_PATH_PREFIX", "")
+        sse_transport = SseServerTransport(f"{path_prefix}/messages")
+
+        async def sse_handler(request: Request):
+            async with sse_transport.connect_sse(
+                request.scope, request.receive, request._send
+            ) as streams:
+                sse_server = Server(self.server_name)
+                tools = self.get_tools()
+
+                @sse_server.list_tools()
+                async def _list_tools():
+                    return tools
+
+                @sse_server.call_tool()
+                async def _handle_call(name: str, arguments: Dict[str, Any]):
+                    return await self.handle_tool_call(name, arguments)
+
+                await sse_server.run(
+                    streams[0], streams[1],
+                    sse_server.create_initialization_options(),
+                )
+            return Response()
+
+        async def sse_messages_handler(request: Request):
+            await sse_transport.handle_post_message(
+                request.scope, request.receive, request._send
+            )
+
         @contextlib.asynccontextmanager
         async def lifespan(app: Starlette) -> AsyncIterator[None]:
             async with self._session_manager.run():
@@ -189,6 +223,8 @@ class BaseAccessServer(ABC):
             routes=[
                 Route('/health', health, methods=['GET']),
                 Mount('/mcp', app=mcp_asgi_app),
+                Route('/sse', sse_handler, methods=['GET']),
+                Route('/messages', sse_messages_handler, methods=['POST']),
                 Route('/tools', list_tools, methods=['GET']),
                 Route('/tools/{tool_name}', execute_tool, methods=['POST']),
             ],

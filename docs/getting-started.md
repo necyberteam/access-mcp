@@ -11,15 +11,15 @@ Use our hosted servers — no installation required. Just configure your AI tool
 Run these commands to add all servers globally:
 
 ```bash
-claude mcp add access-compute-resources --transport http https://mcp.access-ci.org/compute-resources/mcp -s user
-claude mcp add access-system-status --transport http https://mcp.access-ci.org/system-status/mcp -s user
-claude mcp add access-software-discovery --transport http https://mcp.access-ci.org/software-discovery/mcp -s user
-claude mcp add access-xdmod --transport http https://mcp.access-ci.org/xdmod/mcp -s user
-claude mcp add access-allocations --transport http https://mcp.access-ci.org/allocations/mcp -s user
-claude mcp add access-nsf-awards --transport http https://mcp.access-ci.org/nsf-awards/mcp -s user
-claude mcp add access-announcements --transport http https://mcp.access-ci.org/announcements/mcp -s user
-claude mcp add access-events --transport http https://mcp.access-ci.org/events/mcp -s user
-claude mcp add access-affinity-groups --transport http https://mcp.access-ci.org/affinity-groups/mcp -s user
+claude mcp add access-compute-resources --transport sse https://mcp.access-ci.org/compute-resources/sse -s user
+claude mcp add access-system-status --transport sse https://mcp.access-ci.org/system-status/sse -s user
+claude mcp add access-software-discovery --transport sse https://mcp.access-ci.org/software-discovery/sse -s user
+claude mcp add access-xdmod --transport sse https://mcp.access-ci.org/xdmod/sse -s user
+claude mcp add access-allocations --transport sse https://mcp.access-ci.org/allocations/sse -s user
+claude mcp add access-nsf-awards --transport sse https://mcp.access-ci.org/nsf-awards/sse -s user
+claude mcp add access-announcements --transport sse https://mcp.access-ci.org/announcements/sse -s user
+claude mcp add access-events --transport sse https://mcp.access-ci.org/events/sse -s user
+claude mcp add access-affinity-groups --transport sse https://mcp.access-ci.org/affinity-groups/sse -s user
 ```
 
 Restart Claude Code, then try asking: *"What GPU resources are available on ACCESS-CI?"*
@@ -34,59 +34,59 @@ Download [Claude Desktop](https://claude.ai/download) if you don't have it, then
 | Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
 | Linux | `~/.config/Claude/claude_desktop_config.json` |
 
-Copy and paste this configuration (requires [Node.js](https://nodejs.org/)):
+Copy and paste this configuration:
 
 ```json
 {
   "mcpServers": {
     "access-compute-resources": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/compute-resources/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/compute-resources/sse"
     },
     "access-system-status": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/system-status/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/system-status/sse"
     },
     "access-software-discovery": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/software-discovery/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/software-discovery/sse"
     },
     "access-xdmod": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/xdmod/sse"
     },
     "access-allocations": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/allocations/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/allocations/sse"
     },
     "access-nsf-awards": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/nsf-awards/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/nsf-awards/sse"
     },
     "access-announcements": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/announcements/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/announcements/sse"
     },
     "access-events": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/events/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/events/sse"
     },
     "access-affinity-groups": {
-      "command": "npx",
-      "args": ["mcp-remote", "https://mcp.access-ci.org/affinity-groups/mcp"]
+      "type": "sse",
+      "url": "https://mcp.access-ci.org/affinity-groups/sse"
     }
   }
 }
 ```
 
-Restart Claude Desktop, then try asking: *"What GPU resources are available on ACCESS-CI?"*
+No additional software required. Restart Claude Desktop, then try asking: *"What GPU resources are available on ACCESS-CI?"*
 
 ### Other MCP Clients
 
-These servers work with any MCP-compatible client. The connection URL pattern is:
+These servers work with any MCP-compatible client. The SSE connection URL pattern is:
 
 ```
-https://mcp.access-ci.org/<server-name>/mcp
+https://mcp.access-ci.org/<server-name>/sse
 ```
 
 ## Available Servers
@@ -95,16 +95,16 @@ All servers are hosted at `https://mcp.access-ci.org`:
 
 | Server | Endpoint | Description |
 |--------|----------|-------------|
-| Compute Resources | `/compute-resources/mcp` | Hardware specifications and capabilities |
-| System Status | `/system-status/mcp` | Outages and maintenance schedules |
-| Software Discovery | `/software-discovery/mcp` | Software packages across resources |
-| XDMoD | `/xdmod/mcp` | Usage statistics, visualizations, and metadata discovery |
-| Allocations | `/allocations/mcp` | Research projects and allocations |
-| NSF Awards | `/nsf-awards/mcp` | NSF funding data |
-| XDMoD Data | `/xdmod-data/mcp` | Data analytics for jobs, allocations, cloud usage, and resource metrics (requires API token) |
-| Announcements | `/announcements/mcp` | Community news and updates |
-| Events | `/events/mcp` | Workshops, webinars, training |
-| Affinity Groups | `/affinity-groups/mcp` | Community groups and knowledge base |
+| Compute Resources | `/compute-resources/sse` | Hardware specifications and capabilities |
+| System Status | `/system-status/sse` | Outages and maintenance schedules |
+| Software Discovery | `/software-discovery/sse` | Software packages across resources |
+| XDMoD | `/xdmod/sse` | Usage statistics, visualizations, and metadata discovery |
+| Allocations | `/allocations/sse` | Research projects and allocations |
+| NSF Awards | `/nsf-awards/sse` | NSF funding data |
+| XDMoD Data | `/xdmod-data/sse` | Data analytics for jobs, allocations, cloud usage, and resource metrics (requires API token) |
+| Announcements | `/announcements/sse` | Community news and updates |
+| Events | `/events/sse` | Workshops, webinars, training |
+| Affinity Groups | `/affinity-groups/sse` | Community groups and knowledge base |
 
 All endpoints are at `https://mcp.access-ci.org`.
 
@@ -121,14 +121,14 @@ To set it up:
 
 **Claude Code:**
 ```bash
-claude mcp add access-xdmod-data --transport http https://mcp.access-ci.org/xdmod-data/mcp --header "X-XDMoD-Token:your-token-here" -s user
+claude mcp add access-xdmod-data --transport sse https://mcp.access-ci.org/xdmod-data/sse --header "X-XDMoD-Token:your-token-here" -s user
 ```
 
-**Claude Desktop** — add this to your `mcpServers` config:
+**Claude Desktop** — XDMoD Data requires a custom header for your API token, which Claude Desktop's SSE config doesn't support directly. Use `npx mcp-remote` instead:
 ```json
 "access-xdmod-data": {
   "command": "npx",
-  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/mcp", "--header", "X-XDMoD-Token:your-token-here"]
+  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse", "--header", "X-XDMoD-Token:your-token-here"]
 }
 ```
 
@@ -192,8 +192,8 @@ Then configure Claude Desktop to use your local server:
 {
   "mcpServers": {
     "access-compute-resources-dev": {
-      "type": "streamable-http",
-      "url": "http://localhost:3002/mcp"
+      "type": "sse",
+      "url": "http://localhost:3002/sse"
     }
   }
 }
@@ -244,8 +244,8 @@ Update the Claude Desktop config to point to your server:
 {
   "mcpServers": {
     "access-compute-resources": {
-      "type": "streamable-http",
-      "url": "http://YOUR_SERVER_IP:3002/mcp"
+      "type": "sse",
+      "url": "http://YOUR_SERVER_IP:3002/sse"
     }
   }
 }

@@ -192,6 +192,7 @@ services:
       - PYTHONUNBUFFERED=1
       - XDMOD_API_TOKEN=${XDMOD_API_TOKEN}
       - PORT=3000
+      - MCP_PATH_PREFIX=/xdmod-data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s

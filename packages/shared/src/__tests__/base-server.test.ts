@@ -677,43 +677,7 @@ describe("API Key Authentication", () => {
     });
   });
 
-  describe("Legacy SSE /messages endpoint with requireApiKey", () => {
-    it("should reject messages without API key", async () => {
-      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-
-      expect(response.status).toBe(401);
-      const data = await response.json();
-      expect(data.error).toContain("Invalid or missing API key");
-    });
-
-    it("should reject messages with incorrect API key", async () => {
-      const response = await fetch(`${baseUrl}/messages?sessionId=test-session`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Api-Key": "wrong-key" },
-        body: JSON.stringify({}),
-      });
-
-      expect(response.status).toBe(401);
-      const data = await response.json();
-      expect(data.error).toContain("Invalid or missing API key");
-    });
-
-    it("should accept messages with correct API key (then 404 for missing session)", async () => {
-      const response = await fetch(`${baseUrl}/messages?sessionId=nonexistent`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Api-Key": TEST_API_KEY },
-        body: JSON.stringify({}),
-      });
-
-      expect(response.status).toBe(404);
-      const data = await response.json();
-      expect(data.error).toContain("Session not found");
-    });
-
+  describe("Legacy SSE endpoints with requireApiKey server", () => {
     it("should allow SSE connection without API key", async () => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 1000);
@@ -728,6 +692,18 @@ describe("API Key Authentication", () => {
       } finally {
         clearTimeout(timeout);
       }
+    });
+
+    it("should allow messages without API key (returns 404 for missing session)", async () => {
+      const response = await fetch(`${baseUrl}/messages?sessionId=nonexistent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      expect(response.status).toBe(404);
+      const data = await response.json();
+      expect(data.error).toContain("Session not found");
     });
   });
 });
