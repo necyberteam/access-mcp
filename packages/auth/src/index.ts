@@ -30,6 +30,7 @@ const provider = new CILogonOAuthProvider({
 });
 
 const app = express();
+app.set("trust proxy", 1); // Behind Caddy reverse proxy
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
