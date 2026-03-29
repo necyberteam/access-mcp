@@ -226,8 +226,13 @@ export class CILogonOAuthProvider implements OAuthServerProvider {
       }).toString(),
       {
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        validateStatus: () => true,
       }
     );
+
+    if (tokenResponse.status !== 200) {
+      throw new Error("Refresh token expired or invalid. Please re-authenticate.");
+    }
 
     return {
       access_token: tokenResponse.data.access_token,
