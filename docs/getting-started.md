@@ -26,7 +26,9 @@ Add ACCESS servers as connectors — no software to install:
 | Events | `https://mcp.access-ci.org/events/sse` |
 | Affinity Groups | `https://mcp.access-ci.org/affinity-groups/sse` |
 
-Leave OAuth fields blank — no authentication needed. Try asking: *"What GPU resources are available on ACCESS-CI?"*
+All servers work without authentication for browsing and searching. When you add a connector, Claude will prompt you to log in with your ACCESS credentials via CILogon — this enables tools that create or manage content (announcements, events). You can skip authentication if you only need read-only access.
+
+Try asking: *"What GPU resources are available on ACCESS-CI?"*
 
 ### Claude Code (CLI)
 
