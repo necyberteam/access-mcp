@@ -80,7 +80,25 @@ app.get("/callback", async (req, res) => {
     }
 
     const { redirectUri } = await provider.handleCallback(code, state);
-    res.redirect(redirectUri);
+
+    // Serve an ACCESS-branded success page that redirects
+    res.send(`<!DOCTYPE html>
+<html><head>
+<title>ACCESS-CI Authentication</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body style="font-family:'Archivo',system-ui,sans-serif;display:flex;justify-content:center;align-items:center;height:100vh;margin:0;background:#fff">
+<div style="text-align:center;max-width:480px;padding:2rem">
+<div style="margin-bottom:1.5rem">
+  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#008597" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+</div>
+<h2 style="color:#232323;font-weight:700;margin:0 0 0.5rem">Successfully Authenticated</h2>
+<p style="color:#3f3f3f;margin:0 0 1.5rem">You're now connected to ACCESS-CI MCP services.</p>
+<p style="color:#707070;font-size:14px;margin:0">Redirecting back to your AI assistant...<br>You can close this tab if it doesn't close automatically.</p>
+</div>
+<script>setTimeout(function(){window.location.href = ${JSON.stringify(redirectUri)};}, 1500);</script>
+</body></html>`);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unknown error";
