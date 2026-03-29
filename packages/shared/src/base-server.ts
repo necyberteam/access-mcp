@@ -310,9 +310,11 @@ export abstract class BaseAccessServer {
               {},
               { headers: { Authorization: `Bearer ${token}` }, timeout: 5000, validateStatus: () => true }
             );
-            if (verifyResponse.status === 200 && verifyResponse.data?.extra?.eppn) {
+            const extra = verifyResponse.data?.extra;
+            if (verifyResponse.status === 200 && extra && (extra.sub || extra.eppn || extra.email)) {
               const context: RequestContext = {
-                actingUser: verifyResponse.data.extra.eppn,
+                // With ACCESS OIDC config, sub is the ACCESS ID (user@access-ci.org)
+                actingUser: extra.sub || extra.eppn || extra.email,
                 requestId: req.header("X-Request-ID") || randomUUID(),
               };
               return requestContextStorage.run(context, () => next());

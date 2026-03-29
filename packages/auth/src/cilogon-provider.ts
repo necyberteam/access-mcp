@@ -262,6 +262,7 @@ export class CILogonOAuthProvider implements OAuthServerProvider {
     }
 
     const userinfo = response.data;
+    console.log("CILogon userinfo response:", JSON.stringify(userinfo));
     const authInfo: AuthInfo = {
       token,
       clientId: userinfo.sub || "unknown",
