@@ -232,12 +232,12 @@ export class AnnouncementsServer extends BaseAccessServer {
         description: `Create a new ACCESS announcement (saved as draft for staff review).
 
 BEFORE CALLING:
-1. Call get_announcement_context first to get tags, check coordinator status, and tailor the conversation.
+1. Call get_announcement_context to check coordinator status.
 2. Gather information - either conversationally OR by parsing pasted content:
    - title (required): Clear, specific headline
    - body (required): Full content with details, dates, links. HTML supported.
    - summary (required): 1-2 sentence teaser for listings
-   - tags (recommended): 1-6 tags help users find it
+   - tags (required): Call suggest_tags with the body text to get tag suggestions, then include them
    - affiliation (optional): "ACCESS Collaboration" or "Community" (default)
    - external_link (if relevant): URL and link text for external references
 3. IF user is a coordinator (check get_announcement_context response):
@@ -248,19 +248,22 @@ WORKFLOW:
 If user pastes content (event description, draft text, etc.):
 1. Call get_announcement_context
 2. Parse the pasted content to extract title, body, dates, links, etc.
-3. Match content to available tags from context
-4. Ask only about missing/unclear fields
-5. If coordinator: ask about affinity group and where to share
-6. Show preview and get confirmation
-7. Create the announcement
+3. Call suggest_tags with the body text — include returned tag names in the tags parameter
+4. Call suggest_summary with the body text if no summary provided
+5. Ask only about missing/unclear fields
+6. If coordinator: ask about affinity group and where to share
+7. Show preview (including tags) and get confirmation
+8. Create the announcement with ALL fields including tags
 
 If user describes what they want conversationally:
 1. Call get_announcement_context
 2. Guide them through providing title, body, summary
-3. Suggest relevant tags from context
+3. Call suggest_tags with the body text — include returned tag names in the tags parameter
 4. If coordinator: ask about affinity group and where to share
-5. Show preview and get confirmation
-6. Create the announcement
+5. Show preview (including tags) and get confirmation
+6. Create the announcement with ALL fields including tags
+
+IMPORTANT: Always pass the tags parameter when creating. Tags from suggest_tags are tag names (strings) — pass them as the tags array.
 
 PREVIEW FORMAT (show before creating):
 ---
@@ -304,7 +307,7 @@ ALWAYS display the edit_url to the user so they can review their draft in Drupal
               type: "array",
               items: { type: "string" },
               description:
-                "Tag names (1-6 required for publication). Use list_available_tags to find valid tags.",
+                'Tag names as strings, e.g. ["ai", "machine-learning", "gpu"]. Get these from the "name" field in suggest_tags response.',
             },
             affiliation: {
               type: "string",
@@ -471,7 +474,7 @@ Does NOT return tags — use suggest_tags after the user provides content.`,
       },
       {
         name: "suggest_tags",
-        description: `Suggest relevant tags for announcement content. Call this AFTER the user provides their announcement body text. Returns up to 6 AI-suggested tags based on the content. The user can accept, remove, or request different tags.`,
+        description: `Suggest relevant tags for announcement content. Call this AFTER the user provides their announcement body text. Returns {tags: [{tid, name, uuid}]}. Pass the "name" values as the tags array when calling create_announcement or update_announcement.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -878,8 +881,10 @@ Which would you like to do?`,
     }
 
     // Look up tag UUIDs if tags provided
+    const unmatchedTags: string[] = [];
     if (args.tags && args.tags.length > 0) {
-      const tagUuids = await this.getTagUuidsByName(args.tags);
+      const { uuids: tagUuids, unmatched } = await this.resolveTagNames(args.tags);
+      unmatchedTags.push(...unmatched);
       if (tagUuids.length > 0) {
         requestBody.data.relationships!.field_tags = {
           data: tagUuids.map((uuid) => ({
@@ -924,17 +929,23 @@ Which would you like to do?`,
 
     const result = await auth.post("/jsonapi/node/access_news", requestBody);
 
+    const response: Record<string, unknown> = {
+      success: true,
+      message: "Announcement created (draft status)",
+      uuid: result.data?.id,
+      title: result.data?.attributes?.title,
+      edit_url: `${process.env.DRUPAL_API_URL}/node/${result.data?.attributes?.drupal_internal__nid}/edit`,
+    };
+
+    if (unmatchedTags.length > 0) {
+      response.warning = `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`;
+    }
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            success: true,
-            message: "Announcement created (draft status)",
-            uuid: result.data?.id,
-            title: result.data?.attributes?.title,
-            edit_url: `${process.env.DRUPAL_API_URL}/node/${result.data?.attributes?.drupal_internal__nid}/edit`,
-          }),
+          text: JSON.stringify(response),
         },
       ],
     };
@@ -979,8 +990,10 @@ Which would you like to do?`,
     }
 
     // Update tags if provided
+    const unmatchedTags: string[] = [];
     if (args.tags && args.tags.length > 0) {
-      const tagUuids = await this.getTagUuidsByName(args.tags);
+      const { uuids: tagUuids, unmatched } = await this.resolveTagNames(args.tags);
+      unmatchedTags.push(...unmatched);
       if (tagUuids.length > 0) {
         if (!requestBody.data.relationships) {
           requestBody.data.relationships = {};
@@ -1033,17 +1046,23 @@ Which would you like to do?`,
     const nid = result.data?.attributes?.drupal_internal__nid;
     const baseUrl = process.env.DRUPAL_API_URL;
 
+    const response: Record<string, unknown> = {
+      success: true,
+      message: "Announcement updated",
+      uuid: result.data?.id,
+      title: result.data?.attributes?.title,
+      edit_url: nid ? `${baseUrl}/node/${nid}/edit` : null,
+    };
+
+    if (unmatchedTags.length > 0) {
+      response.warning = `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`;
+    }
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            success: true,
-            message: "Announcement updated",
-            uuid: result.data?.id,
-            title: result.data?.attributes?.title,
-            edit_url: nid ? `${baseUrl}/node/${nid}/edit` : null,
-          }),
+          text: JSON.stringify(response),
         },
       ],
     };
@@ -1335,36 +1354,64 @@ Which would you like to do?`,
    */
   private async populateTagCache(): Promise<void> {
     const auth = this.getDrupalAuth();
-    const result = await auth.get("/jsonapi/taxonomy_term/tags?page[limit]=500");
+    try {
+      this.tagCache.clear();
+      let url: string | null = "/jsonapi/taxonomy_term/tags?page[limit]=50";
+      let pageCount = 0;
+      const MAX_PAGES = 100;
 
-    this.tagCache.clear();
-    for (const item of result.data || []) {
-      const name = item.attributes?.name?.toLowerCase();
-      if (name && item.id) {
-        this.tagCache.set(name, item.id);
+      while (url && pageCount < MAX_PAGES) {
+        pageCount++;
+        const result = await auth.get(url);
+        for (const item of result.data || []) {
+          const name = item.attributes?.name?.toLowerCase();
+          if (name && item.id) {
+            this.tagCache.set(name, item.id);
+          }
+        }
+        // Follow pagination links
+        const nextHref = result.links?.next?.href;
+        if (nextHref) {
+          try {
+            const parsed = new URL(nextHref);
+            url = parsed.pathname + parsed.search;
+          } catch {
+            url = nextHref; // Already a relative path
+          }
+        } else {
+          url = null;
+        }
       }
-    }
 
-    this.tagCacheExpiry = new Date(Date.now() + AnnouncementsServer.TAG_CACHE_TTL_MS);
+      this.logger.info("Tag cache populated", { count: this.tagCache.size });
+      this.tagCacheExpiry = new Date(Date.now() + AnnouncementsServer.TAG_CACHE_TTL_MS);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      this.logger.error("Failed to populate tag cache", { error: msg });
+      this.tagCache.clear(); // Don't leave partial data
+    }
   }
 
   /**
    * Get tag UUIDs by their names (with caching)
    */
-  private async getTagUuidsByName(tagNames: string[]): Promise<string[]> {
+  private async resolveTagNames(tagNames: string[]): Promise<{ uuids: string[]; unmatched: string[] }> {
     // Ensure cache is populated
     if (!this.isTagCacheValid()) {
       await this.populateTagCache();
     }
 
     const uuids: string[] = [];
+    const unmatched: string[] = [];
     for (const name of tagNames) {
       const uuid = this.tagCache.get(name.toLowerCase());
       if (uuid) {
         uuids.push(uuid);
+      } else {
+        unmatched.push(name);
       }
     }
 
-    return uuids;
+    return { uuids, unmatched };
   }
 }
