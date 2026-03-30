@@ -1,14 +1,14 @@
 # Getting Started
 
-Connect your AI assistant to ACCESS-CI services and start exploring cyberinfrastructure resources. These servers use the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), an open standard supported by Claude Desktop, VS Code, Cursor, Windsurf, and other AI tools.
+Connect your AI assistant to ACCESS-CI services and start exploring cyberinfrastructure resources. These servers use the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/), an open standard supported by Claude and other AI tools.
 
-## Quick Start (Recommended)
+## Quick Start
 
-Use our hosted servers — no installation required.
+Use our hosted servers — no installation required for Claude.
 
-### Claude Desktop / claude.ai (Recommended)
+### Claude Desktop / claude.ai
 
-Add ACCESS servers as connectors — no software to install:
+Add ACCESS servers as connectors:
 
 1. Open **Customize** (palette icon) > **Connectors**
 2. Click **"Add custom connector"**
@@ -32,7 +32,7 @@ Try asking: *"What GPU resources are available on ACCESS-CI?"*
 
 ### Claude Code (CLI)
 
-Run these commands to add all servers:
+Requires [Node.js](https://nodejs.org/) 20+. Run these commands to add all servers:
 
 ```bash
 claude mcp add access-compute-resources -s user -- npx mcp-remote https://mcp.access-ci.org/compute-resources/sse
@@ -46,11 +46,11 @@ claude mcp add access-events -s user -- npx mcp-remote https://mcp.access-ci.org
 claude mcp add access-affinity-groups -s user -- npx mcp-remote https://mcp.access-ci.org/affinity-groups/sse
 ```
 
-Requires [Node.js](https://nodejs.org/) 20+. Restart Claude Code after adding.
+Restart Claude Code after adding.
 
 ### Other MCP Clients
 
-These servers work with any MCP-compatible client. The connection URL pattern is:
+These servers are compatible with any client that supports the MCP standard. The connection URL pattern is:
 
 ```
 https://mcp.access-ci.org/<server-name>/sse

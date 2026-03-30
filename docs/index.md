@@ -45,7 +45,7 @@ Claude will query multiple MCP servers to provide comprehensive information abou
 
 ## Try It Now
 
-Connect your AI assistant to ACCESS-CI services in seconds. These servers work with any MCP-compatible client — Claude Desktop, VS Code, Cursor, Windsurf, and more.
+Connect your AI assistant to ACCESS-CI services in seconds.
 
 ### Claude Desktop / claude.ai
 
@@ -53,15 +53,13 @@ Connect your AI assistant to ACCESS-CI services in seconds. These servers work w
 2. Paste a server URL (e.g., `https://mcp.access-ci.org/compute-resources/sse`)
 3. Repeat for each server — see the [**Getting Started guide**](/getting-started) for all URLs
 
-No software to install. Ask: *"What GPU resources are available on ACCESS-CI?"*
+No software to install. Claude will offer to authenticate with your ACCESS credentials via CILogon for tools that manage content.
 
-### Claude Code
+Ask: *"What GPU resources are available on ACCESS-CI?"*
 
-See the [**Getting Started guide**](/getting-started) for CLI setup commands.
+### Claude Code / Other MCP Clients
 
-::: tip No Installation Required
-Just add the server URLs as connectors — no Node.js, no config files.
-:::
+See the [**Getting Started guide**](/getting-started) for setup commands and configuration.
 
 ---
 

@@ -21,9 +21,9 @@ This repository contains MCP servers that provide programmatic access to:
 
 **Claude Desktop / claude.ai:** Open **Customize** > **Connectors** > **Add custom connector** and paste a server URL (e.g., `https://mcp.access-ci.org/compute-resources/sse`). No software needed.
 
-**Claude Code:** See [full setup guide](https://mcp.access-ci.org/docs/getting-started) for CLI commands.
+**Claude Code / Other MCP clients:** See [full setup guide](https://mcp.access-ci.org/docs/getting-started) for all server URLs and CLI commands.
 
-See the [full setup guide](https://mcp.access-ci.org/docs/getting-started) for all server URLs. Then ask: *"What GPU resources are available on ACCESS-CI?"*
+Then ask: *"What GPU resources are available on ACCESS-CI?"*
 
 ### Install Locally (npm)
 
