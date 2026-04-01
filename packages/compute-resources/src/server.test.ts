@@ -28,15 +28,34 @@ describe("ComputeResourcesServer", () => {
     });
   });
 
+  const mockFeatures = [
+    { feature_id: 133, feature_name: "Cloud", feature_category_id: 100 },
+    { feature_id: 134, feature_name: "GPU Compute", feature_category_id: 100 },
+    { feature_id: 136, feature_name: "CPU Compute", feature_category_id: 100 },
+    { feature_id: 138, feature_name: "Storage", feature_category_id: 100 },
+    { feature_id: 139, feature_name: "ACCESS Allocated", feature_category_id: 101 },
+    { feature_id: 142, feature_name: "Large Memory Nodes", feature_category_id: 102 },
+    { feature_id: 397, feature_name: "Globus Data Transfer", feature_category_id: 103 },
+  ];
+
+  const mockFeatureCategories = [
+    { feature_category_id: 100, feature_category_name: "Resource Type" },
+    { feature_category_id: 101, feature_category_name: "Allocations" },
+    { feature_category_id: 102, feature_category_name: "Specialized Hardware" },
+    { feature_category_id: 103, feature_category_name: "Specialized Support" },
+  ];
+
   const mockResourceGroups = {
     results: {
+      features: mockFeatures,
+      feature_categories: mockFeatureCategories,
       active_groups: [
         {
           info_groupid: 1,
           group_descriptive_name: "Delta",
           group_description: "GPU-focused supercomputer at NCSA",
           rollup_organization_ids: [100],
-          rollup_feature_ids: [139, 142], // access allocated, GPU
+          rollup_feature_ids: [134, 136, 139], // GPU Compute, CPU Compute, ACCESS Allocated
           rollup_info_resourceids: ["delta.ncsa.access-ci.org"],
           group_logo_url: "https://example.com/delta.png",
         },
@@ -45,7 +64,7 @@ describe("ComputeResourcesServer", () => {
           group_descriptive_name: "Anvil",
           group_description: "CPU compute cluster at Purdue",
           rollup_organization_ids: [101],
-          rollup_feature_ids: [139], // access allocated
+          rollup_feature_ids: [136, 139], // CPU Compute, ACCESS Allocated
           rollup_info_resourceids: ["anvil.purdue.access-ci.org"],
           group_logo_url: "https://example.com/anvil.png",
         },
@@ -54,7 +73,7 @@ describe("ComputeResourcesServer", () => {
           group_descriptive_name: "Jetstream2",
           group_description: "Cloud computing platform",
           rollup_organization_ids: [102],
-          rollup_feature_ids: [139], // access allocated
+          rollup_feature_ids: [133, 134, 136, 138, 139], // Cloud, GPU Compute, CPU Compute, Storage, ACCESS Allocated
           rollup_info_resourceids: ["jetstream2.iu.access-ci.org"],
           group_logo_url: "https://example.com/jetstream.png",
         },
@@ -141,7 +160,14 @@ describe("ComputeResourcesServer", () => {
       expect(delta).toBeDefined();
       expect(delta.description).toContain("GPU-focused");
       expect(delta.hasGpu).toBe(true);
-      expect(delta.resourceType).toBe("gpu");
+      expect(delta.resourceTypes).toContain("GPU Compute");
+      expect(delta.resourceTypes).toContain("CPU Compute");
+      expect(delta.feature_names).toContain("GPU Compute");
+      expect(delta.feature_names).toContain("CPU Compute");
+      expect(delta.feature_names).toContain("ACCESS Allocated");
+      expect(delta.feature_categories["Resource Type"]).toContain("GPU Compute");
+      expect(delta.feature_categories["Resource Type"]).toContain("CPU Compute");
+      expect(delta.feature_categories["Allocations"]).toContain("ACCESS Allocated");
       expect(delta.organization_names).toContain("National Center for Supercomputing Applications");
       expect(delta.resourceIds).toContain("delta.ncsa.access-ci.org");
     });
@@ -209,10 +235,11 @@ describe("ComputeResourcesServer", () => {
       });
 
       const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.total).toBe(1);
-      expect(responseData.items[0].name).toBe("Delta");
-      expect(responseData.items[0].resource_ids).toBeDefined();
-      expect(responseData.items[0].resource_ids).toContain("delta.ncsa.access-ci.org");
+      // "gpu" matches Delta (description) and Jetstream2 (feature name "GPU Compute")
+      expect(responseData.total).toBe(2);
+      const names = responseData.items.map((r: ComputeResource) => r.name);
+      expect(names).toContain("Delta");
+      expect(names).toContain("Jetstream2");
     });
 
     it("should filter by resource type", async () => {
@@ -224,7 +251,7 @@ describe("ComputeResourcesServer", () => {
         params: {
           name: "search_resources",
           arguments: {
-            type: "cloud",
+            type: "Cloud",
             include_ids: true,
           },
         },
@@ -233,7 +260,7 @@ describe("ComputeResourcesServer", () => {
       const responseData = JSON.parse(result.content[0].text);
       expect(responseData.total).toBe(1);
       expect(responseData.items[0].name).toBe("Jetstream2");
-      expect(responseData.items[0].resourceType).toBe("cloud");
+      expect(responseData.items[0].resourceTypes).toContain("Cloud");
     });
 
     it("should filter by GPU capability", async () => {
@@ -252,9 +279,11 @@ describe("ComputeResourcesServer", () => {
       });
 
       const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.total).toBe(1);
-      expect(responseData.items[0].name).toBe("Delta");
-      expect(responseData.items[0].hasGpu).toBe(true);
+      expect(responseData.total).toBe(2);
+      const names = responseData.items.map((r: ComputeResource) => r.name);
+      expect(names).toContain("Delta");
+      expect(names).toContain("Jetstream2");
+      expect(responseData.items.every((r: { hasGpu: boolean }) => r.hasGpu === true)).toBe(true);
     });
 
     it("should search by organization", async () => {
@@ -404,13 +433,15 @@ describe("ComputeResourcesServer", () => {
       // Mock the search_resources call that resolveResourceId makes
       const mockSearchResponse = {
         results: {
+          features: mockFeatures,
+          feature_categories: mockFeatureCategories,
           active_groups: [
             {
               info_groupid: "anvil.purdue.access-ci.org",
               group_descriptive_name: "Anvil",
               group_description: "Purdue Anvil cluster",
               rollup_organization_ids: [1869],
-              rollup_feature_ids: [142],
+              rollup_feature_ids: [136, 139],
               rollup_info_resourceids: ["anvil.purdue.access-ci.org"],
             },
           ],
@@ -448,6 +479,8 @@ describe("ComputeResourcesServer", () => {
     it("should return error when multiple resources match", async () => {
       const mockSearchResponse = {
         results: {
+          features: mockFeatures,
+          feature_categories: mockFeatureCategories,
           active_groups: [
             {
               info_groupid: "stampede2.tacc.access-ci.org",
@@ -491,6 +524,8 @@ describe("ComputeResourcesServer", () => {
     it("should return error when no resources match", async () => {
       const mockSearchResponse = {
         results: {
+          features: mockFeatures,
+          feature_categories: mockFeatureCategories,
           active_groups: [],
         },
       };
@@ -512,37 +547,37 @@ describe("ComputeResourcesServer", () => {
   });
 
   describe("Resource Type Detection", () => {
-    it("should detect GPU resources", () => {
+    it("should detect GPU resources via feature 134", () => {
       const mockGroup = {
         group_description: "GPU-accelerated computing",
         group_descriptive_name: "Delta GPU",
-        rollup_feature_ids: [142], // GPU feature
+        rollup_feature_ids: [134], // GPU Compute feature
       };
 
       const hasGpu = server["detectGpuCapability"](mockGroup);
       expect(hasGpu).toBe(true);
     });
 
-    it("should detect cloud resources", () => {
+    it("should detect GPU resources via description fallback", () => {
       const mockGroup = {
-        group_description: "Cloud computing platform",
-        group_descriptive_name: "Jetstream Cloud",
-        rollup_feature_ids: [],
+        group_description: "A system with GPU accelerators",
+        group_descriptive_name: "Some GPU System",
+        rollup_feature_ids: [], // No feature 134
       };
 
-      const resourceType = server["determineResourceType"](mockGroup);
-      expect(resourceType).toBe("cloud");
+      const hasGpu = server["detectGpuCapability"](mockGroup);
+      expect(hasGpu).toBe(true);
     });
 
-    it("should detect compute resources", () => {
+    it("should not detect GPU for non-GPU resources", () => {
       const mockGroup = {
         group_description: "Traditional HPC cluster",
         group_descriptive_name: "Anvil Compute",
-        rollup_feature_ids: [],
+        rollup_feature_ids: [136, 139],
       };
 
-      const resourceType = server["determineResourceType"](mockGroup);
-      expect(resourceType).toBe("compute");
+      const hasGpu = server["detectGpuCapability"](mockGroup);
+      expect(hasGpu).toBe(false);
     });
   });
 

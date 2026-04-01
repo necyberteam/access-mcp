@@ -41,7 +41,7 @@ describe("Compute Resources - Resources", () => {
   });
 
   describe("handleResourceRead - capabilities-matrix", () => {
-    it("should return JSON with resource types and comparison matrix", async () => {
+    it("should return JSON with comparison matrix and selection guide", async () => {
       const result = await server["handleResourceRead"]({
         params: { uri: "accessci://compute-resources/capabilities-matrix" },
       });
@@ -50,20 +50,18 @@ describe("Compute Resources - Resources", () => {
       expect(result.contents[0].mimeType).toBe("application/json");
 
       const data = JSON.parse(result.contents[0].text);
-      expect(data).toHaveProperty("resource_types");
       expect(data).toHaveProperty("comparison_matrix");
       expect(data).toHaveProperty("selection_guide");
+      expect(data).not.toHaveProperty("resource_types");
 
       // Verify specific content
       expect(data.comparison_matrix).toHaveProperty("Machine Learning / AI");
-      expect(data.comparison_matrix["Machine Learning / AI"].primary).toBe("GPU");
-      expect(data.resource_types).toHaveProperty("GPU");
-      expect(data.resource_types.GPU).toHaveProperty("typical_use_cases");
+      expect(data.comparison_matrix["Machine Learning / AI"].primary).toBe("GPU Compute");
     });
   });
 
   describe("handleResourceRead - gpu-guide", () => {
-    it("should return Markdown GPU selection guide", async () => {
+    it("should return Markdown GPU selection guide referencing live tools", async () => {
       const result = await server["handleResourceRead"]({
         params: { uri: "accessci://compute-resources/gpu-guide" },
       });
@@ -73,16 +71,19 @@ describe("Compute Resources - Resources", () => {
 
       const markdown = result.contents[0].text;
       expect(markdown).toContain("# GPU Resource Selection Guide");
-      expect(markdown).toContain("NVIDIA A100");
-      expect(markdown).toContain("NVIDIA V100");
-      expect(markdown).toContain("For Training Large Language Models");
-      expect(markdown).toContain("Delta");
-      expect(markdown).toContain("Bridges-2");
+      expect(markdown).toContain("search_resources");
+      expect(markdown).toContain("get_resource_hardware");
+      // Should reference GPU-related content
+      expect(markdown).toContain("GPU");
+      expect(markdown).toContain("has_gpu");
+      // Should NOT contain hardcoded system names or GPU models
+      expect(markdown).not.toContain("NVIDIA A100");
+      expect(markdown).not.toContain("NVIDIA V100");
     });
   });
 
   describe("handleResourceRead - resource-types", () => {
-    it("should return JSON with resource type taxonomy", async () => {
+    it("should return JSON with resource type taxonomy as array", async () => {
       const result = await server["handleResourceRead"]({
         params: { uri: "accessci://compute-resources/resource-types" },
       });
@@ -92,10 +93,17 @@ describe("Compute Resources - Resources", () => {
 
       const data = JSON.parse(result.contents[0].text);
       expect(data).toHaveProperty("resource_types");
-      expect(data).toHaveProperty("usage_notes");
-      expect(data.resource_types).toHaveProperty("CPU");
-      expect(data.resource_types).toHaveProperty("GPU");
-      expect(data.usage_notes.GPU).toContain("parallel");
+      expect(Array.isArray(data.resource_types)).toBe(true);
+
+      // Find GPU Compute type in the array
+      const gpuType = data.resource_types.find(
+        (t: { name: string }) => t.name === "GPU Compute"
+      );
+      expect(gpuType).toBeDefined();
+      expect(gpuType.description).toBeDefined();
+
+      // Should not have old-style object keys
+      expect(data).not.toHaveProperty("usage_notes");
     });
   });
 

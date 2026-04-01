@@ -416,11 +416,9 @@ export class AllocationsServer extends BaseAccessServer {
         available_fields: getFieldNames(),
         usage_notes: {
           purpose:
-            "Understand typical resource requirements and allocation sizes for different research fields",
+            "Understand typical resource requirements and software for different research fields",
           how_to_use:
-            "Match your research area to a field to see typical resources, software, and allocation ranges",
-          allocation_ranges:
-            "Values are in ACCESS Credits (computational resource units, not monetary)",
+            "Match your research area to a field to see typical resources and software",
         },
       });
     }
@@ -908,7 +906,7 @@ sort_by: "date_desc"
     // Exact phrases (highest weight)
     for (const phrase of searchTerms.exactPhrases) {
       if (projectText.includes(phrase.toLowerCase())) {
-        score += titleText.includes(phrase.toLowerCase()) ? 5 : 3;
+        score += titleText.includes(phrase.toLowerCase()) ? 15 : 5;
       }
     }
 
@@ -932,19 +930,43 @@ sort_by: "date_desc"
       score += orMatches.length * 1.5;
     }
 
-    // Regular terms
+    // Regular terms with frequency-based scoring and multi-field bonus
     for (const term of searchTerms.regularTerms) {
       if (!this.isStopWord(term) && term.length > 2) {
         const termLower = term.toLowerCase();
-        if (titleText.includes(termLower)) score += 3;
-        else if (project.pi.toLowerCase().includes(termLower)) score += 2;
-        else if (project.fos.toLowerCase().includes(termLower)) score += 1.5;
-        else if (project.abstract.toLowerCase().includes(termLower)) score += 1;
-        else if (project.piInstitution.toLowerCase().includes(termLower)) score += 0.5;
+        const abstractText = (project.abstract || "").toLowerCase();
+        let fieldsMatched = 0;
+
+        if (titleText.includes(termLower)) {
+          score += 10;
+          fieldsMatched++;
+        }
+        if (project.pi.toLowerCase().includes(termLower)) {
+          score += 5;
+          fieldsMatched++;
+        }
+        if (project.fos.toLowerCase().includes(termLower)) {
+          score += 3;
+          fieldsMatched++;
+        }
+        if (abstractText.includes(termLower)) {
+          // Frequency-based scoring for abstract matches
+          const occurrences = (abstractText.match(new RegExp(termLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')) || []).length;
+          score += Math.min(occurrences, 5); // Cap at 5 to prevent spam
+          fieldsMatched++;
+        }
+        if (project.piInstitution.toLowerCase().includes(termLower)) {
+          score += 0.5;
+        }
+
+        // Multi-field match bonus
+        if (fieldsMatched > 1) {
+          score += (fieldsMatched - 1) * 3;
+        }
       }
     }
 
-    return Math.min(score, 20); // Cap at reasonable maximum
+    return Math.min(score, 100); // Cap at reasonable maximum
   }
 
   // Apply sorting to search results

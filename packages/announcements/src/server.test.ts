@@ -604,6 +604,7 @@ describe("AnnouncementsServer", () => {
             { id: "tag-uuid-2", attributes: { name: "maintenance" } },
             { id: "tag-uuid-3", attributes: { name: "hpc" } },
           ],
+          links: {},
         });
 
         mockDrupalAuth.post.mockResolvedValue({
@@ -627,7 +628,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
-          "/jsonapi/taxonomy_term/tags?page[limit]=500"
+          "/jsonapi/taxonomy_term/tags?page[limit]=50"
         );
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(

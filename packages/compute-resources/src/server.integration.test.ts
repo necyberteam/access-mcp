@@ -38,7 +38,7 @@ describe("ComputeResourcesServer Integration Tests", () => {
     expect(firstResource).toHaveProperty("description");
     expect(firstResource).toHaveProperty("resourceIds");
     expect(firstResource).toHaveProperty("hasGpu");
-    expect(firstResource).toHaveProperty("resourceType");
+    expect(firstResource).toHaveProperty("resourceTypes");
 
     console.log(`✅ Found ${responseData.total} compute resources`);
     console.log(`   Major resources found: ${foundKnownResources.join(", ")}`);
@@ -78,7 +78,7 @@ describe("ComputeResourcesServer Integration Tests", () => {
       params: {
         name: "search_resources",
         arguments: {
-          type: "cloud",
+          type: "Cloud",
           include_ids: true,
         },
       },
@@ -88,7 +88,7 @@ describe("ComputeResourcesServer Integration Tests", () => {
 
     if (responseData.total > 0) {
       const cloudResource = responseData.items[0];
-      expect(cloudResource.resourceType).toBe("cloud");
+      expect(cloudResource.resourceTypes).toContain("Cloud");
       expect(cloudResource.resource_ids).toBeInstanceOf(Array);
 
       console.log(`✅ Found ${responseData.total} cloud resources`);
@@ -145,6 +145,33 @@ describe("ComputeResourcesServer Integration Tests", () => {
         console.log(`   Resource details count: ${responseData.results.length}`);
       }
     }
+  }, 10000);
+
+  it("should resolve feature names from API data", async () => {
+    const result = await server["handleToolCall"]({
+      params: {
+        name: "search_resources",
+        arguments: {},
+      },
+    });
+
+    const responseData = JSON.parse(result.content[0].text);
+    const firstResource = responseData.items[0];
+
+    // Feature names should be resolved (no "Unknown Feature" entries)
+    expect(firstResource.feature_names).toBeInstanceOf(Array);
+    expect(firstResource.feature_names.length).toBeGreaterThan(0);
+    const unknownFeatures = firstResource.feature_names.filter((n: string) =>
+      n.startsWith("Unknown Feature")
+    );
+    expect(unknownFeatures).toHaveLength(0);
+
+    // Feature categories should be populated
+    expect(firstResource.feature_categories).toBeDefined();
+    expect(Object.keys(firstResource.feature_categories).length).toBeGreaterThan(0);
+
+    console.log(`✅ Feature resolution: ${firstResource.feature_names.length} features resolved for ${firstResource.name}`);
+    console.log(`   Categories: ${Object.keys(firstResource.feature_categories).join(", ")}`);
   }, 10000);
 
   it("should demonstrate the resource discovery workflow", async () => {

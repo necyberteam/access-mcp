@@ -57,22 +57,15 @@ describe("Allocations Server - Resources", () => {
       expect(csField).toHaveProperty("keywords");
       expect(csField).toHaveProperty("typical_resources");
       expect(csField).toHaveProperty("common_software");
-      expect(csField).toHaveProperty("allocation_range");
-
-      // Verify allocation range has correct structure
-      expect(csField.allocation_range).toHaveProperty("min");
-      expect(csField.allocation_range).toHaveProperty("max");
-      expect(csField.allocation_range).toHaveProperty("typical");
     });
 
-    it("should include usage notes about ACCESS Credits", async () => {
+    it("should include usage notes", async () => {
       const result = await server["handleResourceRead"]({
         params: { uri: "accessci://allocations/field-taxonomy" },
       });
 
       const data = JSON.parse(result.contents[0].text);
-      expect(data.usage_notes.allocation_ranges).toContain("computational resource units");
-      expect(data.usage_notes.allocation_ranges).toContain("not monetary");
+      expect(data.usage_notes.purpose).toContain("resource requirements");
     });
   });
 

@@ -4,11 +4,6 @@ import {
   sanitizeGroupId,
   resolveResourceId,
   FIELDS_OF_SCIENCE,
-  RESOURCE_TYPES,
-  ACCESS_SYSTEMS,
-  GPU_SELECTION_GUIDE,
-  MEMORY_REQUIREMENTS,
-  getFeatureNames,
   Tool,
   Resource,
   CallToolResult,
@@ -49,6 +44,18 @@ interface ActiveGroup {
   group_logo_url?: string;
 }
 
+interface ApiFeature {
+  feature_id: number;
+  feature_name: string;
+  feature_category_id: number;
+}
+
+interface ApiFeatureCategory {
+  feature_category_id: number;
+  feature_category_name: string;
+  feature_category_description?: string;
+}
+
 interface HardwareItem {
   cider_type?: string;
   resource_descriptive_name?: string;
@@ -81,9 +88,10 @@ interface ComputeResource {
   feature_names?: string[];
   resources?: string[];
   logoUrl?: string;
+  feature_categories?: Record<string, string[]>;
   accessAllocated?: boolean;
   hasGpu?: boolean;
-  resourceType?: string;
+  resourceTypes?: string[];
   resourceIds?: string[];
 }
 
@@ -107,11 +115,12 @@ export class ComputeResourcesServer extends BaseAccessServer {
             },
             query: {
               type: "string",
-              description: "Search names, descriptions, organizations",
+              description:
+                "Search names, descriptions, organizations, and features. For specific hardware models (e.g., 'A100'), use get_resource_hardware instead.",
             },
             type: {
               type: "string",
-              enum: ["compute", "storage", "cloud", "gpu", "cpu"],
+              enum: ["Cloud", "GPU Compute", "Innovative / Novel Compute", "CPU Compute", "Service / Other", "Storage", "Commercial Cloud", "Sensors / Instruments"],
               description: "Filter by resource type",
             },
             has_gpu: {
@@ -270,49 +279,48 @@ export class ComputeResourcesServer extends BaseAccessServer {
 
     if (uri === "accessci://compute-resources/capabilities-matrix") {
       const matrix = {
-        resource_types: RESOURCE_TYPES,
         comparison_matrix: {
           "Machine Learning / AI": {
-            primary: "GPU",
-            secondary: "High Memory",
+            primary: "GPU Compute",
+            secondary: "CPU Compute",
             rationale:
-              "GPUs provide massive parallelism for training neural networks. High memory systems useful for large datasets that don't fit in GPU memory.",
+              "GPUs provide massive parallelism for training neural networks. CPU systems useful for large datasets that don't fit in GPU memory.",
           },
           "Molecular Dynamics": {
-            primary: "GPU",
-            secondary: "CPU",
+            primary: "GPU Compute",
+            secondary: "CPU Compute",
             rationale:
               "Modern MD codes (GROMACS, AMBER) are GPU-accelerated. CPU clusters still useful for older codes or ensemble simulations.",
           },
           "Genomics / Bioinformatics": {
-            primary: "High Memory",
-            secondary: "CPU",
+            primary: "CPU Compute",
+            secondary: "Storage",
             rationale:
               "Genome assembly requires large memory. High-throughput analysis benefits from many CPU cores.",
           },
           "Climate / Weather Modeling": {
-            primary: "CPU",
+            primary: "CPU Compute",
             secondary: "Storage",
             rationale:
               "Large-scale parallel codes optimized for CPU clusters. Massive data output requires substantial storage.",
           },
           "CFD / Engineering": {
-            primary: "CPU",
-            secondary: "GPU",
+            primary: "CPU Compute",
+            secondary: "GPU Compute",
             rationale:
               "Traditional CFD codes use CPU clusters. Some modern codes support GPU acceleration.",
           },
           "Data Analytics": {
-            primary: "CPU",
-            secondary: "High Memory",
+            primary: "CPU Compute",
+            secondary: "Cloud",
             rationale:
-              "Parallel data processing on CPU clusters. Large datasets may require high-memory systems.",
+              "Parallel data processing on CPU clusters. Cloud resources useful for flexible workloads.",
           },
           "Quantum Chemistry": {
-            primary: "CPU",
-            secondary: "High Memory",
+            primary: "CPU Compute",
+            secondary: "GPU Compute",
             rationale:
-              "Ab initio calculations are CPU-intensive. Some calculations require significant memory.",
+              "Ab initio calculations are CPU-intensive. Some modern codes support GPU acceleration.",
           },
         },
         selection_guide: {
@@ -330,74 +338,46 @@ export class ComputeResourcesServer extends BaseAccessServer {
     if (uri === "accessci://compute-resources/gpu-guide") {
       const guide = `# GPU Resource Selection Guide
 
-## GPU Types on ACCESS-CI Systems
+GPU hardware changes frequently as ACCESS-CI systems are upgraded. Use the live tools for current information:
 
-### NVIDIA A100
-- **Best for**: Large-scale deep learning, large models, transformers
-- **Memory**: 40GB or 80GB variants
-- **Key features**: Tensor cores, multi-instance GPU (MIG), NVLink
-- **Typical systems**: Delta, Bridges-2
+## Finding GPU Resources
 
-### NVIDIA V100
-- **Best for**: General deep learning, scientific computing
-- **Memory**: 16GB or 32GB variants
-- **Key features**: Tensor cores, NVLink
-- **Typical systems**: Bridges-2, Expanse
+1. **search_resources** with \`has_gpu: true\` — lists all GPU-enabled systems with their feature categories
+2. **get_resource_hardware** with a resource ID — shows detailed GPU specs (model, memory, count per node)
 
-### NVIDIA A40
-- **Best for**: Visualization, rendering, inference
-- **Memory**: 48GB
-- **Key features**: RTX cores, large memory
-- **Typical systems**: Bridges-2
+## General GPU Selection Guidance
 
-## Choosing the Right GPU
-
-### For Training Large Language Models
-- **Recommendation**: A100 80GB
-- **Rationale**: Large model parameters require high GPU memory
-- **Alternative**: Multiple A100 40GB with model parallelism
-
-### For Computer Vision (CNNs)
-- **Recommendation**: A100 40GB or V100 32GB
-- **Rationale**: Good balance of memory and compute for typical CV workloads
-
-### For Molecular Dynamics
-- **Recommendation**: A100 or V100
-- **Rationale**: MD codes benefit from double-precision performance
-
-### For Inference/Deployment
-- **Recommendation**: A40 or T4
-- **Rationale**: Efficient inference, good price/performance
-
-## Batch Size Considerations
-
-**Small models (<100M parameters)**: V100 or A100 40GB sufficient
-**Medium models (100M-1B parameters)**: A100 40GB recommended
-**Large models (1B-10B parameters)**: A100 80GB or multi-GPU
-**Very large models (>10B parameters)**: Multi-GPU A100 80GB required
+- **Large-scale deep learning / LLMs**: Look for systems with high GPU memory (40GB+) and multi-GPU nodes
+- **Computer vision / CNNs**: Mid-range GPU memory is typically sufficient
+- **Molecular dynamics**: Codes like GROMACS and AMBER benefit from GPU acceleration
+- **Inference / deployment**: Smaller GPU configurations can be cost-effective
+- **Visualization / rendering**: Look for systems with RTX or visualization-capable GPUs
 
 ## Multi-GPU Training
 
-Most ACCESS systems support:
+Most ACCESS GPU systems support:
 - **Data parallelism**: Distribute batches across GPUs
 - **Model parallelism**: Split model layers across GPUs
 - **Pipeline parallelism**: Different model stages on different GPUs
 
-Use **search_resources** with **has_gpu: true** to find GPU-enabled systems.
+Use **search_resources** with **has_gpu: true** to find GPU-enabled systems, then **get_resource_hardware** for detailed specs.
 `;
       return this.createMarkdownResource(uri, guide);
     }
 
     if (uri === "accessci://compute-resources/resource-types") {
       return this.createJsonResource(uri, {
-        resource_types: RESOURCE_TYPES,
-        usage_notes: {
-          CPU: "Most versatile, suitable for serial and parallel codes",
-          GPU: "Best for highly parallel workloads, requires GPU-optimized code",
-          "High Memory": "Essential for workloads that need >100GB RAM",
-          Storage: "For datasets >10TB or high I/O requirements",
-          Cloud: "Best for web services, containers, variable workloads",
-        },
+        description: "ACCESS-CI resource types derived from the Resource Type feature category in the API. Each resource may have multiple types.",
+        resource_types: [
+          { name: "Cloud", description: "Cloud computing environments for flexible, on-demand workloads" },
+          { name: "GPU Compute", description: "Systems with GPU accelerators for parallel workloads" },
+          { name: "Innovative / Novel Compute", description: "Specialized or experimental computing architectures" },
+          { name: "CPU Compute", description: "Traditional CPU-based high-performance computing clusters" },
+          { name: "Service / Other", description: "Supporting services, gateways, and other infrastructure" },
+          { name: "Storage", description: "Large-scale data storage and management systems" },
+          { name: "Commercial Cloud", description: "Commercial cloud provider resources available through ACCESS" },
+          { name: "Sensors / Instruments", description: "Sensor networks and scientific instruments" },
+        ],
       });
     }
 
@@ -412,11 +392,10 @@ Use **search_resources** with **has_gpu: true** to find GPU-enabled systems.
     if (name === "recommend_compute_resource") {
       const { research_area = "", compute_needs = "", allocation_size, experience_level } = args;
 
-      // Selective context embedding based on user needs
       const lowerNeeds = compute_needs.toLowerCase();
       const lowerResearch = research_area.toLowerCase();
 
-      // 1. Find matching field of science for domain context
+      // Find matching field of science for domain context
       let matchedField = null;
       for (const [fieldName, fieldData] of Object.entries(FIELDS_OF_SCIENCE)) {
         const keywords = fieldData.keywords.map((k) => k.toLowerCase());
@@ -429,100 +408,17 @@ Use **search_resources** with **has_gpu: true** to find GPU-enabled systems.
         }
       }
 
-      // 2. Determine if GPU is relevant
-      const gpuRelevant =
-        lowerNeeds.includes("gpu") ||
-        lowerNeeds.includes("deep learning") ||
-        lowerNeeds.includes("machine learning") ||
-        lowerNeeds.includes("ai") ||
-        lowerNeeds.includes("neural network") ||
-        lowerResearch.includes("machine learning") ||
-        lowerResearch.includes("computer vision");
-
-      // 3. Determine memory requirements
-      const highMemoryRelevant =
-        lowerNeeds.includes("memory") ||
-        lowerNeeds.includes("genome") ||
-        lowerNeeds.includes("assembly") ||
-        lowerNeeds.includes("graph");
-
-      // 4. Filter relevant systems based on needs
-      const relevantSystems: typeof ACCESS_SYSTEMS = {};
-      for (const [name, system] of Object.entries(ACCESS_SYSTEMS)) {
-        const isRelevant =
-          (gpuRelevant && system.gpu_types && system.gpu_types.length > 0) ||
-          (highMemoryRelevant && system.strengths.some((s) => s.includes("Memory"))) ||
-          (!gpuRelevant && !highMemoryRelevant); // Include general-purpose systems
-
-        // Filter by experience level if specified
-        const experienceMatch =
-          !experience_level ||
-          system.experience_level.some((level) =>
-            level.toLowerCase().includes(experience_level.toLowerCase())
-          );
-
-        if (isRelevant && experienceMatch) {
-          relevantSystems[name] = system;
-        }
-      }
-
-      // 5. Build compact context sections
+      // Build context sections
       const contextSections = [];
 
       // Field of science context
       if (matchedField) {
         contextSections.push(`**Your Research Field**: ${matchedField.name}
 - Typical Resources: ${matchedField.typical_resources.join(", ")}
-- Common Software: ${matchedField.common_software.slice(0, 6).join(", ")}
-- Typical Allocation: ${matchedField.allocation_range?.min.toLocaleString()} - ${matchedField.allocation_range?.max.toLocaleString()} ACCESS Credits`);
+- Common Software: ${matchedField.common_software.slice(0, 6).join(", ")}`);
       }
 
-      // Relevant ACCESS systems
-      contextSections.push(`**Relevant ACCESS Systems**:
-${Object.entries(relevantSystems)
-  .map(
-    ([name, sys]) =>
-      `- **${name}** (${sys.organization}): ${sys.description}
-  ${sys.gpu_types ? `GPUs: ${sys.gpu_types.join(", ")}` : ""}
-  ${sys.max_memory_per_node ? `Max Memory: ${sys.max_memory_per_node}` : ""}
-  Ideal for: ${sys.ideal_for.slice(0, 3).join(", ")}`
-  )
-  .join("\n\n")}`);
-
-      // GPU guide if relevant
-      if (gpuRelevant) {
-        const relevantGpuGuides = Object.entries(GPU_SELECTION_GUIDE).filter(
-          ([useCase]) =>
-            lowerNeeds.includes(useCase.toLowerCase()) ||
-            lowerResearch.includes(useCase.toLowerCase())
-        );
-
-        if (relevantGpuGuides.length > 0) {
-          contextSections.push(`**GPU Guidance**:
-${relevantGpuGuides
-  .map(
-    ([useCase, guide]) =>
-      `- **${useCase}**: ${guide.recommended_gpu}
-  Systems: ${guide.recommended_systems.join(", ")}
-  ${guide.notes}`
-  )
-  .join("\n\n")}`);
-        }
-      }
-
-      // Memory requirements if relevant
-      if (highMemoryRelevant) {
-        contextSections.push(`**Memory Options**:
-${Object.entries(MEMORY_REQUIREMENTS)
-  .map(
-    ([range, info]) =>
-      `- **${range}**: ${info.description}
-  Systems: ${info.recommended_systems.join(", ")}`
-  )
-  .join("\n")}`);
-      }
-
-      // 6. Construct the final prompt
+      // Construct the final prompt
       const promptText = `I need help selecting appropriate ACCESS-CI compute resources for my research.
 
 **Research Area**: ${research_area}
@@ -534,7 +430,13 @@ ${contextSections.join("\n\n")}
 
 ---
 
-Based on this context and my requirements, please:
+To answer this request, use the following tools to gather live data:
+
+1. **search_resources** — list all available ACCESS-CI resources and their types
+2. **search_resources** with \`has_gpu: true\` — if GPU resources are relevant
+3. **get_resource_hardware** — get detailed hardware specs for promising systems
+
+Based on the live data and my requirements, please:
 
 1. **Recommend 2-3 specific ACCESS systems** that best match my needs
 2. **Explain the rationale** for each recommendation
@@ -542,7 +444,7 @@ Based on this context and my requirements, please:
 4. **Recommend next steps** for getting started${experience_level === "beginner" ? ", keeping in mind I'm new to HPC" : ""}
 
 Consider:
-- Which resource types (CPU/GPU/Memory/Storage) match my computational pattern
+- Which resource types match my computational pattern
 - Which systems have the specific capabilities I need
 - What allocation size makes sense for my project scale
 - Any relevant software that might be pre-installed`;
@@ -647,6 +549,55 @@ Consider:
     XSEDE: ["Extreme Science and Engineering Discovery Environment"], // Legacy
   };
 
+  private buildFeatureLookups(apiResults: {
+    features?: ApiFeature[];
+    feature_categories?: ApiFeatureCategory[];
+  }): {
+    featureMap: Map<number, { name: string; categoryName: string }>;
+  } {
+    const categoryMap = new Map<number, string>();
+    for (const cat of apiResults.feature_categories || []) {
+      categoryMap.set(cat.feature_category_id, cat.feature_category_name);
+    }
+    const featureMap = new Map<number, { name: string; categoryName: string }>();
+    for (const feat of apiResults.features || []) {
+      const categoryName = categoryMap.get(feat.feature_category_id) || "Unknown";
+      featureMap.set(feat.feature_id, { name: feat.feature_name, categoryName });
+    }
+    return { featureMap };
+  }
+
+  private resolveFeatures(
+    featureIds: number[],
+    featureMap: Map<number, { name: string; categoryName: string }>
+  ): { names: string[]; categories: Record<string, string[]> } {
+    const names: string[] = [];
+    const categories: Record<string, string[]> = {};
+    for (const id of featureIds) {
+      const feat = featureMap.get(id);
+      if (feat) {
+        names.push(feat.name);
+        if (!categories[feat.categoryName]) {
+          categories[feat.categoryName] = [];
+        }
+        categories[feat.categoryName].push(feat.name);
+      }
+    }
+    return { names, categories };
+  }
+
+  private deriveResourceTypes(
+    featureIds: number[],
+    featureMap: Map<number, { name: string; categoryName: string }>
+  ): string[] {
+    return featureIds
+      .filter((id) => {
+        const feat = featureMap.get(id);
+        return feat?.categoryName === "Resource Type";
+      })
+      .map((id) => featureMap.get(id)!.name);
+  }
+
   private async listComputeResources() {
     // Get all active resource groups
     const response = await this.httpClient.get(
@@ -683,6 +634,8 @@ Consider:
       throw new Error(`Unexpected API response structure. Got: ${JSON.stringify(response.data)}`);
     }
 
+    const { featureMap } = this.buildFeatureLookups(response.data.results);
+
     const computeResources = response.data.results.active_groups
       .filter((group: ActiveGroup) => {
         // Filter for compute resources (category 1 = "Compute & Storage Resources")
@@ -698,6 +651,10 @@ Consider:
           (id: number) => orgMapping.get(id) || id.toString()
         );
 
+        const featureIds = group.rollup_feature_ids || [];
+        const resolved = this.resolveFeatures(featureIds, featureMap);
+        const resourceTypes = this.deriveResourceTypes(featureIds, featureMap);
+
         return {
           id: group.info_groupid,
           name: group.group_descriptive_name,
@@ -705,13 +662,14 @@ Consider:
           organization_ids: group.rollup_organization_ids,
           organization_names: organizationNames,
           features: group.rollup_feature_ids,
-          feature_names: getFeatureNames(group.rollup_feature_ids || []), // NEW: Human-readable feature names
+          feature_names: resolved.names,
+          feature_categories: resolved.categories,
           resources: group.rollup_info_resourceids,
           logoUrl: group.group_logo_url,
           accessAllocated: group.rollup_feature_ids?.includes(139) ?? false,
           // Add computed fields for easier filtering
           hasGpu: this.detectGpuCapability(group),
-          resourceType: this.determineResourceType(group),
+          resourceTypes,
           // Include the actual resource IDs that other ACCESS-CI services can use
           resourceIds: group.rollup_info_resourceids || [],
         };
@@ -932,33 +890,11 @@ Consider:
   }
 
   private detectGpuCapability(group: ActiveGroup): boolean {
-    // Check if the group has GPU-related features or descriptions
+    if (group.rollup_feature_ids?.includes(134)) {
+      return true;
+    }
     const description = (group.group_description || "").toLowerCase();
-    const name = (group.group_descriptive_name || "").toLowerCase();
-
-    return (
-      description.includes("gpu") ||
-      description.includes("graphics") ||
-      name.includes("gpu") ||
-      name.includes("delta") || // Delta is known GPU system
-      (group.rollup_feature_ids?.includes(142) ?? false) // GPU feature ID (if exists)
-    );
-  }
-
-  private determineResourceType(group: ActiveGroup): string {
-    const description = (group.group_description || "").toLowerCase();
-    const name = (group.group_descriptive_name || "").toLowerCase();
-
-    if (description.includes("cloud") || name.includes("jetstream")) {
-      return "cloud";
-    }
-    if (this.detectGpuCapability(group)) {
-      return "gpu";
-    }
-    if (description.includes("storage")) {
-      return "storage";
-    }
-    return "compute";
+    return description.includes("gpu");
   }
 
   private async searchResources(args: {
@@ -989,13 +925,17 @@ Consider:
           (Array.isArray(resource.organization_names) &&
             resource.organization_names.some(
               (org: string) => typeof org === "string" && org.toLowerCase().includes(searchTerm)
+            )) ||
+          (Array.isArray(resource.feature_names) &&
+            resource.feature_names.some(
+              (feat: string) => typeof feat === "string" && feat.toLowerCase().includes(searchTerm)
             ))
       );
     }
 
     if (resource_type) {
       resources = resources.filter(
-        (resource: ComputeResource) => resource.resourceType === resource_type
+        (resource: ComputeResource) => resource.resourceTypes?.includes(resource_type) ?? false
       );
     }
 

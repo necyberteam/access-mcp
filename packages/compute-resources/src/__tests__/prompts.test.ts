@@ -40,7 +40,7 @@ describe("Compute Resources - Prompts", () => {
   });
 
   describe("handleGetPrompt - recommend_compute_resource", () => {
-    it("should generate prompt with ML context for GPU research", async () => {
+    it("should generate prompt with ML context referencing live tools", async () => {
       const result = await server["handleGetPrompt"]({
         params: {
           name: "recommend_compute_resource",
@@ -62,17 +62,15 @@ describe("Compute Resources - Prompts", () => {
       // Should include field context
       expect(promptText).toContain("Computer Science");
 
-      // Should include GPU systems (Delta has GPUs)
-      expect(promptText).toContain("Delta");
+      // Should reference live tools instead of hardcoded system names
+      expect(promptText).toContain("search_resources");
+      expect(promptText).toContain("get_resource_hardware");
 
-      // Should include GPU guidance
+      // Should include GPU reference
       expect(promptText).toContain("GPU");
-
-      // Should not include irrelevant systems without GPUs
-      expect(promptText).not.toContain("Open Science Grid");
     });
 
-    it("should generate prompt with genomics context for high memory research", async () => {
+    it("should generate prompt with genomics context", async () => {
       const result = await server["handleGetPrompt"]({
         params: {
           name: "recommend_compute_resource",
@@ -88,11 +86,8 @@ describe("Compute Resources - Prompts", () => {
       // Should include biological sciences field
       expect(promptText).toContain("Biological Sciences");
 
-      // Should include high memory systems
-      expect(promptText).toContain("Bridges-2"); // Has extreme memory
-
-      // Should include memory guidance
-      expect(promptText).toContain("Memory");
+      // Should reference tools for discovering resources
+      expect(promptText).toContain("search_resources");
     });
 
     it("should adapt to beginner experience level", async () => {
@@ -112,32 +107,8 @@ describe("Compute Resources - Prompts", () => {
       // Should mention experience level
       expect(promptText).toContain("beginner");
 
-      // Should include beginner-friendly note in instructions
+      // Should include beginner-friendly note
       expect(promptText).toContain("new to HPC");
-
-      // Should only include systems suitable for beginners
-      expect(promptText).toContain("Experience Level");
-    });
-
-    it("should filter systems by experience level", async () => {
-      const result = await server["handleGetPrompt"]({
-        params: {
-          name: "recommend_compute_resource",
-          arguments: {
-            research_area: "AI",
-            compute_needs: "GPU training",
-            experience_level: "beginner",
-          },
-        },
-      });
-
-      const promptText = result.messages[0].content.text;
-
-      // Should include beginner-friendly systems
-      expect(promptText).toContain("Bridges-2"); // Supports all levels
-
-      // Stampede3 is advanced/expert only, might not be included
-      // (depends on other filtering criteria)
     });
 
     it("should include allocation size if provided", async () => {
@@ -194,8 +165,8 @@ describe("Compute Resources - Prompts", () => {
       expect(promptText).toContain("underwater basket weaving");
       expect(promptText).toContain("fast compute");
 
-      // Should include at least some systems
-      expect(promptText).toContain("ACCESS Systems");
+      // Should reference tools for discovering resources
+      expect(promptText).toContain("search_resources");
     });
 
     it("should throw error for unknown prompt", async () => {
@@ -211,8 +182,7 @@ describe("Compute Resources - Prompts", () => {
   });
 
   describe("Prompt Context Filtering", () => {
-    it("should include GPU guide only for GPU-relevant requests with matching use cases", async () => {
-      // GPU request with specific use case that matches GPU_SELECTION_GUIDE
+    it("should reference GPU tools for GPU-relevant requests", async () => {
       const gpuResult = await server["handleGetPrompt"]({
         params: {
           name: "recommend_compute_resource",
@@ -223,27 +193,15 @@ describe("Compute Resources - Prompts", () => {
         },
       });
 
-      expect(gpuResult.messages[0].content.text).toContain("GPU Guidance");
-      expect(gpuResult.messages[0].content.text).toContain("Computer Vision");
+      const promptText = gpuResult.messages[0].content.text;
 
-      // Generic GPU request without specific use case won't include GPU guidance section
-      // (GPU systems will still be included)
-      const genericGpuResult = await server["handleGetPrompt"]({
-        params: {
-          name: "recommend_compute_resource",
-          arguments: {
-            research_area: "deep learning",
-            compute_needs: "GPU acceleration",
-          },
-        },
-      });
+      // Should reference tools for finding GPU resources
+      expect(promptText).toContain("search_resources");
+      expect(promptText).toContain("has_gpu");
+      expect(promptText).toContain("get_resource_hardware");
+    });
 
-      // GPU systems should be included
-      expect(genericGpuResult.messages[0].content.text).toContain("Delta");
-      // But specific GPU guidance section only appears if use case matches
-      // (This is selective embedding in action)
-
-      // Non-GPU request
+    it("should include tool instructions for non-GPU requests too", async () => {
       const cpuResult = await server["handleGetPrompt"]({
         params: {
           name: "recommend_compute_resource",
@@ -254,60 +212,11 @@ describe("Compute Resources - Prompts", () => {
         },
       });
 
-      // Should not include GPU-specific guidance
-      expect(cpuResult.messages[0].content.text).not.toContain("GPU Guidance");
+      const promptText = cpuResult.messages[0].content.text;
 
-      // Note: General purpose systems (like Delta) may still appear since they have CPU
-      // capabilities too. The key is GPU guidance is not included.
-    });
-
-    it("should include memory guidance only for memory-intensive requests", async () => {
-      // High memory request
-      const memResult = await server["handleGetPrompt"]({
-        params: {
-          name: "recommend_compute_resource",
-          arguments: {
-            research_area: "genomics",
-            compute_needs: "genome assembly with 1TB RAM",
-          },
-        },
-      });
-
-      expect(memResult.messages[0].content.text).toContain("Memory Options");
-
-      // Standard request
-      const stdResult = await server["handleGetPrompt"]({
-        params: {
-          name: "recommend_compute_resource",
-          arguments: {
-            research_area: "data science",
-            compute_needs: "standard analysis",
-          },
-        },
-      });
-
-      expect(stdResult.messages[0].content.text).not.toContain("Memory Options");
-    });
-
-    it("should filter systems based on capabilities needed", async () => {
-      // GPU-only systems should appear for GPU requests
-      const gpuResult = await server["handleGetPrompt"]({
-        params: {
-          name: "recommend_compute_resource",
-          arguments: {
-            research_area: "AI",
-            compute_needs: "GPU for neural networks",
-          },
-        },
-      });
-
-      const gpuText = gpuResult.messages[0].content.text;
-
-      // Delta has GPUs
-      expect(gpuText).toContain("Delta");
-
-      // Open Science Grid doesn't have GPUs
-      expect(gpuText).not.toContain("Open Science Grid");
+      // Should still reference tools
+      expect(promptText).toContain("search_resources");
+      expect(promptText).toContain("get_resource_hardware");
     });
   });
 });
