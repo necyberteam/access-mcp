@@ -328,7 +328,12 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
 
     const enhancedEvents = events.map((event: RawEvent) => ({
       ...event,
-      tags: Array.isArray(event.tags) ? event.tags : [],
+      tags:
+        typeof event.tags === "string" && event.tags.trim()
+          ? event.tags.split(",").map((t: string) => t.trim())
+          : Array.isArray(event.tags)
+            ? event.tags
+            : [],
       duration_hours: event.end_date
         ? Math.round(
             (new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) /
@@ -340,6 +345,9 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
         Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000)
       ),
     }));
+
+    // Sort by starts_in_hours ascending so nearest events come first
+    enhancedEvents.sort((a, b) => a.starts_in_hours - b.starts_in_hours);
 
     return {
       content: [

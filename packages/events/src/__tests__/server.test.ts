@@ -69,9 +69,10 @@ describe("EventsServer", () => {
       expect(url).toContain("beginning_date_relative=today");
     });
 
-    it("should map 'date: upcoming' to beginning_date_relative", () => {
+    it("should map 'date: upcoming' to open-ended future range", () => {
       const url = server["buildEventsUrl"]({ date: "upcoming" });
       expect(url).toContain("beginning_date_relative=today");
+      expect(url).not.toContain("end_date_relative");
     });
 
     it("should map 'date: past' to date range", () => {
@@ -326,6 +327,110 @@ describe("EventsServer", () => {
         expect(event.tags).toEqual(["python", "programming", "beginner"]);
         expect(event.duration_hours).toBe(8); // 9am to 5pm
         expect(event.starts_in_hours).toBeDefined();
+      });
+
+      it("should parse comma-separated string tags", async () => {
+        const eventsWithStringTags = [
+          {
+            id: "10",
+            title: "String Tags Event",
+            start_date: "2024-09-15T09:00:00",
+            end_date: "2024-09-15T17:00:00",
+            tags: "python, gpu, hpc",
+          },
+        ];
+
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: eventsWithStringTags,
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: {},
+          },
+        });
+
+        const responseData = JSON.parse(result.content[0].text);
+        expect(responseData.items[0].tags).toEqual(["python", "gpu", "hpc"]);
+      });
+
+      it("should handle empty string tags", async () => {
+        const eventsWithEmptyTags = [
+          {
+            id: "11",
+            title: "No Tags Event",
+            start_date: "2024-09-15T09:00:00",
+            end_date: "2024-09-15T17:00:00",
+            tags: "  ",
+          },
+        ];
+
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: eventsWithEmptyTags,
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: {},
+          },
+        });
+
+        const responseData = JSON.parse(result.content[0].text);
+        expect(responseData.items[0].tags).toEqual([]);
+      });
+
+      it("should sort events by starts_in_hours ascending", async () => {
+        const futureDate1 = new Date(Date.now() + 2 * 24 * 3600000).toISOString();
+        const futureDate2 = new Date(Date.now() + 10 * 24 * 3600000).toISOString();
+        const futureDate3 = new Date(Date.now() + 5 * 24 * 3600000).toISOString();
+
+        const unsortedEvents = [
+          {
+            id: "s1",
+            title: "Event B (10 days out)",
+            start_date: futureDate2,
+            end_date: futureDate2,
+            tags: [],
+          },
+          {
+            id: "s2",
+            title: "Event A (2 days out)",
+            start_date: futureDate1,
+            end_date: futureDate1,
+            tags: [],
+          },
+          {
+            id: "s3",
+            title: "Event C (5 days out)",
+            start_date: futureDate3,
+            end_date: futureDate3,
+            tags: [],
+          },
+        ];
+
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: unsortedEvents,
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: {},
+          },
+        });
+
+        const responseData = JSON.parse(result.content[0].text);
+        expect(responseData.items[0].id).toBe("s2"); // nearest
+        expect(responseData.items[1].id).toBe("s3"); // middle
+        expect(responseData.items[2].id).toBe("s1"); // farthest
       });
 
       it("should search events by query", async () => {
