@@ -427,6 +427,19 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   }
 
   /**
+   * Extract the unique resource names that actually appear in results.
+   */
+  private getMatchedResources(results: TransformedSoftware[]): string[] {
+    const resources = new Set<string>();
+    for (const item of results) {
+      for (const r of item.available_on_resources) {
+        resources.add(r);
+      }
+    }
+    return [...resources].sort();
+  }
+
+  /**
    * Transform raw API response to enhanced format
    */
   private transformSoftwareItem(
@@ -542,6 +555,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               total: transformedResults.length,
               query: query || null,
               resource_filter: resource || null,
+              ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
               fuzzy_matching: fuzzy,
               items: transformedResults,
             }),
@@ -584,6 +598,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             text: JSON.stringify({
               total: transformedResults.length,
               resource_filter: resource || "all resources",
+              ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
               items: transformedResults,
             }),
           },
@@ -644,6 +659,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             text: JSON.stringify({
               software_name,
               found: true,
+              ...(resource ? { resource_filter: resource, resource_matched: bestMatch.available_on_resources } : {}),
               details: bestMatch,
               other_matches: otherMatches.length > 0 ? otherMatches : undefined,
             }),
