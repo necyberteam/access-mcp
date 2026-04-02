@@ -125,11 +125,14 @@ export class AffinityGroupsServer extends BaseAccessServer {
       };
     }
 
+    // At this point id is guaranteed to be set (early returns above handle !id cases)
+    const groupId = id!;
+
     if (include === "all") {
       const [groupInfo, events, kb] = await Promise.all([
-        this.getAffinityGroup(id),
-        this.getAffinityGroupEvents(id),
-        this.getAffinityGroupKB(id),
+        this.getAffinityGroup(groupId),
+        this.getAffinityGroupEvents(groupId),
+        this.getAffinityGroupKB(groupId),
       ]);
 
       const groupContent = groupInfo.content[0];
@@ -154,14 +157,14 @@ export class AffinityGroupsServer extends BaseAccessServer {
     }
 
     if (include === "events") {
-      return await this.getAffinityGroupEvents(id);
+      return await this.getAffinityGroupEvents(groupId);
     }
 
     if (include === "kb") {
-      return await this.getAffinityGroupKB(id);
+      return await this.getAffinityGroupKB(groupId);
     }
 
-    return await this.getAffinityGroup(id);
+    return await this.getAffinityGroup(groupId);
   }
 
   protected async handleResourceRead(request: ReadResourceRequest): Promise<ReadResourceResult> {

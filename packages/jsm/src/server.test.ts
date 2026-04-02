@@ -502,8 +502,7 @@ describe("JsmServer", () => {
       delete process.env.JSM_DRY_RUN;
     });
 
-    it.each(["true", "TRUE", "True", "1", "yes", "YES"])
-    ("should enable dry-run for JSM_DRY_RUN=%s", async (value) => {
+    it.each(["true", "TRUE", "True", "1", "yes", "YES"])("should enable dry-run for JSM_DRY_RUN=%s", async (value) => {
       process.env.JSM_DRY_RUN = value;
       const dryRunServer = new JsmServer();
 
@@ -526,8 +525,7 @@ describe("JsmServer", () => {
       delete process.env.JSM_DRY_RUN;
     });
 
-    it.each(["false", "FALSE", "False", "0", "no", ""])
-    ("should NOT enable dry-run for JSM_DRY_RUN=%s", async (value) => {
+    it.each(["false", "FALSE", "False", "0", "no", ""])("should NOT enable dry-run for JSM_DRY_RUN=%s", async (value) => {
       process.env.JSM_DRY_RUN = value;
       process.env.JSM_PROXY_URL = "http://fake-proxy";
       const server = new JsmServer();

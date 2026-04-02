@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { OAuthClientInformationFull, OAuthTokenRevocationRequest } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { CILogonOAuthProvider, InMemoryClientStore } from "../cilogon-provider.js";
 
 describe("InMemoryClientStore", () => {
@@ -13,7 +14,7 @@ describe("InMemoryClientStore", () => {
       client_id: "test-client-id",
       client_secret: "test-secret",
       redirect_uris: ["http://localhost:3000/callback"],
-    } as any;
+    } as OAuthClientInformationFull;
 
     await store.registerClient(client);
     const retrieved = await store.getClient("test-client-id");
@@ -51,7 +52,7 @@ describe("CILogonOAuthProvider", () => {
       const client = {
         client_id: "mcp-client",
         redirect_uris: ["http://localhost:3000/callback"],
-      } as any;
+      } as OAuthClientInformationFull;
 
       const params = {
         state: "test-state",
@@ -62,7 +63,7 @@ describe("CILogonOAuthProvider", () => {
 
       const res = {
         redirect: vi.fn(),
-      } as any;
+      } as unknown as import("express").Response;
 
       await provider.authorize(client, params, res);
 
@@ -89,7 +90,7 @@ describe("CILogonOAuthProvider", () => {
 
   describe("exchangeAuthorizationCode", () => {
     it("should reject invalid code", async () => {
-      const client = { client_id: "test" } as any;
+      const client = { client_id: "test" } as OAuthClientInformationFull;
       await expect(
         provider.exchangeAuthorizationCode(client, "invalid-code")
       ).rejects.toThrow("Invalid or expired authorization code");
@@ -106,9 +107,9 @@ describe("CILogonOAuthProvider", () => {
 
   describe("revokeToken", () => {
     it("should not throw", async () => {
-      const client = { client_id: "test" } as any;
+      const client = { client_id: "test" } as OAuthClientInformationFull;
       await expect(
-        provider.revokeToken!(client, { token: "some-token" } as any)
+        provider.revokeToken!(client, { token: "some-token" } as OAuthTokenRevocationRequest)
       ).resolves.not.toThrow();
     });
   });
