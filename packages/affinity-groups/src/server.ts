@@ -89,10 +89,40 @@ export class AffinityGroupsServer extends BaseAccessServer {
   private async searchAffinityGroupsRouter(
     args: SearchAffinityGroupsArgs
   ): Promise<CallToolResult> {
-    const { id, include } = args;
+    const { id, include, query, limit } = args;
 
-    if (!id) {
+    if (!id && !query) {
       return await this.listAffinityGroups();
+    }
+
+    // Text search: filter groups by query matching name, description, category
+    if (!id && query) {
+      const allResult = await this.listAffinityGroups();
+      const content = allResult.content[0];
+      if (content.type !== "text") return allResult;
+
+      const allData = JSON.parse(content.text);
+      const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+      const filtered = (allData.items || []).filter((group: Record<string, string>) => {
+        const searchable = [
+          group.name || "",
+          group.description || "",
+          group.category || "",
+        ].join(" ").toLowerCase();
+        return terms.some((term) => searchable.includes(term));
+      });
+
+      const limited = limit ? filtered.slice(0, limit) : filtered;
+
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ total: limited.length, query, items: limited }, null, 2),
+          },
+        ],
+      };
     }
 
     if (include === "all") {
