@@ -22,7 +22,10 @@ interface SearchEventsParams {
   type?: string;
   tags?: string;
   date?: string;
+  start_date?: string;
+  end_date?: string;
   skill?: string;
+  has_video?: boolean;
   limit?: number;
 }
 
@@ -37,6 +40,7 @@ interface RawEvent {
   event_type?: string;
   skill_level?: string;
   tags?: string | string[];
+  video?: string;
   [key: string]: unknown;
 }
 
@@ -127,7 +131,7 @@ export class EventsServer extends BaseAccessServer {
       {
         name: "search_events",
         description:
-          "Search ACCESS-CI events (workshops, webinars, training). Returns {total, items}.",
+          "Search ACCESS-CI events (workshops, webinars, training). Returns future events by default. Use date='past' or start_date/end_date for historical events. Returns {total, items}.",
         inputSchema: {
           type: "object",
           properties: {
@@ -145,13 +149,29 @@ export class EventsServer extends BaseAccessServer {
             },
             date: {
               type: "string",
-              description: "Filter by time period",
+              description:
+                "Quick date filter. Defaults to 'upcoming' (future events only). Use 'past' for historical events.",
               enum: ["today", "upcoming", "past", "this_week", "this_month"],
+            },
+            start_date: {
+              type: "string",
+              description:
+                "Start date filter (YYYY-MM-DD or relative like '-6month', '-1year'). Overrides date parameter.",
+            },
+            end_date: {
+              type: "string",
+              description:
+                "End date filter (YYYY-MM-DD or relative like '+3month', '+1year'). Overrides date parameter.",
             },
             skill: {
               type: "string",
               description: "Skill level filter",
               enum: ["beginner", "intermediate", "advanced"],
+            },
+            has_video: {
+              type: "boolean",
+              description:
+                "Filter to events with recorded video available. Implies past events (video is only available for past events).",
             },
             limit: {
               type: "number",
@@ -266,7 +286,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
   private static readonly ALLOWED_PAGE_SIZES = [25, 50, 100, 250, 500];
 
   private buildEventsUrl(params: SearchEventsParams): string {
-    const url = new URL("/api/2.2/events", this.baseURL);
+    const url = new URL("/api/2.3/events", this.baseURL);
 
     // Map requested limit to nearest allowed page size
     const limit = params.limit || 50;
@@ -278,20 +298,40 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
       url.searchParams.set("search_api_fulltext", params.query);
     }
 
-    // Map universal 'date' to API params
-    const dateMap: Record<string, { start: string; end?: string }> = {
-      today: { start: "today" },
-      upcoming: { start: "today" },
-      past: { start: "-1year", end: "today" },
-      this_week: { start: "today", end: "+1week" },
-      this_month: { start: "today", end: "+1month" },
-    };
+    // Explicit start_date/end_date override the date shortcut
+    if (params.start_date || params.end_date) {
+      if (params.start_date) {
+        // Detect relative vs absolute: relative starts with + or - or is "today"
+        const isRelative = /^[+-]/.test(params.start_date) || params.start_date === "today";
+        url.searchParams.set(
+          isRelative ? "beginning_date_relative" : "beginning_date",
+          params.start_date
+        );
+      }
+      if (params.end_date) {
+        const isRelative = /^[+-]/.test(params.end_date) || params.end_date === "today";
+        url.searchParams.set(
+          isRelative ? "end_date_relative" : "end_date",
+          params.end_date
+        );
+      }
+    } else {
+      // Map date shortcut to API params
+      // has_video implies past events since only past events have recordings
+      const dateMap: Record<string, { start: string; end?: string }> = {
+        today: { start: "today" },
+        upcoming: { start: "today" },
+        past: { start: "-1year", end: "today" },
+        this_week: { start: "today", end: "+1week" },
+        this_month: { start: "today", end: "+1month" },
+      };
 
-    if (params.date && dateMap[params.date]) {
-      const dateMapping = dateMap[params.date];
-      url.searchParams.set("beginning_date_relative", dateMapping.start);
-      if (dateMapping.end) {
-        url.searchParams.set("end_date_relative", dateMapping.end);
+      const dateKey = params.date || (params.has_video ? "past" : null);
+      if (dateKey && dateMap[dateKey]) {
+        url.searchParams.set("beginning_date_relative", dateMap[dateKey].start);
+        if (dateMap[dateKey].end) {
+          url.searchParams.set("end_date_relative", dateMap[dateKey].end!);
+        }
       }
     }
 
@@ -319,12 +359,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     }
 
     // Ensure response is an array (non-array means unexpected response like 403 HTML)
-    let events: RawEvent[] = Array.isArray(response.data) ? response.data : [];
-
-    // Trim to requested limit (Drupal pager uses fixed page sizes)
-    if (params.limit && events.length > params.limit) {
-      events = events.slice(0, params.limit);
-    }
+    const events: RawEvent[] = Array.isArray(response.data) ? response.data : [];
 
     const enhancedEvents = events.map((event: RawEvent) => ({
       ...event,
@@ -349,13 +384,21 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     // Sort by starts_in_hours ascending so nearest events come first
     enhancedEvents.sort((a, b) => a.starts_in_hours - b.starts_in_hours);
 
+    // Client-side filter: has_video
+    const filtered = params.has_video
+      ? enhancedEvents.filter((e) => typeof e.video === "string" && e.video.trim() !== "")
+      : enhancedEvents;
+
+    // Apply limit after sorting and filtering
+    const limited = params.limit ? filtered.slice(0, params.limit) : filtered;
+
     return {
       content: [
         {
           type: "text" as const,
           text: JSON.stringify({
-            total: enhancedEvents.length,
-            items: enhancedEvents,
+            total: limited.length,
+            items: limited,
           }),
         },
       ],

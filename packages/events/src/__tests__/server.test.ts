@@ -61,7 +61,7 @@ describe("EventsServer", () => {
   describe("URL Building", () => {
     it("should build correct URLs with v2.2 endpoint", () => {
       const url = server["buildEventsUrl"]({});
-      expect(url).toContain("/api/2.2/events");
+      expect(url).toContain("/api/2.3/events");
     });
 
     it("should map 'date: today' to beginning_date_relative", () => {
@@ -163,6 +163,7 @@ describe("EventsServer", () => {
         field_video: "",
         created: "2024-08-01T10:00:00-0400",
         changed: "2024-08-15T14:30:00-0400",
+        url: "https://support.access-ci.org/events/python-workshop",
       },
       {
         id: "2",
@@ -181,6 +182,7 @@ describe("EventsServer", () => {
         field_video: "",
         created: "2024-08-01T10:00:00-0400",
         changed: "2024-08-20T11:00:00-0400",
+        url: "https://support.access-ci.org/events/machine-learning-webinar",
       },
     ];
 
@@ -337,6 +339,7 @@ describe("EventsServer", () => {
             start_date: "2024-09-15T09:00:00",
             end_date: "2024-09-15T17:00:00",
             tags: "python, gpu, hpc",
+            url: "https://support.access-ci.org/events/string-tags-event",
           },
         ];
 
@@ -365,6 +368,7 @@ describe("EventsServer", () => {
             start_date: "2024-09-15T09:00:00",
             end_date: "2024-09-15T17:00:00",
             tags: "  ",
+            url: "https://support.access-ci.org/events/no-tags-event",
           },
         ];
 
@@ -397,6 +401,7 @@ describe("EventsServer", () => {
             start_date: futureDate2,
             end_date: futureDate2,
             tags: [],
+            url: "https://support.access-ci.org/events/event-b",
           },
           {
             id: "s2",
@@ -404,6 +409,7 @@ describe("EventsServer", () => {
             start_date: futureDate1,
             end_date: futureDate1,
             tags: [],
+            url: "https://support.access-ci.org/events/event-a",
           },
           {
             id: "s3",
@@ -411,6 +417,7 @@ describe("EventsServer", () => {
             start_date: futureDate3,
             end_date: futureDate3,
             tags: [],
+            url: "https://support.access-ci.org/events/event-c",
           },
         ];
 
@@ -541,6 +548,7 @@ describe("EventsServer", () => {
         start_date: "2024-08-30T09:00:00",
         end_date: "2024-08-30T17:00:00",
         tags: ["test"],
+        url: "https://support.access-ci.org/events/test-event",
       },
     ];
 

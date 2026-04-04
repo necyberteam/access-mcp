@@ -25,26 +25,37 @@ MCP server for ACCESS-CI events including workshops, webinars, and training sess
 
 Search and filter ACCESS-CI events.
 
+Returns future events by default. Use `date: "past"` or `start_date`/`end_date` for historical events.
+
 **Parameters:**
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `query` | string | Search titles, descriptions, speakers, tags |
 | `type` | string | Filter: `workshop`, `webinar`, `training` |
 | `tags` | string | Filter: `python`, `gpu`, `hpc`, `ml` |
-| `date` | enum | Time period: `today`, `upcoming`, `past`, `this_week`, `this_month` |
+| `date` | enum | Quick date filter: `today`, `upcoming`, `past`, `this_week`, `this_month` |
+| `start_date` | string | Start date (YYYY-MM-DD or relative like `-6month`). Overrides `date`. |
+| `end_date` | string | End date (YYYY-MM-DD or relative like `+3month`). Overrides `date`. |
 | `skill` | enum | Skill level: `beginner`, `intermediate`, `advanced` |
+| `has_video` | boolean | Filter to events with recorded video (implies past events) |
 | `limit` | number | Max results (default: 50) |
 
 **Examples:**
 ```javascript
 // Upcoming Python events
-search_events({ query: "python", date: "upcoming", limit: 10 })
+search_events({ query: "python", limit: 10 })
 
 // Machine learning workshops this month
 search_events({ query: "machine learning", date: "this_month", type: "workshop" })
 
 // Beginner GPU training
-search_events({ tags: "gpu", skill: "beginner", date: "upcoming" })
+search_events({ tags: "gpu", skill: "beginner" })
+
+// Events with video recordings
+search_events({ has_video: true, limit: 20 })
+
+// Events in a specific date range
+search_events({ start_date: "2025-01-01", end_date: "2025-06-30" })
 ```
 
 ## Installation

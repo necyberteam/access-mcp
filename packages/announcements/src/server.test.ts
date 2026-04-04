@@ -61,6 +61,7 @@ describe("AnnouncementsServer", () => {
               author: "ACCESS Support",
               tags: ["maintenance", "scheduled"],
               affinity_group: ["123", "456"],
+              url: "https://support.access-ci.org/announcements/scheduled-maintenance",
             },
             {
               title: "New GPU Nodes Available",
@@ -69,6 +70,7 @@ describe("AnnouncementsServer", () => {
               author: "Resource Team",
               tags: ["gpu", "hardware"],
               affinity_group: ["789"],
+              url: "https://support.access-ci.org/announcements/new-gpu-nodes-available",
             },
           ],
         };
@@ -195,6 +197,7 @@ describe("AnnouncementsServer", () => {
               author: "Support",
               tags: ["gpu", "maintenance"],
               affinity_group: [],
+              url: "https://support.access-ci.org/announcements/gpu-maintenance",
             },
           ],
         };
@@ -232,6 +235,7 @@ describe("AnnouncementsServer", () => {
               published_date: "2024-03-14",
               tags: ["ai"],
               affinity_group: [],
+              url: "https://support.access-ci.org/announcements/update-1",
             },
           ],
         };
@@ -268,6 +272,7 @@ describe("AnnouncementsServer", () => {
               author: "Admin",
               tags: ["urgent"],
               affinity_group: [],
+              url: "https://support.access-ci.org/announcements/todays-update",
             },
           ],
         };
@@ -367,6 +372,7 @@ describe("AnnouncementsServer", () => {
             published_date: "2024-03-15",
             tags: ["tag1", "tag2", "tag3"],
             affinity_group: [],
+            url: "https://support.access-ci.org/announcements/test",
           },
         ],
       };
@@ -394,6 +400,7 @@ describe("AnnouncementsServer", () => {
             published_date: "2024-03-15",
             tags: "gpu, machine-learning, hpc",
             affinity_group: [],
+            url: "https://support.access-ci.org/announcements/test",
           },
         ],
       };
@@ -421,6 +428,7 @@ describe("AnnouncementsServer", () => {
             published_date: "2024-03-15",
             tags: "",
             affinity_group: [],
+            url: "https://support.access-ci.org/announcements/test",
           },
         ],
       };
@@ -448,20 +456,23 @@ describe("AnnouncementsServer", () => {
             published_date: "2024-03-15",
             tags: ["gpu", "maintenance"],
             affinity_group: [],
+            url: "https://support.access-ci.org/announcements/1",
           },
           {
             title: "2",
             published_date: "2024-03-14",
             tags: ["gpu", "network"],
             affinity_group: [],
+            url: "https://support.access-ci.org/announcements/2",
           },
           {
             title: "3",
             published_date: "2024-03-13",
             tags: ["gpu", "storage"],
             affinity_group: [],
+            url: "https://support.access-ci.org/announcements/3",
           },
-          { title: "4", published_date: "2024-03-12", tags: ["maintenance"], affinity_group: [] },
+          { title: "4", published_date: "2024-03-12", tags: ["maintenance"], affinity_group: [], url: "https://support.access-ci.org/announcements/4" },
         ],
       };
 
@@ -489,6 +500,7 @@ describe("AnnouncementsServer", () => {
             published_date: "2024-03-15",
             tags: [],
             affinity_group: [],
+            url: "https://support.access-ci.org/announcements/test",
           },
         ],
       };
