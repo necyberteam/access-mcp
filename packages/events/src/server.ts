@@ -141,17 +141,20 @@ export class EventsServer extends BaseAccessServer {
             },
             type: {
               type: "string",
-              description: "Filter: workshop, webinar, training",
+              description:
+                "Filter by event type. Common values: training, webinar, workshop, Office Hours, Conference, Other",
             },
             tags: {
               type: "string",
-              description: "Filter: python, gpu, hpc, ml",
+              description:
+                "Filter by tag name. Examples: python, gpu, hpc, ml, open-ondemand, NAIRR-pilot, mpi, quantum-computing, data-analysis, visualization. Tags are case-sensitive as entered by event organizers.",
             },
             date: {
               type: "string",
               description:
-                "Quick date filter. Defaults to 'upcoming' (future events only). Use 'past' for historical events.",
+                "Quick date filter. Use 'past' for historical events. Defaults to 'upcoming' if omitted.",
               enum: ["today", "upcoming", "past", "this_week", "this_month"],
+              default: "upcoming",
             },
             start_date: {
               type: "string",

@@ -214,7 +214,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             },
             resource: {
               type: "string",
-              description: "Filter to resource (e.g., 'anvil', 'delta', 'expanse', 'bridges-2')",
+              description:
+                "Filter to resource (e.g., 'anvil', 'deltaai', 'expanse', 'bridges-2'). Note: not all resources are fully indexed — use compare_software_availability to check coverage.",
             },
             fuzzy: {
               type: "boolean",
@@ -224,7 +225,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             include_ai_metadata: {
               type: "boolean",
               description: "Include AI metadata (tags, research area, software type)",
-              default: true,
+              default: false,
             },
             limit: {
               type: "number",
@@ -242,8 +243,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               arguments: { query: "tensorflow", resource: "anvil" },
             },
             {
-              name: "Search MPI libraries on Delta",
-              arguments: { query: "mpi", resource: "delta", limit: 20 },
+              name: "Search MPI libraries on DeltaAI",
+              arguments: { query: "mpi", resource: "deltaai", limit: 20 },
             },
           ],
         },
@@ -257,7 +258,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
           properties: {
             resource: {
               type: "string",
-              description: "Filter to resource (e.g., 'anvil', 'delta'). Omit for all resources.",
+              description:
+                "Filter to resource (e.g., 'anvil', 'deltaai', 'expanse', 'bridges-2'). Note: not all resources are fully indexed — use compare_software_availability to check coverage.",
             },
             include_ai_metadata: {
               type: "boolean",
@@ -276,8 +278,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               arguments: { limit: 50 },
             },
             {
-              name: "List software on Delta",
-              arguments: { resource: "delta", limit: 100 },
+              name: "List software on DeltaAI",
+              arguments: { resource: "deltaai", limit: 100 },
             },
           ],
         },
@@ -295,7 +297,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             },
             resource: {
               type: "string",
-              description: "Filter to specific resource (optional)",
+              description:
+                "Filter to resource (e.g., 'anvil', 'deltaai', 'expanse', 'bridges-2'). Note: not all resources are fully indexed — use compare_software_availability to check coverage.",
             },
             fuzzy: {
               type: "boolean",
@@ -331,7 +334,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             resources: {
               type: "array",
               items: { type: "string" },
-              description: "Resources to check (optional, compares all if omitted)",
+              description:
+                "Resources to check (optional). If omitted, compares across all currently indexed resources only (not all ACCESS resources are indexed).",
             },
           },
           required: ["software_names"],
@@ -344,7 +348,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               name: "Check compilers on specific resources",
               arguments: {
                 software_names: ["gcc", "intel", "nvhpc"],
-                resources: ["anvil", "delta", "expanse"],
+                resources: ["anvil", "deltaai", "expanse"],
               },
             },
           ],

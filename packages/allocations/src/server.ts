@@ -119,7 +119,8 @@ export class AllocationsServer extends BaseAccessServer {
             },
             allocation_type: {
               type: "string",
-              description: "Filter by allocation type (e.g., 'Discover', 'Explore', 'Accelerate')",
+              description:
+                "Filter by allocation type. Valid values: 'Explore', 'Discover', 'Accelerate', 'Maximize', 'Ramp-Up'",
             },
             date_range: {
               type: "object" as const,
@@ -299,13 +300,14 @@ export class AllocationsServer extends BaseAccessServer {
       {
         name: "get_allocation_statistics",
         description:
-          "Get allocation statistics (top fields, resources, institutions, types). Returns aggregate stats.",
+          "Get allocation statistics (top fields, resources, institutions, types) based on a sample of recent projects. Results are estimates, not a full census. Returns aggregate stats.",
         inputSchema: {
           type: "object" as const,
           properties: {
             pages_to_analyze: {
               type: "number",
-              description: "Number of pages to analyze for statistics (default: 5, max: 20)",
+              description:
+                "Number of pages of projects to sample for statistics (default: 5, max: 20). Each page contains approximately 20 projects, so default samples ~100 projects.",
               default: 5,
             },
           },

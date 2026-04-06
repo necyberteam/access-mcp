@@ -210,7 +210,8 @@ export class AnnouncementsServer extends BaseAccessServer {
             },
             tags: {
               type: "string",
-              description: "Filter by topics: gpu, ml, hpc",
+              description:
+                "Filter by tag name. Examples: gpu, ml, hpc, open-ondemand, ACCESS-allocations, ACCESS-account, ai, pegasus. Use suggest_tags to discover tags from announcement content.",
             },
             date: {
               type: "string",
