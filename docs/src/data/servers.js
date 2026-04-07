@@ -2,7 +2,7 @@ export const servers = [
   {
     "id": "affinity-groups",
     "name": "@access-mcp/affinity-groups",
-    "version": "0.5.0",
+    "version": "0.6.0",
     "description": "MCP server for ACCESS-CI Affinity Groups API",
     "main": "dist/index.js",
     "bin": {
@@ -13,7 +13,7 @@ export const servers = [
   {
     "id": "allocations",
     "name": "@access-mcp/allocations",
-    "version": "0.6.0",
+    "version": "0.7.0",
     "description": "MCP server for ACCESS-CI Allocations and Research Projects API",
     "main": "dist/index.js",
     "bin": {
@@ -24,7 +24,7 @@ export const servers = [
   {
     "id": "announcements",
     "name": "@access-mcp/announcements",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "description": "MCP server for ACCESS Support Announcements API",
     "main": "dist/index.js",
     "bin": {
@@ -35,7 +35,7 @@ export const servers = [
   {
     "id": "compute-resources",
     "name": "@access-mcp/compute-resources",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "description": "MCP server for ACCESS-CI Compute Resources API",
     "main": "dist/index.js",
     "bin": {
@@ -46,13 +46,13 @@ export const servers = [
   {
     "id": "events",
     "name": "@access-mcp/events",
-    "version": "0.4.0",
+    "version": "0.5.0",
     "description": "ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events",
     "main": "dist/index.js",
     "bin": {
       "access-mcp-events": "dist/index.js"
     },
-    "readme": "# ACCESS-CI Events MCP Server\n\nMCP server for ACCESS-CI events including workshops, webinars, and training sessions.\n\n## Usage Examples\n\n### Search & Discovery\n```\n\"Upcoming ACCESS events\"\n\"Python workshops\"\n\"Machine learning training\"\n\"Office hours this week\"\n```\n\n### Filtering\n```\n\"Beginner events this month\"\n\"GPU computing workshops\"\n\"Advanced training sessions\"\n```\n\n## Tools\n\n### `search_events`\n\nSearch and filter ACCESS-CI events.\n\n**Parameters:**\n| Parameter | Type | Description |\n|-----------|------|-------------|\n| `query` | string | Search titles, descriptions, speakers, tags |\n| `type` | string | Filter: `workshop`, `webinar`, `training` |\n| `tags` | string | Filter: `python`, `gpu`, `hpc`, `ml` |\n| `date` | enum | Time period: `today`, `upcoming`, `past`, `this_week`, `this_month` |\n| `skill` | enum | Skill level: `beginner`, `intermediate`, `advanced` |\n| `limit` | number | Max results (default: 50) |\n\n**Examples:**\n```javascript\n// Upcoming Python events\nsearch_events({ query: \"python\", date: \"upcoming\", limit: 10 })\n\n// Machine learning workshops this month\nsearch_events({ query: \"machine learning\", date: \"this_month\", type: \"workshop\" })\n\n// Beginner GPU training\nsearch_events({ tags: \"gpu\", skill: \"beginner\", date: \"upcoming\" })\n```\n\n## Installation\n\n```bash\nnpm install -g @access-mcp/events\n```\n\n## Configuration\n\n```json\n{\n  \"mcpServers\": {\n    \"access-events\": {\n      \"command\": \"npx\",\n      \"args\": [\"@access-mcp/events\"]\n    }\n  }\n}\n```\n\n## Resources\n\n- `accessci://events` - All events data\n- `accessci://events/upcoming` - Upcoming events\n- `accessci://events/workshops` - Workshop events\n- `accessci://events/webinars` - Webinar events\n"
+    "readme": "# ACCESS-CI Events MCP Server\n\nMCP server for ACCESS-CI events including workshops, webinars, and training sessions.\n\n## Usage Examples\n\n### Search & Discovery\n```\n\"Upcoming ACCESS events\"\n\"Python workshops\"\n\"Machine learning training\"\n\"Office hours this week\"\n```\n\n### Filtering\n```\n\"Beginner events this month\"\n\"GPU computing workshops\"\n\"Advanced training sessions\"\n```\n\n## Tools\n\n### `search_events`\n\nSearch and filter ACCESS-CI events.\n\nReturns future events by default. Use `date: \"past\"` or `start_date`/`end_date` for historical events.\n\n**Parameters:**\n| Parameter | Type | Description |\n|-----------|------|-------------|\n| `query` | string | Search titles, descriptions, speakers, tags |\n| `type` | string | Filter: `workshop`, `webinar`, `training` |\n| `tags` | string | Filter: `python`, `gpu`, `hpc`, `ml` |\n| `date` | enum | Quick date filter: `today`, `upcoming`, `past`, `this_week`, `this_month` |\n| `start_date` | string | Start date (YYYY-MM-DD or relative like `-6month`). Overrides `date`. |\n| `end_date` | string | End date (YYYY-MM-DD or relative like `+3month`). Overrides `date`. |\n| `skill` | enum | Skill level: `beginner`, `intermediate`, `advanced` |\n| `has_video` | boolean | Filter to events with recorded video (implies past events) |\n| `limit` | number | Max results (default: 50) |\n\n**Examples:**\n```javascript\n// Upcoming Python events\nsearch_events({ query: \"python\", limit: 10 })\n\n// Machine learning workshops this month\nsearch_events({ query: \"machine learning\", date: \"this_month\", type: \"workshop\" })\n\n// Beginner GPU training\nsearch_events({ tags: \"gpu\", skill: \"beginner\" })\n\n// Events with video recordings\nsearch_events({ has_video: true, limit: 20 })\n\n// Events in a specific date range\nsearch_events({ start_date: \"2025-01-01\", end_date: \"2025-06-30\" })\n```\n\n## Installation\n\n```bash\nnpm install -g @access-mcp/events\n```\n\n## Configuration\n\n```json\n{\n  \"mcpServers\": {\n    \"access-events\": {\n      \"command\": \"npx\",\n      \"args\": [\"@access-mcp/events\"]\n    }\n  }\n}\n```\n\n## Resources\n\n- `accessci://events` - All events data\n- `accessci://events/upcoming` - Upcoming events\n- `accessci://events/workshops` - Workshop events\n- `accessci://events/webinars` - Webinar events\n"
   },
   {
     "id": "nsf-awards",
@@ -68,7 +68,7 @@ export const servers = [
   {
     "id": "software-discovery",
     "name": "@access-mcp/software-discovery",
-    "version": "0.7.0",
+    "version": "0.8.0",
     "description": "ACCESS-CI Software Discovery Service MCP server",
     "main": "dist/index.js",
     "bin": {

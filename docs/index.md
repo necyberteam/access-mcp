@@ -3,7 +3,8 @@ layout: home
 
 hero:
   name: "ACCESS-CI MCP Servers"
-  text: "Connect AI assistants to ACCESS-CI resources, communities, and data with these Model Context Protocol servers."
+  text: "Connect your AI assistant to ACCESS-CI resources, communities, and data."
+  tagline: "Public Model Context Protocol servers — query compute resources, check system status, search software, explore allocations, and more through natural conversation."
   actions:
     - theme: brand
       text: Get Started
@@ -16,58 +17,61 @@ hero:
 
 ## What is MCP?
 
-The Model Context Protocol (MCP) is an open standard and open-source framework introduced by Anthropic that allows AI assistants to securely interact with external tools, systems, and data sources. It provides a universal interface for reading files, executing functions, and handling contextual prompts, creating a standardized way for large language models (LLMs) to integrate and share data. MCP has been widely adopted by major AI providers and the broader community.
+The [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) is an open standard that lets AI assistants securely interact with external tools, systems, and data sources. It provides a universal interface for AI to read data, call functions, and reason over real-world context. MCP is supported by Claude and a growing number of AI tools.
 
+## What You Can Do
 
-## ACCESS MCP Servers offer structured access to:
+With ACCESS-CI MCP servers connected, you can ask your AI questions like:
 
-- **Infrastructure Resources** Query hardware specifications, system capabilities, and availability across ACCESS resources.
-- **System Status** Track outages, maintenance schedules, and system announcements in real time.
-- **Software Discovery** Search and browse software packages available on ACCESS-CI resources.
-- **XDMoD Metrics** Access usage analytics, visualize trends with charts, and review resource utilization data.
-- **Affinity Groups** Connect with communities, discover events, and access knowledge base resources.
-- **Allocations** Browse active research projects, identify collaboration opportunities, and analyze allocation trends.
-- **Events** Find workshops, webinars, and training sessions, with filters for date, type, skill level, and topic.
-- **Announcements** Announcements from the community.
+- *"What GPU resources are available on ACCESS-CI?"*
+- *"Are there any current outages or upcoming maintenance on Delta?"*
+- *"Show me upcoming workshops on parallel computing"*
+- *"What machine learning software is available on Anvil?"*
+- *"What NSF-funded projects are doing work in quantum computing?"*
 
-## Quick Example
+Your AI queries the relevant ACCESS services and gives you a synthesized answer — no need to navigate multiple websites or APIs.
 
-With ACCESS-CI MCP servers, you can ask Claude:
+## Available Servers
 
-> "What GPU resources are available on ACCESS-CI and what machine learning software do they have?"
+ACCESS-CI MCP servers provide structured access to:
 
-Claude will query multiple MCP servers to provide comprehensive information about:
+- **Compute Resources** — Hardware specifications, GPU availability, system capabilities
+- **System Status** — Outages, maintenance schedules, and incidents
+- **Software Discovery** — Software packages available across ACCESS resources
+- **XDMoD** — Usage statistics, visualizations, and resource utilization
+- **Allocations** — Research projects, allocation trends, and collaboration discovery
+- **NSF Awards** — NSF funding data and cross-referencing
+- **Events** — Workshops, webinars, and training sessions
+- **Announcements** — Community news and updates
+- **Affinity Groups** — Communities, events, and knowledge base resources
 
-- Available GPU-enabled systems
-- Hardware specifications
-- Installed ML frameworks and libraries
-- Current system status and availability
+A tenth server, **XDMoD Data Analytics**, provides per-user job and usage data via Claude Code (it requires API headers that aren't supported by Claude.ai connectors). [Details →](/getting-started#optional-xdmod-data-analytics)
 
-## Try It Now
+## Quick Start
 
-Connect your AI assistant to ACCESS-CI services in seconds.
+Most tools work without authentication — adding a server takes about a minute.
 
 ### Claude Desktop / claude.ai
 
 1. Open **Customize** > **Connectors** > **Add custom connector**
-2. Paste a server URL (e.g., `https://mcp.access-ci.org/compute-resources/sse`)
-3. Repeat for each server — see the [**Getting Started guide**](/getting-started) for all URLs
+2. Paste a server URL — start with `https://mcp.access-ci.org/compute-resources/sse`
+3. Authorize when prompted
 
-No software to install. Claude will offer to authenticate with your ACCESS credentials via CILogon for tools that manage content.
+You can add as many or as few servers as you need. See the [**Getting Started guide**](/getting-started) for all server URLs.
 
-Ask: *"What GPU resources are available on ACCESS-CI?"*
+### Claude Code
 
-### Claude Code / Other MCP Clients
+See the [**Getting Started guide**](/getting-started#claude-code-cli) for CLI commands and configuration.
 
-See the [**Getting Started guide**](/getting-started) for setup commands and configuration.
+### Other MCP Clients
+
+The Model Context Protocol is supported by a growing number of AI tools. ACCESS MCP servers should work with any client that supports remote MCP servers — see the [**Other MCP Clients**](/getting-started#other-mcp-clients) section for details. We'd love to hear about your experience: [open a support ticket](https://support.access-ci.org/help-ticket) so we can expand our documentation.
 
 ---
 
-## Install Locally
+## Self-Hosting
 
-Prefer to run the servers yourself? Install them locally for more control or to customize:
-
-[**📖 Complete Installation Guide →**](/getting-started)
+Want to run the servers yourself? See the [**setup guide**](/getting-started#self-hosting-docker) for Docker deployment instructions.
 
 ## Supported by ACCESS-CI
 
