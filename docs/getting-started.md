@@ -14,11 +14,38 @@ Once connected, you can ask your AI questions like:
 
 Your AI queries the relevant ACCESS services and gives you a synthesized answer — no need to navigate multiple websites or APIs.
 
-## Authentication
+## Logging In
 
-**Most tools work without logging in.** Browsing, searching, and reading data are all available anonymously.
+**Most tools work without logging in.** Browsing, searching, and reading data are all available anonymously. You only need to authenticate if you want to **create or manage content** — for example, drafting an announcement or viewing your own draft events.
 
-Authentication is only needed if you want to **create or manage content** — for example, drafting an announcement or managing your own events. When needed, Claude will prompt you to log in via CILogon using your ACCESS credentials. You can skip this step if you only need read-only access.
+### Which servers require login?
+
+| Server | Anonymous use | Requires login |
+|--------|---------------|----------------|
+| Compute Resources | All tools | — |
+| System Status | All tools | — |
+| Software Discovery | All tools | — |
+| XDMoD | All tools | — |
+| Allocations | All tools | — |
+| NSF Awards | All tools | — |
+| Events | All tools | — |
+| Announcements | `search_announcements`, `suggest_tags`, `suggest_summary`, `get_announcement_context` | `create_announcement`, `update_announcement`, `delete_announcement`, `get_my_announcements` |
+| Affinity Groups | All tools | — |
+
+### How to log in
+
+When you connect a server that supports authentication (currently **Announcements**), Claude will prompt you to authorize via CILogon — the same single sign-on system used by other ACCESS services.
+
+1. After adding the connector, Claude will show a CILogon authorization page in your browser
+2. Choose your home institution from the list and sign in with your institutional credentials
+3. Approve the authorization
+4. Return to Claude — the connector is now authenticated
+
+You can skip this step if you only need read-only access. The server will still work for anonymous tools; you just won't be able to use the management tools.
+
+### Logging out / revoking access
+
+To revoke access for a connector, remove it in **Customize > Connectors** in Claude. The next time you add it, you'll be prompted to log in again.
 
 ## Available Servers
 
@@ -46,9 +73,9 @@ Add ACCESS servers as connectors. Setup takes about a minute per server.
 
 1. In Claude, open **Customize** (palette/settings icon) > **Connectors**
 2. Click **"Add custom connector"**
-3. Paste a server URL from the table above (start with `https://mcp.access-ci.org/compute-resources/sse`)
+3. Paste `https://mcp.access-ci.org/compute-resources/sse` into the Server URL box
 4. Save and authorize when prompted
-5. Repeat for any other servers you want
+5. Repeat for any other servers from the table above
 
 ::: tip
 You don't need to add all servers at once. Start with one or two that match your needs, then add more later.
