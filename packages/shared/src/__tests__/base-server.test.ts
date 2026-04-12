@@ -102,7 +102,7 @@ describe("BaseAccessServer HTTP Mode", () => {
   });
 
   afterEach(async () => {
-    // Server cleanup handled by process exit
+    await server.stop();
   });
 
   describe("Health endpoint", () => {
@@ -182,6 +182,32 @@ describe("BaseAccessServer HTTP Mode", () => {
       } finally {
         clearTimeout(timeout);
       }
+    });
+
+    it("should NOT set content-length on /mcp SSE responses", async () => {
+      const response = await fetch(`${baseUrl}/mcp`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          method: "initialize",
+          id: 1,
+          params: {
+            protocolVersion: "2025-03-26",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toContain("text/event-stream");
+      // Critical: no content-length on SSE responses.
+      // Claude Code's http transport requires chunked transfer encoding.
+      expect(response.headers.get("content-length")).toBeNull();
     });
   });
 
@@ -360,6 +386,10 @@ describe("HTTP Mode - Acting User Headers", () => {
     await server.start({ httpPort: port });
   });
 
+  afterEach(async () => {
+    await server.stop();
+  });
+
   describe("X-Acting-User header", () => {
     it("should extract X-Acting-User header and make it available in context", async () => {
       const response = await fetch(`${baseUrl}/tools/get_context`, {
@@ -517,8 +547,9 @@ describe("API Key Authentication", () => {
     await server.start({ httpPort: port });
   });
 
-  afterEach(() => {
+  afterEach(async () => {
     delete process.env.MCP_API_KEY;
+    await server.stop();
   });
 
   describe("Tool endpoints with requireApiKey", () => {

@@ -1,6 +1,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
@@ -21,8 +21,9 @@ import {
   isInitializeRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
-import express, { Express, Request, Response } from "express";
-import { IncomingMessage, ServerResponse } from "node:http";
+import { Hono } from "hono";
+import { serve } from "@hono/node-server";
+import { IncomingMessage, Server as HttpServer, ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
@@ -111,11 +112,12 @@ export abstract class BaseAccessServer {
   protected transport: StdioServerTransport;
   protected logger: Logger;
   private _httpClient?: AxiosInstance;
-  private _httpServer?: Express;
+  private _httpApp?: Hono;
   private _httpPort?: number;
-  private _streamableTransports: Map<string, StreamableHTTPServerTransport> = new Map();
+  private _streamableTransports: Map<string, WebStandardStreamableHTTPServerTransport> = new Map();
   private _sseTransports: Map<string, SSEServerTransport> = new Map();
   private _requireApiKey: boolean;
+  private _nodeServer?: HttpServer;
 
   constructor(
     protected serverName: string,
@@ -125,7 +127,7 @@ export abstract class BaseAccessServer {
   ) {
     this._requireApiKey = options.requireApiKey ?? false;
     // Note: Telemetry is initialized via --import flag in the Dockerfile
-    // This ensures OpenTelemetry is set up BEFORE express/http are imported
+    // This ensures OpenTelemetry is set up BEFORE http modules are imported
     // See packages/shared/src/telemetry-bootstrap.ts
 
     this.logger = createLogger(serverName);
@@ -287,21 +289,36 @@ export abstract class BaseAccessServer {
   }
 
   /**
+   * Stop the HTTP server (useful in tests to free ports between test runs)
+   */
+  async stop(): Promise<void> {
+    if (this._nodeServer) {
+      this._nodeServer.closeAllConnections();
+      return new Promise((resolve, reject) => {
+        this._nodeServer!.close((err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      });
+    }
+  }
+
+  /**
    * Start HTTP service layer with Streamable HTTP support for remote MCP connections
    */
   private async startHttpService(): Promise<void> {
     if (!this._httpPort) return;
 
-    this._httpServer = express();
-    this._httpServer.use(express.json());
+    const app = new Hono();
+    this._httpApp = app;
 
     // Optional Bearer token extraction for OAuth-authenticated MCP clients.
     // If a Bearer token is present, verify it via CILogon userinfo and
     // populate RequestContext.actingUser. Never rejects — lets tools decide.
     const oauthVerifyUrl = process.env.OAUTH_VERIFY_URL;
     if (oauthVerifyUrl) {
-      this._httpServer.use(async (req: Request, _res: Response, next) => {
-        const authHeader = req.header("Authorization");
+      app.use("*", async (c, next) => {
+        const authHeader = c.req.header("Authorization");
         if (authHeader?.startsWith("Bearer ")) {
           const token = authHeader.slice(7);
           try {
@@ -315,7 +332,7 @@ export abstract class BaseAccessServer {
               const context: RequestContext = {
                 // With ACCESS OIDC config, sub is the ACCESS ID (user@access-ci.org)
                 actingUser: extra.sub || extra.eppn || extra.email,
-                requestId: req.header("X-Request-ID") || randomUUID(),
+                requestId: c.req.header("X-Request-ID") || randomUUID(),
               };
               return requestContextStorage.run(context, () => next());
             }
@@ -324,13 +341,13 @@ export abstract class BaseAccessServer {
             this.logger.debug("Bearer token verification failed, continuing unauthenticated");
           }
         }
-        next();
+        await next();
       });
     }
 
     // Health check endpoint
-    this._httpServer.get("/health", (req: Request, res: Response) => {
-      res.json({
+    app.get("/health", (c) => {
+      return c.json({
         server: this.serverName,
         version: this.version,
         status: "healthy",
@@ -340,40 +357,52 @@ export abstract class BaseAccessServer {
 
     // Streamable HTTP endpoint for MCP connections
     // Handles POST (messages), GET (SSE stream), DELETE (session cleanup)
-    const handleMcpRequest = async (req: Request, res: Response) => {
+    // Uses WebStandardStreamableHTTPServerTransport — handles Web Standard
+    // Request/Response directly, avoiding the Node↔WebStandard double conversion
+    // that caused content-length to be added to SSE responses.
+    app.all("/mcp", async (c) => {
       // Validate API key for POST requests when requireApiKey is enabled
-      if (req.method === "POST" && this._requireApiKey) {
+      if (c.req.method === "POST" && this._requireApiKey) {
         const expectedApiKey = process.env.MCP_API_KEY;
-        const providedApiKey = req.header("X-Api-Key");
+        const providedApiKey = c.req.header("X-Api-Key");
 
         if (!expectedApiKey) {
           this.logger.error("MCP_API_KEY environment variable not set but requireApiKey is enabled");
-          res.status(500).json({ error: "Server misconfiguration: API key not configured" });
-          return;
+          return c.json({ error: "Server misconfiguration: API key not configured" }, 500);
         }
 
         if (!providedApiKey || providedApiKey !== expectedApiKey) {
           this.logger.warn("Unauthorized MCP request attempt", {
             hasKey: !!providedApiKey,
           });
-          res.status(401).json({ error: "Invalid or missing API key. This server requires authentication for tool execution." });
-          return;
+          return c.json({ error: "Invalid or missing API key. This server requires authentication for tool execution." }, 401);
         }
       }
 
+      // Parse body for POST requests (needed for isInitializeRequest check
+      // and passed through as parsedBody so the transport doesn't re-read
+      // the already-consumed stream).
+      const body = c.req.method === "POST"
+        ? await c.req.json().catch(() => null)
+        : undefined;
+
       // Check for existing session
-      const sessionId = req.headers["mcp-session-id"] as string | undefined;
-      let transport: StreamableHTTPServerTransport;
+      const sessionId = c.req.header("mcp-session-id");
+      let transport: WebStandardStreamableHTTPServerTransport;
 
       if (sessionId && this._streamableTransports.has(sessionId)) {
         transport = this._streamableTransports.get(sessionId)!;
-      } else if (!sessionId && req.method === "POST") {
+      } else if (!sessionId && c.req.method === "POST") {
         // New session — check if this is an initialize request
-        const body = req.body;
         if (body && isInitializeRequest(body)) {
           this.logger.debug("New Streamable HTTP session");
-          transport = new StreamableHTTPServerTransport({
+          transport = new WebStandardStreamableHTTPServerTransport({
             sessionIdGenerator: () => randomUUID(),
+            onsessioninitialized: (id: string) => {
+              // Store transport once the session ID is assigned (during handleRequest)
+              this._streamableTransports.set(id, transport);
+              this.logger.debug("Streamable HTTP session initialized", { sessionId: id });
+            },
           });
 
           // Create a new server instance for this session
@@ -394,11 +423,6 @@ export abstract class BaseAccessServer {
           this.setupServerHandlers(mcpServer);
           await mcpServer.connect(transport);
 
-          // Store transport by session ID after connection
-          if (transport.sessionId) {
-            this._streamableTransports.set(transport.sessionId, transport);
-          }
-
           // Clean up on close
           transport.onclose = () => {
             if (transport.sessionId) {
@@ -407,56 +431,51 @@ export abstract class BaseAccessServer {
             }
           };
         } else {
-          res.status(400).json({ error: "Bad Request: First request must be an initialize request" });
-          return;
+          return c.json({ error: "Bad Request: First request must be an initialize request" }, 400);
         }
+      } else if (sessionId) {
+        // Session ID provided but not found
+        return c.json({ error: "Session not found" }, 404);
       } else {
-        res.status(404).json({ error: "Session not found" });
-        return;
+        // No session ID and not a POST initialize — tell client to initialize first
+        return c.json({ error: "Bad Request: No session ID provided. Send an initialize request first." }, 400);
       }
 
-      // Fix Accept header for clients that send */* instead of the explicit
-      // values required by the SDK (e.g., Claude Code). The SDK's Hono adapter
-      // reads from rawHeaders (immutable), so we must replace the Accept entry there.
-      const rawReq = req as unknown as IncomingMessage;
-      const accept = rawReq.headers.accept || "";
+      // The SDK's WebStandardStreamableHTTPServerTransport requires Accept
+      // to include both application/json and text/event-stream. Clients
+      // that send Accept: */* (which technically matches both) get a 406.
+      // Fix by rewriting the request with the explicit Accept header.
+      const accept = c.req.header("Accept") || "";
+      let request = c.req.raw;
       if (!accept.includes("application/json") || !accept.includes("text/event-stream")) {
-        const fixedAccept = "application/json, text/event-stream";
-        rawReq.headers.accept = fixedAccept;
-        // Also fix rawHeaders since Hono reads from there
-        const rawHeaders = rawReq.rawHeaders;
-        for (let i = 0; i < rawHeaders.length; i += 2) {
-          if (rawHeaders[i].toLowerCase() === "accept") {
-            rawHeaders[i + 1] = fixedAccept;
-            break;
-          }
-        }
+        const headers = new Headers(c.req.raw.headers);
+        headers.set("Accept", "application/json, text/event-stream");
+        request = new Request(c.req.url, {
+          method: c.req.method,
+          headers,
+          body: c.req.method !== "GET" && c.req.method !== "HEAD" ? JSON.stringify(body) : undefined,
+        });
       }
 
-      await transport.handleRequest(
-        rawReq,
-        res as unknown as ServerResponse,
-        req.body
-      );
-    };
-
-    this._httpServer.post("/mcp", handleMcpRequest);
-    this._httpServer.get("/mcp", handleMcpRequest);
-    this._httpServer.delete("/mcp", handleMcpRequest);
+      return transport.handleRequest(request, { parsedBody: body });
+    });
 
     // Legacy SSE endpoint for clients that don't support Streamable HTTP
     // (Claude Desktop via mcp-remote, older MCP clients)
-    this._httpServer.get("/sse", async (req: Request, res: Response) => {
+    // Needs raw Node.js IncomingMessage/ServerResponse for SSEServerTransport.
+    app.get("/sse", async (c) => {
       this.logger.debug("New SSE connection");
 
       // Use MCP_PATH_PREFIX env var to construct the correct messages path
       // when behind a reverse proxy that strips path prefixes (e.g., Caddy).
       const pathPrefix = process.env.MCP_PATH_PREFIX || "";
-      const transport = new SSEServerTransport(`${pathPrefix}/messages`, res as unknown as ServerResponse);
+      // incoming/outgoing are provided by @hono/node-server's serve() adapter
+      const { incoming, outgoing } = c.env as { incoming: IncomingMessage; outgoing: ServerResponse };
+      const transport = new SSEServerTransport(`${pathPrefix}/messages`, outgoing);
       const sessionId = transport.sessionId;
       this._sseTransports.set(sessionId, transport);
 
-      res.on("close", () => {
+      outgoing.on("close", () => {
         this.logger.debug("SSE connection closed", { sessionId });
         this._sseTransports.delete(sessionId);
       });
@@ -468,82 +487,89 @@ export abstract class BaseAccessServer {
 
       this.setupServerHandlers(sseServer);
       await sseServer.connect(transport);
+
+      // Signal to @hono/node-server that the response is already handled
+      // by SSEServerTransport — don't attempt to write headers again.
+      return new Response(null, { headers: { "x-hono-already-sent": "1" } });
     });
 
     // Legacy messages endpoint for SSE transport
     // Note: No API key check here — SSE is for public MCP client connections.
     // Write operations are protected by requiring ACTING_USER and Drupal auth server-side.
     // The API key check on /tools/:toolName protects inter-server REST calls.
-    this._httpServer.post("/messages", async (req: Request, res: Response) => {
-      const sessionId = req.query.sessionId as string;
+    app.post("/messages", async (c) => {
+      const sessionId = c.req.query("sessionId");
+      if (!sessionId) {
+        return c.json({ error: "Session ID required" }, 400);
+      }
       const transport = this._sseTransports.get(sessionId);
 
       if (!transport) {
-        res.status(404).json({ error: "Session not found" });
-        return;
+        return c.json({ error: "Session not found" }, 404);
       }
 
-      await transport.handlePostMessage(
-        req as unknown as IncomingMessage,
-        res as unknown as ServerResponse,
-        req.body
-      );
+      // incoming/outgoing are provided by @hono/node-server's serve() adapter
+      const { incoming, outgoing } = c.env as { incoming: IncomingMessage; outgoing: ServerResponse };
+      const body = await c.req.json().catch(() => undefined);
+      await transport.handlePostMessage(incoming, outgoing, body);
+
+      // Signal to @hono/node-server that the response is already handled
+      // by SSEServerTransport — don't attempt to write headers again.
+      return new Response(null, { headers: { "x-hono-already-sent": "1" } });
     });
 
     // List available tools endpoint (for inter-server communication)
-    this._httpServer.get("/tools", (req: Request, res: Response) => {
+    app.get("/tools", (c) => {
       try {
         const tools = this.getTools();
-        res.json({ tools });
+        return c.json({ tools });
       } catch (error) {
-        res.status(500).json({ error: "Failed to list tools" });
+        return c.json({ error: "Failed to list tools" }, 500);
       }
     });
 
     // Tool execution endpoint (for inter-server communication)
-    this._httpServer.post("/tools/:toolName", async (req: Request, res: Response) => {
+    app.post("/tools/:toolName", async (c) => {
       // Validate API key if required
       if (this._requireApiKey) {
         const expectedApiKey = process.env.MCP_API_KEY;
-        const providedApiKey = req.header("X-Api-Key");
+        const providedApiKey = c.req.header("X-Api-Key");
 
         if (!expectedApiKey) {
           this.logger.error("MCP_API_KEY environment variable not set but requireApiKey is enabled");
-          res.status(500).json({ error: "Server misconfiguration: API key not configured" });
-          return;
+          return c.json({ error: "Server misconfiguration: API key not configured" }, 500);
         }
 
         if (!providedApiKey || providedApiKey !== expectedApiKey) {
           this.logger.warn("Unauthorized tool call attempt", {
-            tool: req.params.toolName,
+            tool: c.req.param("toolName"),
             hasKey: !!providedApiKey,
           });
-          res.status(401).json({ error: "Invalid or missing API key" });
-          return;
+          return c.json({ error: "Invalid or missing API key" }, 401);
         }
       }
 
       // Extract request context from headers
-      const uidHeader = req.header("X-Acting-User-Uid");
+      const uidHeader = c.req.header("X-Acting-User-Uid");
       const context: RequestContext = {
-        actingUser: req.header("X-Acting-User"),
+        actingUser: c.req.header("X-Acting-User"),
         actingUserUid: uidHeader ? parseInt(uidHeader, 10) : undefined,
-        requestId: req.header("X-Request-ID"),
+        requestId: c.req.header("X-Request-ID"),
       };
 
-      const { toolName } = req.params;
-      const { arguments: args = {} } = req.body;
+      const toolName = c.req.param("toolName");
+      const body = await c.req.json().catch(() => ({}));
+      const { arguments: args = {} } = body;
 
       // Validate that the tool exists (before tracing to avoid noisy spans)
       const tools = this.getTools();
       const tool = tools.find((t) => t.name === toolName);
       if (!tool) {
-        res.status(404).json({ error: `Tool '${toolName}' not found` });
-        return;
+        return c.json({ error: `Tool '${toolName}' not found` }, 404);
       }
 
       // Run the handler within the request context
-      await requestContextStorage.run(context, async () => {
+      return requestContextStorage.run(context, async () => {
         // Wrap tool execution with OpenTelemetry tracing
         try {
           const result = await traceMcpToolCall(toolName, args, async (span) => {
@@ -575,19 +601,25 @@ export abstract class BaseAccessServer {
             return toolResult;
           });
 
-          res.json(result);
+          return c.json(result);
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
-          res.status(500).json({ error: errorMessage });
+          return c.json({ error: errorMessage }, 500);
         }
       });
     });
 
-    // Start HTTP server
+    // Start HTTP server using @hono/node-server
     return new Promise<void>((resolve, reject) => {
-      this._httpServer!.listen(this._httpPort!, "0.0.0.0", () => {
+      const server = serve({
+        fetch: app.fetch,
+        hostname: "0.0.0.0",
+        port: this._httpPort!,
+      }, () => {
         resolve();
-      }).on("error", reject);
+      });
+      this._nodeServer = server as unknown as HttpServer;
+      server.on("error", reject);
     });
   }
 
