@@ -469,8 +469,8 @@ export abstract class BaseAccessServer {
       // Use MCP_PATH_PREFIX env var to construct the correct messages path
       // when behind a reverse proxy that strips path prefixes (e.g., Caddy).
       const pathPrefix = process.env.MCP_PATH_PREFIX || "";
-      // incoming/outgoing are provided by @hono/node-server's serve() adapter
-      const { incoming, outgoing } = c.env as { incoming: IncomingMessage; outgoing: ServerResponse };
+      // outgoing is provided by @hono/node-server's serve() adapter
+      const { outgoing } = c.env as { outgoing: ServerResponse };
       const transport = new SSEServerTransport(`${pathPrefix}/messages`, outgoing);
       const sessionId = transport.sessionId;
       this._sseTransports.set(sessionId, transport);
