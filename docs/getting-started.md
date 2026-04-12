@@ -51,17 +51,22 @@ To revoke access for a connector, remove it in **Customize > Connectors** in Cla
 
 All servers are hosted at `https://mcp.access-ci.org`. You can add as many or as few as you need — start with one and add more later.
 
-| Server | URL | Description |
-|--------|-----|-------------|
-| Compute Resources | `https://mcp.access-ci.org/compute-resources/sse` | Hardware specs, GPU availability, system capabilities |
-| System Status | `https://mcp.access-ci.org/system-status/sse` | Current outages, maintenance schedules, incidents |
-| Software Discovery | `https://mcp.access-ci.org/software-discovery/sse` | Software packages available across ACCESS resources |
-| XDMoD | `https://mcp.access-ci.org/xdmod/sse` | Usage statistics, visualizations, resource utilization |
-| Allocations | `https://mcp.access-ci.org/allocations/sse` | Research projects and allocation trends |
-| NSF Awards | `https://mcp.access-ci.org/nsf-awards/sse` | NSF funding data and cross-referencing |
-| Events | `https://mcp.access-ci.org/events/sse` | Workshops, webinars, training sessions |
-| Announcements | `https://mcp.access-ci.org/announcements/sse` | Community news and updates |
-| Affinity Groups | `https://mcp.access-ci.org/affinity-groups/sse` | Community groups, events, and knowledge base |
+| Server | Description |
+|--------|-------------|
+| Compute Resources | Hardware specs, GPU availability, system capabilities |
+| System Status | Current outages, maintenance schedules, incidents |
+| Software Discovery | Software packages available across ACCESS resources |
+| XDMoD | Usage statistics, visualizations, resource utilization |
+| Allocations | Research projects and allocation trends |
+| NSF Awards | NSF funding data and cross-referencing |
+| Events | Workshops, webinars, training sessions |
+| Announcements | Community news and updates |
+| Affinity Groups | Community groups, events, and knowledge base |
+
+Each server is available at two URLs under `https://mcp.access-ci.org`:
+
+- **Streamable HTTP** (recommended): `/<server-name>/mcp` — for Claude Code and other Streamable HTTP clients
+- **SSE** (legacy): `/<server-name>/sse` — for Claude Desktop connectors and older clients
 
 For [XDMoD Data Analytics](#optional-xdmod-data-analytics), see the separate setup section below — it requires a personal API token and works only via Claude Code, not as a Claude.ai connector.
 
@@ -85,33 +90,37 @@ You don't need to add all servers at once. Start with one or two that match your
 
 ### Claude Code (CLI)
 
-Requires [Node.js](https://nodejs.org/) 20+. Add all servers with:
+Add all servers with:
 
 ```bash
-claude mcp add access-compute-resources -s user -- npx mcp-remote https://mcp.access-ci.org/compute-resources/sse
-claude mcp add access-system-status -s user -- npx mcp-remote https://mcp.access-ci.org/system-status/sse
-claude mcp add access-software-discovery -s user -- npx mcp-remote https://mcp.access-ci.org/software-discovery/sse
-claude mcp add access-xdmod -s user -- npx mcp-remote https://mcp.access-ci.org/xdmod/sse
-claude mcp add access-allocations -s user -- npx mcp-remote https://mcp.access-ci.org/allocations/sse
-claude mcp add access-nsf-awards -s user -- npx mcp-remote https://mcp.access-ci.org/nsf-awards/sse
-claude mcp add access-events -s user -- npx mcp-remote https://mcp.access-ci.org/events/sse
-claude mcp add access-announcements -s user -- npx mcp-remote https://mcp.access-ci.org/announcements/sse
-claude mcp add access-affinity-groups -s user -- npx mcp-remote https://mcp.access-ci.org/affinity-groups/sse
+claude mcp add access-compute-resources -t http -s user https://mcp.access-ci.org/compute-resources/mcp
+claude mcp add access-system-status -t http -s user https://mcp.access-ci.org/system-status/mcp
+claude mcp add access-software-discovery -t http -s user https://mcp.access-ci.org/software-discovery/mcp
+claude mcp add access-xdmod -t http -s user https://mcp.access-ci.org/xdmod/mcp
+claude mcp add access-allocations -t http -s user https://mcp.access-ci.org/allocations/mcp
+claude mcp add access-nsf-awards -t http -s user https://mcp.access-ci.org/nsf-awards/mcp
+claude mcp add access-events -t http -s user https://mcp.access-ci.org/events/mcp
+claude mcp add access-announcements -t http -s user https://mcp.access-ci.org/announcements/mcp
+claude mcp add access-affinity-groups -t http -s user https://mcp.access-ci.org/affinity-groups/mcp
 ```
 
 Restart Claude Code after adding.
 
 ### Other MCP Clients
 
-The Model Context Protocol is supported by a growing number of AI tools beyond Claude. The ACCESS MCP servers should work with any client that supports remote MCP servers over SSE or Streamable HTTP transport.
+The Model Context Protocol is supported by a growing number of AI tools beyond Claude. The ACCESS MCP servers should work with any client that supports remote MCP servers.
 
-The connection URL pattern is the same for all clients:
+**Streamable HTTP** (recommended):
+```
+https://mcp.access-ci.org/<server-name>/mcp
+```
 
+**Legacy SSE** (for clients that only support SSE transport):
 ```
 https://mcp.access-ci.org/<server-name>/sse
 ```
 
-Setup instructions vary by client — refer to each tool's documentation for adding custom MCP servers. Some clients only support local (stdio) MCP servers; for those, you can use `npx mcp-remote <url>` as a stdio-to-SSE bridge (the same approach used by [Claude Code](#claude-code-cli) above).
+Setup instructions vary by client — refer to each tool's documentation for adding custom MCP servers. Some clients only support local (stdio) MCP servers; for those, you can use `npx mcp-remote <url>` as a stdio-to-SSE bridge.
 
 We've focused our testing on Claude. If you successfully connect another client — or run into trouble — we'd love to hear about it. [Open a support ticket](https://support.access-ci.org/help-ticket) so we can improve the docs or address compatibility gaps.
 
@@ -149,7 +158,7 @@ Once connected, ask your AI questions like:
 The **XDMoD Data** server provides deep analytics across jobs, allocations, cloud usage, resource specifications, and more using the XDMoD data analytics framework. It requires a personal API token.
 
 ::: warning Compatibility note
-The XDMoD Data server **only works with Claude Code or other clients that can pass HTTP headers** (via the `mcp-remote --header` flag or stdio). It is **not compatible with Claude.ai connectors**, because the SSE transport used by connectors cannot pass per-request authentication headers.
+The XDMoD Data server requires a personal API token passed via HTTP header. It works with **Claude Code** and other clients that support Streamable HTTP with custom headers. It is **not compatible with Claude.ai connectors**, because connectors cannot pass per-request authentication headers.
 :::
 
 **Get your API token:**
@@ -161,14 +170,14 @@ The XDMoD Data server **only works with Claude Code or other clients that can pa
 
 **Add to Claude Code:**
 ```bash
-claude mcp add access-xdmod-data -s user -- npx mcp-remote https://mcp.access-ci.org/xdmod-data/sse --header "X-XDMoD-Token:your-token-here"
+claude mcp add access-xdmod-data -t http -s user -H "X-XDMoD-Token: your-token-here" https://mcp.access-ci.org/xdmod-data/mcp
 ```
 
-**Add to other clients with header support** — example config:
+**Add to other clients with header support** — example stdio config using `mcp-remote`:
 ```json
 "access-xdmod-data": {
   "command": "npx",
-  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/sse", "--header", "X-XDMoD-Token:your-token-here"]
+  "args": ["mcp-remote", "https://mcp.access-ci.org/xdmod-data/mcp", "--header", "X-XDMoD-Token:your-token-here"]
 }
 ```
 
@@ -182,19 +191,9 @@ claude mcp add access-xdmod-data -s user -- npx mcp-remote https://mcp.access-ci
 - Check your internet connection
 - Restart Claude Desktop (fully quit with Cmd+Q, then reopen)
 
-### npm/npx Not Found (for Claude Code)
+### npm/npx Not Found
 
-Install [Node.js LTS](https://nodejs.org/) which includes npm and npx.
-
-**macOS (Homebrew):**
-```bash
-brew install node
-```
-
-**Windows:**
-```powershell
-winget install OpenJS.NodeJS.LTS
-```
+If using `npx mcp-remote` (for clients that require a stdio bridge), install [Node.js LTS](https://nodejs.org/) which includes npm and npx. Claude Code connects directly and does not need Node.js.
 
 ### Tool Schemas Look Outdated
 
@@ -205,7 +204,7 @@ MCP clients cache tool definitions when they connect. After a server update, you
 
 ### Connectors Not Showing Up
 
-1. Verify the URL is exactly right (including the `/sse` suffix)
+1. Verify the URL is exactly right (`/mcp` for Streamable HTTP, `/sse` for Claude Desktop connectors)
 2. Check that the connector was authorized after adding
 3. Restart Claude completely
 
@@ -249,7 +248,13 @@ Run a server locally and connect Claude Desktop to it:
 PORT=3002 node packages/compute-resources/dist/index.js
 ```
 
-Then configure Claude Desktop to use your local server:
+Then connect Claude Code to your local server:
+
+```bash
+claude mcp add compute-dev -t http -s user http://localhost:3002/mcp
+```
+
+Or for Claude Desktop (requires `npx mcp-remote`):
 
 ```json
 {
@@ -301,7 +306,13 @@ Images are published to GitHub Container Registry on every push to `main`.
 
 ### Connect to Your Deployment
 
-Update the Claude Desktop config to point to your server:
+Connect Claude Code using Streamable HTTP:
+
+```bash
+claude mcp add access-compute-resources -t http -s user http://YOUR_SERVER_IP:3002/mcp
+```
+
+Or configure Claude Desktop (requires `npx mcp-remote`):
 
 ```json
 {
