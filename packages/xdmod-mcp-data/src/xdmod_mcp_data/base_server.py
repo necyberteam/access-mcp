@@ -27,10 +27,12 @@ from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
-from starlette.routing import Mount, Route
+from starlette.routing import Route
 
 # Context variable for per-request headers (accessible from tool handlers)
-_request_headers: contextvars.ContextVar[Dict[str, str]] = contextvars.ContextVar('request_headers', default={})
+_request_headers: contextvars.ContextVar[Dict[str, str]] = contextvars.ContextVar(
+    "request_headers", default={}
+)
 
 
 def get_request_header(name: str) -> Optional[str]:
@@ -40,7 +42,8 @@ def get_request_header(name: str) -> Optional[str]:
 
 class HeaderCaptureMiddleware(BaseHTTPMiddleware):
     """Middleware that captures select request headers into context variables"""
-    CAPTURED_HEADERS = ('x-xdmod-token',)
+
+    CAPTURED_HEADERS = ("x-xdmod-token",)
 
     async def dispatch(self, request: Request, call_next):
         headers = {}
@@ -90,7 +93,9 @@ class BaseAccessServer(ABC):
 
     async def start(self, http_port: Optional[int] = None):
         """Start the server in HTTP or stdio mode"""
-        port = http_port or (int(os.environ['PORT']) if os.environ.get('PORT') else None)
+        port = http_port or (
+            int(os.environ["PORT"]) if os.environ.get("PORT") else None
+        )
 
         if port:
             await self._start_http_server(port)
@@ -118,16 +123,23 @@ class BaseAccessServer(ABC):
 
         # Health check endpoint
         async def health(request: Request) -> JSONResponse:
-            return JSONResponse({
-                "server": self.server_name,
-                "version": self.version,
-                "status": "healthy",
-                "timestamp": datetime.utcnow().isoformat() + "Z"
-            })
+            return JSONResponse(
+                {
+                    "server": self.server_name,
+                    "version": self.version,
+                    "status": "healthy",
+                    "timestamp": datetime.utcnow().isoformat() + "Z",
+                }
+            )
 
-        # MCP Streamable HTTP endpoint (POST/GET/DELETE) as raw ASGI app
-        async def mcp_asgi_app(scope, receive, send):
-            await self._session_manager.handle_request(scope, receive, send)
+        # Wrapped in a class so Starlette's Route treats it as ASGI, not request-response.
+        session_manager = self._session_manager
+
+        class McpAsgiApp:
+            async def __call__(self, scope, receive, send):
+                await session_manager.handle_request(scope, receive, send)
+
+        mcp_asgi_app = McpAsgiApp()
 
         # List tools endpoint (REST API for inter-server communication)
         async def list_tools(request: Request) -> JSONResponse:
@@ -136,7 +148,7 @@ class BaseAccessServer(ABC):
                 {
                     "name": tool.name,
                     "description": tool.description,
-                    "inputSchema": tool.inputSchema
+                    "inputSchema": tool.inputSchema,
                 }
                 for tool in tools
             ]
@@ -144,11 +156,11 @@ class BaseAccessServer(ABC):
 
         # Tool execution endpoint (REST API for inter-server communication)
         async def execute_tool(request: Request) -> JSONResponse:
-            tool_name = request.path_params['tool_name']
+            tool_name = request.path_params["tool_name"]
 
             try:
                 body = await request.json()
-                arguments = body.get('arguments', {})
+                arguments = body.get("arguments", {})
             except Exception:
                 arguments = {}
 
@@ -156,16 +168,17 @@ class BaseAccessServer(ABC):
             tool_exists = any(t.name == tool_name for t in tools)
             if not tool_exists:
                 return JSONResponse(
-                    {"error": f"Tool '{tool_name}' not found"},
-                    status_code=404
+                    {"error": f"Tool '{tool_name}' not found"}, status_code=404
                 )
 
             try:
                 result = await self.handle_tool_call(tool_name, arguments)
 
                 # Format result for REST API
-                if isinstance(result, list) and result and hasattr(result[0], 'text'):
-                    content = [{"type": item.type, "text": item.text} for item in result]
+                if isinstance(result, list) and result and hasattr(result[0], "text"):
+                    content = [
+                        {"type": item.type, "text": item.text} for item in result
+                    ]
                 elif isinstance(result, str):
                     content = [{"type": "text", "text": result}]
                 else:
@@ -174,10 +187,7 @@ class BaseAccessServer(ABC):
                 return JSONResponse({"content": content})
 
             except Exception as e:
-                return JSONResponse(
-                    {"error": str(e)},
-                    status_code=500
-                )
+                return JSONResponse({"error": str(e)}, status_code=500)
 
         # Legacy SSE transport for clients that don't support Streamable HTTP.
         # Note: Per-request header propagation (e.g., X-XDMoD-Token) does NOT work
@@ -202,7 +212,8 @@ class BaseAccessServer(ABC):
                     return await self.handle_tool_call(name, arguments)
 
                 await sse_server.run(
-                    streams[0], streams[1],
+                    streams[0],
+                    streams[1],
                     sse_server.create_initialization_options(),
                 )
             return Response()
@@ -221,12 +232,12 @@ class BaseAccessServer(ABC):
             debug=False,
             lifespan=lifespan,
             routes=[
-                Route('/health', health, methods=['GET']),
-                Mount('/mcp', app=mcp_asgi_app),
-                Route('/sse', sse_handler, methods=['GET']),
-                Route('/messages', sse_messages_handler, methods=['POST']),
-                Route('/tools', list_tools, methods=['GET']),
-                Route('/tools/{tool_name}', execute_tool, methods=['POST']),
+                Route("/health", health, methods=["GET"]),
+                Route("/mcp", endpoint=mcp_asgi_app, methods=["GET", "POST", "DELETE"]),
+                Route("/sse", sse_handler, methods=["GET"]),
+                Route("/messages", sse_messages_handler, methods=["POST"]),
+                Route("/tools", list_tools, methods=["GET"]),
+                Route("/tools/{tool_name}", execute_tool, methods=["POST"]),
             ],
             middleware=[
                 Middleware(HeaderCaptureMiddleware),

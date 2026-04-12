@@ -180,7 +180,7 @@ class TestStreamableHTTPEndpoint:
                 transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
                 base_url="http://test",
             ) as client:
-                response = await client.post("/mcp/", json=INIT_REQUEST, headers=MCP_HEADERS)
+                response = await client.post("/mcp", json=INIT_REQUEST, headers=MCP_HEADERS)
                 assert response.status_code == 200
                 assert "mcp-session-id" in response.headers
 
@@ -193,7 +193,7 @@ class TestStreamableHTTPEndpoint:
                 base_url="http://test",
             ) as client:
                 response = await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={"jsonrpc": "2.0", "method": "tools/list", "id": 1, "params": {}},
                     headers=MCP_HEADERS,
                 )
@@ -209,7 +209,7 @@ class TestStreamableHTTPEndpoint:
                 base_url="http://test",
             ) as client:
                 # Initialize
-                init_resp = await client.post("/mcp/", json=INIT_REQUEST, headers=MCP_HEADERS)
+                init_resp = await client.post("/mcp", json=INIT_REQUEST, headers=MCP_HEADERS)
                 assert init_resp.status_code == 200
                 session_id = init_resp.headers.get("mcp-session-id")
                 assert session_id
@@ -218,14 +218,14 @@ class TestStreamableHTTPEndpoint:
 
                 # Initialized notification
                 await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={"jsonrpc": "2.0", "method": "notifications/initialized"},
                     headers=sh,
                 )
 
                 # List tools
                 list_resp = await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={"jsonrpc": "2.0", "method": "tools/list", "id": 2, "params": {}},
                     headers=sh,
                 )
@@ -233,7 +233,7 @@ class TestStreamableHTTPEndpoint:
 
                 # Call tool
                 call_resp = await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={
                         "jsonrpc": "2.0", "method": "tools/call", "id": 3,
                         "params": {"name": "echo", "arguments": {"message": "lifecycle"}},
@@ -243,7 +243,7 @@ class TestStreamableHTTPEndpoint:
                 assert call_resp.status_code == 200
 
                 # Delete session
-                del_resp = await client.delete("/mcp/", headers={"mcp-session-id": session_id})
+                del_resp = await client.delete("/mcp", headers={"mcp-session-id": session_id})
                 assert del_resp.status_code == 200
 
     @pytest.mark.asyncio
@@ -255,7 +255,7 @@ class TestStreamableHTTPEndpoint:
                 base_url="http://test",
             ) as client:
                 response = await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={"jsonrpc": "2.0", "method": "tools/list", "id": 1, "params": {}},
                     headers={**MCP_HEADERS, "mcp-session-id": "nonexistent"},
                 )
@@ -276,21 +276,21 @@ class TestHeaderPropagation:
             ) as client:
                 # Initialize with token
                 init_resp = await client.post(
-                    "/mcp/", json=INIT_REQUEST,
+                    "/mcp", json=INIT_REQUEST,
                     headers={**MCP_HEADERS, "X-XDMoD-Token": "test-token-abc"},
                 )
                 session_id = init_resp.headers.get("mcp-session-id")
                 sh = {**MCP_HEADERS, "mcp-session-id": session_id, "X-XDMoD-Token": "test-token-abc"}
 
                 await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={"jsonrpc": "2.0", "method": "notifications/initialized"},
                     headers=sh,
                 )
 
                 # Call check_token — should see the header value
                 call_resp = await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={
                         "jsonrpc": "2.0", "method": "tools/call", "id": 2,
                         "params": {"name": "check_token", "arguments": {}},
@@ -308,18 +308,18 @@ class TestHeaderPropagation:
                 transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
                 base_url="http://test",
             ) as client:
-                init_resp = await client.post("/mcp/", json=INIT_REQUEST, headers=MCP_HEADERS)
+                init_resp = await client.post("/mcp", json=INIT_REQUEST, headers=MCP_HEADERS)
                 session_id = init_resp.headers.get("mcp-session-id")
                 sh = {**MCP_HEADERS, "mcp-session-id": session_id}
 
                 await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={"jsonrpc": "2.0", "method": "notifications/initialized"},
                     headers=sh,
                 )
 
                 call_resp = await client.post(
-                    "/mcp/",
+                    "/mcp",
                     json={
                         "jsonrpc": "2.0", "method": "tools/call", "id": 2,
                         "params": {"name": "check_token", "arguments": {}},
