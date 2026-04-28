@@ -54,6 +54,15 @@ export class EventsServer extends BaseAccessServer {
     });
   }
 
+  protected listingDocs(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://support.access-ci.org/events" };
+    }
+    return undefined;
+  }
+
   /**
    * Get or create the Drupal auth provider for authenticated operations.
    * Requires DRUPAL_API_URL, DRUPAL_USERNAME, and DRUPAL_PASSWORD env vars.
@@ -402,6 +411,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
           text: JSON.stringify({
             total: limited.length,
             items: limited,
+            docs: this.listingDocs("search"),
           }),
         },
       ],
@@ -467,6 +477,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
           text: JSON.stringify({
             total: events.length,
             items: events,
+            docs: this.listingDocs("list"),
           }),
         },
       ],

@@ -68,6 +68,15 @@ export class SystemStatusServer extends BaseAccessServer {
     super("access-mcp-system-status", version, "https://operations-api.access-ci.org");
   }
 
+  protected listingDocs(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://support.access-ci.org/outages" };
+    }
+    return undefined;
+  }
+
   /**
    * Search for resources by name to resolve human-readable names to full IDs.
    * Used by resolveResourceId callback.
@@ -342,6 +351,7 @@ export class SystemStatusServer extends BaseAccessServer {
       affected_resources: Array.from(affectedResources),
       severity_counts: severityCounts,
       outages: enhancedOutages,
+      docs: this.listingDocs("list"),
     };
 
     return {
@@ -432,6 +442,7 @@ export class SystemStatusServer extends BaseAccessServer {
       upcoming_week: upcomingWeek,
       affected_resources: Array.from(affectedResources),
       maintenance: enhancedMaintenance,
+      docs: this.listingDocs("list"),
     };
 
     return {
@@ -547,6 +558,7 @@ export class SystemStatusServer extends BaseAccessServer {
             )
           : 0,
       outages: enhancedOutages,
+      docs: this.listingDocs("list"),
     };
 
     return {
@@ -617,6 +629,7 @@ export class SystemStatusServer extends BaseAccessServer {
         recent_past: allAnnouncements.filter((a) => a.category === "recent_past").length,
       },
       announcements: allAnnouncements,
+      docs: this.listingDocs("list"),
     };
 
     return {

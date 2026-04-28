@@ -27,6 +27,15 @@ export class AffinityGroupsServer extends BaseAccessServer {
     super("access-mcp-affinity-groups", version);
   }
 
+  protected listingDocs(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://support.access-ci.org/affinity-groups" };
+    }
+    return undefined;
+  }
+
   protected getTools(): Tool[] {
     return [
       {
@@ -121,7 +130,11 @@ export class AffinityGroupsServer extends BaseAccessServer {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({ total: limited.length, query, items: limited }, null, 2),
+            text: JSON.stringify(
+              { total: limited.length, query, items: limited, docs: this.listingDocs("search") },
+              null,
+              2
+            ),
           },
         ],
       };
@@ -316,6 +329,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
             {
               total: groups.length,
               items: groups,
+              docs: this.listingDocs("list"),
             },
             null,
             2

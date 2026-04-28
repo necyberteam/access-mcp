@@ -159,6 +159,7 @@ describe("SoftwareDiscoveryServer", () => {
       expect(responseData.query).toBe("tensorflow");
       expect(responseData.fuzzy_matching).toBe(true);
       expect(responseData.items).toBeDefined();
+      expect(responseData.docs.see_all_url).toBe("https://sds.access-ci.org/");
     });
 
     it("should include AI metadata by default", async () => {

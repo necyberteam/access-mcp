@@ -41,6 +41,9 @@ describe("AllocationsServer Integration Tests", () => {
       expect(responseData).toHaveProperty("items");
       expect(Array.isArray(responseData.items)).toBe(true);
       expect(responseData.total).toBeGreaterThan(0);
+      expect(responseData.docs?.see_all_url).toBe(
+        "https://allocations.access-ci.org/current-projects"
+      );
 
       console.log("✅ Machine learning search completed");
       console.log(`Found ${responseData.total} projects`);

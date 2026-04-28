@@ -97,9 +97,12 @@ describe("AnnouncementsServer", () => {
         expect(responseData.total).toBe(2);
         expect(responseData.items).toHaveLength(2);
         expect(responseData.items[0].tags).toEqual(["maintenance", "scheduled"]);
+        expect(responseData.docs).toEqual({
+          see_all_url: "https://support.access-ci.org/announcements",
+        });
       });
 
-      it("should handle empty results", async () => {
+      it("should handle empty results and still surface see_all_url", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: [],
@@ -118,6 +121,9 @@ describe("AnnouncementsServer", () => {
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.total).toBe(0);
         expect(responseData.items).toEqual([]);
+        expect(responseData.docs.see_all_url).toBe(
+          "https://support.access-ci.org/announcements"
+        );
       });
 
       it("should handle API errors", async () => {

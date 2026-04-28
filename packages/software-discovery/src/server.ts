@@ -117,6 +117,15 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     super("access-mcp-software-discovery", version, "https://sds-ara-api.access-ci.org");
   }
 
+  protected listingDocs(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://sds.access-ci.org/" };
+    }
+    return undefined;
+  }
+
   /**
    * Normalizes resource IDs to handle legacy XSEDE format and domain variations.
    * This provides backward compatibility while the SDS API migrates to ACCESS-CI format.
@@ -562,6 +571,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
               fuzzy_matching: fuzzy,
               items: transformedResults,
+              docs: this.listingDocs("search"),
             }),
           },
         ],
@@ -604,6 +614,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               resource_filter: resource || "all resources",
               ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
               items: transformedResults,
+              docs: this.listingDocs("list"),
             }),
           },
         ],

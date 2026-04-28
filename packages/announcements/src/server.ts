@@ -788,6 +788,15 @@ Which would you like to do?`,
     }));
   }
 
+  protected listingDocs(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://support.access-ci.org/announcements" };
+    }
+    return undefined;
+  }
+
   private async searchAnnouncements(filters: SearchAnnouncementsArgs): Promise<CallToolResult> {
     const announcements = await this.fetchAnnouncements(filters);
     const limited = filters.limit ? announcements.slice(0, filters.limit) : announcements;
@@ -799,6 +808,7 @@ Which would you like to do?`,
           text: JSON.stringify({
             total: announcements.length,
             items: limited,
+            docs: this.listingDocs("search"),
           }),
         },
       ],

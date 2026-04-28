@@ -201,6 +201,24 @@ export abstract class BaseAccessServer {
   }
 
   /**
+   * Documentation links to attach to tool responses, by call context.
+   *
+   * Default returns undefined. Subclasses override to surface human-facing
+   * landing-page URLs alongside structured data so consumers (the agent,
+   * other MCP clients) can point users at a place to browse — especially
+   * useful when results are empty.
+   *
+   * Use 'list' for unfiltered listings, 'search' for filtered queries
+   * (returning a "see all" pointer is helpful here even on zero hits),
+   * and 'details' for single-item lookups.
+   */
+  protected listingDocs(
+    _context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    return undefined;
+  }
+
+  /**
    * Helper method to create a standard error response (MCP 2025 compliant)
    * @param message The error message
    * @param hint Optional suggestion for how to fix the error

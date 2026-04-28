@@ -90,6 +90,15 @@ export class AllocationsServer extends BaseAccessServer {
     );
   }
 
+  protected listingDocs(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://allocations.access-ci.org/current-projects" };
+    }
+    return undefined;
+  }
+
   protected getTools(): Tool[] {
     return [
       {
@@ -805,6 +814,7 @@ sort_by: "date_desc"
             {
               total: items.length,
               items: items,
+              docs: this.listingDocs("search"),
             },
             null,
             2
@@ -1154,6 +1164,7 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
+              docs: this.listingDocs("list"),
             },
             null,
             2
@@ -1224,6 +1235,7 @@ sort_by: "date_desc"
                 allocation_type: allocationType,
                 ...(fieldOfScience && { field_of_science: fieldOfScience }),
               },
+              docs: this.listingDocs("list"),
             },
             null,
             2
@@ -1274,6 +1286,7 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
+              docs: this.listingDocs("list"),
             },
             null,
             2
@@ -1468,6 +1481,7 @@ sort_by: "date_desc"
             {
               total: items.length,
               items: items,
+              docs: this.listingDocs("search"),
             },
             null,
             2
