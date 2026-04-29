@@ -90,7 +90,7 @@ export class AllocationsServer extends BaseAccessServer {
     );
   }
 
-  protected listingDocs(
+  protected listingLinks(
     context: "list" | "search" | "details" = "list"
   ): Record<string, string> | undefined {
     if (context === "list" || context === "search") {
@@ -798,7 +798,8 @@ sort_by: "date_desc"
       .filter((item) => item.score > 0);
 
     // Apply sorting
-    const sortedResults = this.applySorting(scoredResults, sortBy).slice(0, limit);
+    const sortedAll = this.applySorting(scoredResults, sortBy);
+    const sortedResults = sortedAll.slice(0, limit);
 
     // Return in universal {total, items} format
     const items = sortedResults.map(({ project, score }) => ({
@@ -814,7 +815,15 @@ sort_by: "date_desc"
             {
               total: items.length,
               items: items,
-              docs: this.listingDocs("search"),
+              pagination: {
+                matched: sortedAll.length,
+                has_more:
+                  sortedAll.length > items.length ||
+                  actualPages.length < firstPageData.pages,
+                total_known: false,
+              },
+              query_relevance: "loose_match" as const,
+              links: this.listingLinks("search"),
             },
             null,
             2
@@ -1164,7 +1173,7 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
-              docs: this.listingDocs("list"),
+              links: this.listingLinks("list"),
             },
             null,
             2
@@ -1235,7 +1244,7 @@ sort_by: "date_desc"
                 allocation_type: allocationType,
                 ...(fieldOfScience && { field_of_science: fieldOfScience }),
               },
-              docs: this.listingDocs("list"),
+              links: this.listingLinks("list"),
             },
             null,
             2
@@ -1286,7 +1295,7 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
-              docs: this.listingDocs("list"),
+              links: this.listingLinks("list"),
             },
             null,
             2
@@ -1481,7 +1490,7 @@ sort_by: "date_desc"
             {
               total: items.length,
               items: items,
-              docs: this.listingDocs("search"),
+              links: this.listingLinks("search"),
             },
             null,
             2

@@ -27,7 +27,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     super("access-mcp-affinity-groups", version);
   }
 
-  protected listingDocs(
+  protected listingLinks(
     context: "list" | "search" | "details" = "list"
   ): Record<string, string> | undefined {
     if (context === "list" || context === "search") {
@@ -131,7 +131,18 @@ export class AffinityGroupsServer extends BaseAccessServer {
           {
             type: "text" as const,
             text: JSON.stringify(
-              { total: limited.length, query, items: limited, docs: this.listingDocs("search") },
+              {
+                total: limited.length,
+                query,
+                items: limited,
+                pagination: {
+                  matched: filtered.length,
+                  has_more: limited.length < filtered.length,
+                  total_known: true,
+                },
+                query_relevance: "loose_match" as const,
+                links: this.listingLinks("search"),
+              },
               null,
               2
             ),
@@ -329,7 +340,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
             {
               total: groups.length,
               items: groups,
-              docs: this.listingDocs("list"),
+              links: this.listingLinks("list"),
             },
             null,
             2

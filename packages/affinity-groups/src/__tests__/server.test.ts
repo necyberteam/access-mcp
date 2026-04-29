@@ -40,13 +40,13 @@ describe("AffinityGroupsServer", () => {
     });
 
     test("should expose see_all_url for list and search contexts", () => {
-      expect(server["listingDocs"]("list")?.see_all_url).toBe(
+      expect(server["listingLinks"]("list")?.see_all_url).toBe(
         "https://support.access-ci.org/affinity-groups"
       );
-      expect(server["listingDocs"]("search")?.see_all_url).toBe(
+      expect(server["listingLinks"]("search")?.see_all_url).toBe(
         "https://support.access-ci.org/affinity-groups"
       );
-      expect(server["listingDocs"]("details")).toBeUndefined();
+      expect(server["listingLinks"]("details")).toBeUndefined();
     });
   });
 });

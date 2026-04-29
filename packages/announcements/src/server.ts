@@ -788,7 +788,7 @@ Which would you like to do?`,
     }));
   }
 
-  protected listingDocs(
+  protected listingLinks(
     context: "list" | "search" | "details" = "list"
   ): Record<string, string> | undefined {
     if (context === "list" || context === "search") {
@@ -808,7 +808,7 @@ Which would you like to do?`,
           text: JSON.stringify({
             total: announcements.length,
             items: limited,
-            docs: this.listingDocs("search"),
+            links: this.listingLinks("search"),
           }),
         },
       ],

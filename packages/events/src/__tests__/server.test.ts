@@ -205,7 +205,7 @@ describe("EventsServer", () => {
         const responseData = JSON.parse(result.content[0].text);
         expect(responseData.total).toBe(2);
         expect(responseData.items).toHaveLength(2);
-        expect(responseData.docs.see_all_url).toBe("https://support.access-ci.org/events");
+        expect(responseData.links.see_all_url).toBe("https://support.access-ci.org/events");
       });
 
       it("should get events with date filter", async () => {

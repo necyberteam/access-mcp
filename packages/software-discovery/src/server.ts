@@ -117,7 +117,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     super("access-mcp-software-discovery", version, "https://sds-ara-api.access-ci.org");
   }
 
-  protected listingDocs(
+  protected listingLinks(
     context: "list" | "search" | "details" = "list"
   ): Record<string, string> | undefined {
     if (context === "list" || context === "search") {
@@ -571,7 +571,13 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
               fuzzy_matching: fuzzy,
               items: transformedResults,
-              docs: this.listingDocs("search"),
+              pagination: {
+                matched: results.length,
+                has_more: limitedResults.length < results.length,
+                total_known: true,
+              },
+              query_relevance: fuzzy ? ("loose_match" as const) : ("exact" as const),
+              links: this.listingLinks("search"),
             }),
           },
         ],
@@ -614,7 +620,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               resource_filter: resource || "all resources",
               ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
               items: transformedResults,
-              docs: this.listingDocs("list"),
+              links: this.listingLinks("list"),
             }),
           },
         ],

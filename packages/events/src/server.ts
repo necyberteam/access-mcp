@@ -54,7 +54,7 @@ export class EventsServer extends BaseAccessServer {
     });
   }
 
-  protected listingDocs(
+  protected listingLinks(
     context: "list" | "search" | "details" = "list"
   ): Record<string, string> | undefined {
     if (context === "list" || context === "search") {
@@ -411,7 +411,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
           text: JSON.stringify({
             total: limited.length,
             items: limited,
-            docs: this.listingDocs("search"),
+            links: this.listingLinks("search"),
           }),
         },
       ],
@@ -477,7 +477,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
           text: JSON.stringify({
             total: events.length,
             items: events,
-            docs: this.listingDocs("list"),
+            links: this.listingLinks("list"),
           }),
         },
       ],

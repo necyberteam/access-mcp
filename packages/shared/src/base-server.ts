@@ -201,7 +201,7 @@ export abstract class BaseAccessServer {
   }
 
   /**
-   * Documentation links to attach to tool responses, by call context.
+   * Structural links to attach to tool responses, by call context.
    *
    * Default returns undefined. Subclasses override to surface human-facing
    * landing-page URLs alongside structured data so consumers (the agent,
@@ -212,7 +212,7 @@ export abstract class BaseAccessServer {
    * (returning a "see all" pointer is helpful here even on zero hits),
    * and 'details' for single-item lookups.
    */
-  protected listingDocs(
+  protected listingLinks(
     _context: "list" | "search" | "details" = "list"
   ): Record<string, string> | undefined {
     return undefined;

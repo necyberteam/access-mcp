@@ -132,7 +132,7 @@ describe("SystemStatusServer", () => {
       expect(response.severity_counts).toHaveProperty("high", 1); // Emergency
       expect(response.severity_counts).toHaveProperty("low", 1); // Scheduled maintenance
       expect(response.outages[0]).toHaveProperty("severity");
-      expect(response.docs.see_all_url).toBe("https://support.access-ci.org/outages");
+      expect(response.links.see_all_url).toBe("https://support.access-ci.org/outages");
     });
 
     it("should filter outages by resource", async () => {

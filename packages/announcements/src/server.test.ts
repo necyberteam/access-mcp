@@ -97,7 +97,7 @@ describe("AnnouncementsServer", () => {
         expect(responseData.total).toBe(2);
         expect(responseData.items).toHaveLength(2);
         expect(responseData.items[0].tags).toEqual(["maintenance", "scheduled"]);
-        expect(responseData.docs).toEqual({
+        expect(responseData.links).toEqual({
           see_all_url: "https://support.access-ci.org/announcements",
         });
       });
@@ -121,7 +121,7 @@ describe("AnnouncementsServer", () => {
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.total).toBe(0);
         expect(responseData.items).toEqual([]);
-        expect(responseData.docs.see_all_url).toBe(
+        expect(responseData.links.see_all_url).toBe(
           "https://support.access-ci.org/announcements"
         );
       });
