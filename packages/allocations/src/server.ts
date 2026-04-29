@@ -1173,6 +1173,10 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
+              pagination: {
+                has_more: results.length >= limit,
+                total_known: false,
+              },
               links: this.listingLinks("list"),
             },
             null,
@@ -1244,6 +1248,10 @@ sort_by: "date_desc"
                 allocation_type: allocationType,
                 ...(fieldOfScience && { field_of_science: fieldOfScience }),
               },
+              pagination: {
+                has_more: results.length >= limit,
+                total_known: false,
+              },
               links: this.listingLinks("list"),
             },
             null,
@@ -1295,6 +1303,10 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
+              pagination: {
+                has_more: results.length >= limit,
+                total_known: false,
+              },
               links: this.listingLinks("list"),
             },
             null,
@@ -1461,7 +1473,7 @@ sort_by: "date_desc"
     const allProjects = await this.fetchMultiplePages(actualPages);
 
     // Calculate similarity scores for all projects
-    const scoredResults = allProjects
+    const allScored = allProjects
       .filter((project) => !referenceProject || project.projectId !== referenceProject.projectId) // Exclude reference project
       .map((project) => ({
         project,
@@ -1473,8 +1485,8 @@ sort_by: "date_desc"
         ),
       }))
       .filter((item) => item.similarity >= similarityThreshold)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit);
+      .sort((a, b) => b.similarity - a.similarity);
+    const scoredResults = allScored.slice(0, limit);
 
     // Return in universal {total, items} format with similarity scores
     const items = scoredResults.map(({ project, similarity }) => ({
@@ -1490,6 +1502,12 @@ sort_by: "date_desc"
             {
               total: items.length,
               items: items,
+              pagination: {
+                matched: allScored.length,
+                has_more: allScored.length > items.length,
+                total_known: false,
+              },
+              query_relevance: "loose_match" as const,
               links: this.listingLinks("search"),
             },
             null,

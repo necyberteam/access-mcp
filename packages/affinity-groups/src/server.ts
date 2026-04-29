@@ -340,6 +340,11 @@ export class AffinityGroupsServer extends BaseAccessServer {
             {
               total: groups.length,
               items: groups,
+              pagination: {
+                matched: groups.length,
+                has_more: false,
+                total_known: true,
+              },
               links: this.listingLinks("list"),
             },
             null,

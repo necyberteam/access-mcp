@@ -411,6 +411,12 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
           text: JSON.stringify({
             total: limited.length,
             items: limited,
+            pagination: {
+              matched: filtered.length,
+              has_more: limited.length < filtered.length,
+              total_known: true,
+            },
+            query_relevance: "exact" as const,
             links: this.listingLinks("search"),
           }),
         },
@@ -477,6 +483,10 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
           text: JSON.stringify({
             total: events.length,
             items: events,
+            pagination: {
+              has_more: events.length >= limit,
+              total_known: false,
+            },
             links: this.listingLinks("list"),
           }),
         },

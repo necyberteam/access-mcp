@@ -808,6 +808,12 @@ Which would you like to do?`,
           text: JSON.stringify({
             total: announcements.length,
             items: limited,
+            pagination: {
+              matched: announcements.length,
+              has_more: limited.length < announcements.length,
+              total_known: true,
+            },
+            query_relevance: "exact" as const,
             links: this.listingLinks("search"),
           }),
         },

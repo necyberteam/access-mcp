@@ -620,6 +620,11 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               resource_filter: resource || "all resources",
               ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
               items: transformedResults,
+              pagination: {
+                matched: results.length,
+                has_more: limitedResults.length < results.length,
+                total_known: true,
+              },
               links: this.listingLinks("list"),
             }),
           },

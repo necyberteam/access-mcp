@@ -351,6 +351,11 @@ export class SystemStatusServer extends BaseAccessServer {
       affected_resources: Array.from(affectedResources),
       severity_counts: severityCounts,
       outages: enhancedOutages,
+      pagination: {
+        matched: outages.length,
+        has_more: false,
+        total_known: true,
+      },
       links: this.listingLinks("list"),
     };
 
@@ -442,6 +447,11 @@ export class SystemStatusServer extends BaseAccessServer {
       upcoming_week: upcomingWeek,
       affected_resources: Array.from(affectedResources),
       maintenance: enhancedMaintenance,
+      pagination: {
+        matched: maintenance.length,
+        has_more: false,
+        total_known: true,
+      },
       links: this.listingLinks("list"),
     };
 
@@ -558,6 +568,11 @@ export class SystemStatusServer extends BaseAccessServer {
             )
           : 0,
       outages: enhancedOutages,
+      pagination: {
+        matched: enhancedOutages.length,
+        has_more: false,
+        total_known: true,
+      },
       links: this.listingLinks("list"),
     };
 
@@ -618,6 +633,9 @@ export class SystemStatusServer extends BaseAccessServer {
       })
       .slice(0, limit);
 
+    const totalCombined =
+      currentOutages.length + futureOutages.length + recentPastOutages.length;
+
     const summary = {
       total_announcements: allAnnouncements.length,
       current_outages: currentOutages.length,
@@ -629,6 +647,11 @@ export class SystemStatusServer extends BaseAccessServer {
         recent_past: allAnnouncements.filter((a) => a.category === "recent_past").length,
       },
       announcements: allAnnouncements,
+      pagination: {
+        matched: totalCombined,
+        has_more: allAnnouncements.length < totalCombined,
+        total_known: true,
+      },
       links: this.listingLinks("list"),
     };
 
