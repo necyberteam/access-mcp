@@ -72,7 +72,7 @@ export class SystemStatusServer extends BaseAccessServer {
     context: "list" | "search" | "details" = "list"
   ): Record<string, string> | undefined {
     if (context === "list" || context === "search") {
-      return { see_all_url: "https://support.access-ci.org/outages" };
+      return { see_all_url: "https://operations.access-ci.org/infrastructure_news_view" };
     }
     return undefined;
   }

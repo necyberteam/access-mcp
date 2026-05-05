@@ -100,6 +100,7 @@ describe("AnnouncementsServer", () => {
         expect(responseData.links).toEqual({
           see_all_url: "https://support.access-ci.org/announcements",
         });
+        expect(responseData.query_relevance).toBe("exact");
       });
 
       it("should handle empty results and still surface see_all_url", async () => {
@@ -146,13 +147,13 @@ describe("AnnouncementsServer", () => {
     });
 
     describe("search with query parameter", () => {
-      it("should include search_api_fulltext in URL", async () => {
+      it("should include search_api_fulltext in URL and tag query_relevance loose_match", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: [],
         });
 
-        await server["handleToolCall"]({
+        const result = await server["handleToolCall"]({
           method: "tools/call",
           params: {
             name: "search_announcements",
@@ -164,6 +165,9 @@ describe("AnnouncementsServer", () => {
 
         const url = mockHttpClient.get.mock.calls[0][0];
         expect(url).toContain("search_api_fulltext=GPU+computing");
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.query_relevance).toBe("loose_match");
       });
 
       it("should combine query with other filters", async () => {

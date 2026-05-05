@@ -41,7 +41,29 @@ interface RawEvent {
   skill_level?: string;
   tags?: string | string[];
   video?: string;
+  description?: string;
   [key: string]: unknown;
+}
+
+const DESCRIPTION_MAX_CHARS = 400;
+
+export function compactDescription(
+  raw: string | undefined,
+  maxChars: number = DESCRIPTION_MAX_CHARS
+): string | undefined {
+  if (raw === undefined || raw === null) return raw;
+  const stripped = raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (stripped.length <= maxChars) return stripped;
+  return stripped.slice(0, maxChars).trimEnd() + "…";
 }
 
 export class EventsServer extends BaseAccessServer {
@@ -375,6 +397,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
 
     const enhancedEvents = events.map((event: RawEvent) => ({
       ...event,
+      description: compactDescription(event.description),
       tags:
         typeof event.tags === "string" && event.tags.trim()
           ? event.tags.split(",").map((t: string) => t.trim())
@@ -416,7 +439,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
               has_more: limited.length < filtered.length,
               total_known: true,
             },
-            query_relevance: "exact" as const,
+            query_relevance: params.query ? ("loose_match" as const) : ("exact" as const),
             links: this.listingLinks("search"),
           }),
         },
