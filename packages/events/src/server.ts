@@ -45,7 +45,7 @@ interface RawEvent {
   [key: string]: unknown;
 }
 
-const DESCRIPTION_MAX_CHARS = 400;
+const DESCRIPTION_MAX_CHARS = 250;
 
 export function compactDescription(
   raw: string | undefined,
@@ -209,8 +209,8 @@ export class EventsServer extends BaseAccessServer {
             },
             limit: {
               type: "number",
-              description: "Max results (default: 50)",
-              default: 50,
+              description: "Max results (default: 20)",
+              default: 20,
             },
           },
         },
