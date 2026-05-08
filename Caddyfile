@@ -176,3 +176,18 @@ ask.cnct.ci {
         header_up X-Forwarded-Proto {scheme}
     }
 }
+
+qa.access-ci.org {
+    # Agent container is reachable on this Caddy's mcp-network as access-agent.
+    reverse_proxy access-agent:8000 {
+        flush_interval -1
+        transport http {
+            read_timeout 0
+        }
+    }
+
+    log {
+        output stdout
+        format json
+    }
+}
