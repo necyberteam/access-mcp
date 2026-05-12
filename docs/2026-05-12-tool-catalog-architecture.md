@@ -71,7 +71,7 @@ Optional `_fields?: string[]` parameter on enveloped listing tools. Syntax: dott
 
 Parser lives in `packages/shared`; tools call `projectFields(result, fields)` between envelope-shaping and serialization. Server-side, before transport — `_fields` saves MCP→agent bytes and LLM tokens, not upstream API bandwidth.
 
-Per-tool opt-in via `supportsFieldProjection: true` in the tool's `getTools()` metadata. Default opt-in is `true` for new listing tools; existing tools opt in deliberately as part of their Wave 2 migration. A tool can opt out if its surface (short, already-summarized responses) makes projection a quality loss.
+Per-tool opt-in via `supportsFieldProjection: true` in the tool's `getTools()` metadata. Decision is made per tool as it's migrated — tools with potentially large list responses opt in; tools with short or already-summarized responses opt out.
 
 ### Pillar 3 — Discovery meta-server
 
@@ -192,11 +192,7 @@ Executed sequentially on the branch:
 
 ## Open decisions
 
-Items not yet fully locked:
-
-1. **HTML-report regression review as the only Pillar 2 / Pillar 3 gate, with no composite-threshold backstop.** Earlier launch-track gates (no-classify) used a 0.05 absolute composite margin; this spec deliberately doesn't. The judge composite is metadata; the HTML report + eyes-on review is the verdict.
-2. **XDMoD as one `list_capabilities` entry.** Alternative: surface all 4 progressive-disclosure tools individually.
-3. **`_fields` per-tool opt-in defaulting to `true` for new listing tools.** Alternative: explicit opt-in per tool, with a checklist item on every new tool PR.
+**XDMoD in `list_capabilities`: one entry or four?** XDMoD has its own internal progressive disclosure (`describe_realms` → `describe_fields` → `get_dimension_values`). The spec defaults to surfacing XDMoD as a single entry — "XDMoD analytics; use `describe_realms` to start" — with the four tools only appearing when the agent calls `describe_tools(["xdmod"])`. Alternative: surface all four individually so the agent sees them up front, at the cost of XDMoD dominating any unfiltered listing.
 
 ---
 
