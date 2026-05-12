@@ -92,7 +92,7 @@ The access-agent loop registers only these three tools at entry. Typical flow: t
 
 The inbound CILogon token is never forwarded; identity *claims* are re-asserted via the sibling header authenticated by a separate service credential. MCP 2025-06-18 "no token passthrough" satisfied by construction.
 
-**`list_capabilities` defaults.** With no filter, returns a round-robin sample across servers (max 2 per server). XDMoD aggregates into one entry — "XDMoD analytics; use `describe_realms` to start" — with its 4 progressive-disclosure tools surfaced only through `describe_tools(["xdmod"])`.
+**`list_capabilities` defaults.** With no filter, returns a round-robin sample across servers (max 2 per server). XDMoD shows up as two entries — one for chart-data fetching (`get_chart_data`, `get_chart_image`, `get_chart_link`) and one for progressive disclosure (`describe_realms` → `describe_fields` → `get_dimension_values`). The individual tools surface only when the agent calls `describe_tools(["xdmod"])`.
 
 **Denied tools.** `READ_ONLY` deny-list (access-agent commit `e8b2f12`) filters at source in `list_capabilities`; denied tools never reach the agent.
 
@@ -192,7 +192,7 @@ Executed sequentially on the branch:
 
 ## Open decisions
 
-**XDMoD in `list_capabilities`: one entry or four?** XDMoD has its own internal progressive disclosure (`describe_realms` → `describe_fields` → `get_dimension_values`). The spec defaults to surfacing XDMoD as a single entry — "XDMoD analytics; use `describe_realms` to start" — with the four tools only appearing when the agent calls `describe_tools(["xdmod"])`. Alternative: surface all four individually so the agent sees them up front, at the cost of XDMoD dominating any unfiltered listing.
+**XDMoD grouping in `list_capabilities`.** XDMoD has 6 tools: 3 for fetching chart data (`get_chart_data`, `get_chart_image`, `get_chart_link`) and 3 for progressive disclosure (`describe_realms` → `describe_fields` → `get_dimension_values`). The spec's pick: two entries, one per group, with individual tools surfacing only through `describe_tools(["xdmod"])`. We think this is right, but the POC may surface that another scheme works better — all 6 flat (full menu, at the cost of XDMoD dominating any unfiltered listing), one collapsed entry, or some other grouping the agent's actual navigation behavior suggests. Worth re-checking once we see the agent move through XDMoD's surface during the POC.
 
 ---
 
