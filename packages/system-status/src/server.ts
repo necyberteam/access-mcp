@@ -347,16 +347,22 @@ export class SystemStatusServer extends BaseAccessServer {
     });
 
     const summary = {
-      total_outages: outages.length,
-      affected_resources: Array.from(affectedResources),
-      severity_counts: severityCounts,
-      outages: enhancedOutages,
-      pagination: {
-        matched: outages.length,
-        has_more: false,
-        total_known: true,
+      total: enhancedOutages.length,
+      items: enhancedOutages,
+      metadata: {
+        aggregations: {
+          affected_resources: Array.from(affectedResources),
+          severity_counts: severityCounts,
+        },
+        pagination: {
+          limit: enhancedOutages.length,
+          offset: 0,
+          has_more: false,
+        },
       },
-      links: this.listingLinks("list"),
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
 
     return {
@@ -442,17 +448,23 @@ export class SystemStatusServer extends BaseAccessServer {
     });
 
     const summary = {
-      total_scheduled: maintenance.length,
-      upcoming_24h: upcoming24h,
-      upcoming_week: upcomingWeek,
-      affected_resources: Array.from(affectedResources),
-      maintenance: enhancedMaintenance,
-      pagination: {
-        matched: maintenance.length,
-        has_more: false,
-        total_known: true,
+      total: enhancedMaintenance.length,
+      items: enhancedMaintenance,
+      metadata: {
+        aggregations: {
+          upcoming_24h: upcoming24h,
+          upcoming_week: upcomingWeek,
+          affected_resources: Array.from(affectedResources),
+        },
+        pagination: {
+          limit: enhancedMaintenance.length,
+          offset: 0,
+          has_more: false,
+        },
       },
-      links: this.listingLinks("list"),
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
 
     return {
@@ -551,29 +563,37 @@ export class SystemStatusServer extends BaseAccessServer {
       };
     });
 
+    const averageDurationHours =
+      enhancedOutages.length > 0
+        ? Math.round(
+            enhancedOutages
+              .filter((o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0)
+              .reduce((sum: number, o: EnhancedOutage) => sum + (o.duration_hours || 0), 0) /
+              enhancedOutages.filter(
+                (o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0
+              ).length
+          )
+        : 0;
+
     const summary = {
-      total_past_outages: enhancedOutages.length,
-      recent_outages_30_days: recentOutages.length,
-      affected_resources: Array.from(affectedResources),
-      outage_types: Array.from(outageTypes),
-      average_duration_hours:
-        enhancedOutages.length > 0
-          ? Math.round(
-              enhancedOutages
-                .filter((o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0)
-                .reduce((sum: number, o: EnhancedOutage) => sum + (o.duration_hours || 0), 0) /
-                enhancedOutages.filter(
-                  (o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0
-                ).length
-            )
-          : 0,
-      outages: enhancedOutages,
-      pagination: {
-        matched: enhancedOutages.length,
-        has_more: false,
-        total_known: true,
+      total: enhancedOutages.length,
+      items: enhancedOutages,
+      metadata: {
+        aggregations: {
+          recent_outages_30_days: recentOutages.length,
+          affected_resources: Array.from(affectedResources),
+          outage_types: Array.from(outageTypes),
+          average_duration_hours: averageDurationHours,
+        },
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: false,
+        },
       },
-      links: this.listingLinks("list"),
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
 
     return {
@@ -637,22 +657,28 @@ export class SystemStatusServer extends BaseAccessServer {
       currentOutages.length + futureOutages.length + recentPastOutages.length;
 
     const summary = {
-      total_announcements: allAnnouncements.length,
-      current_outages: currentOutages.length,
-      scheduled_maintenance: futureOutages.length,
-      recent_past_outages: recentPastOutages.length,
-      categories: {
-        current: allAnnouncements.filter((a) => a.category === "current").length,
-        scheduled: allAnnouncements.filter((a) => a.category === "scheduled").length,
-        recent_past: allAnnouncements.filter((a) => a.category === "recent_past").length,
+      total: allAnnouncements.length,
+      items: allAnnouncements,
+      metadata: {
+        aggregations: {
+          current_outages: currentOutages.length,
+          scheduled_maintenance: futureOutages.length,
+          recent_past_outages: recentPastOutages.length,
+          categories: {
+            current: allAnnouncements.filter((a) => a.category === "current").length,
+            scheduled: allAnnouncements.filter((a) => a.category === "scheduled").length,
+            recent_past: allAnnouncements.filter((a) => a.category === "recent_past").length,
+          },
+        },
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: allAnnouncements.length < totalCombined,
+        },
       },
-      announcements: allAnnouncements,
-      pagination: {
-        matched: totalCombined,
-        has_more: allAnnouncements.length < totalCombined,
-        total_known: true,
+      documentation: {
+        links: this.listingLinks("list"),
       },
-      links: this.listingLinks("list"),
     };
 
     return {
@@ -760,22 +786,26 @@ export class SystemStatusServer extends BaseAccessServer {
 
     const resourceStatus = await Promise.all(statusPromises);
 
+    const envelope = {
+      total: resourceStatus.length,
+      items: resourceStatus,
+      metadata: {
+        checked_at: now.toISOString(),
+        aggregations: {
+          counts: {
+            operational: resourceStatus.filter((r) => r.status === "operational").length,
+            affected: resourceStatus.filter((r) => r.status === "affected").length,
+            unknown: resourceStatus.filter((r) => r.status === "unknown").length,
+          },
+        },
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              checked_at: now.toISOString(),
-              resources_checked: resolvedIds.length,
-              operational: resourceStatus.filter((r) => r.status === "operational").length,
-              affected: resourceStatus.filter((r) => r.status === "affected").length,
-              unknown: resourceStatus.filter((r) => r.status === "unknown").length,
-              resource_status: resourceStatus,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(envelope, null, 2),
         },
       ],
     };

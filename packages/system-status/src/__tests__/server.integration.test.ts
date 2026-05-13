@@ -42,18 +42,18 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("total_outages");
-      expect(responseData).toHaveProperty("affected_resources");
-      expect(responseData).toHaveProperty("severity_counts");
-      expect(responseData.severity_counts).toHaveProperty("high");
-      expect(responseData.severity_counts).toHaveProperty("medium");
-      expect(responseData.severity_counts).toHaveProperty("low");
-      expect(responseData.severity_counts).toHaveProperty("unknown");
-      expect(Array.isArray(responseData.outages)).toBe(true);
+      expect(responseData).toHaveProperty("total");
+      expect(responseData).toHaveProperty("metadata.aggregations.affected_resources");
+      expect(responseData).toHaveProperty("metadata.aggregations.severity_counts");
+      expect(responseData.metadata.aggregations.severity_counts).toHaveProperty("high");
+      expect(responseData.metadata.aggregations.severity_counts).toHaveProperty("medium");
+      expect(responseData.metadata.aggregations.severity_counts).toHaveProperty("low");
+      expect(responseData.metadata.aggregations.severity_counts).toHaveProperty("unknown");
+      expect(Array.isArray(responseData.items)).toBe(true);
 
       // Check enhanced fields
-      if (responseData.outages.length > 0) {
-        const outage = responseData.outages[0];
+      if (responseData.items.length > 0) {
+        const outage = responseData.items[0];
         expect(outage).toHaveProperty("severity");
         // The API response includes original fields like Subject, OutageStart, OutageEnd, etc.
         expect(outage).toHaveProperty("Subject");
@@ -71,15 +71,15 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("total_scheduled");
-      expect(responseData).toHaveProperty("upcoming_24h");
-      expect(responseData).toHaveProperty("upcoming_week");
-      expect(responseData).toHaveProperty("affected_resources");
-      expect(Array.isArray(responseData.maintenance)).toBe(true);
+      expect(responseData).toHaveProperty("total");
+      expect(responseData).toHaveProperty("metadata.aggregations.upcoming_24h");
+      expect(responseData).toHaveProperty("metadata.aggregations.upcoming_week");
+      expect(responseData).toHaveProperty("metadata.aggregations.affected_resources");
+      expect(Array.isArray(responseData.items)).toBe(true);
 
       // Check enhanced fields
-      if (responseData.maintenance.length > 0) {
-        const maintenance = responseData.maintenance[0];
+      if (responseData.items.length > 0) {
+        const maintenance = responseData.items[0];
         expect(maintenance).toHaveProperty("hours_until_start");
         expect(maintenance).toHaveProperty("has_scheduled_time");
         expect(maintenance.hours_until_start).toSatisfy(
@@ -99,16 +99,16 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("total_past_outages");
-      expect(responseData).toHaveProperty("recent_outages_30_days");
-      expect(responseData).toHaveProperty("affected_resources");
-      expect(responseData).toHaveProperty("outage_types");
-      expect(responseData).toHaveProperty("average_duration_hours");
-      expect(Array.isArray(responseData.outages)).toBe(true);
+      expect(responseData).toHaveProperty("total");
+      expect(responseData).toHaveProperty("metadata.aggregations.recent_outages_30_days");
+      expect(responseData).toHaveProperty("metadata.aggregations.affected_resources");
+      expect(responseData).toHaveProperty("metadata.aggregations.outage_types");
+      expect(responseData).toHaveProperty("metadata.aggregations.average_duration_hours");
+      expect(Array.isArray(responseData.items)).toBe(true);
 
       // Check enhanced fields
-      if (responseData.outages.length > 0) {
-        const outage = responseData.outages[0];
+      if (responseData.items.length > 0) {
+        const outage = responseData.items[0];
         expect(outage).toHaveProperty("duration_hours");
         expect(outage).toHaveProperty("days_ago");
         expect(outage).toHaveProperty("outage_type");
@@ -129,19 +129,19 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("total_announcements");
-      expect(responseData).toHaveProperty("current_outages");
-      expect(responseData).toHaveProperty("scheduled_maintenance");
-      expect(responseData).toHaveProperty("recent_past_outages");
-      expect(responseData).toHaveProperty("categories");
-      expect(responseData.categories).toHaveProperty("current");
-      expect(responseData.categories).toHaveProperty("scheduled");
-      expect(responseData.categories).toHaveProperty("recent_past");
-      expect(Array.isArray(responseData.announcements)).toBe(true);
+      expect(responseData).toHaveProperty("total");
+      expect(responseData).toHaveProperty("metadata.aggregations.current_outages");
+      expect(responseData).toHaveProperty("metadata.aggregations.scheduled_maintenance");
+      expect(responseData).toHaveProperty("metadata.aggregations.recent_past_outages");
+      expect(responseData).toHaveProperty("metadata.aggregations.categories");
+      expect(responseData.metadata.aggregations.categories).toHaveProperty("current");
+      expect(responseData.metadata.aggregations.categories).toHaveProperty("scheduled");
+      expect(responseData.metadata.aggregations.categories).toHaveProperty("recent_past");
+      expect(Array.isArray(responseData.items)).toBe(true);
 
       // Check categorization
-      if (responseData.announcements.length > 0) {
-        const announcement = responseData.announcements[0];
+      if (responseData.items.length > 0) {
+        const announcement = responseData.items[0];
         expect(announcement).toHaveProperty("category");
         expect(["current", "scheduled", "recent_past"]).toContain(announcement.category);
       }
@@ -162,15 +162,15 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("checked_at");
-      expect(responseData).toHaveProperty("resources_checked", 3);
-      expect(responseData).toHaveProperty("operational");
-      expect(responseData).toHaveProperty("affected");
-      expect(Array.isArray(responseData.resource_status)).toBe(true);
-      expect(responseData.resource_status).toHaveLength(3);
+      expect(responseData).toHaveProperty("metadata.checked_at");
+      expect(responseData).toHaveProperty("total", 3);
+      expect(responseData).toHaveProperty("metadata.aggregations.counts.operational");
+      expect(responseData).toHaveProperty("metadata.aggregations.counts.affected");
+      expect(Array.isArray(responseData.items)).toBe(true);
+      expect(responseData.items).toHaveLength(3);
 
       // Check resource status structure - IDs should be resolved to full format
-      responseData.resource_status.forEach((resource: ResourceStatus) => {
+      responseData.items.forEach((resource: ResourceStatus) => {
         expect(resource).toHaveProperty("resource_id");
         expect(resource.resource_id).toContain(".access-ci.org"); // Resolved to full ID
         expect(resource).toHaveProperty("status");
@@ -194,10 +194,10 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("resources_checked", 1);
-      expect(responseData.resource_status).toHaveLength(1);
+      expect(responseData).toHaveProperty("total", 1);
+      expect(responseData.items).toHaveLength(1);
 
-      const resourceStatus = responseData.resource_status[0];
+      const resourceStatus = responseData.items[0];
       expect(resourceStatus.resource_id).toContain("anvil"); // Resolved ID contains anvil
       expect(resourceStatus.resource_id).toContain(".access-ci.org");
       expect(resourceStatus).toHaveProperty("status");
@@ -217,11 +217,11 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("total_outages");
+      expect(responseData).toHaveProperty("total");
 
       // If there are any results, they should match the filter
-      if (responseData.outages.length > 0) {
-        responseData.outages.forEach((outage: OutageItem) => {
+      if (responseData.items.length > 0) {
+        responseData.items.forEach((outage: OutageItem) => {
           const matchesFilter =
             outage.Subject?.toLowerCase().includes("anvil") ||
             outage.AffectedResources?.some(
@@ -278,9 +278,9 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("total_outages", 0);
-      expect(responseData.outages).toHaveLength(0);
-      expect(responseData.affected_resources).toHaveLength(0);
+      expect(responseData).toHaveProperty("total", 0);
+      expect(responseData.items).toHaveLength(0);
+      expect(responseData.metadata.aggregations.affected_resources).toHaveLength(0);
     }, 10000);
 
     it("should handle large limit values gracefully", async () => {
@@ -294,9 +294,9 @@ describe("SystemStatusServer Integration Tests", () => {
 
       const content = result.content[0] as TextContent;
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("total_past_outages");
+      expect(responseData).toHaveProperty("total");
       // Should not crash or timeout
-      expect(responseData.outages.length).toBeLessThanOrEqual(1000);
+      expect(responseData.items.length).toBeLessThanOrEqual(1000);
     }, 15000);
   });
 });

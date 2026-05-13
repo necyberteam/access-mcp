@@ -808,13 +808,17 @@ Which would you like to do?`,
           text: JSON.stringify({
             total: announcements.length,
             items: limited,
-            pagination: {
-              matched: announcements.length,
-              has_more: limited.length < announcements.length,
-              total_known: true,
+            metadata: {
+              pagination: {
+                limit: filters.limit ?? announcements.length,
+                offset: 0,
+                has_more: limited.length < announcements.length,
+              },
+              query_relevance: filters.query ? ("loose_match" as const) : ("exact" as const),
             },
-            query_relevance: filters.query ? ("loose_match" as const) : ("exact" as const),
-            links: this.listingLinks("search"),
+            documentation: {
+              links: this.listingLinks("search"),
+            },
           }),
         },
       ],
@@ -1168,6 +1172,13 @@ Which would you like to do?`,
           text: JSON.stringify({
             total: announcements.length,
             items: announcements,
+            metadata: {
+              pagination: {
+                limit,
+                offset: 0,
+                has_more: announcements.length >= limit,
+              },
+            },
           }),
         },
       ],
