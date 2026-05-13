@@ -55,6 +55,14 @@ interface StandardToolResponse<T> extends UniversalResponse<T> {
 }
 ```
 
+**Envelope conventions.** `total` and `items` are required. The `metadata` and `documentation` substructures are optional, and their fields are present when meaningful, absent when not:
+
+- `metadata.aggregations` — present when the handler has summary scalars (counts, top-N) to lift out of `items`.
+- `metadata.pagination` — present when the response could be a slice of a larger universe (listings). Absent when the caller's input bounds the universe (lookup-by-id handlers that return exactly the items requested).
+- `documentation.*` — present when there's something pointer-worthy.
+
+All listing-shaped handlers adopt the envelope, including degenerate cases (per-resource lookups, fetch-then-slice). Carving out exceptions makes the agent learn per-handler rules — exactly what the envelope exists to prevent.
+
 Every server gets one migration PR to the target shape — no intermediate sibling-shape deploy. Three of them (`xdmod` listing tools, `system-status`, `jsm`) currently have no envelope at all; their PRs include both the base-envelope adoption and the nested-substructure layout. The other seven already use `UniversalResponse<T>`; their PRs reshape any in-progress siblings (e.g. PR #3's `pagination`, `query_relevance`, `links`) into the `metadata` / `documentation` substructures and add `metadata.aggregations` and `documentation.related_tools`.
 
 ### Pillar 2 — `_fields` projection
