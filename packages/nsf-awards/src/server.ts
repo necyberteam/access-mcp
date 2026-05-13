@@ -150,12 +150,19 @@ export class NSFAwardsServer extends BaseAccessServer {
   }
 
   private async find_nsf_awards_by_pi(args: { pi_name: string; limit?: number }) {
-    const awards = await this.searchNSFAwardsByPI(args.pi_name, args.limit || 10);
+    const limit = args.limit || 10;
+    const awards = await this.searchNSFAwardsByPI(args.pi_name, limit);
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ total: awards.length, items: awards }),
+          text: JSON.stringify({
+            total: awards.length,
+            items: awards,
+            metadata: {
+              pagination: { limit, offset: 0, has_more: awards.length >= limit },
+            },
+          }),
         },
       ],
     };
@@ -178,7 +185,8 @@ export class NSFAwardsServer extends BaseAccessServer {
     limit?: number;
     primary_only?: boolean;
   }) {
-    let awards = await this.searchNSFAwardsByInstitution(args.institution_name, args.limit || 10);
+    const limit = args.limit || 10;
+    let awards = await this.searchNSFAwardsByInstitution(args.institution_name, limit);
 
     // If primary_only is requested, filter awards to only include those where
     // the queried institution is the primary recipient
@@ -194,19 +202,32 @@ export class NSFAwardsServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ total: awards.length, items: awards }),
+          text: JSON.stringify({
+            total: awards.length,
+            items: awards,
+            metadata: {
+              pagination: { limit, offset: 0, has_more: awards.length >= limit },
+            },
+          }),
         },
       ],
     };
   }
 
   private async find_nsf_awards_by_keywords(args: { keywords: string; limit?: number }) {
-    const awards = await this.searchNSFAwardsByKeywords(args.keywords, args.limit || 10);
+    const limit = args.limit || 10;
+    const awards = await this.searchNSFAwardsByKeywords(args.keywords, limit);
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ total: awards.length, items: awards }),
+          text: JSON.stringify({
+            total: awards.length,
+            items: awards,
+            metadata: {
+              pagination: { limit, offset: 0, has_more: awards.length >= limit },
+            },
+          }),
         },
       ],
     };

@@ -682,6 +682,13 @@ Consider:
           text: JSON.stringify({
             total: computeResources.length,
             items: computeResources,
+            metadata: {
+              pagination: {
+                limit: computeResources.length,
+                offset: 0,
+                has_more: false,
+              },
+            },
           }),
         },
       ],
@@ -1005,6 +1012,13 @@ Consider:
           text: JSON.stringify({
             total: resources.length,
             items: resources,
+            metadata: {
+              pagination: {
+                limit: resources.length,
+                offset: 0,
+                has_more: false,
+              },
+            },
           }),
         },
       ],

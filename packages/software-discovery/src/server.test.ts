@@ -156,15 +156,14 @@ describe("SoftwareDiscoveryServer", () => {
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.total).toBe(3);
-      expect(responseData.query).toBe("tensorflow");
-      expect(responseData.fuzzy_matching).toBe(true);
+      expect(responseData.metadata.filters_applied.query).toBe("tensorflow");
+      expect(responseData.metadata.filters_applied.fuzzy_matching).toBe(true);
       expect(responseData.items).toBeDefined();
-      expect(responseData.links.see_all_url).toBe("https://sds.access-ci.org/");
-      expect(responseData.query_relevance).toBe("loose_match");
-      expect(responseData.pagination).toMatchObject({
-        matched: 3,
+      expect(responseData.documentation.links.see_all_url).toBe("https://sds.access-ci.org/");
+      expect(responseData.metadata.query_relevance).toBe("loose_match");
+      expect(responseData.metadata.pagination).toMatchObject({
+        offset: 0,
         has_more: false,
-        total_known: true,
       });
     });
 
@@ -244,7 +243,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.resource_filter).toBe("delta");
+      expect(responseData.metadata.filters_applied.resource_filter).toBe("delta");
     });
 
     it("should disable fuzzy matching when requested", async () => {
@@ -289,7 +288,7 @@ describe("SoftwareDiscoveryServer", () => {
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.total).toBe(3);
-      expect(responseData.query).toBeNull();
+      expect(responseData.metadata.filters_applied.query).toBeNull();
     });
 
     it("should respect limit parameter", async () => {
@@ -355,7 +354,7 @@ describe("SoftwareDiscoveryServer", () => {
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.total).toBe(3);
-      expect(responseData.resource_filter).toBe("all resources");
+      expect(responseData.metadata.filters_applied.resource_filter).toBe("all resources");
     });
 
     it("should filter by resource", async () => {
@@ -381,7 +380,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.resource_filter).toBe("anvil");
+      expect(responseData.metadata.filters_applied.resource_filter).toBe("anvil");
     });
 
     it("should exclude AI metadata by default", async () => {

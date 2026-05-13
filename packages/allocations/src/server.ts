@@ -815,15 +815,19 @@ sort_by: "date_desc"
             {
               total: items.length,
               items: items,
-              pagination: {
-                matched: sortedAll.length,
-                has_more:
-                  sortedAll.length > items.length ||
-                  actualPages.length < firstPageData.pages,
-                total_known: false,
+              metadata: {
+                pagination: {
+                  limit: items.length,
+                  offset: 0,
+                  has_more:
+                    sortedAll.length > items.length ||
+                    actualPages.length < firstPageData.pages,
+                },
+                query_relevance: "loose_match" as const,
               },
-              query_relevance: "loose_match" as const,
-              links: this.listingLinks("search"),
+              documentation: {
+                links: this.listingLinks("search"),
+              },
             },
             null,
             2
@@ -1173,11 +1177,16 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
-              pagination: {
-                has_more: results.length >= limit,
-                total_known: false,
+              metadata: {
+                pagination: {
+                  limit,
+                  offset: 0,
+                  has_more: results.length >= limit,
+                },
               },
-              links: this.listingLinks("list"),
+              documentation: {
+                links: this.listingLinks("list"),
+              },
             },
             null,
             2
@@ -1244,15 +1253,20 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
-              filters_applied: {
-                allocation_type: allocationType,
-                ...(fieldOfScience && { field_of_science: fieldOfScience }),
+              metadata: {
+                filters_applied: {
+                  allocation_type: allocationType,
+                  ...(fieldOfScience && { field_of_science: fieldOfScience }),
+                },
+                pagination: {
+                  limit,
+                  offset: 0,
+                  has_more: results.length >= limit,
+                },
               },
-              pagination: {
-                has_more: results.length >= limit,
-                total_known: false,
+              documentation: {
+                links: this.listingLinks("list"),
               },
-              links: this.listingLinks("list"),
             },
             null,
             2
@@ -1303,11 +1317,16 @@ sort_by: "date_desc"
             {
               total: results.length,
               items: results,
-              pagination: {
-                has_more: results.length >= limit,
-                total_known: false,
+              metadata: {
+                pagination: {
+                  limit,
+                  offset: 0,
+                  has_more: results.length >= limit,
+                },
               },
-              links: this.listingLinks("list"),
+              documentation: {
+                links: this.listingLinks("list"),
+              },
             },
             null,
             2
@@ -1502,13 +1521,17 @@ sort_by: "date_desc"
             {
               total: items.length,
               items: items,
-              pagination: {
-                matched: allScored.length,
-                has_more: allScored.length > items.length,
-                total_known: false,
+              metadata: {
+                pagination: {
+                  limit: items.length,
+                  offset: 0,
+                  has_more: allScored.length > items.length,
+                },
+                query_relevance: "loose_match" as const,
               },
-              query_relevance: "loose_match" as const,
-              links: this.listingLinks("search"),
+              documentation: {
+                links: this.listingLinks("search"),
+              },
             },
             null,
             2

@@ -133,15 +133,19 @@ export class AffinityGroupsServer extends BaseAccessServer {
             text: JSON.stringify(
               {
                 total: limited.length,
-                query,
                 items: limited,
-                pagination: {
-                  matched: filtered.length,
-                  has_more: limited.length < filtered.length,
-                  total_known: true,
+                metadata: {
+                  query,
+                  pagination: {
+                    limit: limit ?? filtered.length,
+                    offset: 0,
+                    has_more: limited.length < filtered.length,
+                  },
+                  query_relevance: "loose_match" as const,
                 },
-                query_relevance: "loose_match" as const,
-                links: this.listingLinks("search"),
+                documentation: {
+                  links: this.listingLinks("search"),
+                },
               },
               null,
               2
@@ -340,12 +344,16 @@ export class AffinityGroupsServer extends BaseAccessServer {
             {
               total: groups.length,
               items: groups,
-              pagination: {
-                matched: groups.length,
-                has_more: false,
-                total_known: true,
+              metadata: {
+                pagination: {
+                  limit: groups.length,
+                  offset: 0,
+                  has_more: false,
+                },
               },
-              links: this.listingLinks("list"),
+              documentation: {
+                links: this.listingLinks("list"),
+              },
             },
             null,
             2

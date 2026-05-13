@@ -41,14 +41,13 @@ describe("AllocationsServer Integration Tests", () => {
       expect(responseData).toHaveProperty("items");
       expect(Array.isArray(responseData.items)).toBe(true);
       expect(responseData.total).toBeGreaterThan(0);
-      expect(responseData.links?.see_all_url).toBe(
+      expect(responseData.documentation?.links?.see_all_url).toBe(
         "https://allocations.access-ci.org/current-projects"
       );
-      expect(responseData.query_relevance).toBe("loose_match");
-      expect(responseData.pagination).toBeDefined();
-      expect(responseData.pagination.total_known).toBe(false);
-      expect(typeof responseData.pagination.matched).toBe("number");
-      expect(typeof responseData.pagination.has_more).toBe("boolean");
+      expect(responseData.metadata.query_relevance).toBe("loose_match");
+      expect(responseData.metadata.pagination).toBeDefined();
+      expect(typeof responseData.metadata.pagination.limit).toBe("number");
+      expect(typeof responseData.metadata.pagination.has_more).toBe("boolean");
 
       console.log("✅ Machine learning search completed");
       console.log(`Found ${responseData.total} projects`);

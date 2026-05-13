@@ -566,18 +566,30 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             type: "text" as const,
             text: JSON.stringify({
               total: transformedResults.length,
-              query: query || null,
-              resource_filter: resource || null,
-              ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
-              fuzzy_matching: fuzzy,
               items: transformedResults,
-              pagination: {
-                matched: results.length,
-                has_more: limitedResults.length < results.length,
-                total_known: true,
+              metadata: {
+                filters_applied: {
+                  query: query || null,
+                  resource_filter: resource || null,
+                  fuzzy_matching: fuzzy,
+                },
+                ...(resource
+                  ? {
+                      aggregations: {
+                        resource_matched: this.getMatchedResources(transformedResults),
+                      },
+                    }
+                  : {}),
+                pagination: {
+                  limit,
+                  offset: 0,
+                  has_more: limitedResults.length < results.length,
+                },
+                query_relevance: fuzzy ? ("loose_match" as const) : ("exact" as const),
               },
-              query_relevance: fuzzy ? ("loose_match" as const) : ("exact" as const),
-              links: this.listingLinks("search"),
+              documentation: {
+                links: this.listingLinks("search"),
+              },
             }),
           },
         ],
@@ -617,15 +629,27 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
             type: "text" as const,
             text: JSON.stringify({
               total: transformedResults.length,
-              resource_filter: resource || "all resources",
-              ...(resource ? { resource_matched: this.getMatchedResources(transformedResults) } : {}),
               items: transformedResults,
-              pagination: {
-                matched: results.length,
-                has_more: limitedResults.length < results.length,
-                total_known: true,
+              metadata: {
+                filters_applied: {
+                  resource_filter: resource || "all resources",
+                },
+                ...(resource
+                  ? {
+                      aggregations: {
+                        resource_matched: this.getMatchedResources(transformedResults),
+                      },
+                    }
+                  : {}),
+                pagination: {
+                  limit,
+                  offset: 0,
+                  has_more: limitedResults.length < results.length,
+                },
               },
-              links: this.listingLinks("list"),
+              documentation: {
+                links: this.listingLinks("list"),
+              },
             }),
           },
         ],

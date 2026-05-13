@@ -205,8 +205,8 @@ describe("EventsServer", () => {
         const responseData = JSON.parse(result.content[0].text);
         expect(responseData.total).toBe(2);
         expect(responseData.items).toHaveLength(2);
-        expect(responseData.links.see_all_url).toBe("https://support.access-ci.org/events");
-        expect(responseData.query_relevance).toBe("exact");
+        expect(responseData.documentation.links.see_all_url).toBe("https://support.access-ci.org/events");
+        expect(responseData.metadata.query_relevance).toBe("exact");
       });
 
       it("should tag query_relevance loose_match when full-text query is supplied", async () => {
@@ -229,7 +229,7 @@ describe("EventsServer", () => {
         expect(calledUrl).toContain("search_api_fulltext=machine+learning");
 
         const responseData = JSON.parse(result.content[0].text);
-        expect(responseData.query_relevance).toBe("loose_match");
+        expect(responseData.metadata.query_relevance).toBe("loose_match");
       });
 
       it("should get events with date filter", async () => {
