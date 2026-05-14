@@ -934,4 +934,92 @@ describe("SoftwareDiscoveryServer", () => {
       expect(compareTool?.inputSchema.required).toContain("software_names");
     });
   });
+
+  describe("fields projection (Pillar 2)", () => {
+    it("should project search_software response to requested fields only", async () => {
+      mockSdsClient.post.mockResolvedValue({
+        status: 200,
+        data: mockSoftwareWithAI,
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: {
+            query: "tensorflow",
+            fields: ["total", "items[].name"],
+          },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.total).toBe(3);
+      expect(responseData.items).toHaveLength(3);
+      expect(Object.keys(responseData.items[0])).toEqual(["name"]);
+      expect(responseData.items[0].name).toBe("TensorFlow");
+      // Unrequested top-level keys are dropped.
+      expect(responseData.metadata).toBeUndefined();
+      expect(responseData.documentation).toBeUndefined();
+    });
+
+    it("should always preserve total even when fields omits it", async () => {
+      mockSdsClient.post.mockResolvedValue({
+        status: 200,
+        data: mockSoftwareWithAI,
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: {
+            query: "tensorflow",
+            fields: ["metadata.pagination.has_more"],
+          },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.total).toBe(3);
+      expect(responseData.metadata.pagination.has_more).toBe(false);
+      expect(responseData.metadata.pagination.limit).toBeUndefined();
+      expect(responseData.items).toBeUndefined();
+    });
+
+    it("should project list_all_software response to requested fields only", async () => {
+      mockSdsClient.post.mockResolvedValue({
+        status: 200,
+        data: mockSoftwareWithAI,
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "list_all_software",
+          arguments: {
+            fields: ["total", "items[].name"],
+          },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.total).toBeGreaterThan(0);
+      expect(responseData.items).toBeDefined();
+      expect(Object.keys(responseData.items[0])).toEqual(["name"]);
+      expect(responseData.metadata).toBeUndefined();
+    });
+
+    it("should advertise fields parameter and supportsFieldProjection on opted-in tools", () => {
+      const tools = server["getTools"]();
+
+      const searchTool = tools.find((t) => t.name === "search_software");
+      expect(searchTool?.inputSchema.properties?.fields).toBeDefined();
+      expect((searchTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+
+      const listTool = tools.find((t) => t.name === "list_all_software");
+      expect(listTool?.inputSchema.properties?.fields).toBeDefined();
+      expect((listTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
 });

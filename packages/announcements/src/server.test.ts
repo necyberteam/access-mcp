@@ -1625,4 +1625,84 @@ describe("AnnouncementsServer", () => {
       expect(responseData.error).toContain("Unknown tool");
     });
   });
+
+  describe("fields projection (Pillar 2)", () => {
+    const mockAnnouncements = {
+      status: 200,
+      data: [
+        {
+          title: "Scheduled Maintenance",
+          body: "System will be down for maintenance",
+          published_date: "2024-03-15",
+          author: "ACCESS Support",
+          tags: ["maintenance"],
+          url: "https://support.access-ci.org/announcements/scheduled-maintenance",
+        },
+      ],
+    };
+
+    it("should project search_announcements response to requested fields only", async () => {
+      mockHttpClient.get.mockResolvedValue(mockAnnouncements);
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { fields: ["total", "items[].title"] },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.total).toBe(1);
+      expect(Object.keys(responseData.items[0])).toEqual(["title"]);
+      expect(responseData.items[0].title).toBe("Scheduled Maintenance");
+      expect(responseData.metadata).toBeUndefined();
+      expect(responseData.documentation).toBeUndefined();
+    });
+
+    it("should always preserve total even when fields omits it", async () => {
+      mockHttpClient.get.mockResolvedValue(mockAnnouncements);
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { fields: ["metadata.pagination.has_more"] },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.total).toBe(1);
+      expect(responseData.metadata.pagination.has_more).toBeDefined();
+      expect(responseData.items).toBeUndefined();
+    });
+
+    it("should project filtered search_announcements response (second handler path)", async () => {
+      mockHttpClient.get.mockResolvedValue(mockAnnouncements);
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { tags: "maintenance", fields: ["total", "items[].title"] },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.total).toBe(1);
+      expect(Object.keys(responseData.items[0])).toEqual(["title"]);
+    });
+
+    it("should advertise fields parameter and supportsFieldProjection on opted-in tools", () => {
+      const tools = server["getTools"]();
+
+      const searchTool = tools.find((t: { name: string }) => t.name === "search_announcements");
+      expect(searchTool?.inputSchema.properties?.fields).toBeDefined();
+      expect((searchTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+
+      const myTool = tools.find((t: { name: string }) => t.name === "get_my_announcements");
+      expect(myTool?.inputSchema.properties?.fields).toBeDefined();
+      expect((myTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
 });

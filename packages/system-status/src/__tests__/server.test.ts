@@ -622,4 +622,82 @@ describe("SystemStatusServer", () => {
       }).rejects.toThrow("Unknown resource");
     });
   });
+
+  describe("fields projection (Pillar 2)", () => {
+    it("should project current outages response to requested fields only", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: mockCurrentOutagesData },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "current", fields: ["total", "items[].Subject"] },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.total).toBe(2);
+      expect(Object.keys(response.items[0])).toEqual(["Subject"]);
+      expect(response.items[0].Subject).toContain("Anvil");
+      expect(response.metadata).toBeUndefined();
+      expect(response.documentation).toBeUndefined();
+    });
+
+    it("should always preserve total even when fields omits it", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: mockCurrentOutagesData },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: {
+            time: "current",
+            fields: ["metadata.aggregations.severity_counts"],
+          },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.total).toBe(2);
+      expect(response.metadata.aggregations.severity_counts).toBeDefined();
+      expect(response.items).toBeUndefined();
+    });
+
+    it("should project past outages response (second handler path)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: mockPastOutagesData },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", fields: ["total", "items[].Subject"] },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.total).toBe(1);
+      expect(Object.keys(response.items[0])).toEqual(["Subject"]);
+      expect(response.items[0].Subject).toContain("Stampede3");
+    });
+
+    it("should advertise fields parameter and supportsFieldProjection on the tool", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t: { name: string }) => t.name === "get_infrastructure_news");
+
+      expect(tool?.inputSchema.properties?.fields).toBeDefined();
+      expect((tool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
 });

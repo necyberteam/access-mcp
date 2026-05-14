@@ -638,6 +638,69 @@ describe("EventsServer", () => {
       }).rejects.toThrow("Unknown resource");
     });
   });
+
+  describe("fields projection (Pillar 2)", () => {
+    const mockEventsData = [
+      {
+        id: "1",
+        title: "Python Workshop",
+        description: "Learn Python basics",
+        start_date: "2024-08-30T09:00:00",
+        end_date: "2024-08-30T17:00:00",
+        event_type: "workshop",
+        tags: ["python"],
+        url: "https://support.access-ci.org/events/python-workshop",
+      },
+    ];
+
+    it("should project search_events response to requested fields only", async () => {
+      mockHttpClient.get.mockResolvedValue({ status: 200, data: mockEventsData });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_events",
+          arguments: { fields: ["total", "items[].title"] },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.total).toBe(1);
+      expect(Object.keys(responseData.items[0])).toEqual(["title"]);
+      expect(responseData.items[0].title).toBe("Python Workshop");
+      expect(responseData.metadata).toBeUndefined();
+      expect(responseData.documentation).toBeUndefined();
+    });
+
+    it("should always preserve total even when fields omits it", async () => {
+      mockHttpClient.get.mockResolvedValue({ status: 200, data: mockEventsData });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_events",
+          arguments: { fields: ["metadata.pagination.has_more"] },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.total).toBe(1);
+      expect(responseData.metadata.pagination.has_more).toBeDefined();
+      expect(responseData.items).toBeUndefined();
+    });
+
+    it("should advertise fields parameter and supportsFieldProjection on opted-in tools", () => {
+      const tools = server["getTools"]();
+
+      const searchTool = tools.find((t: { name: string }) => t.name === "search_events");
+      expect(searchTool?.inputSchema.properties?.fields).toBeDefined();
+      expect((searchTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+
+      const myTool = tools.find((t: { name: string }) => t.name === "get_my_events");
+      expect(myTool?.inputSchema.properties?.fields).toBeDefined();
+      expect((myTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
 });
 
 import { compactDescription } from "../server.js";

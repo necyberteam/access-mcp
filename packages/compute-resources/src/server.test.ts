@@ -607,4 +607,71 @@ describe("ComputeResourcesServer", () => {
       expect(responseData.error).toBeDefined();
     });
   });
+
+  describe("fields projection (Pillar 2)", () => {
+    it("should project search_resources response to requested fields only", async () => {
+      mockHttpClient.get
+        .mockResolvedValueOnce({ status: 200, data: mockResourceGroups })
+        .mockResolvedValueOnce({ status: 200, data: mockOrganizations });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_resources",
+          arguments: { fields: ["total", "items[].name"] },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.total).toBe(3);
+      expect(responseData.items).toHaveLength(3);
+      expect(Object.keys(responseData.items[0])).toEqual(["name"]);
+      expect(responseData.metadata).toBeUndefined();
+      expect(responseData.documentation).toBeUndefined();
+    });
+
+    it("should always preserve total even when fields omits it", async () => {
+      mockHttpClient.get
+        .mockResolvedValueOnce({ status: 200, data: mockResourceGroups })
+        .mockResolvedValueOnce({ status: 200, data: mockOrganizations });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_resources",
+          arguments: { fields: ["metadata.pagination.has_more"] },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.total).toBe(3);
+      expect(responseData.metadata.pagination.has_more).toBeDefined();
+      expect(responseData.items).toBeUndefined();
+    });
+
+    it("should project filtered search_resources response (second handler path)", async () => {
+      mockHttpClient.get
+        .mockResolvedValueOnce({ status: 200, data: mockResourceGroups })
+        .mockResolvedValueOnce({ status: 200, data: mockOrganizations });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_resources",
+          arguments: { query: "GPU", fields: ["total", "items[].name"] },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.total).toBeGreaterThanOrEqual(0);
+      if (responseData.items?.length) {
+        expect(Object.keys(responseData.items[0])).toEqual(["name"]);
+      }
+    });
+
+    it("should advertise fields parameter and supportsFieldProjection on search_resources", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t) => t.name === "search_resources");
+
+      expect(tool?.inputSchema.properties?.fields).toBeDefined();
+      expect((tool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
 });
