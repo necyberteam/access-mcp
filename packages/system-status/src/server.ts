@@ -1,6 +1,7 @@
 import {
   BaseAccessServer,
   handleApiError,
+  projectFields,
   Tool,
   Resource,
   CallToolResult,
@@ -21,6 +22,7 @@ interface InfrastructureNewsArgs {
   outage_type?: string;
   ids?: string[];
   limit?: number;
+  fields?: string[];
 }
 
 interface InfrastructureNewsRouterArgs {
@@ -29,6 +31,7 @@ interface InfrastructureNewsRouterArgs {
   outage_type?: string;
   resource_ids?: string[];
   limit?: number;
+  fields?: string[];
 }
 
 interface AffectedResource {
@@ -138,7 +141,16 @@ export class SystemStatusServer extends BaseAccessServer {
               description: "Max results to return",
               default: 50,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].name', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
     ];
@@ -186,6 +198,7 @@ export class SystemStatusServer extends BaseAccessServer {
             outage_type: typedArgs.outage_type,
             resource_ids: typedArgs.ids,
             limit: typedArgs.limit,
+            fields: typedArgs.fields,
           });
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
@@ -202,23 +215,23 @@ export class SystemStatusServer extends BaseAccessServer {
   private async getInfrastructureNewsRouter(
     args: InfrastructureNewsRouterArgs
   ): Promise<CallToolResult> {
-    const { resource, time = "current", outage_type, resource_ids, limit } = args;
+    const { resource, time = "current", outage_type, resource_ids, limit, fields } = args;
 
     // Check resource status (returns operational/affected) - only if IDs provided
     if (resource_ids && Array.isArray(resource_ids) && resource_ids.length > 0) {
-      return await this.checkResourceStatus(resource_ids);
+      return await this.checkResourceStatus(resource_ids, fields);
     }
 
     // Time-based routing
     switch (time) {
       case "current":
-        return await this.getCurrentOutages(resource, outage_type);
+        return await this.getCurrentOutages(resource, outage_type, fields);
       case "scheduled":
-        return await this.getScheduledMaintenance(resource, outage_type);
+        return await this.getScheduledMaintenance(resource, outage_type, fields);
       case "past":
-        return await this.getPastOutages(resource, outage_type, limit || 100);
+        return await this.getPastOutages(resource, outage_type, limit || 100, fields);
       case "all":
-        return await this.getSystemAnnouncements(outage_type, limit || 50);
+        return await this.getSystemAnnouncements(outage_type, limit || 50, fields);
       default:
         throw new Error(
           `Invalid time parameter: ${time}. Must be one of: current, scheduled, past, all`
@@ -288,7 +301,11 @@ export class SystemStatusServer extends BaseAccessServer {
     }
   }
 
-  private async getCurrentOutages(resourceFilter?: string, outageTypeFilter?: string): Promise<CallToolResult> {
+  private async getCurrentOutages(
+    resourceFilter?: string,
+    outageTypeFilter?: string,
+    fields?: string[]
+  ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/current_outages/"
     );
@@ -369,13 +386,17 @@ export class SystemStatusServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(summary, null, 2),
+          text: JSON.stringify(projectFields(summary, fields), null, 2),
         },
       ],
     };
   }
 
-  private async getScheduledMaintenance(resourceFilter?: string, outageTypeFilter?: string): Promise<CallToolResult> {
+  private async getScheduledMaintenance(
+    resourceFilter?: string,
+    outageTypeFilter?: string,
+    fields?: string[]
+  ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/future_outages/"
     );
@@ -471,7 +492,7 @@ export class SystemStatusServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(summary, null, 2),
+          text: JSON.stringify(projectFields(summary, fields), null, 2),
         },
       ],
     };
@@ -480,7 +501,8 @@ export class SystemStatusServer extends BaseAccessServer {
   private async getPastOutages(
     resourceFilter?: string,
     outageTypeFilter?: string,
-    limit: number = 100
+    limit: number = 100,
+    fields?: string[]
   ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/past_outages/"
@@ -600,13 +622,17 @@ export class SystemStatusServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(summary, null, 2),
+          text: JSON.stringify(projectFields(summary, fields), null, 2),
         },
       ],
     };
   }
 
-  private async getSystemAnnouncements(outageTypeFilter?: string, limit: number = 50): Promise<CallToolResult> {
+  private async getSystemAnnouncements(
+    outageTypeFilter?: string,
+    limit: number = 50,
+    fields?: string[]
+  ): Promise<CallToolResult> {
     // Get current, future, and recent past announcements for comprehensive view
     const [currentResponse, futureResponse, pastResponse] = await Promise.all([
       this.httpClient.get("/wh2/news/v1/affiliation/access-ci.org/current_outages/"),
@@ -685,13 +711,16 @@ export class SystemStatusServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(summary, null, 2),
+          text: JSON.stringify(projectFields(summary, fields), null, 2),
         },
       ],
     };
   }
 
-  private async checkResourceStatus(resourceIds: string[]): Promise<CallToolResult> {
+  private async checkResourceStatus(
+    resourceIds: string[],
+    fields?: string[]
+  ): Promise<CallToolResult> {
     if (!resourceIds || !Array.isArray(resourceIds) || resourceIds.length === 0) {
       throw new Error(
         "resource_ids parameter is required and must be a non-empty array of resource IDs"
@@ -805,7 +834,7 @@ export class SystemStatusServer extends BaseAccessServer {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(envelope, null, 2),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };

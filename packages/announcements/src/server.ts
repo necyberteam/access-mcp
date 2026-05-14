@@ -5,6 +5,7 @@ import {
   CallToolResult,
   DrupalAuthProvider,
   getRequestContext,
+  projectFields,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -26,6 +27,7 @@ interface SearchAnnouncementsArgs {
   tags?: string;
   date?: string;
   limit?: number;
+  fields?: string[];
 }
 
 interface AnnouncementFilters {
@@ -83,6 +85,7 @@ interface DeleteAnnouncementArgs {
 
 interface GetMyAnnouncementsArgs {
   limit?: number;
+  fields?: string[];
 }
 
 // JSON:API request/response types for Drupal
@@ -224,7 +227,16 @@ export class AnnouncementsServer extends BaseAccessServer {
               description: "Max results (default: 25)",
               default: 25,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].title', 'items[].published_date', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       // CRUD operations (new)
@@ -454,7 +466,16 @@ Use this to:
               description: "Max results (default: 25)",
               default: 25,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].uuid', 'items[].title', 'items[].status', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       {
@@ -801,25 +822,27 @@ Which would you like to do?`,
     const announcements = await this.fetchAnnouncements(filters);
     const limited = filters.limit ? announcements.slice(0, filters.limit) : announcements;
 
+    const envelope = {
+      total: announcements.length,
+      items: limited,
+      metadata: {
+        pagination: {
+          limit: filters.limit ?? announcements.length,
+          offset: 0,
+          has_more: limited.length < announcements.length,
+        },
+        query_relevance: filters.query ? ("loose_match" as const) : ("exact" as const),
+      },
+      documentation: {
+        links: this.listingLinks("search"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: announcements.length,
-            items: limited,
-            metadata: {
-              pagination: {
-                limit: filters.limit ?? announcements.length,
-                offset: 0,
-                has_more: limited.length < announcements.length,
-              },
-              query_relevance: filters.query ? ("loose_match" as const) : ("exact" as const),
-            },
-            documentation: {
-              links: this.listingLinks("search"),
-            },
-          }),
+          text: JSON.stringify(projectFields(envelope, filters.fields)),
         },
       ],
     };
@@ -1165,21 +1188,23 @@ Which would you like to do?`,
       };
     });
 
+    const envelope = {
+      total: announcements.length,
+      items: announcements,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: announcements.length >= limit,
+        },
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: announcements.length,
-            items: announcements,
-            metadata: {
-              pagination: {
-                limit,
-                offset: 0,
-                has_more: announcements.length >= limit,
-              },
-            },
-          }),
+          text: JSON.stringify(projectFields(envelope, args.fields)),
         },
       ],
     };
