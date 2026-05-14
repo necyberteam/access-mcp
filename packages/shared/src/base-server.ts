@@ -746,6 +746,12 @@ export abstract class BaseAccessServer {
     if (context?.requestId) {
       headers["X-Request-ID"] = context.requestId;
     }
+    // Inter-server API key. Required by peers configured with `requireApiKey: true`
+    // (announcements, events, jsm); no-op for peers that don't check.
+    const apiKey = process.env.MCP_API_KEY;
+    if (apiKey) {
+      headers["X-Api-Key"] = apiKey;
+    }
 
     const response = await axios.post(
       `${serviceUrl}/tools/${toolName}`,

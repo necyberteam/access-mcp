@@ -322,3 +322,52 @@ export function listCapabilities(
 
   return out;
 }
+
+/**
+ * Build a name → {tool, server} index over the catalog for O(1) lookup.
+ * Useful for describe_tools and execute_tool, which both need to resolve
+ * a tool name to its owning server.
+ */
+export function indexCatalog(
+  catalog: PeerCatalogMap
+): Map<string, { tool: Tool; server: string }> {
+  const index = new Map<string, { tool: Tool; server: string }>();
+  for (const [server, tools] of Object.entries(catalog)) {
+    for (const tool of tools) {
+      // First server wins on collision — shouldn't happen with unique tool names
+      // across servers, but if it does, the deterministic tie-break beats UB.
+      if (!index.has(tool.name)) {
+        index.set(tool.name, { tool, server });
+      }
+    }
+  }
+  return index;
+}
+
+export interface DescribeToolsResult {
+  found: Array<{ name: string; server: string; tool: Tool }>;
+  unknown: string[];
+}
+
+/**
+ * Look up the full tool definitions for the requested names. Unknown names
+ * are surfaced separately so the agent learns from the response rather than
+ * getting one big error.
+ */
+export function describeTools(
+  catalog: PeerCatalogMap,
+  names: string[]
+): DescribeToolsResult {
+  const index = indexCatalog(catalog);
+  const found: DescribeToolsResult["found"] = [];
+  const unknown: string[] = [];
+  for (const name of names) {
+    const entry = index.get(name);
+    if (entry) {
+      found.push({ name, server: entry.server, tool: entry.tool });
+    } else {
+      unknown.push(name);
+    }
+  }
+  return { found, unknown };
+}

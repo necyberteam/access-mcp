@@ -96,30 +96,185 @@ describe("DiscoveryServer", () => {
     });
   });
 
-  describe("scaffold-stage behavior (describe_tools + execute_tool)", () => {
-    it("returns a not-implemented error for describe_tools", async () => {
+  describe("describe_tools", () => {
+    let tmpCache: string;
+
+    beforeEach(async () => {
+      tmpCache = `/tmp/discovery-test-${Date.now()}-${Math.random()}.json`;
+      process.env.DISCOVERY_CATALOG_CACHE_PATH = tmpCache;
+      server = new DiscoveryServer();
+      const fetchImpl = vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              tools: [
+                {
+                  name: "search_events",
+                  description: "Search ACCESS-CI events",
+                  inputSchema: { type: "object", properties: { query: { type: "string" } } },
+                  _meta: { supportsFieldProjection: true },
+                },
+              ],
+            }),
+            { status: 200 }
+          )
+      ) as unknown as typeof fetch;
+      await server.initializeCatalog({
+        servicesEnv: "events=http://mcp-events:3000",
+        fetchImpl,
+      });
+    });
+
+    afterEach(async () => {
+      await fs.rm(tmpCache, { force: true });
+      delete process.env.DISCOVERY_CATALOG_CACHE_PATH;
+    });
+
+    it("returns full tool definitions for the requested names", async () => {
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: { name: "describe_tools", arguments: { names: ["search_events"] } },
       });
 
-      expect(result.isError).toBe(true);
+      expect(result.isError).toBeFalsy();
       const payload = JSON.parse((result.content[0] as TextContent).text);
-      expect(payload.stage).toBe("scaffold");
+      expect(payload.total).toBe(1);
+      expect(payload.items[0].name).toBe("search_events");
+      expect(payload.items[0].server).toBe("events");
+      expect(payload.items[0].inputSchema.properties.query).toBeDefined();
+      expect(payload.items[0]._meta.supportsFieldProjection).toBe(true);
     });
 
-    it("returns a not-implemented error for execute_tool", async () => {
+    it("surfaces unknown names in metadata instead of erroring", async () => {
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "describe_tools",
+          arguments: { names: ["search_events", "bogus_tool"] },
+        },
+      });
+
+      expect(result.isError).toBeFalsy();
+      const payload = JSON.parse((result.content[0] as TextContent).text);
+      expect(payload.total).toBe(1);
+      expect(payload.metadata.unknown).toEqual(["bogus_tool"]);
+    });
+
+    it("errors when names is missing or empty", async () => {
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "describe_tools", arguments: { names: [] } },
+      });
+
+      const payload = JSON.parse((result.content[0] as TextContent).text);
+      expect(payload.error).toContain("non-empty 'names' array");
+    });
+  });
+
+  describe("execute_tool", () => {
+    let tmpCache: string;
+
+    beforeEach(async () => {
+      tmpCache = `/tmp/discovery-test-${Date.now()}-${Math.random()}.json`;
+      process.env.DISCOVERY_CATALOG_CACHE_PATH = tmpCache;
+      server = new DiscoveryServer();
+      const fetchImpl = vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              tools: [
+                {
+                  name: "search_events",
+                  description: "Search ACCESS-CI events",
+                  inputSchema: { type: "object" },
+                },
+              ],
+            }),
+            { status: 200 }
+          )
+      ) as unknown as typeof fetch;
+      await server.initializeCatalog({
+        servicesEnv: "events=http://mcp-events:3000",
+        fetchImpl,
+      });
+    });
+
+    afterEach(async () => {
+      await fs.rm(tmpCache, { force: true });
+      delete process.env.DISCOVERY_CATALOG_CACHE_PATH;
+    });
+
+    it("dispatches to the owning peer and passes through the response content", async () => {
+      const spy = vi
+        .spyOn(server as unknown as { callRemoteServer: Function }, "callRemoteServer")
+        .mockResolvedValue({
+          content: [{ type: "text", text: JSON.stringify({ total: 5, items: [] }) }],
+        });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "execute_tool",
+          arguments: { name: "search_events", args: { query: "python" } },
+        },
+      });
+
+      expect(result.isError).toBeFalsy();
+      expect(spy).toHaveBeenCalledWith("events", "search_events", { query: "python" });
+      const payload = JSON.parse((result.content[0] as TextContent).text);
+      expect(payload.total).toBe(5);
+    });
+
+    it("merges top-level fields into the dispatched args", async () => {
+      const spy = vi
+        .spyOn(server as unknown as { callRemoteServer: Function }, "callRemoteServer")
+        .mockResolvedValue({ content: [{ type: "text", text: "{}" }] });
+
+      await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "execute_tool",
+          arguments: {
+            name: "search_events",
+            args: { query: "python" },
+            fields: ["total", "items[].name"],
+          },
+        },
+      });
+
+      expect(spy).toHaveBeenCalledWith("events", "search_events", {
+        query: "python",
+        fields: ["total", "items[].name"],
+      });
+    });
+
+    it("errors on unknown tool names with a helpful message", async () => {
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "execute_tool", arguments: { name: "bogus_tool" } },
+      });
+
+      const payload = JSON.parse((result.content[0] as TextContent).text);
+      expect(payload.error).toContain("Unknown tool: bogus_tool");
+    });
+
+    it("propagates a clean error when the peer dispatch throws", async () => {
+      vi.spyOn(server as unknown as { callRemoteServer: Function }, "callRemoteServer")
+        .mockRejectedValue(new Error("ECONNREFUSED"));
+
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: { name: "execute_tool", arguments: { name: "search_events" } },
       });
 
-      expect(result.isError).toBe(true);
       const payload = JSON.parse((result.content[0] as TextContent).text);
-      expect(payload.stage).toBe("scaffold");
+      expect(payload.error).toContain("execute_tool dispatch failed");
+      expect(payload.error).toContain("ECONNREFUSED");
     });
+  });
 
-    it("errors on unknown tool names", async () => {
+  describe("unknown discovery-level tool names", () => {
+    it("errors when an unknown tool name is passed to handleToolCall", async () => {
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: { name: "bogus_tool", arguments: {} },

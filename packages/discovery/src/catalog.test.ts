@@ -11,6 +11,8 @@ import {
   mergeCatalog,
   buildCatalog,
   listCapabilities,
+  indexCatalog,
+  describeTools,
   PeerCatalogMap,
   CatalogLogger,
 } from "./catalog.js";
@@ -376,5 +378,58 @@ describe("listCapabilities", () => {
   it("query match is case-insensitive", () => {
     const entries = listCapabilities(catalog, { query: "OUTAGES" });
     expect(entries).toHaveLength(1);
+  });
+});
+
+describe("indexCatalog", () => {
+  it("indexes every tool with its server", () => {
+    const catalog: PeerCatalogMap = {
+      events: [makeTool("search_events")],
+      "system-status": [makeTool("get_infrastructure_news")],
+    };
+    const index = indexCatalog(catalog);
+    expect(index.get("search_events")?.server).toBe("events");
+    expect(index.get("get_infrastructure_news")?.server).toBe("system-status");
+  });
+
+  it("returns the tool object alongside the server", () => {
+    const tool = makeTool("search_events", "Search events");
+    const catalog: PeerCatalogMap = { events: [tool] };
+    expect(indexCatalog(catalog).get("search_events")?.tool).toBe(tool);
+  });
+
+  it("first server wins on duplicate tool names", () => {
+    const catalog: PeerCatalogMap = {
+      a: [makeTool("dup", "first")],
+      b: [makeTool("dup", "second")],
+    };
+    expect(indexCatalog(catalog).get("dup")?.server).toBe("a");
+  });
+});
+
+describe("describeTools", () => {
+  const catalog: PeerCatalogMap = {
+    events: [makeTool("search_events", "Search events")],
+    "system-status": [makeTool("get_infrastructure_news", "Get outages")],
+  };
+
+  it("returns full tool entries for known names", () => {
+    const result = describeTools(catalog, ["search_events"]);
+    expect(result.found).toHaveLength(1);
+    expect(result.found[0].name).toBe("search_events");
+    expect(result.found[0].server).toBe("events");
+    expect(result.unknown).toEqual([]);
+  });
+
+  it("collects unknown names separately rather than erroring", () => {
+    const result = describeTools(catalog, ["search_events", "bogus_tool"]);
+    expect(result.found.map((f) => f.name)).toEqual(["search_events"]);
+    expect(result.unknown).toEqual(["bogus_tool"]);
+  });
+
+  it("handles a single all-unknown request without throwing", () => {
+    const result = describeTools(catalog, ["nope", "also_nope"]);
+    expect(result.found).toEqual([]);
+    expect(result.unknown).toEqual(["nope", "also_nope"]);
   });
 });

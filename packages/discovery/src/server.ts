@@ -11,6 +11,8 @@ import { createRequire } from "module";
 import {
   buildCatalog,
   listCapabilities,
+  describeTools as describeToolsLogic,
+  indexCatalog,
   PeerCatalogMap,
   ListCapabilitiesArgs as CatalogListArgs,
 } from "./catalog.js";
@@ -193,31 +195,90 @@ export class DiscoveryServer extends BaseAccessServer {
     };
   }
 
-  private async describeTools(_args: DescribeToolsArgs): Promise<CallToolResult> {
-    return this.notImplementedResponse(
-      "describe_tools will return tool schemas after introspection lands."
-    );
-  }
+  private async describeTools(args: DescribeToolsArgs): Promise<CallToolResult> {
+    if (!Array.isArray(args.names) || args.names.length === 0) {
+      return this.errorResponse(
+        "describe_tools requires a non-empty 'names' array. Call list_capabilities first to find tool names."
+      );
+    }
 
-  private async executeTool(_args: ExecuteToolArgs): Promise<CallToolResult> {
-    return this.notImplementedResponse(
-      "execute_tool will dispatch to peer servers after introspection lands."
-    );
-  }
+    const { found, unknown } = describeToolsLogic(this.catalog, args.names);
+    const payload: Record<string, unknown> = {
+      total: found.length,
+      items: found.map((entry) => ({
+        name: entry.name,
+        server: entry.server,
+        description: entry.tool.description,
+        inputSchema: entry.tool.inputSchema,
+        _meta: (entry.tool as Tool & { _meta?: Record<string, unknown> })._meta,
+      })),
+      metadata: {
+        requested: args.names,
+      },
+    };
+    if (unknown.length > 0) {
+      (payload.metadata as Record<string, unknown>).unknown = unknown;
+    }
 
-  private notImplementedResponse(detail: string): CallToolResult {
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            error: "Not yet implemented",
-            detail,
-            stage: "scaffold",
-          }),
+          text: JSON.stringify(payload),
         },
       ],
-      isError: true,
     };
+  }
+
+  private async executeTool(args: ExecuteToolArgs): Promise<CallToolResult> {
+    if (!args.name) {
+      return this.errorResponse(
+        "execute_tool requires 'name'. Call list_capabilities to discover available tools."
+      );
+    }
+
+    const index = indexCatalog(this.catalog);
+    const entry = index.get(args.name);
+    if (!entry) {
+      return this.errorResponse(
+        `Unknown tool: ${args.name}. Call list_capabilities to see available tools.`
+      );
+    }
+
+    // Merge optional fields projection into the tool's own args object before
+    // dispatch. The peer's projectFields() handles it (or ignores it if the
+    // tool doesn't opt into supportsFieldProjection).
+    const toolArgs: Record<string, unknown> = { ...(args.args ?? {}) };
+    if (args.fields !== undefined) {
+      toolArgs.fields = args.fields;
+    }
+
+    try {
+      const remoteResult = await this.callRemoteServer(entry.server, args.name, toolArgs);
+      // callRemoteServer returns the peer's full response envelope; the tool
+      // content lives at remoteResult.content[0].text per the BaseAccessServer
+      // /tools/:toolName REST shape. Pass it through unchanged so the agent
+      // sees exactly what it would have seen from a direct call.
+      const passthrough = remoteResult as { content?: CallToolResult["content"]; isError?: boolean };
+      if (passthrough.content) {
+        return {
+          content: passthrough.content,
+          ...(passthrough.isError ? { isError: passthrough.isError } : {}),
+        };
+      }
+      // Fallback for non-MCP-shaped responses: stringify the whole payload.
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(remoteResult),
+          },
+        ],
+      };
+    } catch (error) {
+      return this.errorResponse(
+        `execute_tool dispatch failed for ${args.name}: ${(error as Error).message}`
+      );
+    }
   }
 }
