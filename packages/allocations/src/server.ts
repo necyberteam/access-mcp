@@ -1,6 +1,7 @@
 import {
   BaseAccessServer,
   handleApiError,
+  projectFields,
   FIELDS_OF_SCIENCE,
   ALLOCATION_TYPES,
   getFieldNames,
@@ -63,6 +64,7 @@ interface SearchProjectsArgs {
   date_range?: { start_date?: string; end_date?: string };
   min_allocation?: number;
   sort_by?: string;
+  fields?: string[];
 }
 
 interface AnalyzeFundingArgs {
@@ -194,6 +196,12 @@ export class AllocationsServer extends BaseAccessServer {
               description: "Maximum number of results to return (default: 20, max: 100)",
               default: 20,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].requestTitle', 'items[].pi', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response. Only applies to listing results, not single-project lookups.",
+            },
           },
           required: [],
           examples: [
@@ -233,6 +241,9 @@ export class AllocationsServer extends BaseAccessServer {
               },
             },
           ],
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       {
@@ -637,7 +648,7 @@ sort_by: "date_desc"
    * Routes to appropriate handler based on parameters
    */
   private async searchProjectsRouter(args: SearchProjectsArgs) {
-    // Get specific project details
+    // Get specific project details (lookup — fields ignored, not enveloped)
     if (args.project_id) {
       return await this.getProjectDetails(args.project_id);
     }
@@ -649,18 +660,19 @@ sort_by: "date_desc"
         args.similarity_keywords,
         args.limit,
         args.similarity_threshold,
-        args.include_same_field
+        args.include_same_field,
+        args.fields
       );
     }
 
     // List projects by resource
     if (args.resource_name && !args.query) {
-      return await this.listProjectsByResource(args.resource_name, args.limit);
+      return await this.listProjectsByResource(args.resource_name, args.limit, args.fields);
     }
 
     // List projects by field (when field provided without query)
     if (args.field_of_science && !args.query && !args.resource_name && !args.allocation_type) {
-      return await this.listProjectsByField(args.field_of_science, args.limit);
+      return await this.listProjectsByField(args.field_of_science, args.limit, args.fields);
     }
 
     // List/filter projects by allocation_type (when provided without query)
@@ -668,7 +680,8 @@ sort_by: "date_desc"
       return await this.listProjectsByAllocationType(
         args.allocation_type,
         args.field_of_science,
-        args.limit
+        args.limit,
+        args.fields
       );
     }
 
@@ -681,7 +694,8 @@ sort_by: "date_desc"
         args.limit,
         args.date_range,
         args.min_allocation,
-        args.sort_by
+        args.sort_by,
+        args.fields
       );
     }
 
@@ -734,7 +748,8 @@ sort_by: "date_desc"
     limit: number = 20,
     dateRange?: { start_date?: string; end_date?: string },
     minAllocation?: number,
-    sortBy: string = "relevance"
+    sortBy: string = "relevance",
+    fields?: string[]
   ) {
     // Input validation
     if (!query || query.trim().length === 0) {
@@ -807,31 +822,29 @@ sort_by: "date_desc"
       relevance_score: score > 0 ? score : undefined,
     }));
 
+    const envelope = {
+      total: items.length,
+      items: items,
+      metadata: {
+        pagination: {
+          limit: items.length,
+          offset: 0,
+          has_more:
+            sortedAll.length > items.length ||
+            actualPages.length < firstPageData.pages,
+        },
+        query_relevance: "loose_match" as const,
+      },
+      documentation: {
+        links: this.listingLinks("search"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: items.length,
-              items: items,
-              metadata: {
-                pagination: {
-                  limit: items.length,
-                  offset: 0,
-                  has_more:
-                    sortedAll.length > items.length ||
-                    actualPages.length < firstPageData.pages,
-                },
-                query_relevance: "loose_match" as const,
-              },
-              documentation: {
-                links: this.listingLinks("search"),
-              },
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
@@ -1136,7 +1149,7 @@ sort_by: "date_desc"
     };
   }
 
-  private async listProjectsByField(fieldOfScience: string, limit: number = 20) {
+  private async listProjectsByField(fieldOfScience: string, limit: number = 20, fields?: string[]) {
     // Input validation
     if (
       !fieldOfScience ||
@@ -1169,28 +1182,26 @@ sort_by: "date_desc"
       if (currentPage > data.pages) break;
     }
 
+    const envelope = {
+      total: results.length,
+      items: results,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: results.length >= limit,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: results.length,
-              items: results,
-              metadata: {
-                pagination: {
-                  limit,
-                  offset: 0,
-                  has_more: results.length >= limit,
-                },
-              },
-              documentation: {
-                links: this.listingLinks("list"),
-              },
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
@@ -1202,7 +1213,8 @@ sort_by: "date_desc"
   private async listProjectsByAllocationType(
     allocationType: string,
     fieldOfScience?: string,
-    limit: number = 20
+    limit: number = 20,
+    fields?: string[]
   ) {
     // Input validation
     if (
@@ -1245,38 +1257,36 @@ sort_by: "date_desc"
       if (currentPage > data.pages) break;
     }
 
+    const envelope = {
+      total: results.length,
+      items: results,
+      metadata: {
+        filters_applied: {
+          allocation_type: allocationType,
+          ...(fieldOfScience && { field_of_science: fieldOfScience }),
+        },
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: results.length >= limit,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: results.length,
-              items: results,
-              metadata: {
-                filters_applied: {
-                  allocation_type: allocationType,
-                  ...(fieldOfScience && { field_of_science: fieldOfScience }),
-                },
-                pagination: {
-                  limit,
-                  offset: 0,
-                  has_more: results.length >= limit,
-                },
-              },
-              documentation: {
-                links: this.listingLinks("list"),
-              },
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
   }
 
-  private async listProjectsByResource(resourceName: string, limit: number = 20) {
+  private async listProjectsByResource(resourceName: string, limit: number = 20, fields?: string[]) {
     // Input validation
     if (!resourceName || typeof resourceName !== "string" || resourceName.trim().length === 0) {
       throw new Error("Resource name must be a non-empty string");
@@ -1309,28 +1319,26 @@ sort_by: "date_desc"
       if (currentPage > data.pages) break;
     }
 
+    const envelope = {
+      total: results.length,
+      items: results,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: results.length >= limit,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: results.length,
-              items: results,
-              metadata: {
-                pagination: {
-                  limit,
-                  offset: 0,
-                  has_more: results.length >= limit,
-                },
-              },
-              documentation: {
-                links: this.listingLinks("list"),
-              },
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
@@ -1423,7 +1431,8 @@ sort_by: "date_desc"
     keywords?: string,
     limit: number = 10,
     similarityThreshold: number = 0.3,
-    includeSameField: boolean = true
+    includeSameField: boolean = true,
+    fields?: string[]
   ) {
     let referenceProject: Project | null = null;
     let searchTerms: string = "";
@@ -1513,29 +1522,27 @@ sort_by: "date_desc"
       similarity_score: similarity,
     }));
 
+    const envelope = {
+      total: items.length,
+      items: items,
+      metadata: {
+        pagination: {
+          limit: items.length,
+          offset: 0,
+          has_more: allScored.length > items.length,
+        },
+        query_relevance: "loose_match" as const,
+      },
+      documentation: {
+        links: this.listingLinks("search"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: items.length,
-              items: items,
-              metadata: {
-                pagination: {
-                  limit: items.length,
-                  offset: 0,
-                  has_more: allScored.length > items.length,
-                },
-                query_relevance: "loose_match" as const,
-              },
-              documentation: {
-                links: this.listingLinks("search"),
-              },
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };

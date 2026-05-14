@@ -1,6 +1,7 @@
 import {
   BaseAccessServer,
   handleApiError,
+  projectFields,
   Tool,
   Resource,
   CallToolResult,
@@ -27,10 +28,12 @@ interface SearchEventsParams {
   skill?: string;
   has_video?: boolean;
   limit?: number;
+  fields?: string[];
 }
 
 interface GetMyEventsParams {
   limit?: number;
+  fields?: string[];
 }
 
 interface RawEvent {
@@ -212,7 +215,16 @@ export class EventsServer extends BaseAccessServer {
               description: "Max results (default: 20)",
               default: 20,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].title', 'items[].start_date', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       {
@@ -231,7 +243,16 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
               description: "Max results (default: 50)",
               default: 50,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].title', 'items[].status', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
     ];
@@ -427,25 +448,27 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     // Apply limit after sorting and filtering
     const limited = params.limit ? filtered.slice(0, params.limit) : filtered;
 
+    const envelope = {
+      total: limited.length,
+      items: limited,
+      metadata: {
+        pagination: {
+          limit: params.limit ?? filtered.length,
+          offset: 0,
+          has_more: limited.length < filtered.length,
+        },
+        query_relevance: params.query ? ("loose_match" as const) : ("exact" as const),
+      },
+      documentation: {
+        links: this.listingLinks("search"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: limited.length,
-            items: limited,
-            metadata: {
-              pagination: {
-                limit: params.limit ?? filtered.length,
-                offset: 0,
-                has_more: limited.length < filtered.length,
-              },
-              query_relevance: params.query ? ("loose_match" as const) : ("exact" as const),
-            },
-            documentation: {
-              links: this.listingLinks("search"),
-            },
-          }),
+          text: JSON.stringify(projectFields(envelope, params.fields)),
         },
       ],
     };
@@ -503,24 +526,26 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
       ...item.attributes,
     }));
 
+    const envelope = {
+      total: events.length,
+      items: events,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: events.length >= limit,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: events.length,
-            items: events,
-            metadata: {
-              pagination: {
-                limit,
-                offset: 0,
-                has_more: events.length >= limit,
-              },
-            },
-            documentation: {
-              links: this.listingLinks("list"),
-            },
-          }),
+          text: JSON.stringify(projectFields(envelope, params.fields)),
         },
       ],
     };

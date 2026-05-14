@@ -1,6 +1,7 @@
 import {
   BaseAccessServer,
   handleApiError,
+  projectFields,
   Tool,
   Resource,
   CallToolResult,
@@ -91,12 +92,14 @@ interface SearchSoftwareArgs {
   fuzzy?: boolean;
   include_ai_metadata?: boolean;
   limit?: number;
+  fields?: string[];
 }
 
 interface ListAllSoftwareArgs {
   resource?: string;
   include_ai_metadata?: boolean;
   limit?: number;
+  fields?: string[];
 }
 
 interface GetSoftwareDetailsArgs {
@@ -241,6 +244,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               description: "Max results (default: 100)",
               default: 100,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].software_name', 'items[].rps', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
           examples: [
             {
@@ -256,6 +265,9 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               arguments: { query: "mpi", resource: "deltaai", limit: 20 },
             },
           ],
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       {
@@ -280,6 +292,12 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               description: "Max results (default: 100)",
               default: 100,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].software_name', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
           examples: [
             {
@@ -291,6 +309,9 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               arguments: { resource: "deltaai", limit: 100 },
             },
           ],
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       {
@@ -525,7 +546,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   }
 
   private async searchSoftware(args: SearchSoftwareArgs): Promise<CallToolResult> {
-    const { query, resource, fuzzy = true, include_ai_metadata = true, limit = 100 } = args;
+    const { query, resource, fuzzy = true, include_ai_metadata = true, limit = 100, fields } = args;
 
     // Build query params
     const params: SoftwareQueryParams = {};
@@ -560,37 +581,39 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         this.transformSoftwareItem(item, include_ai_metadata)
       );
 
+      const envelope = {
+        total: transformedResults.length,
+        items: transformedResults,
+        metadata: {
+          filters_applied: {
+            query: query || null,
+            resource_filter: resource || null,
+            fuzzy_matching: fuzzy,
+          },
+          ...(resource
+            ? {
+                aggregations: {
+                  resource_matched: this.getMatchedResources(transformedResults),
+                },
+              }
+            : {}),
+          pagination: {
+            limit,
+            offset: 0,
+            has_more: limitedResults.length < results.length,
+          },
+          query_relevance: fuzzy ? ("loose_match" as const) : ("exact" as const),
+        },
+        documentation: {
+          links: this.listingLinks("search"),
+        },
+      };
+
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({
-              total: transformedResults.length,
-              items: transformedResults,
-              metadata: {
-                filters_applied: {
-                  query: query || null,
-                  resource_filter: resource || null,
-                  fuzzy_matching: fuzzy,
-                },
-                ...(resource
-                  ? {
-                      aggregations: {
-                        resource_matched: this.getMatchedResources(transformedResults),
-                      },
-                    }
-                  : {}),
-                pagination: {
-                  limit,
-                  offset: 0,
-                  has_more: limitedResults.length < results.length,
-                },
-                query_relevance: fuzzy ? ("loose_match" as const) : ("exact" as const),
-              },
-              documentation: {
-                links: this.listingLinks("search"),
-              },
-            }),
+            text: JSON.stringify(projectFields(envelope, fields)),
           },
         ],
       };
@@ -600,7 +623,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   }
 
   private async listAllSoftware(args: ListAllSoftwareArgs): Promise<CallToolResult> {
-    const { resource, include_ai_metadata = false, limit = 100 } = args;
+    const { resource, include_ai_metadata = false, limit = 100, fields } = args;
 
     const params: SoftwareQueryParams = {
       software: ["*"],
@@ -623,34 +646,36 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
         this.transformSoftwareItem(item, include_ai_metadata)
       );
 
+      const envelope = {
+        total: transformedResults.length,
+        items: transformedResults,
+        metadata: {
+          filters_applied: {
+            resource_filter: resource || "all resources",
+          },
+          ...(resource
+            ? {
+                aggregations: {
+                  resource_matched: this.getMatchedResources(transformedResults),
+                },
+              }
+            : {}),
+          pagination: {
+            limit,
+            offset: 0,
+            has_more: limitedResults.length < results.length,
+          },
+        },
+        documentation: {
+          links: this.listingLinks("list"),
+        },
+      };
+
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({
-              total: transformedResults.length,
-              items: transformedResults,
-              metadata: {
-                filters_applied: {
-                  resource_filter: resource || "all resources",
-                },
-                ...(resource
-                  ? {
-                      aggregations: {
-                        resource_matched: this.getMatchedResources(transformedResults),
-                      },
-                    }
-                  : {}),
-                pagination: {
-                  limit,
-                  offset: 0,
-                  has_more: limitedResults.length < results.length,
-                },
-              },
-              documentation: {
-                links: this.listingLinks("list"),
-              },
-            }),
+            text: JSON.stringify(projectFields(envelope, fields)),
           },
         ],
       };

@@ -2,6 +2,7 @@ import {
   BaseAccessServer,
   handleApiError,
   sanitizeGroupId,
+  projectFields,
   Tool,
   Resource,
   CallToolResult,
@@ -20,6 +21,7 @@ interface SearchAffinityGroupsArgs {
   include?: string;
   query?: string;
   limit?: number;
+  fields?: string[];
 }
 
 export class AffinityGroupsServer extends BaseAccessServer {
@@ -64,7 +66,16 @@ export class AffinityGroupsServer extends BaseAccessServer {
               description: "Max results (default: 20)",
               default: 20,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].name', 'items[].description', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response. Only applies to listing/search results, not single-group lookups.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
     ];
@@ -100,10 +111,10 @@ export class AffinityGroupsServer extends BaseAccessServer {
   private async searchAffinityGroupsRouter(
     args: SearchAffinityGroupsArgs
   ): Promise<CallToolResult> {
-    const { id, include, query, limit } = args;
+    const { id, include, query, limit, fields } = args;
 
     if (!id && !query) {
-      return await this.listAffinityGroups();
+      return await this.listAffinityGroups(fields);
     }
 
     // Text search: filter groups by query matching name, description, category
@@ -126,30 +137,28 @@ export class AffinityGroupsServer extends BaseAccessServer {
 
       const limited = limit ? filtered.slice(0, limit) : filtered;
 
+      const envelope = {
+        total: limited.length,
+        items: limited,
+        metadata: {
+          query,
+          pagination: {
+            limit: limit ?? filtered.length,
+            offset: 0,
+            has_more: limited.length < filtered.length,
+          },
+          query_relevance: "loose_match" as const,
+        },
+        documentation: {
+          links: this.listingLinks("search"),
+        },
+      };
+
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify(
-              {
-                total: limited.length,
-                items: limited,
-                metadata: {
-                  query,
-                  pagination: {
-                    limit: limit ?? filtered.length,
-                    offset: 0,
-                    has_more: limited.length < filtered.length,
-                  },
-                  query_relevance: "loose_match" as const,
-                },
-                documentation: {
-                  links: this.listingLinks("search"),
-                },
-              },
-              null,
-              2
-            ),
+            text: JSON.stringify(projectFields(envelope, fields), null, 2),
           },
         ],
       };
@@ -320,7 +329,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     };
   }
 
-  private async listAffinityGroups(): Promise<CallToolResult> {
+  private async listAffinityGroups(fields?: string[]): Promise<CallToolResult> {
     const response = await this.httpClient.get("/1.1/affinity_groups/all");
 
     const groups = Array.isArray(response.data)
@@ -336,28 +345,26 @@ export class AffinityGroupsServer extends BaseAccessServer {
         }))
       : [];
 
+    const envelope = {
+      total: groups.length,
+      items: groups,
+      metadata: {
+        pagination: {
+          limit: groups.length,
+          offset: 0,
+          has_more: false,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: groups.length,
-              items: groups,
-              metadata: {
-                pagination: {
-                  limit: groups.length,
-                  offset: 0,
-                  has_more: false,
-                },
-              },
-              documentation: {
-                links: this.listingLinks("list"),
-              },
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
