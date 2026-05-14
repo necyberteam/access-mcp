@@ -212,6 +212,30 @@ services:
       timeout: 10s
       retries: 3
 
+  # Discovery meta-server (Pillar 3) — browses + dispatches the tool catalog.
+  # Refuses to start if no peers reachable AND no cached catalog on disk.
+  mcp-discovery:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: discovery
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    environment:
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
+      DISCOVERY_CATALOG_CACHE_PATH: /data/discovery-catalog.json
+      ACCESS_MCP_SERVICES: ${ACCESS_MCP_SERVICES:-affinity-groups=http://mcp-affinity-groups:3000,compute-resources=http://mcp-compute-resources:3000,system-status=http://mcp-system-status:3000,software-discovery=http://mcp-software-discovery:3000,xdmod=http://mcp-xdmod:3000,allocations=http://mcp-allocations:3000,nsf-awards=http://mcp-nsf-awards:3000,announcements=http://mcp-announcements:3000,events=http://mcp-events:3000,jsm=http://mcp-jsm:3000}
+    volumes:
+      - discovery-cache:/data
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
   # Python MCP Server
   mcp-xdmod-data:
     build:
@@ -233,6 +257,9 @@ services:
       resources:
         limits:
           memory: 256M
+
+volumes:
+  discovery-cache:
 
 networks:
   default:

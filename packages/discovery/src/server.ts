@@ -8,8 +8,16 @@ import {
   CallToolRequest,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createRequire } from "module";
+import {
+  buildCatalog,
+  listCapabilities,
+  PeerCatalogMap,
+  ListCapabilitiesArgs as CatalogListArgs,
+} from "./catalog.js";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
+
+const DEFAULT_CACHE_PATH = "/data/discovery-catalog.json";
 
 // Pillar 3 — Discovery meta-server.
 // See docs/2026-05-12-tool-catalog-architecture.md §Pillar 3.
@@ -23,12 +31,6 @@ const { version } = require("../package.json");
 // introspection (next commit) populates the in-memory catalog from peer
 // MCP servers' tools/list at boot.
 
-interface ListCapabilitiesArgs {
-  query?: string;
-  category?: string;
-  limit?: number;
-}
-
 interface DescribeToolsArgs {
   names: string[];
 }
@@ -40,8 +42,39 @@ interface ExecuteToolArgs {
 }
 
 export class DiscoveryServer extends BaseAccessServer {
+  private catalog: PeerCatalogMap = {};
+  private cachePath: string;
+
   constructor() {
     super("access-mcp-discovery", version);
+    this.cachePath = process.env.DISCOVERY_CATALOG_CACHE_PATH ?? DEFAULT_CACHE_PATH;
+  }
+
+  /**
+   * Override the start lifecycle to build the catalog before accepting requests.
+   * Per the spec, discovery refuses to start if the catalog ends up empty
+   * (no peers reachable AND no cached snapshot to fall back to).
+   */
+  async start(options?: { httpPort?: number }): Promise<void> {
+    await this.initializeCatalog();
+    await super.start(options);
+  }
+
+  /**
+   * Test hook: build the catalog without standing up the HTTP server.
+   */
+  async initializeCatalog(overrides?: {
+    servicesEnv?: string;
+    fetchImpl?: typeof fetch;
+    fetchTimeoutMs?: number;
+  }): Promise<void> {
+    this.catalog = await buildCatalog({
+      servicesEnv: overrides?.servicesEnv,
+      cachePath: this.cachePath,
+      logger: this.logger,
+      fetchImpl: overrides?.fetchImpl,
+      fetchTimeoutMs: overrides?.fetchTimeoutMs,
+    });
   }
 
   protected getResources(): Resource[] {
@@ -127,7 +160,7 @@ export class DiscoveryServer extends BaseAccessServer {
 
     switch (name) {
       case "list_capabilities":
-        return this.listCapabilities(args as unknown as ListCapabilitiesArgs);
+        return this.handleListCapabilities(args as unknown as CatalogListArgs);
       case "describe_tools":
         return this.describeTools(args as unknown as DescribeToolsArgs);
       case "execute_tool":
@@ -137,11 +170,27 @@ export class DiscoveryServer extends BaseAccessServer {
     }
   }
 
-  // Stub implementations — replaced in the introspection commit.
-  private async listCapabilities(_args: ListCapabilitiesArgs): Promise<CallToolResult> {
-    return this.notImplementedResponse(
-      "list_capabilities will return catalog entries after introspection lands."
-    );
+  private async handleListCapabilities(args: CatalogListArgs): Promise<CallToolResult> {
+    const entries = listCapabilities(this.catalog, args);
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            total: entries.length,
+            items: entries,
+            metadata: {
+              filters_applied: {
+                query: args.query ?? null,
+                category: args.category ?? null,
+                limit: args.limit ?? null,
+              },
+              catalog_servers: Object.keys(this.catalog),
+            },
+          }),
+        },
+      ],
+    };
   }
 
   private async describeTools(_args: DescribeToolsArgs): Promise<CallToolResult> {

@@ -1,4 +1,5 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { promises as fs } from "node:fs";
 import { DiscoveryServer } from "./server.js";
 
 interface TextContent {
@@ -42,19 +43,60 @@ describe("DiscoveryServer", () => {
     });
   });
 
-  describe("scaffold-stage behavior", () => {
-    it("returns a not-implemented error for list_capabilities", async () => {
+  describe("list_capabilities", () => {
+    function mockFetchReturning(tools: Array<{ name: string; description: string }>) {
+      return vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              tools: tools.map((t) => ({
+                ...t,
+                inputSchema: { type: "object", properties: {} },
+              })),
+            }),
+            { status: 200 }
+          )
+      ) as unknown as typeof fetch;
+    }
+
+    let tmpCache: string;
+
+    beforeEach(async () => {
+      // Use a unique temp cache so tests don't share state.
+      tmpCache = `/tmp/discovery-test-${Date.now()}-${Math.random()}.json`;
+      process.env.DISCOVERY_CATALOG_CACHE_PATH = tmpCache;
+      server = new DiscoveryServer();
+    });
+
+    afterEach(async () => {
+      await fs.rm(tmpCache, { force: true });
+      delete process.env.DISCOVERY_CATALOG_CACHE_PATH;
+    });
+
+    it("returns catalog entries after initialization", async () => {
+      const fetchImpl = mockFetchReturning([
+        { name: "search_events", description: "Search ACCESS-CI events" },
+      ]);
+      await server.initializeCatalog({
+        servicesEnv: "events=http://mcp-events:3000",
+        fetchImpl,
+      });
+
       const result = await server["handleToolCall"]({
         method: "tools/call",
         params: { name: "list_capabilities", arguments: {} },
       });
 
-      expect(result.isError).toBe(true);
+      expect(result.isError).toBeFalsy();
       const payload = JSON.parse((result.content[0] as TextContent).text);
-      expect(payload.error).toBe("Not yet implemented");
-      expect(payload.stage).toBe("scaffold");
+      expect(payload.total).toBe(1);
+      expect(payload.items[0].name).toBe("search_events");
+      expect(payload.items[0].server).toBe("events");
+      expect(payload.metadata.catalog_servers).toEqual(["events"]);
     });
+  });
 
+  describe("scaffold-stage behavior (describe_tools + execute_tool)", () => {
     it("returns a not-implemented error for describe_tools", async () => {
       const result = await server["handleToolCall"]({
         method: "tools/call",
