@@ -127,11 +127,12 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.total_outages).toBe(2);
-      expect(response.affected_resources).toEqual(["Anvil", "Bridges-2"]);
-      expect(response.severity_counts).toHaveProperty("high", 1); // Emergency
-      expect(response.severity_counts).toHaveProperty("low", 1); // Scheduled maintenance
-      expect(response.outages[0]).toHaveProperty("severity");
+      expect(response.total).toBe(2);
+      expect(response.metadata.aggregations.affected_resources).toEqual(["Anvil", "Bridges-2"]);
+      expect(response.metadata.aggregations.severity_counts).toHaveProperty("high", 1); // Emergency
+      expect(response.metadata.aggregations.severity_counts).toHaveProperty("low", 1); // Scheduled maintenance
+      expect(response.items[0]).toHaveProperty("severity");
+      expect(response.documentation.links.see_all_url).toBe("https://operations.access-ci.org/infrastructure_news_view");
     });
 
     it("should filter outages by resource", async () => {
@@ -150,8 +151,8 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.total_outages).toBe(1);
-      expect(response.outages[0].Subject).toContain("Anvil");
+      expect(response.total).toBe(1);
+      expect(response.items[0].Subject).toContain("Anvil");
     });
 
     it("should filter outages by outage_type", async () => {
@@ -170,9 +171,9 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.total_outages).toBe(1);
-      expect(response.outages[0].OutageType).toBe("Full");
-      expect(response.outages[0].Subject).toContain("Anvil");
+      expect(response.total).toBe(1);
+      expect(response.items[0].OutageType).toBe("Full");
+      expect(response.items[0].Subject).toContain("Anvil");
     });
 
     it("should filter by both resource and outage_type", async () => {
@@ -192,8 +193,8 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.total_outages).toBe(1);
-      expect(response.outages[0].OutageType).toBe("Partial");
+      expect(response.total).toBe(1);
+      expect(response.items[0].OutageType).toBe("Partial");
     });
 
     it("should return empty when outage_type filter matches nothing", async () => {
@@ -212,8 +213,8 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.total_outages).toBe(0);
-      expect(response.outages).toHaveLength(0);
+      expect(response.total).toBe(0);
+      expect(response.items).toHaveLength(0);
     });
 
     it("should categorize severity correctly", async () => {
@@ -229,10 +230,10 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      const emergencyOutage = response.outages.find((o: { Subject: string }) =>
+      const emergencyOutage = response.items.find((o: { Subject: string }) =>
         o.Subject.includes("Emergency")
       );
-      const maintenanceOutage = response.outages.find((o: { Subject: string }) =>
+      const maintenanceOutage = response.items.find((o: { Subject: string }) =>
         o.Subject.includes("Scheduled")
       );
 
@@ -255,11 +256,11 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.total_scheduled).toBe(1);
-      expect(response.affected_resources).toEqual(["Jetstream"]);
-      expect(response.maintenance[0]).toHaveProperty("hours_until_start");
-      expect(response.maintenance[0]).toHaveProperty("duration_hours", 4); // 10am to 2pm = 4 hours
-      expect(response.maintenance[0]).toHaveProperty("has_scheduled_time", true);
+      expect(response.total).toBe(1);
+      expect(response.metadata.aggregations.affected_resources).toEqual(["Jetstream"]);
+      expect(response.items[0]).toHaveProperty("hours_until_start");
+      expect(response.items[0]).toHaveProperty("duration_hours", 4); // 10am to 2pm = 4 hours
+      expect(response.items[0]).toHaveProperty("has_scheduled_time", true);
     });
 
     it("should handle missing scheduled times", async () => {
@@ -283,8 +284,8 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.maintenance[0].has_scheduled_time).toBe(false);
-      expect(response.maintenance[0].duration_hours).toBe(null);
+      expect(response.items[0].has_scheduled_time).toBe(false);
+      expect(response.items[0].duration_hours).toBe(null);
     });
 
     it("should sort by scheduled start time", async () => {
@@ -313,8 +314,8 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.maintenance[0].Subject).toBe("Earlier maintenance");
-      expect(response.maintenance[1].Subject).toBe("Later maintenance");
+      expect(response.items[0].Subject).toBe("Earlier maintenance");
+      expect(response.items[1].Subject).toBe("Later maintenance");
     });
   });
 
@@ -332,11 +333,11 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.total_past_outages).toBe(1);
-      expect(response.outage_types).toEqual(["Full"]);
-      expect(response.average_duration_hours).toBe(6); // 6 hour duration
-      expect(response.outages[0]).toHaveProperty("duration_hours", 6);
-      expect(response.outages[0]).toHaveProperty("days_ago");
+      expect(response.total).toBe(1);
+      expect(response.metadata.aggregations.outage_types).toEqual(["Full"]);
+      expect(response.metadata.aggregations.average_duration_hours).toBe(6); // 6 hour duration
+      expect(response.items[0]).toHaveProperty("duration_hours", 6);
+      expect(response.items[0]).toHaveProperty("days_ago");
     });
 
     it("should apply limit correctly", async () => {
@@ -363,7 +364,7 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.outages).toHaveLength(10);
+      expect(response.items).toHaveLength(10);
     });
   });
 
@@ -383,12 +384,12 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.current_outages).toBe(2);
-      expect(response.scheduled_maintenance).toBe(1);
-      expect(response.recent_past_outages).toBe(1); // Within 30 days
-      expect(response.categories).toHaveProperty("current");
-      expect(response.categories).toHaveProperty("scheduled");
-      expect(response.categories).toHaveProperty("recent_past");
+      expect(response.metadata.aggregations.current_outages).toBe(2);
+      expect(response.metadata.aggregations.scheduled_maintenance).toBe(1);
+      expect(response.metadata.aggregations.recent_past_outages).toBe(1); // Within 30 days
+      expect(response.metadata.aggregations.categories).toHaveProperty("current");
+      expect(response.metadata.aggregations.categories).toHaveProperty("scheduled");
+      expect(response.metadata.aggregations.categories).toHaveProperty("recent_past");
     });
 
     it("should prioritize current outages in sorting", async () => {
@@ -404,7 +405,7 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      const firstAnnouncement = response.announcements[0];
+      const firstAnnouncement = response.items[0];
       expect(firstAnnouncement.category).toBe("current");
     });
   });
@@ -448,11 +449,11 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.resources_checked).toBe(2);
-      expect(response.operational).toBe(1); // unknown.resource.org
-      expect(response.affected).toBe(1); // anvil.purdue.access-ci.org
+      expect(response.total).toBe(2);
+      expect(response.metadata.aggregations.counts.operational).toBe(1); // unknown.resource.org
+      expect(response.metadata.aggregations.counts.affected).toBe(1); // anvil.purdue.access-ci.org
 
-      const anvilStatus = response.resource_status.find(
+      const anvilStatus = response.items.find(
         (r: { resource_id: string }) => r.resource_id === "anvil.purdue.access-ci.org"
       );
       expect(anvilStatus.status).toBe("affected");
@@ -473,9 +474,9 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.unknown).toBe(1);
-      expect(response.resource_status[0].status).toBe("unknown");
-      expect(response.resource_status[0]).toHaveProperty("error");
+      expect(response.metadata.aggregations.counts.unknown).toBe(1);
+      expect(response.items[0].status).toBe("unknown");
+      expect(response.items[0]).toHaveProperty("error");
     });
 
     it("should resolve human-readable name to resource ID", async () => {
@@ -515,9 +516,9 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.resources_checked).toBe(1);
-      expect(response.resource_status[0].resource_id).toBe("anvil.purdue.access-ci.org");
-      expect(response.resource_status[0].status).toBe("operational"); // No current outages
+      expect(response.total).toBe(1);
+      expect(response.items[0].resource_id).toBe("anvil.purdue.access-ci.org");
+      expect(response.items[0].status).toBe("operational"); // No current outages
     });
 
     it("should return error when resource name is ambiguous", async () => {
@@ -619,6 +620,85 @@ describe("SystemStatusServer", () => {
           params: { uri: "accessci://unknown" },
         });
       }).rejects.toThrow("Unknown resource");
+    });
+  });
+
+  describe("fields projection (Pillar 2)", () => {
+    it("should project current outages response to requested fields only", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: mockCurrentOutagesData },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "current", fields: ["total", "items[].Subject"] },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.total).toBe(2);
+      expect(Object.keys(response.items[0])).toEqual(["Subject"]);
+      expect(response.items[0].Subject).toContain("Anvil");
+      // metadata + documentation are sticky containers — preserved on projection.
+      expect(response.metadata).toBeDefined();
+      expect(response.documentation).toBeDefined();
+    });
+
+    it("should always preserve total even when fields omits it", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: mockCurrentOutagesData },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: {
+            time: "current",
+            fields: ["metadata.aggregations.severity_counts"],
+          },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.total).toBe(2);
+      expect(response.metadata.aggregations.severity_counts).toBeDefined();
+      expect(response.items).toBeUndefined();
+    });
+
+    it("should project past outages response (second handler path)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: mockPastOutagesData },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", fields: ["total", "items[].Subject"] },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.total).toBe(1);
+      expect(Object.keys(response.items[0])).toEqual(["Subject"]);
+      expect(response.items[0].Subject).toContain("Stampede3");
+    });
+
+    it("should advertise fields parameter and supportsFieldProjection on the tool", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t: { name: string }) => t.name === "get_infrastructure_news");
+
+      expect(tool?.inputSchema.properties?.fields).toBeDefined();
+      expect((tool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
     });
   });
 });

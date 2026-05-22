@@ -3,6 +3,7 @@ import {
   handleApiError,
   sanitizeGroupId,
   resolveResourceId,
+  projectFields,
   FIELDS_OF_SCIENCE,
   Tool,
   Resource,
@@ -26,6 +27,7 @@ interface SearchResourcesArgs {
   has_gpu?: boolean;
   organization?: string;
   include_resource_ids?: boolean;
+  fields?: string[];
 }
 
 // Interfaces for API response types
@@ -137,7 +139,16 @@ export class ComputeResourcesServer extends BaseAccessServer {
               description: "Include resource IDs for other services",
               default: true,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].name', 'items[].resource_ids', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response. Only applies to listing results, not single-resource lookups.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       {
@@ -237,6 +248,7 @@ export class ComputeResourcesServer extends BaseAccessServer {
             has_gpu: toolArgs.has_gpu as boolean | undefined,
             organization: toolArgs.organization as string | undefined,
             include_resource_ids: toolArgs.include_ids as boolean | undefined,
+            fields: toolArgs.fields as string[] | undefined,
           });
         case "get_resource_hardware":
           return await this.getResourceHardware(toolArgs.id as string);
@@ -253,14 +265,22 @@ export class ComputeResourcesServer extends BaseAccessServer {
    * Routes to appropriate handler based on parameters
    */
   private async searchResourcesRouter(args: SearchResourcesArgs): Promise<CallToolResult> {
-    // Get specific resource details by ID
+    // Get specific resource details by ID (lookup — fields ignored, not enveloped)
     if (args.resource_id) {
       return await this.getComputeResource(args.resource_id);
     }
 
-    // No parameters = list all resources
-    if (!args.query && !args.resource_type && !args.has_gpu && !args.organization) {
-      return await this.listComputeResources();
+    // No parameters = list all resources.
+    // has_gpu uses explicit-undefined: `has_gpu: false` is a real filter
+    // (find CPU-only resources) and must NOT fall through to the
+    // unfiltered listing.
+    if (
+      !args.query &&
+      !args.resource_type &&
+      args.has_gpu === undefined &&
+      !args.organization
+    ) {
+      return await this.listComputeResources(args.fields);
     }
 
     // Search/filter resources
@@ -598,7 +618,7 @@ Consider:
       .map((id) => featureMap.get(id)!.name);
   }
 
-  private async listComputeResources() {
+  private async listComputeResources(fields?: string[]) {
     // Get all active resource groups
     const response = await this.httpClient.get(
       "/wh2/cider/v1/access-active-groups/type/resource-catalog.access-ci.org/"
@@ -675,14 +695,23 @@ Consider:
         };
       });
 
+    const envelope = {
+      total: computeResources.length,
+      items: computeResources,
+      metadata: {
+        pagination: {
+          limit: computeResources.length,
+          offset: 0,
+          has_more: false,
+        },
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: computeResources.length,
-            items: computeResources,
-          }),
+          text: JSON.stringify(projectFields(envelope, fields)),
         },
       ],
     };
@@ -903,8 +932,9 @@ Consider:
     has_gpu?: boolean;
     organization?: string;
     include_resource_ids?: boolean;
+    fields?: string[];
   }) {
-    const { query, resource_type, has_gpu, organization, include_resource_ids = true } = args;
+    const { query, resource_type, has_gpu, organization, include_resource_ids = true, fields } = args;
 
     // Get all resources first
     const allResourcesResult = await this.listComputeResources();
@@ -998,14 +1028,23 @@ Consider:
       }));
     }
 
+    const envelope = {
+      total: resources.length,
+      items: resources,
+      metadata: {
+        pagination: {
+          limit: resources.length,
+          offset: 0,
+          has_more: false,
+        },
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: resources.length,
-            items: resources,
-          }),
+          text: JSON.stringify(projectFields(envelope, fields)),
         },
       ],
     };

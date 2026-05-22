@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { BaseAccessServer, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import { BaseAccessServer, projectFields, Tool, Resource, CallToolResult } from "@access-mcp/shared";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
@@ -12,6 +12,7 @@ interface SearchNSFAwardsArgs {
   institution?: string;
   primary_only?: boolean;
   limit?: number;
+  fields?: string[];
 }
 
 // Raw NSF API award response structure
@@ -91,7 +92,16 @@ export class NSFAwardsServer extends BaseAccessServer {
               description: "Max results (default: 10)",
               default: 10,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].title', 'items[].principalInvestigator', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response. Only applies to listing results, not single-award lookups.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
     ];
@@ -127,11 +137,12 @@ export class NSFAwardsServer extends BaseAccessServer {
 
   private async searchNSFAwardsRouter(args: SearchNSFAwardsArgs): Promise<CallToolResult> {
     if (args.id) {
+      // Lookup — not enveloped for projection
       return await this.get_nsf_award({ award_number: args.id });
     }
 
     if (args.pi) {
-      return await this.find_nsf_awards_by_pi({ pi_name: args.pi, limit: args.limit });
+      return await this.find_nsf_awards_by_pi({ pi_name: args.pi, limit: args.limit, fields: args.fields });
     }
 
     if (args.institution) {
@@ -139,23 +150,37 @@ export class NSFAwardsServer extends BaseAccessServer {
         institution_name: args.institution,
         limit: args.limit,
         primary_only: args.primary_only || false,
+        fields: args.fields,
       });
     }
 
     if (args.query) {
-      return await this.find_nsf_awards_by_keywords({ keywords: args.query, limit: args.limit });
+      return await this.find_nsf_awards_by_keywords({ keywords: args.query, limit: args.limit, fields: args.fields });
     }
 
     return this.errorResponse("Provide id, query, pi, or institution");
   }
 
-  private async find_nsf_awards_by_pi(args: { pi_name: string; limit?: number }) {
-    const awards = await this.searchNSFAwardsByPI(args.pi_name, args.limit || 10);
+  private async find_nsf_awards_by_pi(args: { pi_name: string; limit?: number; fields?: string[] }) {
+    const limit = args.limit || 10;
+    // Fetch one extra so has_more can distinguish "exactly limit" from
+    // "limit + more available" — guards against the >=limit false-positive
+    // when the universe is exactly the size of the requested cap.
+    const fetched = await this.searchNSFAwardsByPI(args.pi_name, limit + 1);
+    const hasMore = fetched.length > limit;
+    const awards = fetched.slice(0, limit);
+    const envelope = {
+      total: awards.length,
+      items: awards,
+      metadata: {
+        pagination: { limit, offset: 0, has_more: hasMore },
+      },
+    };
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ total: awards.length, items: awards }),
+          text: JSON.stringify(projectFields(envelope, args.fields)),
         },
       ],
     };
@@ -177,8 +202,18 @@ export class NSFAwardsServer extends BaseAccessServer {
     institution_name: string;
     limit?: number;
     primary_only?: boolean;
+    fields?: string[];
   }) {
-    let awards = await this.searchNSFAwardsByInstitution(args.institution_name, args.limit || 10);
+    const limit = args.limit || 10;
+    // Fetch one extra so has_more can distinguish exact-limit from
+    // limit-plus-more. When primary_only post-filters, has_more is then
+    // computed against the upstream universe, not the post-filter length —
+    // a post-filter that drops some matches still emits has_more correctly
+    // when more upstream pages exist (vs the old logic that always reported
+    // has_more=false after a meaningful filter).
+    const fetched = await this.searchNSFAwardsByInstitution(args.institution_name, limit + 1);
+    const upstreamHasMore = fetched.length > limit;
+    let awards = fetched.slice(0, limit);
 
     // If primary_only is requested, filter awards to only include those where
     // the queried institution is the primary recipient
@@ -190,23 +225,41 @@ export class NSFAwardsServer extends BaseAccessServer {
       });
     }
 
+    const envelope = {
+      total: awards.length,
+      items: awards,
+      metadata: {
+        pagination: { limit, offset: 0, has_more: upstreamHasMore },
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ total: awards.length, items: awards }),
+          text: JSON.stringify(projectFields(envelope, args.fields)),
         },
       ],
     };
   }
 
-  private async find_nsf_awards_by_keywords(args: { keywords: string; limit?: number }) {
-    const awards = await this.searchNSFAwardsByKeywords(args.keywords, args.limit || 10);
+  private async find_nsf_awards_by_keywords(args: { keywords: string; limit?: number; fields?: string[] }) {
+    const limit = args.limit || 10;
+    const fetched = await this.searchNSFAwardsByKeywords(args.keywords, limit + 1);
+    const hasMore = fetched.length > limit;
+    const awards = fetched.slice(0, limit);
+    const envelope = {
+      total: awards.length,
+      items: awards,
+      metadata: {
+        pagination: { limit, offset: 0, has_more: hasMore },
+      },
+    };
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({ total: awards.length, items: awards }),
+          text: JSON.stringify(projectFields(envelope, args.fields)),
         },
       ],
     };

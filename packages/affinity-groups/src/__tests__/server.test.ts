@@ -38,5 +38,15 @@ describe("AffinityGroupsServer", () => {
       expect(server["serverName"]).toBe("access-mcp-affinity-groups");
       expect(server["version"]).toBe(version);
     });
+
+    test("should expose see_all_url for list and search contexts", () => {
+      expect(server["listingLinks"]("list")?.see_all_url).toBe(
+        "https://support.access-ci.org/affinity-groups"
+      );
+      expect(server["listingLinks"]("search")?.see_all_url).toBe(
+        "https://support.access-ci.org/affinity-groups"
+      );
+      expect(server["listingLinks"]("details")).toBeUndefined();
+    });
   });
 });

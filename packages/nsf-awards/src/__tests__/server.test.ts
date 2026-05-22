@@ -569,4 +569,92 @@ describe("NSFAwardsServer", () => {
       expect(response.items[0].institution).toContain("Chicago");
     });
   });
+
+  describe("fields projection (Pillar 2)", () => {
+    const mockPISearchResponse = {
+      response: {
+        award: [
+          {
+            id: "2138259",
+            title: "Award 1",
+            awardeeName: "University A",
+            piFirstName: "John",
+            piLastName: "Smith",
+            estimatedTotalAmt: "500000",
+            startDate: "09/01/2021",
+            expDate: "08/31/2024",
+            primaryProgram: "Computer Science",
+          },
+        ],
+      },
+    };
+
+    it("should project find-by-PI response to requested fields only", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockPISearchResponse,
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", fields: ["total", "items[].title"] },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.total).toBe(1);
+      expect(Object.keys(response.items[0])).toEqual(["title"]);
+      expect(response.items[0].title).toBe("Award 1");
+      // metadata is a sticky container — preserved on projection.
+      expect(response.metadata).toBeDefined();
+    });
+
+    it("should always preserve total even when fields omits it", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockPISearchResponse,
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", fields: ["metadata.pagination.has_more"] },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.total).toBe(1);
+      expect(response.metadata.pagination.has_more).toBeDefined();
+      expect(response.items).toBeUndefined();
+    });
+
+    it("should project find-by-institution response (second handler path)", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockPISearchResponse,
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { institution: "University A", fields: ["total", "items[].title"] },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.total).toBeGreaterThanOrEqual(0);
+      if (response.items?.length) {
+        expect(Object.keys(response.items[0])).toEqual(["title"]);
+      }
+    });
+
+    it("should advertise fields parameter and supportsFieldProjection on the tool", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t) => t.name === "search_nsf_awards");
+
+      expect(tool?.inputSchema.properties.fields).toBeDefined();
+      expect((tool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
 });

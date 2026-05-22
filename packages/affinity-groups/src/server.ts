@@ -2,6 +2,7 @@ import {
   BaseAccessServer,
   handleApiError,
   sanitizeGroupId,
+  projectFields,
   Tool,
   Resource,
   CallToolResult,
@@ -20,11 +21,21 @@ interface SearchAffinityGroupsArgs {
   include?: string;
   query?: string;
   limit?: number;
+  fields?: string[];
 }
 
 export class AffinityGroupsServer extends BaseAccessServer {
   constructor() {
     super("access-mcp-affinity-groups", version);
+  }
+
+  protected listingLinks(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://support.access-ci.org/affinity-groups" };
+    }
+    return undefined;
   }
 
   protected getTools(): Tool[] {
@@ -55,7 +66,16 @@ export class AffinityGroupsServer extends BaseAccessServer {
               description: "Max results (default: 20)",
               default: 20,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].name', 'items[].description', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response. Only applies to listing/search results, not single-group lookups.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
     ];
@@ -91,10 +111,10 @@ export class AffinityGroupsServer extends BaseAccessServer {
   private async searchAffinityGroupsRouter(
     args: SearchAffinityGroupsArgs
   ): Promise<CallToolResult> {
-    const { id, include, query, limit } = args;
+    const { id, include, query, limit, fields } = args;
 
     if (!id && !query) {
-      return await this.listAffinityGroups();
+      return await this.listAffinityGroups(fields);
     }
 
     // Text search: filter groups by query matching name, description, category
@@ -115,13 +135,32 @@ export class AffinityGroupsServer extends BaseAccessServer {
         return terms.some((term) => searchable.includes(term));
       });
 
-      const limited = limit ? filtered.slice(0, limit) : filtered;
+      // Use explicit-undefined check so an honest limit: 0 (caller only
+      // wants total + pagination) doesn't fall through to the full list.
+      const limited = limit !== undefined ? filtered.slice(0, limit) : filtered;
+
+      const envelope = {
+        total: filtered.length,
+        items: limited,
+        metadata: {
+          query,
+          pagination: {
+            limit: limit ?? filtered.length,
+            offset: 0,
+            has_more: limited.length < filtered.length,
+          },
+          query_relevance: "loose_match" as const,
+        },
+        documentation: {
+          links: this.listingLinks("search"),
+        },
+      };
 
       return {
         content: [
           {
             type: "text" as const,
-            text: JSON.stringify({ total: limited.length, query, items: limited }, null, 2),
+            text: JSON.stringify(projectFields(envelope, fields), null, 2),
           },
         ],
       };
@@ -292,7 +331,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
     };
   }
 
-  private async listAffinityGroups(): Promise<CallToolResult> {
+  private async listAffinityGroups(fields?: string[]): Promise<CallToolResult> {
     const response = await this.httpClient.get("/1.1/affinity_groups/all");
 
     const groups = Array.isArray(response.data)
@@ -308,18 +347,26 @@ export class AffinityGroupsServer extends BaseAccessServer {
         }))
       : [];
 
+    const envelope = {
+      total: groups.length,
+      items: groups,
+      metadata: {
+        pagination: {
+          limit: groups.length,
+          offset: 0,
+          has_more: false,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: groups.length,
-              items: groups,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };

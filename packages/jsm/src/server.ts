@@ -553,45 +553,48 @@ export class JsmServer extends BaseAccessServer {
   }
 
   private getTicketTypes(): CallToolResult {
+    const items = [
+      {
+        tool: "create_support_ticket",
+        name: "General Support",
+        description:
+          "General support questions about allocations, accounts, software, training, metrics, and other ACCESS-related topics.",
+        categories: ISSUE_CATEGORIES,
+        resources: ACCESS_RESOURCES,
+      },
+      {
+        tool: "create_login_ticket",
+        name: "Login Issues",
+        description: "Issues logging into the ACCESS portal or a specific resource provider.",
+        subtypes: [
+          {
+            login_type: "access_portal",
+            description: "Problems logging into access-ci.org",
+            identity_providers: IDENTITY_PROVIDERS,
+          },
+          {
+            login_type: "resource_provider",
+            description: "Problems logging into a specific resource (Delta, Expanse, etc.)",
+            resources: ACCESS_RESOURCES,
+          },
+        ],
+      },
+      {
+        tool: "report_security_incident",
+        name: "Security Incident",
+        description:
+          "Report security vulnerabilities, suspicious activity, or other security concerns to the ACCESS cybersecurity team.",
+        priorities: ["low", "medium", "high", "critical"],
+      },
+    ];
+
     return {
       content: [
         {
           type: "text" as const,
           text: JSON.stringify({
-            ticket_types: [
-              {
-                tool: "create_support_ticket",
-                name: "General Support",
-                description:
-                  "General support questions about allocations, accounts, software, training, metrics, and other ACCESS-related topics.",
-                categories: ISSUE_CATEGORIES,
-                resources: ACCESS_RESOURCES,
-              },
-              {
-                tool: "create_login_ticket",
-                name: "Login Issues",
-                description: "Issues logging into the ACCESS portal or a specific resource provider.",
-                subtypes: [
-                  {
-                    login_type: "access_portal",
-                    description: "Problems logging into access-ci.org",
-                    identity_providers: IDENTITY_PROVIDERS,
-                  },
-                  {
-                    login_type: "resource_provider",
-                    description: "Problems logging into a specific resource (Delta, Expanse, etc.)",
-                    resources: ACCESS_RESOURCES,
-                  },
-                ],
-              },
-              {
-                tool: "report_security_incident",
-                name: "Security Incident",
-                description:
-                  "Report security vulnerabilities, suspicious activity, or other security concerns to the ACCESS cybersecurity team.",
-                priorities: ["low", "medium", "high", "critical"],
-              },
-            ],
+            total: items.length,
+            items,
           }),
         },
       ],

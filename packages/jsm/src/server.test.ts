@@ -417,10 +417,10 @@ describe("JsmServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.ticket_types).toHaveLength(3);
+      expect(responseData.items).toHaveLength(3);
 
       // Check support ticket type
-      const supportType = responseData.ticket_types.find(
+      const supportType = responseData.items.find(
         (t: { tool: string }) => t.tool === "create_support_ticket"
       );
       expect(supportType).toBeDefined();
@@ -431,7 +431,7 @@ describe("JsmServer", () => {
       expect(supportType.resources).toContain("Expanse");
 
       // Check login ticket type
-      const loginType = responseData.ticket_types.find(
+      const loginType = responseData.items.find(
         (t: { tool: string }) => t.tool === "create_login_ticket"
       );
       expect(loginType).toBeDefined();
@@ -440,7 +440,7 @@ describe("JsmServer", () => {
       expect(loginType.subtypes[0].identity_providers).toContain("Github");
 
       // Check security incident type
-      const securityType = responseData.ticket_types.find(
+      const securityType = responseData.items.find(
         (t: { tool: string }) => t.tool === "report_security_incident"
       );
       expect(securityType).toBeDefined();
@@ -629,7 +629,7 @@ describe("JsmServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.ticket_types).toHaveLength(3);
+      expect(responseData.items).toHaveLength(3);
     });
   });
 

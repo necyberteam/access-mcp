@@ -1,6 +1,7 @@
 import {
   BaseAccessServer,
   handleApiError,
+  projectFields,
   Tool,
   Resource,
   CallToolResult,
@@ -27,10 +28,17 @@ interface SearchEventsParams {
   skill?: string;
   has_video?: boolean;
   limit?: number;
+  // When true, skip compactDescription's truncation so the agent gets the
+  // full event description (e.g. needs the registration URL or wants to
+  // summarize a workshop in detail). Default is the truncated form because
+  // a full-corpus listing can otherwise blow past LLM context windows.
+  full_description?: boolean;
+  fields?: string[];
 }
 
 interface GetMyEventsParams {
   limit?: number;
+  fields?: string[];
 }
 
 interface RawEvent {
@@ -41,7 +49,29 @@ interface RawEvent {
   skill_level?: string;
   tags?: string | string[];
   video?: string;
+  description?: string;
   [key: string]: unknown;
+}
+
+const DESCRIPTION_MAX_CHARS = 250;
+
+export function compactDescription(
+  raw: string | undefined,
+  maxChars: number = DESCRIPTION_MAX_CHARS
+): string | undefined {
+  if (raw === undefined || raw === null) return raw;
+  const stripped = raw
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (stripped.length <= maxChars) return stripped;
+  return stripped.slice(0, maxChars).trimEnd() + "…";
 }
 
 export class EventsServer extends BaseAccessServer {
@@ -52,6 +82,15 @@ export class EventsServer extends BaseAccessServer {
     super("access-mcp-events", version, "https://support.access-ci.org", {
       requireApiKey: true,
     });
+  }
+
+  protected listingLinks(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://support.access-ci.org/events" };
+    }
+    return undefined;
   }
 
   /**
@@ -178,10 +217,25 @@ export class EventsServer extends BaseAccessServer {
             },
             limit: {
               type: "number",
-              description: "Max results (default: 50)",
-              default: 50,
+              description: "Max results (default: 20)",
+              default: 20,
+            },
+            full_description: {
+              type: "boolean",
+              description:
+                "When true, return the full event description (with HTML) instead of the default 250-char plain-text compact form. Use when you need the registration URL embedded in the description, or want to summarize a workshop in detail. Pair with a small limit to stay within context.",
+              default: false,
+            },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].title', 'items[].start_date', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
             },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       {
@@ -200,7 +254,16 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
               description: "Max results (default: 50)",
               default: 50,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].title', 'items[].status', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
     ];
@@ -366,6 +429,9 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
 
     const enhancedEvents = events.map((event: RawEvent) => ({
       ...event,
+      description: params.full_description
+        ? event.description
+        : compactDescription(event.description),
       tags:
         typeof event.tags === "string" && event.tags.trim()
           ? event.tags.split(",").map((t: string) => t.trim())
@@ -392,17 +458,31 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
       ? enhancedEvents.filter((e) => typeof e.video === "string" && e.video.trim() !== "")
       : enhancedEvents;
 
-    // Apply limit after sorting and filtering
-    const limited = params.limit ? filtered.slice(0, params.limit) : filtered;
+    // Apply limit after sorting and filtering. Explicit-undefined so
+    // limit: 0 (count-only callers) doesn't fall through to the full list.
+    const limited = params.limit !== undefined ? filtered.slice(0, params.limit) : filtered;
+
+    const envelope = {
+      total: filtered.length,
+      items: limited,
+      metadata: {
+        pagination: {
+          limit: params.limit ?? filtered.length,
+          offset: 0,
+          has_more: limited.length < filtered.length,
+        },
+        query_relevance: params.query ? ("loose_match" as const) : ("exact" as const),
+      },
+      documentation: {
+        links: this.listingLinks("search"),
+      },
+    };
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: limited.length,
-            items: limited,
-          }),
+          text: JSON.stringify(projectFields(envelope, params.fields)),
         },
       ],
     };
@@ -443,14 +523,20 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
 
     const limit = params.limit || 50;
 
-    // Use the unified view endpoint - it respects X-Acting-User header
+    // Fetch one extra so has_more can distinguish exact-limit from
+    // limit-plus-more (avoids the >=limit false-positive when the
+    // user's total is exactly the requested cap).
     const result = await auth.get(
-      `/jsonapi/views/event_instance_mine/my_events_page?page[limit]=${limit}`
+      `/jsonapi/views/event_instance_mine/my_events_page?page[limit]=${limit + 1}`
     );
+
+    const fetchedItems = result.data || [];
+    const hasMore = fetchedItems.length > limit;
+    const slicedItems = fetchedItems.slice(0, limit);
 
     // JSON:API views return data in a different format
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON:API response shape is dynamic
-    const events = (result.data || []).map((item: any) => ({
+    const events = slicedItems.map((item: any) => ({
       id: item.id,
       type: item.type,
       title: item.attributes?.title,
@@ -460,14 +546,26 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
       ...item.attributes,
     }));
 
+    const envelope = {
+      total: events.length,
+      items: events,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: hasMore,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            total: events.length,
-            items: events,
-          }),
+          text: JSON.stringify(projectFields(envelope, params.fields)),
         },
       ],
     };

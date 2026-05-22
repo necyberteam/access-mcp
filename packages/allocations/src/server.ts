@@ -1,6 +1,7 @@
 import {
   BaseAccessServer,
   handleApiError,
+  projectFields,
   FIELDS_OF_SCIENCE,
   ALLOCATION_TYPES,
   getFieldNames,
@@ -63,6 +64,7 @@ interface SearchProjectsArgs {
   date_range?: { start_date?: string; end_date?: string };
   min_allocation?: number;
   sort_by?: string;
+  fields?: string[];
 }
 
 interface AnalyzeFundingArgs {
@@ -88,6 +90,15 @@ export class AllocationsServer extends BaseAccessServer {
       },
       10 * 60 * 1000
     );
+  }
+
+  protected listingLinks(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://allocations.access-ci.org/current-projects" };
+    }
+    return undefined;
   }
 
   protected getTools(): Tool[] {
@@ -185,6 +196,12 @@ export class AllocationsServer extends BaseAccessServer {
               description: "Maximum number of results to return (default: 20, max: 100)",
               default: 20,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].requestTitle', 'items[].pi', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response. Only applies to listing results, not single-project lookups.",
+            },
           },
           required: [],
           examples: [
@@ -224,6 +241,9 @@ export class AllocationsServer extends BaseAccessServer {
               },
             },
           ],
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
       {
@@ -628,7 +648,7 @@ sort_by: "date_desc"
    * Routes to appropriate handler based on parameters
    */
   private async searchProjectsRouter(args: SearchProjectsArgs) {
-    // Get specific project details
+    // Get specific project details (lookup — fields ignored, not enveloped)
     if (args.project_id) {
       return await this.getProjectDetails(args.project_id);
     }
@@ -640,18 +660,19 @@ sort_by: "date_desc"
         args.similarity_keywords,
         args.limit,
         args.similarity_threshold,
-        args.include_same_field
+        args.include_same_field,
+        args.fields
       );
     }
 
     // List projects by resource
     if (args.resource_name && !args.query) {
-      return await this.listProjectsByResource(args.resource_name, args.limit);
+      return await this.listProjectsByResource(args.resource_name, args.limit, args.fields);
     }
 
     // List projects by field (when field provided without query)
     if (args.field_of_science && !args.query && !args.resource_name && !args.allocation_type) {
-      return await this.listProjectsByField(args.field_of_science, args.limit);
+      return await this.listProjectsByField(args.field_of_science, args.limit, args.fields);
     }
 
     // List/filter projects by allocation_type (when provided without query)
@@ -659,7 +680,8 @@ sort_by: "date_desc"
       return await this.listProjectsByAllocationType(
         args.allocation_type,
         args.field_of_science,
-        args.limit
+        args.limit,
+        args.fields
       );
     }
 
@@ -672,7 +694,8 @@ sort_by: "date_desc"
         args.limit,
         args.date_range,
         args.min_allocation,
-        args.sort_by
+        args.sort_by,
+        args.fields
       );
     }
 
@@ -725,7 +748,8 @@ sort_by: "date_desc"
     limit: number = 20,
     dateRange?: { start_date?: string; end_date?: string },
     minAllocation?: number,
-    sortBy: string = "relevance"
+    sortBy: string = "relevance",
+    fields?: string[]
   ) {
     // Input validation
     if (!query || query.trim().length === 0) {
@@ -789,7 +813,8 @@ sort_by: "date_desc"
       .filter((item) => item.score > 0);
 
     // Apply sorting
-    const sortedResults = this.applySorting(scoredResults, sortBy).slice(0, limit);
+    const sortedAll = this.applySorting(scoredResults, sortBy);
+    const sortedResults = sortedAll.slice(0, limit);
 
     // Return in universal {total, items} format
     const items = sortedResults.map(({ project, score }) => ({
@@ -797,18 +822,33 @@ sort_by: "date_desc"
       relevance_score: score > 0 ? score : undefined,
     }));
 
+    const envelope = {
+      total: sortedAll.length,
+      items: items,
+      metadata: {
+        pagination: {
+          // Echo the requested limit, not items.length — the agent uses this
+          // to size follow-up pagination requests, and items.length collapses
+          // the cap-vs-actual distinction when the universe is smaller than
+          // the requested cap.
+          limit,
+          offset: 0,
+          has_more:
+            sortedAll.length > items.length ||
+            actualPages.length < firstPageData.pages,
+        },
+        query_relevance: "loose_match" as const,
+      },
+      documentation: {
+        links: this.listingLinks("search"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: items.length,
-              items: items,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
@@ -1113,7 +1153,7 @@ sort_by: "date_desc"
     };
   }
 
-  private async listProjectsByField(fieldOfScience: string, limit: number = 20) {
+  private async listProjectsByField(fieldOfScience: string, limit: number = 20, fields?: string[]) {
     // Input validation
     if (
       !fieldOfScience ||
@@ -1130,12 +1170,17 @@ sort_by: "date_desc"
     const results: Project[] = [];
     let currentPage = 1;
     const maxPages = 10;
+    let innerBreak = false;
+    let exhausted = false;
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
 
       for (const project of data.projects) {
-        if (results.length >= limit) break;
+        if (results.length >= limit) {
+          innerBreak = true;
+          break;
+        }
 
         if (project.fos.toLowerCase().includes(fieldOfScience.toLowerCase())) {
           results.push(project);
@@ -1143,21 +1188,39 @@ sort_by: "date_desc"
       }
 
       currentPage++;
-      if (currentPage > data.pages) break;
+      if (currentPage > data.pages) {
+        exhausted = true;
+        break;
+      }
     }
+
+    const envelope = {
+      total: results.length,
+      items: results,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          // True if we skipped matches on the last scanned page, OR we
+          // stopped because of the maxPages cap rather than upstream
+          // exhaustion. The >=limit heuristic gave false positives
+          // whenever the universe was exactly limit-sized.
+          has_more: innerBreak || !exhausted,
+        },
+        // Substring match (toLowerCase().includes(...)) — agent should
+        // verify each result actually fits the user's intended topic.
+        query_relevance: "loose_match" as const,
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: results.length,
-              items: results,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
@@ -1169,7 +1232,8 @@ sort_by: "date_desc"
   private async listProjectsByAllocationType(
     allocationType: string,
     fieldOfScience?: string,
-    limit: number = 20
+    limit: number = 20,
+    fields?: string[]
   ) {
     // Input validation
     if (
@@ -1187,12 +1251,17 @@ sort_by: "date_desc"
     const results: Project[] = [];
     let currentPage = 1;
     const maxPages = 10;
+    let innerBreak = false;
+    let exhausted = false;
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
 
       for (const project of data.projects) {
-        if (results.length >= limit) break;
+        if (results.length >= limit) {
+          innerBreak = true;
+          break;
+        }
 
         // Match allocation type (case-insensitive)
         const typeMatch = project.allocationType
@@ -1209,31 +1278,43 @@ sort_by: "date_desc"
       }
 
       currentPage++;
-      if (currentPage > data.pages) break;
+      if (currentPage > data.pages) {
+        exhausted = true;
+        break;
+      }
     }
+
+    const envelope = {
+      total: results.length,
+      items: results,
+      metadata: {
+        filters_applied: {
+          allocation_type: allocationType,
+          ...(fieldOfScience && { field_of_science: fieldOfScience }),
+        },
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: innerBreak || !exhausted,
+        },
+        query_relevance: "loose_match" as const,
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: results.length,
-              items: results,
-              filters_applied: {
-                allocation_type: allocationType,
-                ...(fieldOfScience && { field_of_science: fieldOfScience }),
-              },
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
   }
 
-  private async listProjectsByResource(resourceName: string, limit: number = 20) {
+  private async listProjectsByResource(resourceName: string, limit: number = 20, fields?: string[]) {
     // Input validation
     if (!resourceName || typeof resourceName !== "string" || resourceName.trim().length === 0) {
       throw new Error("Resource name must be a non-empty string");
@@ -1246,12 +1327,17 @@ sort_by: "date_desc"
     const results: Project[] = [];
     let currentPage = 1;
     const maxPages = 10;
+    let innerBreak = false;
+    let exhausted = false;
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
 
       for (const project of data.projects) {
-        if (results.length >= limit) break;
+        if (results.length >= limit) {
+          innerBreak = true;
+          break;
+        }
 
         const hasResource = project.resources.some((resource) =>
           resource.resourceName.toLowerCase().includes(resourceName.toLowerCase())
@@ -1263,21 +1349,33 @@ sort_by: "date_desc"
       }
 
       currentPage++;
-      if (currentPage > data.pages) break;
+      if (currentPage > data.pages) {
+        exhausted = true;
+        break;
+      }
     }
+
+    const envelope = {
+      total: results.length,
+      items: results,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: innerBreak || !exhausted,
+        },
+        query_relevance: "loose_match" as const,
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: results.length,
-              items: results,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
@@ -1370,7 +1468,8 @@ sort_by: "date_desc"
     keywords?: string,
     limit: number = 10,
     similarityThreshold: number = 0.3,
-    includeSameField: boolean = true
+    includeSameField: boolean = true,
+    fields?: string[]
   ) {
     let referenceProject: Project | null = null;
     let searchTerms: string = "";
@@ -1439,7 +1538,7 @@ sort_by: "date_desc"
     const allProjects = await this.fetchMultiplePages(actualPages);
 
     // Calculate similarity scores for all projects
-    const scoredResults = allProjects
+    const allScored = allProjects
       .filter((project) => !referenceProject || project.projectId !== referenceProject.projectId) // Exclude reference project
       .map((project) => ({
         project,
@@ -1451,8 +1550,8 @@ sort_by: "date_desc"
         ),
       }))
       .filter((item) => item.similarity >= similarityThreshold)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit);
+      .sort((a, b) => b.similarity - a.similarity);
+    const scoredResults = allScored.slice(0, limit);
 
     // Return in universal {total, items} format with similarity scores
     const items = scoredResults.map(({ project, similarity }) => ({
@@ -1460,18 +1559,27 @@ sort_by: "date_desc"
       similarity_score: similarity,
     }));
 
+    const envelope = {
+      total: allScored.length,
+      items: items,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: allScored.length > items.length,
+        },
+        query_relevance: "loose_match" as const,
+      },
+      documentation: {
+        links: this.listingLinks("search"),
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              total: items.length,
-              items: items,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };

@@ -205,6 +205,31 @@ describe("EventsServer", () => {
         const responseData = JSON.parse(result.content[0].text);
         expect(responseData.total).toBe(2);
         expect(responseData.items).toHaveLength(2);
+        expect(responseData.documentation.links.see_all_url).toBe("https://support.access-ci.org/events");
+        expect(responseData.metadata.query_relevance).toBe("exact");
+      });
+
+      it("should tag query_relevance loose_match when full-text query is supplied", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: mockEventsData,
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: {
+              query: "machine learning",
+            },
+          },
+        });
+
+        const calledUrl = mockHttpClient.get.mock.calls[0][0];
+        expect(calledUrl).toContain("search_api_fulltext=machine+learning");
+
+        const responseData = JSON.parse(result.content[0].text);
+        expect(responseData.metadata.query_relevance).toBe("loose_match");
       });
 
       it("should get events with date filter", async () => {
@@ -612,5 +637,102 @@ describe("EventsServer", () => {
         });
       }).rejects.toThrow("Unknown resource");
     });
+  });
+
+  describe("fields projection (Pillar 2)", () => {
+    const mockEventsData = [
+      {
+        id: "1",
+        title: "Python Workshop",
+        description: "Learn Python basics",
+        start_date: "2024-08-30T09:00:00",
+        end_date: "2024-08-30T17:00:00",
+        event_type: "workshop",
+        tags: ["python"],
+        url: "https://support.access-ci.org/events/python-workshop",
+      },
+    ];
+
+    it("should project search_events response to requested fields only", async () => {
+      mockHttpClient.get.mockResolvedValue({ status: 200, data: mockEventsData });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_events",
+          arguments: { fields: ["total", "items[].title"] },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.total).toBe(1);
+      expect(Object.keys(responseData.items[0])).toEqual(["title"]);
+      expect(responseData.items[0].title).toBe("Python Workshop");
+      // metadata + documentation are sticky containers — preserved on projection.
+      expect(responseData.metadata).toBeDefined();
+      expect(responseData.documentation).toBeDefined();
+    });
+
+    it("should always preserve total even when fields omits it", async () => {
+      mockHttpClient.get.mockResolvedValue({ status: 200, data: mockEventsData });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_events",
+          arguments: { fields: ["metadata.pagination.has_more"] },
+        },
+      });
+
+      const responseData = JSON.parse(result.content[0].text);
+      expect(responseData.total).toBe(1);
+      expect(responseData.metadata.pagination.has_more).toBeDefined();
+      expect(responseData.items).toBeUndefined();
+    });
+
+    it("should advertise fields parameter and supportsFieldProjection on opted-in tools", () => {
+      const tools = server["getTools"]();
+
+      const searchTool = tools.find((t: { name: string }) => t.name === "search_events");
+      expect(searchTool?.inputSchema.properties?.fields).toBeDefined();
+      expect((searchTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+
+      const myTool = tools.find((t: { name: string }) => t.name === "get_my_events");
+      expect(myTool?.inputSchema.properties?.fields).toBeDefined();
+      expect((myTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
+});
+
+import { compactDescription } from "../server.js";
+
+describe("compactDescription", () => {
+  it("returns undefined for undefined input", () => {
+    expect(compactDescription(undefined)).toBeUndefined();
+  });
+
+  it("strips HTML tags", () => {
+    expect(compactDescription("<h4>Hello</h4><p>world</p>")).toBe("Hello world");
+  });
+
+  it("decodes common entities", () => {
+    expect(compactDescription("Foo&nbsp;&amp;&nbsp;bar &lt;3 &quot;hi&quot;")).toBe(
+      'Foo & bar <3 "hi"'
+    );
+  });
+
+  it("collapses whitespace", () => {
+    expect(compactDescription("a   b\n\nc\t\td")).toBe("a b c d");
+  });
+
+  it("truncates with ellipsis past max length", () => {
+    const long = "a".repeat(500);
+    const out = compactDescription(long, 100);
+    expect(out!.endsWith("…")).toBe(true);
+    expect(out!.length).toBe(101);
+  });
+
+  it("does not truncate when within max", () => {
+    expect(compactDescription("short", 100)).toBe("short");
   });
 });

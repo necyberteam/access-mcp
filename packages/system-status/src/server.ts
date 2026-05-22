@@ -1,6 +1,7 @@
 import {
   BaseAccessServer,
   handleApiError,
+  projectFields,
   Tool,
   Resource,
   CallToolResult,
@@ -21,6 +22,7 @@ interface InfrastructureNewsArgs {
   outage_type?: string;
   ids?: string[];
   limit?: number;
+  fields?: string[];
 }
 
 interface InfrastructureNewsRouterArgs {
@@ -29,6 +31,7 @@ interface InfrastructureNewsRouterArgs {
   outage_type?: string;
   resource_ids?: string[];
   limit?: number;
+  fields?: string[];
 }
 
 interface AffectedResource {
@@ -66,6 +69,15 @@ interface ResourceGroup {
 export class SystemStatusServer extends BaseAccessServer {
   constructor() {
     super("access-mcp-system-status", version, "https://operations-api.access-ci.org");
+  }
+
+  protected listingLinks(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://operations.access-ci.org/infrastructure_news_view" };
+    }
+    return undefined;
   }
 
   /**
@@ -129,7 +141,16 @@ export class SystemStatusServer extends BaseAccessServer {
               description: "Max results to return",
               default: 50,
             },
+            fields: {
+              type: "array",
+              items: { type: "string" },
+              description:
+                "Project the response down to only these fields. Dotted path syntax: 'total', 'items[].name', 'metadata.pagination.has_more', etc. Use to reduce payload size when you only need specific fields. Omit to receive the full response.",
+            },
           },
+        },
+        _meta: {
+          supportsFieldProjection: true,
         },
       },
     ];
@@ -177,6 +198,7 @@ export class SystemStatusServer extends BaseAccessServer {
             outage_type: typedArgs.outage_type,
             resource_ids: typedArgs.ids,
             limit: typedArgs.limit,
+            fields: typedArgs.fields,
           });
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
@@ -193,23 +215,23 @@ export class SystemStatusServer extends BaseAccessServer {
   private async getInfrastructureNewsRouter(
     args: InfrastructureNewsRouterArgs
   ): Promise<CallToolResult> {
-    const { resource, time = "current", outage_type, resource_ids, limit } = args;
+    const { resource, time = "current", outage_type, resource_ids, limit, fields } = args;
 
     // Check resource status (returns operational/affected) - only if IDs provided
     if (resource_ids && Array.isArray(resource_ids) && resource_ids.length > 0) {
-      return await this.checkResourceStatus(resource_ids);
+      return await this.checkResourceStatus(resource_ids, fields);
     }
 
     // Time-based routing
     switch (time) {
       case "current":
-        return await this.getCurrentOutages(resource, outage_type);
+        return await this.getCurrentOutages(resource, outage_type, fields);
       case "scheduled":
-        return await this.getScheduledMaintenance(resource, outage_type);
+        return await this.getScheduledMaintenance(resource, outage_type, fields);
       case "past":
-        return await this.getPastOutages(resource, outage_type, limit || 100);
+        return await this.getPastOutages(resource, outage_type, limit || 100, fields);
       case "all":
-        return await this.getSystemAnnouncements(outage_type, limit || 50);
+        return await this.getSystemAnnouncements(outage_type, limit || 50, fields);
       default:
         throw new Error(
           `Invalid time parameter: ${time}. Must be one of: current, scheduled, past, all`
@@ -279,7 +301,11 @@ export class SystemStatusServer extends BaseAccessServer {
     }
   }
 
-  private async getCurrentOutages(resourceFilter?: string, outageTypeFilter?: string): Promise<CallToolResult> {
+  private async getCurrentOutages(
+    resourceFilter?: string,
+    outageTypeFilter?: string,
+    fields?: string[]
+  ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/current_outages/"
     );
@@ -338,23 +364,39 @@ export class SystemStatusServer extends BaseAccessServer {
     });
 
     const summary = {
-      total_outages: outages.length,
-      affected_resources: Array.from(affectedResources),
-      severity_counts: severityCounts,
-      outages: enhancedOutages,
+      total: enhancedOutages.length,
+      items: enhancedOutages,
+      metadata: {
+        aggregations: {
+          affected_resources: Array.from(affectedResources),
+          severity_counts: severityCounts,
+        },
+        pagination: {
+          limit: enhancedOutages.length,
+          offset: 0,
+          has_more: false,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(summary, null, 2),
+          text: JSON.stringify(projectFields(summary, fields), null, 2),
         },
       ],
     };
   }
 
-  private async getScheduledMaintenance(resourceFilter?: string, outageTypeFilter?: string): Promise<CallToolResult> {
+  private async getScheduledMaintenance(
+    resourceFilter?: string,
+    outageTypeFilter?: string,
+    fields?: string[]
+  ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/future_outages/"
     );
@@ -427,18 +469,30 @@ export class SystemStatusServer extends BaseAccessServer {
     });
 
     const summary = {
-      total_scheduled: maintenance.length,
-      upcoming_24h: upcoming24h,
-      upcoming_week: upcomingWeek,
-      affected_resources: Array.from(affectedResources),
-      maintenance: enhancedMaintenance,
+      total: enhancedMaintenance.length,
+      items: enhancedMaintenance,
+      metadata: {
+        aggregations: {
+          upcoming_24h: upcoming24h,
+          upcoming_week: upcomingWeek,
+          affected_resources: Array.from(affectedResources),
+        },
+        pagination: {
+          limit: enhancedMaintenance.length,
+          offset: 0,
+          has_more: false,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(summary, null, 2),
+          text: JSON.stringify(projectFields(summary, fields), null, 2),
         },
       ],
     };
@@ -447,7 +501,8 @@ export class SystemStatusServer extends BaseAccessServer {
   private async getPastOutages(
     resourceFilter?: string,
     outageTypeFilter?: string,
-    limit: number = 100
+    limit: number = 100,
+    fields?: string[]
   ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
       "/wh2/news/v1/affiliation/access-ci.org/past_outages/"
@@ -482,6 +537,10 @@ export class SystemStatusServer extends BaseAccessServer {
       const dateB = new Date(b.OutageEnd || "");
       return dateB.getTime() - dateA.getTime();
     });
+
+    // Capture pre-slice count so pagination.has_more reflects upstream
+    // truncation rather than always reporting false.
+    const totalPastOutages = pastOutages.length;
 
     // Apply limit
     if (limit && pastOutages.length > limit) {
@@ -530,36 +589,54 @@ export class SystemStatusServer extends BaseAccessServer {
       };
     });
 
+    const averageDurationHours =
+      enhancedOutages.length > 0
+        ? Math.round(
+            enhancedOutages
+              .filter((o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0)
+              .reduce((sum: number, o: EnhancedOutage) => sum + (o.duration_hours || 0), 0) /
+              enhancedOutages.filter(
+                (o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0
+              ).length
+          )
+        : 0;
+
     const summary = {
-      total_past_outages: enhancedOutages.length,
-      recent_outages_30_days: recentOutages.length,
-      affected_resources: Array.from(affectedResources),
-      outage_types: Array.from(outageTypes),
-      average_duration_hours:
-        enhancedOutages.length > 0
-          ? Math.round(
-              enhancedOutages
-                .filter((o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0)
-                .reduce((sum: number, o: EnhancedOutage) => sum + (o.duration_hours || 0), 0) /
-                enhancedOutages.filter(
-                  (o: EnhancedOutage) => o.duration_hours && o.duration_hours > 0
-                ).length
-            )
-          : 0,
-      outages: enhancedOutages,
+      total: totalPastOutages,
+      items: enhancedOutages,
+      metadata: {
+        aggregations: {
+          recent_outages_30_days: recentOutages.length,
+          affected_resources: Array.from(affectedResources),
+          outage_types: Array.from(outageTypes),
+          average_duration_hours: averageDurationHours,
+        },
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: enhancedOutages.length < totalPastOutages,
+        },
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(summary, null, 2),
+          text: JSON.stringify(projectFields(summary, fields), null, 2),
         },
       ],
     };
   }
 
-  private async getSystemAnnouncements(outageTypeFilter?: string, limit: number = 50): Promise<CallToolResult> {
+  private async getSystemAnnouncements(
+    outageTypeFilter?: string,
+    limit: number = 50,
+    fields?: string[]
+  ): Promise<CallToolResult> {
     // Get current, future, and recent past announcements for comprehensive view
     const [currentResponse, futureResponse, pastResponse] = await Promise.all([
       this.httpClient.get("/wh2/news/v1/affiliation/access-ci.org/current_outages/"),
@@ -606,30 +683,48 @@ export class SystemStatusServer extends BaseAccessServer {
       })
       .slice(0, limit);
 
+    const totalCombined =
+      currentOutages.length + futureOutages.length + recentPastOutages.length;
+
     const summary = {
-      total_announcements: allAnnouncements.length,
-      current_outages: currentOutages.length,
-      scheduled_maintenance: futureOutages.length,
-      recent_past_outages: recentPastOutages.length,
-      categories: {
-        current: allAnnouncements.filter((a) => a.category === "current").length,
-        scheduled: allAnnouncements.filter((a) => a.category === "scheduled").length,
-        recent_past: allAnnouncements.filter((a) => a.category === "recent_past").length,
+      total: totalCombined,
+      items: allAnnouncements,
+      metadata: {
+        aggregations: {
+          current_outages: currentOutages.length,
+          scheduled_maintenance: futureOutages.length,
+          recent_past_outages: recentPastOutages.length,
+          categories: {
+            current: allAnnouncements.filter((a) => a.category === "current").length,
+            scheduled: allAnnouncements.filter((a) => a.category === "scheduled").length,
+            recent_past: allAnnouncements.filter((a) => a.category === "recent_past").length,
+          },
+        },
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: allAnnouncements.length < totalCombined,
+        },
       },
-      announcements: allAnnouncements,
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
 
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(summary, null, 2),
+          text: JSON.stringify(projectFields(summary, fields), null, 2),
         },
       ],
     };
   }
 
-  private async checkResourceStatus(resourceIds: string[]): Promise<CallToolResult> {
+  private async checkResourceStatus(
+    resourceIds: string[],
+    fields?: string[]
+  ): Promise<CallToolResult> {
     if (!resourceIds || !Array.isArray(resourceIds) || resourceIds.length === 0) {
       throw new Error(
         "resource_ids parameter is required and must be a non-empty array of resource IDs"
@@ -724,22 +819,26 @@ export class SystemStatusServer extends BaseAccessServer {
 
     const resourceStatus = await Promise.all(statusPromises);
 
+    const envelope = {
+      total: resourceStatus.length,
+      items: resourceStatus,
+      metadata: {
+        checked_at: now.toISOString(),
+        aggregations: {
+          counts: {
+            operational: resourceStatus.filter((r) => r.status === "operational").length,
+            affected: resourceStatus.filter((r) => r.status === "affected").length,
+            unknown: resourceStatus.filter((r) => r.status === "unknown").length,
+          },
+        },
+      },
+    };
+
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify(
-            {
-              checked_at: now.toISOString(),
-              resources_checked: resolvedIds.length,
-              operational: resourceStatus.filter((r) => r.status === "operational").length,
-              affected: resourceStatus.filter((r) => r.status === "affected").length,
-              unknown: resourceStatus.filter((r) => r.status === "unknown").length,
-              resource_status: resourceStatus,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
     };
