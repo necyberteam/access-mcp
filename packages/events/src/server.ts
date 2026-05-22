@@ -449,7 +449,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     const limited = params.limit ? filtered.slice(0, params.limit) : filtered;
 
     const envelope = {
-      total: limited.length,
+      total: filtered.length,
       items: limited,
       metadata: {
         pagination: {

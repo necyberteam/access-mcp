@@ -823,7 +823,7 @@ sort_by: "date_desc"
     }));
 
     const envelope = {
-      total: items.length,
+      total: sortedAll.length,
       items: items,
       metadata: {
         pagination: {
@@ -1523,7 +1523,7 @@ sort_by: "date_desc"
     }));
 
     const envelope = {
-      total: items.length,
+      total: allScored.length,
       items: items,
       metadata: {
         pagination: {

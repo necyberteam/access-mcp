@@ -138,7 +138,7 @@ export class AffinityGroupsServer extends BaseAccessServer {
       const limited = limit ? filtered.slice(0, limit) : filtered;
 
       const envelope = {
-        total: limited.length,
+        total: filtered.length,
         items: limited,
         metadata: {
           query,

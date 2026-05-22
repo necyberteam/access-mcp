@@ -582,7 +582,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       );
 
       const envelope = {
-        total: transformedResults.length,
+        total: results.length,
         items: transformedResults,
         metadata: {
           filters_applied: {

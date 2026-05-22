@@ -683,7 +683,7 @@ export class SystemStatusServer extends BaseAccessServer {
       currentOutages.length + futureOutages.length + recentPastOutages.length;
 
     const summary = {
-      total: allAnnouncements.length,
+      total: totalCombined,
       items: allAnnouncements,
       metadata: {
         aggregations: {
