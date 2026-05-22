@@ -110,13 +110,20 @@ export function projectFields<T extends Record<string, unknown>>(
   }
 
   const paths = [...fields];
-  // `total` is the envelope's one structural invariant — always preserve it
-  // when present, even if the caller didn't list it.
-  if (
-    Object.prototype.hasOwnProperty.call(response, "total") &&
-    !paths.some((p) => p === "total" || p === "total[]")
-  ) {
-    paths.push("total");
+  // Sticky structural fields — always preserve top-level metadata/documentation
+  // containers when present, even if the caller didn't list them. Otherwise
+  // a caller requesting items[].title silently loses pagination.has_more,
+  // documentation.links.see_all_url, and the query_relevance signal —
+  // structural metadata the agent's prompt is explicitly told to consult.
+  // Individual sub-paths are still honored (e.g. metadata.pagination[].limit
+  // wins over the bare "metadata" preservation).
+  for (const sticky of ["total", "metadata", "documentation"]) {
+    if (
+      Object.prototype.hasOwnProperty.call(response, sticky) &&
+      !paths.some((p) => p === sticky || p.startsWith(`${sticky}.`) || p.startsWith(`${sticky}[`))
+    ) {
+      paths.push(sticky);
+    }
   }
 
   const root = buildWantedTree(paths);

@@ -643,8 +643,9 @@ describe("SystemStatusServer", () => {
       expect(response.total).toBe(2);
       expect(Object.keys(response.items[0])).toEqual(["Subject"]);
       expect(response.items[0].Subject).toContain("Anvil");
-      expect(response.metadata).toBeUndefined();
-      expect(response.documentation).toBeUndefined();
+      // metadata + documentation are sticky containers — preserved on projection.
+      expect(response.metadata).toBeDefined();
+      expect(response.documentation).toBeDefined();
     });
 
     it("should always preserve total even when fields omits it", async () => {

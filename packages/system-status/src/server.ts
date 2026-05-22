@@ -538,6 +538,10 @@ export class SystemStatusServer extends BaseAccessServer {
       return dateB.getTime() - dateA.getTime();
     });
 
+    // Capture pre-slice count so pagination.has_more reflects upstream
+    // truncation rather than always reporting false.
+    const totalPastOutages = pastOutages.length;
+
     // Apply limit
     if (limit && pastOutages.length > limit) {
       pastOutages = pastOutages.slice(0, limit);
@@ -598,7 +602,7 @@ export class SystemStatusServer extends BaseAccessServer {
         : 0;
 
     const summary = {
-      total: enhancedOutages.length,
+      total: totalPastOutages,
       items: enhancedOutages,
       metadata: {
         aggregations: {
@@ -610,7 +614,7 @@ export class SystemStatusServer extends BaseAccessServer {
         pagination: {
           limit,
           offset: 0,
-          has_more: false,
+          has_more: enhancedOutages.length < totalPastOutages,
         },
       },
       documentation: {

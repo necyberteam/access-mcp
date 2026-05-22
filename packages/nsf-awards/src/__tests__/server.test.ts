@@ -606,7 +606,8 @@ describe("NSFAwardsServer", () => {
       expect(response.total).toBe(1);
       expect(Object.keys(response.items[0])).toEqual(["title"]);
       expect(response.items[0].title).toBe("Award 1");
-      expect(response.metadata).toBeUndefined();
+      // metadata is a sticky container — preserved on projection.
+      expect(response.metadata).toBeDefined();
     });
 
     it("should always preserve total even when fields omits it", async () => {

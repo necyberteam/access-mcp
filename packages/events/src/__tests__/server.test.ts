@@ -668,8 +668,9 @@ describe("EventsServer", () => {
       expect(responseData.total).toBe(1);
       expect(Object.keys(responseData.items[0])).toEqual(["title"]);
       expect(responseData.items[0].title).toBe("Python Workshop");
-      expect(responseData.metadata).toBeUndefined();
-      expect(responseData.documentation).toBeUndefined();
+      // metadata + documentation are sticky containers — preserved on projection.
+      expect(responseData.metadata).toBeDefined();
+      expect(responseData.documentation).toBeDefined();
     });
 
     it("should always preserve total even when fields omits it", async () => {

@@ -1167,7 +1167,7 @@ describe("AnnouncementsServer", () => {
         // Should make exactly 1 call — no user UUID lookup
         expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
-          "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=10"
+          "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=11"
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
@@ -1188,7 +1188,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
-          "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=25"
+          "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=26"
         );
       });
 
@@ -1656,8 +1656,10 @@ describe("AnnouncementsServer", () => {
       expect(responseData.total).toBe(1);
       expect(Object.keys(responseData.items[0])).toEqual(["title"]);
       expect(responseData.items[0].title).toBe("Scheduled Maintenance");
-      expect(responseData.metadata).toBeUndefined();
-      expect(responseData.documentation).toBeUndefined();
+      // metadata + documentation are sticky containers — preserved on
+      // projection so the agent doesn't lose pagination/see_all_url signals.
+      expect(responseData.metadata).toBeDefined();
+      expect(responseData.documentation).toBeDefined();
     });
 
     it("should always preserve total even when fields omits it", async () => {

@@ -28,6 +28,11 @@ interface SearchEventsParams {
   skill?: string;
   has_video?: boolean;
   limit?: number;
+  // When true, skip compactDescription's truncation so the agent gets the
+  // full event description (e.g. needs the registration URL or wants to
+  // summarize a workshop in detail). Default is the truncated form because
+  // a full-corpus listing can otherwise blow past LLM context windows.
+  full_description?: boolean;
   fields?: string[];
 }
 
@@ -214,6 +219,12 @@ export class EventsServer extends BaseAccessServer {
               type: "number",
               description: "Max results (default: 20)",
               default: 20,
+            },
+            full_description: {
+              type: "boolean",
+              description:
+                "When true, return the full event description (with HTML) instead of the default 250-char plain-text compact form. Use when you need the registration URL embedded in the description, or want to summarize a workshop in detail. Pair with a small limit to stay within context.",
+              default: false,
             },
             fields: {
               type: "array",
@@ -418,7 +429,9 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
 
     const enhancedEvents = events.map((event: RawEvent) => ({
       ...event,
-      description: compactDescription(event.description),
+      description: params.full_description
+        ? event.description
+        : compactDescription(event.description),
       tags:
         typeof event.tags === "string" && event.tags.trim()
           ? event.tags.split(",").map((t: string) => t.trim())
@@ -445,8 +458,9 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
       ? enhancedEvents.filter((e) => typeof e.video === "string" && e.video.trim() !== "")
       : enhancedEvents;
 
-    // Apply limit after sorting and filtering
-    const limited = params.limit ? filtered.slice(0, params.limit) : filtered;
+    // Apply limit after sorting and filtering. Explicit-undefined so
+    // limit: 0 (count-only callers) doesn't fall through to the full list.
+    const limited = params.limit !== undefined ? filtered.slice(0, params.limit) : filtered;
 
     const envelope = {
       total: filtered.length,
@@ -509,14 +523,20 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
 
     const limit = params.limit || 50;
 
-    // Use the unified view endpoint - it respects X-Acting-User header
+    // Fetch one extra so has_more can distinguish exact-limit from
+    // limit-plus-more (avoids the >=limit false-positive when the
+    // user's total is exactly the requested cap).
     const result = await auth.get(
-      `/jsonapi/views/event_instance_mine/my_events_page?page[limit]=${limit}`
+      `/jsonapi/views/event_instance_mine/my_events_page?page[limit]=${limit + 1}`
     );
+
+    const fetchedItems = result.data || [];
+    const hasMore = fetchedItems.length > limit;
+    const slicedItems = fetchedItems.slice(0, limit);
 
     // JSON:API views return data in a different format
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON:API response shape is dynamic
-    const events = (result.data || []).map((item: any) => ({
+    const events = slicedItems.map((item: any) => ({
       id: item.id,
       type: item.type,
       title: item.attributes?.title,
@@ -533,7 +553,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
         pagination: {
           limit,
           offset: 0,
-          has_more: events.length >= limit,
+          has_more: hasMore,
         },
       },
       documentation: {

@@ -270,8 +270,16 @@ export class ComputeResourcesServer extends BaseAccessServer {
       return await this.getComputeResource(args.resource_id);
     }
 
-    // No parameters = list all resources
-    if (!args.query && !args.resource_type && !args.has_gpu && !args.organization) {
+    // No parameters = list all resources.
+    // has_gpu uses explicit-undefined: `has_gpu: false` is a real filter
+    // (find CPU-only resources) and must NOT fall through to the
+    // unfiltered listing.
+    if (
+      !args.query &&
+      !args.resource_type &&
+      args.has_gpu === undefined &&
+      !args.organization
+    ) {
       return await this.listComputeResources(args.fields);
     }
 

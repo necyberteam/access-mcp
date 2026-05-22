@@ -625,7 +625,10 @@ describe("ComputeResourcesServer", () => {
       expect(responseData.total).toBe(3);
       expect(responseData.items).toHaveLength(3);
       expect(Object.keys(responseData.items[0])).toEqual(["name"]);
-      expect(responseData.metadata).toBeUndefined();
+      // metadata is a sticky container — preserved on projection. search
+      // resources doesn't emit a documentation block (addDocumentation
+      // returns undefined for the "search" context), so it stays absent.
+      expect(responseData.metadata).toBeDefined();
       expect(responseData.documentation).toBeUndefined();
     });
 

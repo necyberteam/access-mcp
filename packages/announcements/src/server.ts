@@ -820,7 +820,10 @@ Which would you like to do?`,
 
   private async searchAnnouncements(filters: SearchAnnouncementsArgs): Promise<CallToolResult> {
     const announcements = await this.fetchAnnouncements(filters);
-    const limited = filters.limit ? announcements.slice(0, filters.limit) : announcements;
+    const limited =
+      filters.limit !== undefined
+        ? announcements.slice(0, filters.limit)
+        : announcements;
 
     const envelope = {
       total: announcements.length,
@@ -1165,12 +1168,18 @@ Which would you like to do?`,
     this.getActingUserAccessId();
 
     const limit = args.limit || 25;
+    // Fetch one extra so has_more distinguishes exact-limit from
+    // limit-plus-more (avoids the >=limit false-positive when the
+    // user's total is exactly the requested cap).
     const result = await auth.get(
-      `/jsonapi/views/mcp_my_announcements/page_1?page[limit]=${limit}`
+      `/jsonapi/views/mcp_my_announcements/page_1?page[limit]=${limit + 1}`
     );
 
     const baseUrl = process.env.DRUPAL_API_URL;
-    const announcements = (result.data || []).map((item: JsonApiResourceItem) => {
+    const fetchedItems = result.data || [];
+    const hasMore = fetchedItems.length > limit;
+    const slicedItems = fetchedItems.slice(0, limit);
+    const announcements = slicedItems.map((item: JsonApiResourceItem) => {
       const nid = item.attributes?.drupal_internal__nid;
       return {
         uuid: item.id,
@@ -1195,7 +1204,7 @@ Which would you like to do?`,
         pagination: {
           limit,
           offset: 0,
-          has_more: announcements.length >= limit,
+          has_more: hasMore,
         },
       },
     };

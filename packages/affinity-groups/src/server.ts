@@ -135,7 +135,9 @@ export class AffinityGroupsServer extends BaseAccessServer {
         return terms.some((term) => searchable.includes(term));
       });
 
-      const limited = limit ? filtered.slice(0, limit) : filtered;
+      // Use explicit-undefined check so an honest limit: 0 (caller only
+      // wants total + pagination) doesn't fall through to the full list.
+      const limited = limit !== undefined ? filtered.slice(0, limit) : filtered;
 
       const envelope = {
         total: filtered.length,

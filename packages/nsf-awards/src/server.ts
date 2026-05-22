@@ -163,12 +163,17 @@ export class NSFAwardsServer extends BaseAccessServer {
 
   private async find_nsf_awards_by_pi(args: { pi_name: string; limit?: number; fields?: string[] }) {
     const limit = args.limit || 10;
-    const awards = await this.searchNSFAwardsByPI(args.pi_name, limit);
+    // Fetch one extra so has_more can distinguish "exactly limit" from
+    // "limit + more available" — guards against the >=limit false-positive
+    // when the universe is exactly the size of the requested cap.
+    const fetched = await this.searchNSFAwardsByPI(args.pi_name, limit + 1);
+    const hasMore = fetched.length > limit;
+    const awards = fetched.slice(0, limit);
     const envelope = {
       total: awards.length,
       items: awards,
       metadata: {
-        pagination: { limit, offset: 0, has_more: awards.length >= limit },
+        pagination: { limit, offset: 0, has_more: hasMore },
       },
     };
     return {
@@ -200,7 +205,15 @@ export class NSFAwardsServer extends BaseAccessServer {
     fields?: string[];
   }) {
     const limit = args.limit || 10;
-    let awards = await this.searchNSFAwardsByInstitution(args.institution_name, limit);
+    // Fetch one extra so has_more can distinguish exact-limit from
+    // limit-plus-more. When primary_only post-filters, has_more is then
+    // computed against the upstream universe, not the post-filter length —
+    // a post-filter that drops some matches still emits has_more correctly
+    // when more upstream pages exist (vs the old logic that always reported
+    // has_more=false after a meaningful filter).
+    const fetched = await this.searchNSFAwardsByInstitution(args.institution_name, limit + 1);
+    const upstreamHasMore = fetched.length > limit;
+    let awards = fetched.slice(0, limit);
 
     // If primary_only is requested, filter awards to only include those where
     // the queried institution is the primary recipient
@@ -216,7 +229,7 @@ export class NSFAwardsServer extends BaseAccessServer {
       total: awards.length,
       items: awards,
       metadata: {
-        pagination: { limit, offset: 0, has_more: awards.length >= limit },
+        pagination: { limit, offset: 0, has_more: upstreamHasMore },
       },
     };
 
@@ -232,12 +245,14 @@ export class NSFAwardsServer extends BaseAccessServer {
 
   private async find_nsf_awards_by_keywords(args: { keywords: string; limit?: number; fields?: string[] }) {
     const limit = args.limit || 10;
-    const awards = await this.searchNSFAwardsByKeywords(args.keywords, limit);
+    const fetched = await this.searchNSFAwardsByKeywords(args.keywords, limit + 1);
+    const hasMore = fetched.length > limit;
+    const awards = fetched.slice(0, limit);
     const envelope = {
       total: awards.length,
       items: awards,
       metadata: {
-        pagination: { limit, offset: 0, has_more: awards.length >= limit },
+        pagination: { limit, offset: 0, has_more: hasMore },
       },
     };
     return {

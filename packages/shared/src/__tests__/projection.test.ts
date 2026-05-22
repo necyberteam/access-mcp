@@ -60,21 +60,45 @@ describe("projectFields", () => {
     });
   });
 
-  describe("always-preserve total", () => {
+  describe("always-preserve sticky containers (total, metadata, documentation)", () => {
     test("includes total even when fields omits it", () => {
       const out = projectFields(sample as any, ["items[].name"]);
       expect(out.total).toBe(3);
     });
 
-    test("empty fields array returns only total", () => {
+    test("empty fields array preserves all sticky containers", () => {
       const out = projectFields(sample as any, []);
-      expect(out).toEqual({ total: 3 });
+      expect(out).toEqual({
+        total: 3,
+        metadata: sample.metadata,
+        documentation: sample.documentation,
+      });
     });
 
     test("does not invent total when response has no total", () => {
       const out = projectFields({ items: [{ a: 1 }] } as any, ["items[].a"]);
       expect(out).toEqual({ items: [{ a: 1 }] });
       expect(out).not.toHaveProperty("total");
+    });
+
+    test("does not invent metadata/documentation when response has none", () => {
+      const minimal = { total: 1, items: [{ a: 1 }] };
+      const out = projectFields(minimal as any, ["items[].a"]);
+      expect(out).toEqual({ total: 1, items: [{ a: 1 }] });
+      expect(out).not.toHaveProperty("metadata");
+      expect(out).not.toHaveProperty("documentation");
+    });
+
+    test("sticky preservation skipped when caller projects a sub-path", () => {
+      // Explicit metadata.pagination.has_more in paths means caller is
+      // narrowing into metadata — don't sticky-add the whole subtree.
+      const out = projectFields(sample as any, [
+        "items[].name",
+        "metadata.pagination.has_more",
+      ]);
+      expect(out.metadata).toEqual({ pagination: { has_more: false } });
+      // documentation wasn't projected explicitly; still preserved.
+      expect(out.documentation).toEqual(sample.documentation);
     });
   });
 
@@ -88,6 +112,8 @@ describe("projectFields", () => {
           { name: "Delta", url: "https://delta.example" },
           { name: "Bridges-2", url: "https://bridges2.example" },
         ],
+        metadata: sample.metadata,
+        documentation: sample.documentation,
       });
     });
 
@@ -110,6 +136,7 @@ describe("projectFields", () => {
       expect(out).toEqual({
         total: 3,
         metadata: { pagination: { has_more: false } },
+        documentation: sample.documentation,
       });
     });
 
@@ -118,6 +145,7 @@ describe("projectFields", () => {
       expect(out).toEqual({
         total: 3,
         metadata: { aggregations: sample.metadata.aggregations },
+        documentation: sample.documentation,
       });
     });
 
@@ -130,6 +158,8 @@ describe("projectFields", () => {
           { tags: ["gpu"] },
           { tags: ["cpu"] },
         ],
+        metadata: sample.metadata,
+        documentation: sample.documentation,
       });
     });
 
@@ -160,7 +190,11 @@ describe("projectFields", () => {
         "metadata",
         "metadata.pagination.has_more",
       ]);
-      expect(out).toEqual({ total: 3, metadata: sample.metadata });
+      expect(out).toEqual({
+        total: 3,
+        metadata: sample.metadata,
+        documentation: sample.documentation,
+      });
     });
   });
 
@@ -177,6 +211,8 @@ describe("projectFields", () => {
           { name: "Delta" },
           { name: "Bridges-2" },
         ],
+        metadata: sample.metadata,
+        documentation: sample.documentation,
       });
     });
 
@@ -192,13 +228,19 @@ describe("projectFields", () => {
           { name: "Delta" },
           { name: "Bridges-2" },
         ],
+        metadata: sample.metadata,
+        documentation: sample.documentation,
       });
       expect(out).not.toHaveProperty("experimental");
     });
 
-    test("all-missing paths still yield total-only", () => {
+    test("all-missing paths still yield sticky containers", () => {
       const out = projectFields(sample as any, ["nope", "nada.zilch"]);
-      expect(out).toEqual({ total: 3 });
+      expect(out).toEqual({
+        total: 3,
+        metadata: sample.metadata,
+        documentation: sample.documentation,
+      });
     });
   });
 
@@ -235,6 +277,8 @@ describe("projectFields", () => {
       expect(out).toEqual({
         total: 3,
         items: [{ name: "Anvil" }, { name: "Delta" }, { name: "Bridges-2" }],
+        metadata: sample.metadata,
+        documentation: sample.documentation,
       });
     });
   });

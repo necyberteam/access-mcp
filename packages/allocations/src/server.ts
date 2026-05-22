@@ -827,7 +827,11 @@ sort_by: "date_desc"
       items: items,
       metadata: {
         pagination: {
-          limit: items.length,
+          // Echo the requested limit, not items.length — the agent uses this
+          // to size follow-up pagination requests, and items.length collapses
+          // the cap-vs-actual distinction when the universe is smaller than
+          // the requested cap.
+          limit,
           offset: 0,
           has_more:
             sortedAll.length > items.length ||
@@ -1166,12 +1170,17 @@ sort_by: "date_desc"
     const results: Project[] = [];
     let currentPage = 1;
     const maxPages = 10;
+    let innerBreak = false;
+    let exhausted = false;
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
 
       for (const project of data.projects) {
-        if (results.length >= limit) break;
+        if (results.length >= limit) {
+          innerBreak = true;
+          break;
+        }
 
         if (project.fos.toLowerCase().includes(fieldOfScience.toLowerCase())) {
           results.push(project);
@@ -1179,7 +1188,10 @@ sort_by: "date_desc"
       }
 
       currentPage++;
-      if (currentPage > data.pages) break;
+      if (currentPage > data.pages) {
+        exhausted = true;
+        break;
+      }
     }
 
     const envelope = {
@@ -1189,8 +1201,15 @@ sort_by: "date_desc"
         pagination: {
           limit,
           offset: 0,
-          has_more: results.length >= limit,
+          // True if we skipped matches on the last scanned page, OR we
+          // stopped because of the maxPages cap rather than upstream
+          // exhaustion. The >=limit heuristic gave false positives
+          // whenever the universe was exactly limit-sized.
+          has_more: innerBreak || !exhausted,
         },
+        // Substring match (toLowerCase().includes(...)) — agent should
+        // verify each result actually fits the user's intended topic.
+        query_relevance: "loose_match" as const,
       },
       documentation: {
         links: this.listingLinks("list"),
@@ -1232,12 +1251,17 @@ sort_by: "date_desc"
     const results: Project[] = [];
     let currentPage = 1;
     const maxPages = 10;
+    let innerBreak = false;
+    let exhausted = false;
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
 
       for (const project of data.projects) {
-        if (results.length >= limit) break;
+        if (results.length >= limit) {
+          innerBreak = true;
+          break;
+        }
 
         // Match allocation type (case-insensitive)
         const typeMatch = project.allocationType
@@ -1254,7 +1278,10 @@ sort_by: "date_desc"
       }
 
       currentPage++;
-      if (currentPage > data.pages) break;
+      if (currentPage > data.pages) {
+        exhausted = true;
+        break;
+      }
     }
 
     const envelope = {
@@ -1268,8 +1295,9 @@ sort_by: "date_desc"
         pagination: {
           limit,
           offset: 0,
-          has_more: results.length >= limit,
+          has_more: innerBreak || !exhausted,
         },
+        query_relevance: "loose_match" as const,
       },
       documentation: {
         links: this.listingLinks("list"),
@@ -1299,12 +1327,17 @@ sort_by: "date_desc"
     const results: Project[] = [];
     let currentPage = 1;
     const maxPages = 10;
+    let innerBreak = false;
+    let exhausted = false;
 
     while (results.length < limit && currentPage <= maxPages) {
       const data = await this.fetchProjects(currentPage);
 
       for (const project of data.projects) {
-        if (results.length >= limit) break;
+        if (results.length >= limit) {
+          innerBreak = true;
+          break;
+        }
 
         const hasResource = project.resources.some((resource) =>
           resource.resourceName.toLowerCase().includes(resourceName.toLowerCase())
@@ -1316,7 +1349,10 @@ sort_by: "date_desc"
       }
 
       currentPage++;
-      if (currentPage > data.pages) break;
+      if (currentPage > data.pages) {
+        exhausted = true;
+        break;
+      }
     }
 
     const envelope = {
@@ -1326,8 +1362,9 @@ sort_by: "date_desc"
         pagination: {
           limit,
           offset: 0,
-          has_more: results.length >= limit,
+          has_more: innerBreak || !exhausted,
         },
+        query_relevance: "loose_match" as const,
       },
       documentation: {
         links: this.listingLinks("list"),
@@ -1527,7 +1564,7 @@ sort_by: "date_desc"
       items: items,
       metadata: {
         pagination: {
-          limit: items.length,
+          limit,
           offset: 0,
           has_more: allScored.length > items.length,
         },

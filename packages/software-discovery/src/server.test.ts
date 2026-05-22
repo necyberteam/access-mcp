@@ -958,9 +958,9 @@ describe("SoftwareDiscoveryServer", () => {
       expect(responseData.items).toHaveLength(3);
       expect(Object.keys(responseData.items[0])).toEqual(["name"]);
       expect(responseData.items[0].name).toBe("TensorFlow");
-      // Unrequested top-level keys are dropped.
-      expect(responseData.metadata).toBeUndefined();
-      expect(responseData.documentation).toBeUndefined();
+      // metadata + documentation are sticky containers — preserved on projection.
+      expect(responseData.metadata).toBeDefined();
+      expect(responseData.documentation).toBeDefined();
     });
 
     it("should always preserve total even when fields omits it", async () => {
@@ -1007,7 +1007,8 @@ describe("SoftwareDiscoveryServer", () => {
       expect(responseData.total).toBeGreaterThan(0);
       expect(responseData.items).toBeDefined();
       expect(Object.keys(responseData.items[0])).toEqual(["name"]);
-      expect(responseData.metadata).toBeUndefined();
+      // metadata is sticky — preserved on projection.
+      expect(responseData.metadata).toBeDefined();
     });
 
     it("should advertise fields parameter and supportsFieldProjection on opted-in tools", () => {
