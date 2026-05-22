@@ -1,8 +1,7 @@
 # Tool-Catalog Architecture — Spec
 
-**Status:** Working spec. 
+**Status:** Pillars 1 + 2 implemented and live (envelope standardization, `fields` projection). **Pillar 3 (discovery meta-server) is deferred** — preserved on `spike/resource-discovery-server` (this repo) and the matching branch on `access-agent`. Revive when the tool catalog grows large enough to make schema-token cost a measurable problem.
 **Extends:** [`STANDARDIZATION_RECOMMENDATIONS.md`](./STANDARDIZATION_RECOMMENDATIONS.md) (2025-11-25).
-**Relationship to launch:** Lands before Phase 7's measurement window opens. Access-agent consumes Pillar 3 via a `USE_TOOL_DISCOVERY` flag (Pillars 1 + 2 land unconditionally — there is no longer a flagged legacy path in the agent).
 
 ## Problem
 

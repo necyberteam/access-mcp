@@ -17,7 +17,6 @@
     { "path": "./packages/allocations" },
     { "path": "./packages/announcements" },
     { "path": "./packages/compute-resources" },
-    { "path": "./packages/discovery" },
     { "path": "./packages/events" },
     { "path": "./packages/nsf-awards" },
     { "path": "./packages/software-discovery" },
