@@ -24,6 +24,7 @@ services:
       - mcp-nsf-awards
       - mcp-xdmod-data
       - mcp-announcements
+      - mcp-documentation
       - mcp-events
       - mcp-affinity-groups
       - mcp-jsm
@@ -165,6 +166,21 @@ services:
       - MCP_API_KEY=${MCP_API_KEY}
       - MCP_PATH_PREFIX=/announcements
       - OAUTH_VERIFY_URL=http://mcp-auth:3000/verify
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  mcp-documentation:
+    image: ghcr.io/${GITHUB_REPOSITORY:-necyberteam/access-mcp}/documentation:latest
+    ports:
+      - "3014:3000"
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - ACCESS_AI_API_KEY=${ACCESS_AI_API_KEY}
+      - MCP_PATH_PREFIX=/documentation
     deploy:
       resources:
         limits:

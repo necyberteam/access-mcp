@@ -14,6 +14,7 @@ This repository contains MCP servers that provide programmatic access to:
 - **XDMoD Metrics** - Usage analytics, computational resource utilization, and NSF funding integration
 - **Allocations** - Active research projects and resource allocation discovery
 - **Affinity Groups** - Community groups, events, and knowledge base
+- **Documentation** - ACCESS-CI documentation retrieval (how-tos, policies, guides) via RAG
 
 ## Quick Start
 
@@ -39,9 +40,10 @@ npm install -g @access-mcp/software-discovery
 npm install -g @access-mcp/xdmod-metrics
 npm install -g @access-mcp/allocations
 npm install -g @access-mcp/affinity-groups
+npm install -g @access-mcp/documentation
 
 # Or install all at once
-npm install -g @access-mcp/announcements @access-mcp/events @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/affinity-groups
+npm install -g @access-mcp/announcements @access-mcp/events @access-mcp/compute-resources @access-mcp/system-status @access-mcp/software-discovery @access-mcp/xdmod-metrics @access-mcp/allocations @access-mcp/affinity-groups @access-mcp/documentation
 ```
 
 ### For Developers
@@ -75,7 +77,8 @@ access_mcp/
 │   ├── events/              # Events API server (workshops, training)
 │   ├── xdmod-metrics/       # XDMoD Usage Analytics and NSF integration
 │   ├── allocations/         # Research Allocations API server
-│   └── affinity-groups/     # Affinity Groups API server
+│   ├── affinity-groups/     # Affinity Groups API server
+│   └── documentation/       # Documentation RAG retrieval server
 ├── docs/                    # Documentation site (deployed to Netlify)
 ├── examples/                # Usage examples and configurations
 ├── scripts/                 # Build and automation scripts

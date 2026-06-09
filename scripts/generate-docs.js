@@ -144,6 +144,7 @@ async function main() {
     "allocations",
     "announcements",
     "compute-resources",
+    "documentation",
     "events",
     "nsf-awards",
     "software-discovery",

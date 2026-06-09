@@ -1,0 +1,14 @@
+#!/usr/bin/env node
+
+import { DocumentationServer } from "./server.js";
+
+async function main() {
+  const server = new DocumentationServer();
+  const port = process.env.PORT ? parseInt(process.env.PORT, 10) : undefined;
+  await server.start(port ? { httpPort: port } : undefined);
+}
+
+main().catch((error) => {
+  console.error("Server error:", error);
+  process.exit(1);
+});
