@@ -178,11 +178,21 @@ ask.cnct.ci {
 }
 
 qa.access-ci.org {
+    # Reporting dashboard (Nuxt). The app expects the /dashboard prefix
+    # (baseURL is baked in), so no path stripping. Bare /dashboard redirects
+    # to /dashboard/ so relative assets resolve.
+    redir /dashboard /dashboard/ 308
+    handle /dashboard/* {
+        reverse_proxy dashboard:3000
+    }
+
     # Agent container is reachable on this Caddy's mcp-network as access-agent.
-    reverse_proxy access-agent:8000 {
-        flush_interval -1
-        transport http {
-            read_timeout 0
+    handle {
+        reverse_proxy access-agent:8000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
         }
     }
 
