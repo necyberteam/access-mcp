@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- tests cast loose envelope samples into projectFields */
 import { describe, test, expect } from "vitest";
 import { projectFields } from "../projection.js";
 
