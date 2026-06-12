@@ -44,30 +44,30 @@ const sample = {
 describe("projectFields", () => {
   describe("guard rails", () => {
     test("returns response unchanged when fields is undefined", () => {
-      const out = projectFields(sample as any, undefined);
+      const out = projectFields(sample, undefined);
       expect(out).toBe(sample);
     });
 
     test("returns response unchanged when fields is null", () => {
-      const out = projectFields(sample as any, null);
+      const out = projectFields(sample, null);
       expect(out).toBe(sample);
     });
 
     test("does not mutate input when projecting", () => {
       const before = JSON.stringify(sample);
-      projectFields(sample as any, ["items[].name"]);
+      projectFields(sample, ["items[].name"]);
       expect(JSON.stringify(sample)).toBe(before);
     });
   });
 
   describe("always-preserve sticky containers (total, metadata, documentation)", () => {
     test("includes total even when fields omits it", () => {
-      const out = projectFields(sample as any, ["items[].name"]);
+      const out = projectFields(sample, ["items[].name"]);
       expect(out.total).toBe(3);
     });
 
     test("empty fields array preserves all sticky containers", () => {
-      const out = projectFields(sample as any, []);
+      const out = projectFields(sample, []);
       expect(out).toEqual({
         total: 3,
         metadata: sample.metadata,
@@ -76,14 +76,14 @@ describe("projectFields", () => {
     });
 
     test("does not invent total when response has no total", () => {
-      const out = projectFields({ items: [{ a: 1 }] } as any, ["items[].a"]);
+      const out = projectFields({ items: [{ a: 1 }] }, ["items[].a"]);
       expect(out).toEqual({ items: [{ a: 1 }] });
       expect(out).not.toHaveProperty("total");
     });
 
     test("does not invent metadata/documentation when response has none", () => {
       const minimal = { total: 1, items: [{ a: 1 }] };
-      const out = projectFields(minimal as any, ["items[].a"]);
+      const out = projectFields(minimal, ["items[].a"]);
       expect(out).toEqual({ total: 1, items: [{ a: 1 }] });
       expect(out).not.toHaveProperty("metadata");
       expect(out).not.toHaveProperty("documentation");
@@ -92,7 +92,7 @@ describe("projectFields", () => {
     test("sticky preservation skipped when caller projects a sub-path", () => {
       // Explicit metadata.pagination.has_more in paths means caller is
       // narrowing into metadata — don't sticky-add the whole subtree.
-      const out = projectFields(sample as any, [
+      const out = projectFields(sample, [
         "items[].name",
         "metadata.pagination.has_more",
       ]);
@@ -104,7 +104,7 @@ describe("projectFields", () => {
 
   describe("path syntax", () => {
     test("projects items[].field to per-element subset", () => {
-      const out = projectFields(sample as any, ["items[].name", "items[].url"]);
+      const out = projectFields(sample, ["items[].name", "items[].url"]);
       expect(out).toEqual({
         total: 3,
         items: [
@@ -118,19 +118,19 @@ describe("projectFields", () => {
     });
 
     test("bare 'items' includes the array as-is", () => {
-      const out = projectFields(sample as any, ["items"]);
+      const out = projectFields(sample, ["items"]);
       expect(out.items).toEqual(sample.items);
       expect(out.total).toBe(3);
     });
 
     test("'items[]' alone is equivalent to bare 'items'", () => {
-      const a = projectFields(sample as any, ["items"]);
-      const b = projectFields(sample as any, ["items[]"]);
+      const a = projectFields(sample, ["items"]);
+      const b = projectFields(sample, ["items[]"]);
       expect(b).toEqual(a);
     });
 
     test("nested object projection — metadata.pagination.has_more", () => {
-      const out = projectFields(sample as any, [
+      const out = projectFields(sample, [
         "metadata.pagination.has_more",
       ]);
       expect(out).toEqual({
@@ -141,7 +141,7 @@ describe("projectFields", () => {
     });
 
     test("includes whole subtree when path ends at an interior node", () => {
-      const out = projectFields(sample as any, ["metadata.aggregations"]);
+      const out = projectFields(sample, ["metadata.aggregations"]);
       expect(out).toEqual({
         total: 3,
         metadata: { aggregations: sample.metadata.aggregations },
@@ -150,7 +150,7 @@ describe("projectFields", () => {
     });
 
     test("nested arrays — items[].tags returns each element's tags array", () => {
-      const out = projectFields(sample as any, ["items[].tags"]);
+      const out = projectFields(sample, ["items[].tags"]);
       expect(out).toEqual({
         total: 3,
         items: [
@@ -164,7 +164,7 @@ describe("projectFields", () => {
     });
 
     test("union of paths combines under shared prefix", () => {
-      const out = projectFields(sample as any, [
+      const out = projectFields(sample, [
         "items[].name",
         "items[].id",
         "metadata.pagination",
@@ -186,7 +186,7 @@ describe("projectFields", () => {
       // Asking for both "metadata" (whole) and "metadata.pagination.has_more"
       // (narrow) should include the whole metadata subtree — the broader path
       // is more permissive.
-      const out = projectFields(sample as any, [
+      const out = projectFields(sample, [
         "metadata",
         "metadata.pagination.has_more",
       ]);
@@ -200,7 +200,7 @@ describe("projectFields", () => {
 
   describe("missing-field handling", () => {
     test("silently omits keys that do not exist on the response", () => {
-      const out = projectFields(sample as any, [
+      const out = projectFields(sample, [
         "items[].name",
         "items[].fancy_color",
       ]);
@@ -217,7 +217,7 @@ describe("projectFields", () => {
     });
 
     test("missing top-level branch silently omitted", () => {
-      const out = projectFields(sample as any, [
+      const out = projectFields(sample, [
         "items[].name",
         "experimental.thing",
       ]);
@@ -235,7 +235,7 @@ describe("projectFields", () => {
     });
 
     test("all-missing paths still yield sticky containers", () => {
-      const out = projectFields(sample as any, ["nope", "nada.zilch"]);
+      const out = projectFields(sample, ["nope", "nada.zilch"]);
       expect(out).toEqual({
         total: 3,
         metadata: sample.metadata,
@@ -250,30 +250,30 @@ describe("projectFields", () => {
         total: 1,
         items: [{ id: 42, name: "found", description: "long text…" }],
       };
-      const out = projectFields(lookup as any, ["items[].name"]);
+      const out = projectFields(lookup, ["items[].name"]);
       expect(out).toEqual({ total: 1, items: [{ name: "found" }] });
     });
 
     test("empty items array projects to empty array (not dropped)", () => {
       const empty = { total: 0, items: [] };
-      const out = projectFields(empty as any, ["items[].name"]);
+      const out = projectFields(empty, ["items[].name"]);
       expect(out).toEqual({ total: 0, items: [] });
     });
 
     test("projection without an items path drops items entirely", () => {
-      const out = projectFields(sample as any, [
+      const out = projectFields(sample, [
         "metadata.pagination.has_more",
       ]);
       expect(out).not.toHaveProperty("items");
     });
 
     test("response with only total returns identity after projection", () => {
-      const out = projectFields({ total: 5 } as any, []);
+      const out = projectFields({ total: 5 }, []);
       expect(out).toEqual({ total: 5 });
     });
 
     test("path with whitespace trimmed", () => {
-      const out = projectFields(sample as any, [" items[].name "]);
+      const out = projectFields(sample, [" items[].name "]);
       expect(out).toEqual({
         total: 3,
         items: [{ name: "Anvil" }, { name: "Delta" }, { name: "Bridges-2" }],
