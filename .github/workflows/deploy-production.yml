@@ -130,6 +130,13 @@ jobs:
             echo "Restarting services..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
+            # Force-recreate Caddy so its bind-mounted Caddyfile is re-read.
+            # `up -d` does NOT recreate Caddy when only the Caddyfile changed
+            # (the service definition is unchanged), so route additions for new
+            # servers would otherwise be served against a stale, pinned mount.
+            echo "Recreating Caddy to pick up Caddyfile changes..."
+            docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
+
             # Clean up old images
             echo "Cleaning up old images..."
             docker image prune -f
