@@ -52,6 +52,7 @@ function initializeAccessCI() {
     '      { name: "Allocations", href: "/docs/servers/allocations" },',
     '      { name: "Announcements", href: "/docs/servers/announcements" },',
     '      { name: "Compute Resources", href: "/docs/servers/compute-resources" },',
+    '      { name: "Documentation", href: "/docs/servers/documentation" },',
     '      { name: "Events & Trainings", href: "/docs/servers/events" },',
     '      { name: "NSF Awards", href: "/docs/servers/nsf-awards" },',
     '      { name: "Software Discovery", href: "/docs/servers/software-discovery" },',

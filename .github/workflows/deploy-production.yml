@@ -39,6 +39,8 @@ jobs:
             dockerfile: Dockerfile.node
           - package: announcements
             dockerfile: Dockerfile.node
+          - package: documentation
+            dockerfile: Dockerfile.node
           - package: auth
             dockerfile: Dockerfile.node
           - package: events
@@ -152,7 +154,7 @@ jobs:
             FAILED=0
 
             # Check each MCP server health endpoint
-            for server in compute-resources system-status software-discovery xdmod allocations nsf-awards xdmod-data announcements events affinity-groups jsm; do
+            for server in compute-resources system-status software-discovery xdmod allocations nsf-awards xdmod-data announcements documentation events affinity-groups jsm; do
               PORT=$(docker port "access-mcp-mcp-${server}-1" 3000/tcp 2>/dev/null | head -1 | cut -d: -f2)
               if [ -z "$PORT" ]; then
                 echo "FAIL: mcp-${server} — container not running"

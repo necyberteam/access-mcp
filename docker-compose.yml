@@ -161,6 +161,25 @@ services:
         limits:
           memory: 128M
 
+  mcp-documentation:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+      args:
+        PACKAGE: documentation
+    ports:
+      - "3013:3000"
+    restart: unless-stopped
+    environment:
+      <<: *otel-env
+      NODE_ENV: production
+      PORT: 3000
+      ACCESS_AI_API_KEY: ${ACCESS_AI_API_KEY:-}
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
   mcp-events:
     build:
       context: .

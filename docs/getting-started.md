@@ -11,6 +11,7 @@ Once connected, you can ask your AI questions like:
 - *"Show me upcoming workshops on parallel computing"*
 - *"What machine learning software is available on Anvil?"*
 - *"What NSF-funded projects are doing work in quantum computing?"*
+- *"How do I get an ACCESS allocation?"*
 
 Your AI queries the relevant ACCESS services and gives you a synthesized answer — no need to navigate multiple websites or APIs.
 
@@ -28,6 +29,7 @@ Your AI queries the relevant ACCESS services and gives you a synthesized answer 
 | XDMoD | All tools | — |
 | Allocations | All tools | — |
 | NSF Awards | All tools | — |
+| Documentation | All tools | — |
 | Events | All tools | — |
 | Announcements | `search_announcements`, `suggest_tags`, `suggest_summary`, `get_announcement_context` | `create_announcement`, `update_announcement`, `delete_announcement`, `get_my_announcements` |
 | Affinity Groups | All tools | — |
@@ -59,6 +61,7 @@ All servers are hosted at `https://mcp.access-ci.org`. You can add as many or as
 | XDMoD | Usage statistics, visualizations, resource utilization |
 | Allocations | Research projects and allocation trends |
 | NSF Awards | NSF funding data and cross-referencing |
+| Documentation | ACCESS-CI how-tos, policies, and guides (RAG retrieval) |
 | Events | Workshops, webinars, training sessions |
 | Announcements | Community news and updates |
 | Affinity Groups | Community groups, events, and knowledge base |
@@ -99,6 +102,7 @@ claude mcp add access-software-discovery -t http -s user https://mcp.access-ci.o
 claude mcp add access-xdmod -t http -s user https://mcp.access-ci.org/xdmod/mcp
 claude mcp add access-allocations -t http -s user https://mcp.access-ci.org/allocations/mcp
 claude mcp add access-nsf-awards -t http -s user https://mcp.access-ci.org/nsf-awards/mcp
+claude mcp add access-documentation -t http -s user https://mcp.access-ci.org/documentation/mcp
 claude mcp add access-events -t http -s user https://mcp.access-ci.org/events/mcp
 claude mcp add access-announcements -t http -s user https://mcp.access-ci.org/announcements/mcp
 claude mcp add access-affinity-groups -t http -s user https://mcp.access-ci.org/affinity-groups/mcp

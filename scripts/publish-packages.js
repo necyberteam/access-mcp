@@ -15,6 +15,7 @@ const PACKAGES = [
   "nsf-awards",
   "announcements",
   "xdmod",
+  "documentation",
 ];
 
 function runCommand(command, options = {}) {

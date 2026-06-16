@@ -1,6 +1,6 @@
 # MCP Servers Overview
 
-ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
+ACCESS-CI provides 11 MCP servers for different aspects of cyberinfrastructure:
 
 
 ## MCP server for ACCESS-CI Affinity Groups API
@@ -30,6 +30,13 @@ ACCESS-CI provides 10 MCP servers for different aspects of cyberinfrastructure:
 **Version:** v0.9.0
 
 [View Details](/servers/compute-resources)
+
+## MCP server for ACCESS-CI documentation retrieval (RAG)
+
+**Package:** `@access-mcp/documentation`
+**Version:** v0.1.0
+
+[View Details](/servers/documentation)
 
 ## ACCESS-CI Events MCP Server - Get information about workshops, webinars, and training events
 

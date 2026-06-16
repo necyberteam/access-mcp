@@ -107,6 +107,16 @@ mcp.access-ci.org {
         }
     }
 
+    handle /documentation/* {
+        uri strip_prefix /documentation
+        reverse_proxy mcp-documentation:3000 {
+            flush_interval -1
+            transport http {
+                read_timeout 0
+            }
+        }
+    }
+
     handle /events/* {
         uri strip_prefix /events
         reverse_proxy mcp-events:3000 {

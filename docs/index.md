@@ -41,6 +41,7 @@ ACCESS-CI MCP servers provide structured access to:
 - **XDMoD** — Usage statistics, visualizations, and resource utilization
 - **Allocations** — Research projects, allocation trends, and collaboration discovery
 - **NSF Awards** — NSF funding data and cross-referencing
+- **Documentation** — ACCESS-CI documentation retrieval (how-tos, policies, guides)
 - **Events** — Workshops, webinars, and training sessions
 - **Announcements** — Community news and updates
 - **Affinity Groups** — Communities, events, and knowledge base resources
