@@ -6,6 +6,10 @@ describe("hashActor", () => {
     expect(hashActor(undefined)).toBeNull();
   });
 
+  it("treats an empty-string actor as anonymous (null)", () => {
+    expect(hashActor("")).toBeNull();
+  });
+
   it("is deterministic — same actor, same hash", () => {
     expect(hashActor("alice@access-ci.org")).toBe(hashActor("alice@access-ci.org"));
   });
