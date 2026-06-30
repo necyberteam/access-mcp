@@ -69,4 +69,16 @@ describe("buildUsageRow", () => {
     });
     expect(row.arg_keys).toEqual([]);
   });
+
+  it("clamps negative and non-finite durations to a safe integer, and records success=false", () => {
+    const neg = buildUsageRow({
+      server: "events", tool: "list", args: {}, success: false,
+      durationMs: -5, actingUser: undefined,
+    });
+    expect(neg.duration_ms).toBe(0);
+    expect(neg.success).toBe(false);
+
+    expect(buildUsageRow({ server: "s", tool: "t", args: {}, success: true, durationMs: NaN, actingUser: undefined }).duration_ms).toBe(0);
+    expect(buildUsageRow({ server: "s", tool: "t", args: {}, success: true, durationMs: Infinity, actingUser: undefined }).duration_ms).toBe(0);
+  });
 });

@@ -41,7 +41,9 @@ export function buildUsageRow(call: UsageCall): UsageRow {
     tool: call.tool,
     arg_keys: call.args ? Object.keys(call.args) : [],
     success: call.success,
-    duration_ms: Math.round(call.durationMs),
+    // Clamp to a non-negative integer; a non-finite or negative duration
+    // (clock skew, hung call) must not poison the integer insert downstream.
+    duration_ms: Number.isFinite(call.durationMs) ? Math.max(0, Math.round(call.durationMs)) : 0,
     user_hash: hashActor(call.actingUser),
     was_authenticated: Boolean(call.actingUser),
     client: null, // future hook — not derivable at this seam today
