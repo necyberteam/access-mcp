@@ -39,6 +39,11 @@ class SimpleTestServer(BaseAccessServer):
                 description="Returns the current XDMoD token from request context",
                 inputSchema={"type": "object", "properties": {}},
             ),
+            Tool(
+                name="check_acting_user",
+                description="Returns the current acting user from request context",
+                inputSchema={"type": "object", "properties": {}},
+            ),
         ]
 
     async def handle_tool_call(self, name, arguments):
@@ -48,6 +53,9 @@ class SimpleTestServer(BaseAccessServer):
         elif name == "check_token":
             token = get_request_header("x-xdmod-token")
             return [TextContent(type="text", text=f"token: {token or 'none'}")]
+        elif name == "check_acting_user":
+            user = get_request_header("x-acting-user")
+            return [TextContent(type="text", text=f"acting_user: {user or 'none'}")]
         return [TextContent(type="text", text="unknown tool")]
 
 
@@ -298,6 +306,40 @@ class TestHeaderPropagation:
                     headers=sh,
                 )
                 assert call_resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_acting_user_reaches_tool_handler(self):
+        """Verify X-Acting-User is captured and readable via get_request_header.
+
+        Uses the REST /tools/{tool_name} endpoint so the returned value can be
+        asserted directly. The usage logger reads acting_user the same way.
+        """
+        _, app = make_server_and_app()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/tools/check_acting_user",
+                json={"arguments": {}},
+                headers={"X-Acting-User": "alice@example.com"},
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["content"][0]["text"] == "acting_user: alice@example.com"
+
+    @pytest.mark.asyncio
+    async def test_acting_user_absent_without_header(self):
+        """Verify acting user is None when the header is not sent."""
+        _, app = make_server_and_app()
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            response = await client.post(
+                "/tools/check_acting_user", json={"arguments": {}}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["content"][0]["text"] == "acting_user: none"
 
     @pytest.mark.asyncio
     async def test_token_absent_without_header(self):

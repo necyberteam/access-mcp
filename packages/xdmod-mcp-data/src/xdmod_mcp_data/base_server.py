@@ -43,7 +43,7 @@ def get_request_header(name: str) -> Optional[str]:
 class HeaderCaptureMiddleware(BaseHTTPMiddleware):
     """Middleware that captures select request headers into context variables"""
 
-    CAPTURED_HEADERS = ("x-xdmod-token",)
+    CAPTURED_HEADERS = ("x-xdmod-token", "x-acting-user")
 
     async def dispatch(self, request: Request, call_next):
         headers = {}
@@ -205,7 +205,7 @@ class BaseAccessServer(ABC):
                         arguments=arguments,
                         success=succeeded,
                         duration_ms=(time.monotonic() - started) * 1000,
-                        acting_user=get_request_header("X-Acting-User"),
+                        acting_user=get_request_header("x-acting-user"),
                     )
                 )
 
