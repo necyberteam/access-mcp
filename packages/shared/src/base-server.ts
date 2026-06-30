@@ -28,6 +28,7 @@ import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
 import { traceMcpToolCall } from "./telemetry.js";
+import { UsageLogger } from "./usage-logger.js";
 
 // Re-export SDK types for convenience
 export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
@@ -118,6 +119,7 @@ export abstract class BaseAccessServer {
   private _sseTransports: Map<string, SSEServerTransport> = new Map();
   private _requireApiKey: boolean;
   private _nodeServer?: HttpServer;
+  private _usageLogger = new UsageLogger(process.env.MCP_USAGE_DB_URL);
 
   constructor(
     protected serverName: string,
@@ -588,6 +590,8 @@ export abstract class BaseAccessServer {
 
       // Run the handler within the request context
       return requestContextStorage.run(context, async () => {
+        const startedAt = Date.now();
+        let succeeded = false;
         // Wrap tool execution with OpenTelemetry tracing
         try {
           const result = await traceMcpToolCall(toolName, args, async (span) => {
@@ -616,6 +620,7 @@ export abstract class BaseAccessServer {
               span.setAttribute("mcp.result.is_error", true);
             }
 
+            succeeded = !toolResult.isError;
             return toolResult;
           });
 
@@ -623,6 +628,17 @@ export abstract class BaseAccessServer {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           return c.json({ error: errorMessage }, 500);
+        } finally {
+          // Fire-and-forget usage logging: NOT awaited, never throws (record()
+          // swallows its own errors). Must not add latency to the response.
+          void this._usageLogger.record({
+            server: this.serverName,
+            tool: toolName,
+            args,
+            success: succeeded,
+            durationMs: Date.now() - startedAt,
+            actingUser: context.actingUser,
+          });
         }
       });
     });
