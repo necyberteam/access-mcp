@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { hashActor, buildUsageRow } from "./usage-logger.js";
+import { UsageLogger } from "./usage-logger.js";
 
 describe("hashActor", () => {
   it("returns null for an anonymous (undefined) actor", () => {
@@ -80,5 +81,28 @@ describe("buildUsageRow", () => {
 
     expect(buildUsageRow({ server: "s", tool: "t", args: {}, success: true, durationMs: NaN, actingUser: undefined }).duration_ms).toBe(0);
     expect(buildUsageRow({ server: "s", tool: "t", args: {}, success: true, durationMs: Infinity, actingUser: undefined }).duration_ms).toBe(0);
+  });
+});
+
+describe("UsageLogger.record (best-effort)", () => {
+  it("is a no-op (and never throws) when MCP_USAGE_DB_URL is unset", async () => {
+    const logger = new UsageLogger(undefined);
+    await expect(
+      logger.record({
+        server: "events", tool: "search", args: {}, success: true,
+        durationMs: 1, actingUser: undefined,
+      })
+    ).resolves.toBeUndefined();
+    expect(logger.enabled).toBe(false);
+  });
+
+  it("swallows write errors — a bad connection string never throws to the caller", async () => {
+    const logger = new UsageLogger("postgresql://nope:nope@127.0.0.1:1/none");
+    await expect(
+      logger.record({
+        server: "events", tool: "search", args: { q: "x" }, success: true,
+        durationMs: 1, actingUser: undefined,
+      })
+    ).resolves.toBeUndefined();
   });
 });

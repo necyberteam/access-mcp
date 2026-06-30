@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import pg from "pg";
 
 /**
  * Hash an actor identity for anonymous-but-stable usage tracking.
@@ -48,4 +49,84 @@ export function buildUsageRow(call: UsageCall): UsageRow {
     was_authenticated: Boolean(call.actingUser),
     client: null, // future hook — not derivable at this seam today
   };
+}
+
+const SCHEMA_DDL = `
+CREATE SCHEMA IF NOT EXISTS mcp_usage;
+CREATE TABLE IF NOT EXISTS mcp_usage.tool_calls (
+  id                bigserial PRIMARY KEY,
+  ts                timestamptz NOT NULL DEFAULT now(),
+  server            text NOT NULL,
+  tool              text NOT NULL,
+  arg_keys          text[] NOT NULL DEFAULT '{}',
+  success           boolean NOT NULL,
+  duration_ms       integer,
+  user_hash         text,
+  was_authenticated boolean NOT NULL,
+  client            text
+);
+CREATE INDEX IF NOT EXISTS tool_calls_ts_idx ON mcp_usage.tool_calls (ts);
+CREATE INDEX IF NOT EXISTS tool_calls_server_tool_idx ON mcp_usage.tool_calls (server, tool);
+`;
+
+/**
+ * Best-effort usage logger. Lazily opens one pool from MCP_USAGE_DB_URL,
+ * ensures the schema exists on first write, and persists one row per call.
+ * Every failure is swallowed: logging must NEVER fail or delay a tool call.
+ */
+export class UsageLogger {
+  readonly enabled: boolean;
+  private pool: pg.Pool | undefined;
+  private schemaReady: Promise<void> | undefined;
+
+  constructor(private readonly connectionString: string | undefined) {
+    this.enabled = Boolean(connectionString);
+  }
+
+  private getPool(): pg.Pool {
+    if (!this.pool) {
+      this.pool = new pg.Pool({ connectionString: this.connectionString, max: 2 });
+      // Pool-level errors (dropped connections, "too many connections", server
+      // restarts) are a different failure mode than a write error. Log so they're
+      // visible, but never throw — the process must not crash over usage logging.
+      this.pool.on("error", (err) => {
+        console.error(`[usage-logger] pool error: ${err.message}`);
+      });
+    }
+    return this.pool;
+  }
+
+  private ensureSchema(): Promise<void> {
+    if (!this.schemaReady) {
+      this.schemaReady = this.getPool()
+        .query(SCHEMA_DDL)
+        .then(() => undefined)
+        .catch((err) => {
+          // Reset so a later call can retry; never propagate.
+          this.schemaReady = undefined;
+          throw err;
+        });
+    }
+    return this.schemaReady;
+  }
+
+  /** Fire-and-forget. Resolves (undefined) on success AND on any failure. */
+  async record(call: UsageCall): Promise<void> {
+    if (!this.enabled) return;
+    try {
+      await this.ensureSchema();
+      const row = buildUsageRow(call);
+      await this.getPool().query(
+        `INSERT INTO mcp_usage.tool_calls
+           (server, tool, arg_keys, success, duration_ms, user_hash, was_authenticated, client)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          row.server, row.tool, row.arg_keys, row.success,
+          row.duration_ms, row.user_hash, row.was_authenticated, row.client,
+        ]
+      );
+    } catch {
+      // Best-effort: swallow. A logging failure must never affect a tool call.
+    }
+  }
 }
