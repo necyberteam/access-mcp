@@ -60,6 +60,7 @@ def build_usage_row(
         "duration_ms": _clamp_duration(duration_ms),
         "user_hash": hash_actor(acting_user),
         "was_authenticated": bool(acting_user),
+        # future hook — always None in stage 1, widened to str later (parity with TS).
         "client": None,
     }
 
@@ -77,8 +78,10 @@ class UsageLogger:
         if not self.enabled:
             return
         try:
+            # New connection per call (no pool). Off the response path (fire-and-forget), so connect latency never delays the tool call; rows drop best-effort if Postgres is unreachable.
             async with await psycopg.AsyncConnection.connect(self._conn_str) as conn:
                 if not self._schema_ready:
+                    # Duplicate DDL under concurrent first-calls is harmless (all IF NOT EXISTS).
                     await conn.execute(_SCHEMA_DDL)
                     self._schema_ready = True
                 row = build_usage_row(

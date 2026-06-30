@@ -69,6 +69,7 @@ class BaseAccessServer(ABC):
         self._session_manager: Optional[StreamableHTTPSessionManager] = None
         from .usage_logger import UsageLogger
         self._usage_logger = UsageLogger(os.environ.get("MCP_USAGE_DB_URL"))
+        self._usage_tasks: set = set()
         self._setup_handlers()
 
     @abstractmethod
@@ -198,7 +199,7 @@ class BaseAccessServer(ABC):
 
             finally:
                 # fire-and-forget; record() never raises
-                asyncio.ensure_future(
+                _usage_task = asyncio.ensure_future(
                     self._usage_logger.record(
                         server=self.server_name,
                         tool=tool_name,
@@ -208,6 +209,10 @@ class BaseAccessServer(ABC):
                         acting_user=get_request_header("x-acting-user"),
                     )
                 )
+                # Retain a strong reference so the fire-and-forget task isn't
+                # garbage-collected mid-flight (CPython only weakly refs pending tasks).
+                self._usage_tasks.add(_usage_task)
+                _usage_task.add_done_callback(self._usage_tasks.discard)
 
         # Legacy SSE transport for clients that don't support Streamable HTTP.
         # Note: Per-request header propagation (e.g., X-XDMoD-Token) does NOT work
