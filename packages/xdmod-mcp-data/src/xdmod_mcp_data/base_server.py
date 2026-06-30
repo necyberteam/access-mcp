@@ -67,6 +67,8 @@ class BaseAccessServer(ABC):
         self.base_url = base_url or "https://access-ci.org"
         self.server = Server(server_name)
         self._session_manager: Optional[StreamableHTTPSessionManager] = None
+        from .usage_logger import UsageLogger
+        self._usage_logger = UsageLogger(os.environ.get("MCP_USAGE_DB_URL"))
         self._setup_handlers()
 
     @abstractmethod
@@ -171,8 +173,13 @@ class BaseAccessServer(ABC):
                     {"error": f"Tool '{tool_name}' not found"}, status_code=404
                 )
 
+            import time
+
+            started = time.monotonic()
+            succeeded = False
             try:
                 result = await self.handle_tool_call(tool_name, arguments)
+                succeeded = True
 
                 # Format result for REST API
                 if isinstance(result, list) and result and hasattr(result[0], "text"):
@@ -188,6 +195,19 @@ class BaseAccessServer(ABC):
 
             except Exception as e:
                 return JSONResponse({"error": str(e)}, status_code=500)
+
+            finally:
+                # fire-and-forget; record() never raises
+                asyncio.ensure_future(
+                    self._usage_logger.record(
+                        server=self.server_name,
+                        tool=tool_name,
+                        arguments=arguments,
+                        success=succeeded,
+                        duration_ms=(time.monotonic() - started) * 1000,
+                        acting_user=get_request_header("X-Acting-User"),
+                    )
+                )
 
         # Legacy SSE transport for clients that don't support Streamable HTTP.
         # Note: Per-request header propagation (e.g., X-XDMoD-Token) does NOT work
