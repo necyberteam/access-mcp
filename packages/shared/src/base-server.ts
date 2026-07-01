@@ -678,8 +678,12 @@ export abstract class BaseAccessServer {
     });
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      const startedAt = Date.now();
+      let succeeded = false;
       try {
-        return await this.handleToolCall(request);
+        const result = await this.handleToolCall(request);
+        succeeded = !result.isError;
+        return result;
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.error("Error handling tool call", { error: errorMessage });
@@ -694,6 +698,18 @@ export abstract class BaseAccessServer {
           ],
           isError: true,
         };
+      } finally {
+        // Fire-and-forget usage logging for the MCP-protocol path (/mcp, /sse) —
+        // this is the direct-client traffic the REST /tools handler doesn't see.
+        // NOT awaited; record() swallows its own errors and never delays the call.
+        void this._usageLogger.record({
+          server: this.serverName,
+          tool: request.params.name,
+          args: request.params.arguments as Record<string, unknown> | undefined,
+          success: succeeded,
+          durationMs: Date.now() - startedAt,
+          actingUser: requestContextStorage.getStore()?.actingUser,
+        });
       }
     });
 
