@@ -54,7 +54,10 @@
     "@opentelemetry/semantic-conventions": "^1.38.0",
     "axios": "^1.6.0",
     "hono": "^4.12.0",
+    "pg": "^8.22.0",
     "zod": "^3.22.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/pg": "^8.20.0"
+  }
 }

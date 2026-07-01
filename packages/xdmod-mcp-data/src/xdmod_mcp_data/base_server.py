@@ -11,6 +11,7 @@ import contextlib
 import contextvars
 import json
 import os
+import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
 from datetime import datetime
@@ -43,7 +44,7 @@ def get_request_header(name: str) -> Optional[str]:
 class HeaderCaptureMiddleware(BaseHTTPMiddleware):
     """Middleware that captures select request headers into context variables"""
 
-    CAPTURED_HEADERS = ("x-xdmod-token",)
+    CAPTURED_HEADERS = ("x-xdmod-token", "x-acting-user")
 
     async def dispatch(self, request: Request, call_next):
         headers = {}
@@ -67,6 +68,9 @@ class BaseAccessServer(ABC):
         self.base_url = base_url or "https://access-ci.org"
         self.server = Server(server_name)
         self._session_manager: Optional[StreamableHTTPSessionManager] = None
+        from .usage_logger import UsageLogger
+        self._usage_logger = UsageLogger(os.environ.get("MCP_USAGE_DB_URL"))
+        self._usage_tasks: set = set()
         self._setup_handlers()
 
     @abstractmethod
@@ -79,6 +83,36 @@ class BaseAccessServer(ABC):
         """Handle tool execution"""
         pass
 
+    async def _record_and_handle(self, name: str, arguments: Dict[str, Any]) -> Any:
+        """The single logging seam for tool calls. EVERY doorway (REST /tools,
+        the MCP-protocol call_tool handler, the SSE call_tool handler) must call
+        this instead of handle_tool_call directly, so usage logging covers all
+        paths with no duplication. Timing + fire-and-forget record (GC-safe task
+        retention); the record never delays or raises into the caller.
+        If you add a new tool-invocation path, route it through here.
+        """
+        started = time.monotonic()
+        succeeded = False
+        try:
+            result = await self.handle_tool_call(name, arguments)
+            succeeded = True
+            return result
+        finally:
+            _usage_task = asyncio.ensure_future(
+                self._usage_logger.record(
+                    server=self.server_name,
+                    tool=name,
+                    arguments=arguments,
+                    success=succeeded,
+                    duration_ms=(time.monotonic() - started) * 1000,
+                    acting_user=get_request_header("x-acting-user"),
+                )
+            )
+            # Retain a strong reference so the fire-and-forget task isn't
+            # garbage-collected mid-flight (CPython only weakly refs pending tasks).
+            self._usage_tasks.add(_usage_task)
+            _usage_task.add_done_callback(self._usage_tasks.discard)
+
     def _setup_handlers(self):
         """Setup MCP tool handlers"""
         tools = self.get_tools()
@@ -89,7 +123,7 @@ class BaseAccessServer(ABC):
 
         @self.server.call_tool()
         async def handle_call(name: str, arguments: Dict[str, Any]):
-            return await self.handle_tool_call(name, arguments)
+            return await self._record_and_handle(name, arguments)
 
     async def start(self, http_port: Optional[int] = None):
         """Start the server in HTTP or stdio mode"""
@@ -172,7 +206,7 @@ class BaseAccessServer(ABC):
                 )
 
             try:
-                result = await self.handle_tool_call(tool_name, arguments)
+                result = await self._record_and_handle(tool_name, arguments)
 
                 # Format result for REST API
                 if isinstance(result, list) and result and hasattr(result[0], "text"):
@@ -209,7 +243,7 @@ class BaseAccessServer(ABC):
 
                 @sse_server.call_tool()
                 async def _handle_call(name: str, arguments: Dict[str, Any]):
-                    return await self.handle_tool_call(name, arguments)
+                    return await self._record_and_handle(name, arguments)
 
                 await sse_server.run(
                     streams[0],

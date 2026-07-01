@@ -28,6 +28,7 @@ import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
 import { traceMcpToolCall } from "./telemetry.js";
+import { UsageLogger } from "./usage-logger.js";
 
 // Re-export SDK types for convenience
 export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
@@ -118,6 +119,7 @@ export abstract class BaseAccessServer {
   private _sseTransports: Map<string, SSEServerTransport> = new Map();
   private _requireApiKey: boolean;
   private _nodeServer?: HttpServer;
+  private _usageLogger = new UsageLogger(process.env.MCP_USAGE_DB_URL);
 
   constructor(
     protected serverName: string,
@@ -178,6 +180,32 @@ export abstract class BaseAccessServer {
   protected abstract getTools(): Tool[];
   protected abstract getResources(): Resource[];
   protected abstract handleToolCall(request: CallToolRequest): Promise<CallToolResult>;
+
+  /**
+   * The single logging seam for tool calls. EVERY doorway (REST /tools, the
+   * MCP-protocol /mcp + /sse handlers) must call this instead of handleToolCall
+   * directly, so usage logging covers all paths with no duplication. Timing +
+   * fire-and-forget record; never awaited, never throws into the caller.
+   * (If you add a new tool-invocation path, route it through here.)
+   */
+  private async recordAndHandle(request: CallToolRequest): Promise<CallToolResult> {
+    const startedAt = Date.now();
+    let succeeded = false;
+    try {
+      const result = await this.handleToolCall(request);
+      succeeded = !result.isError;
+      return result;
+    } finally {
+      void this._usageLogger.record({
+        server: this.serverName,
+        tool: request.params.name,
+        args: request.params.arguments as Record<string, unknown> | undefined,
+        success: succeeded,
+        durationMs: Date.now() - startedAt,
+        actingUser: requestContextStorage.getStore()?.actingUser,
+      });
+    }
+  }
 
   /**
    * Get available prompts - override in subclasses to provide prompts
@@ -609,7 +637,7 @@ export abstract class BaseAccessServer {
               },
             };
 
-            const toolResult = await this.handleToolCall(request);
+            const toolResult = await this.recordAndHandle(request);
 
             // Record result info on span
             if (toolResult.isError) {
@@ -663,7 +691,7 @@ export abstract class BaseAccessServer {
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
-        return await this.handleToolCall(request);
+        return await this.recordAndHandle(request);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.error("Error handling tool call", { error: errorMessage });
