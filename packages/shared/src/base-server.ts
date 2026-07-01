@@ -182,6 +182,32 @@ export abstract class BaseAccessServer {
   protected abstract handleToolCall(request: CallToolRequest): Promise<CallToolResult>;
 
   /**
+   * The single logging seam for tool calls. EVERY doorway (REST /tools, the
+   * MCP-protocol /mcp + /sse handlers) must call this instead of handleToolCall
+   * directly, so usage logging covers all paths with no duplication. Timing +
+   * fire-and-forget record; never awaited, never throws into the caller.
+   * (If you add a new tool-invocation path, route it through here.)
+   */
+  private async recordAndHandle(request: CallToolRequest): Promise<CallToolResult> {
+    const startedAt = Date.now();
+    let succeeded = false;
+    try {
+      const result = await this.handleToolCall(request);
+      succeeded = !result.isError;
+      return result;
+    } finally {
+      void this._usageLogger.record({
+        server: this.serverName,
+        tool: request.params.name,
+        args: request.params.arguments as Record<string, unknown> | undefined,
+        success: succeeded,
+        durationMs: Date.now() - startedAt,
+        actingUser: requestContextStorage.getStore()?.actingUser,
+      });
+    }
+  }
+
+  /**
    * Get available prompts - override in subclasses to provide prompts
    */
   protected getPrompts(): Prompt[] {
@@ -590,8 +616,6 @@ export abstract class BaseAccessServer {
 
       // Run the handler within the request context
       return requestContextStorage.run(context, async () => {
-        const startedAt = Date.now();
-        let succeeded = false;
         // Wrap tool execution with OpenTelemetry tracing
         try {
           const result = await traceMcpToolCall(toolName, args, async (span) => {
@@ -613,14 +637,13 @@ export abstract class BaseAccessServer {
               },
             };
 
-            const toolResult = await this.handleToolCall(request);
+            const toolResult = await this.recordAndHandle(request);
 
             // Record result info on span
             if (toolResult.isError) {
               span.setAttribute("mcp.result.is_error", true);
             }
 
-            succeeded = !toolResult.isError;
             return toolResult;
           });
 
@@ -628,17 +651,6 @@ export abstract class BaseAccessServer {
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           return c.json({ error: errorMessage }, 500);
-        } finally {
-          // Fire-and-forget usage logging: NOT awaited, never throws (record()
-          // swallows its own errors). Must not add latency to the response.
-          void this._usageLogger.record({
-            server: this.serverName,
-            tool: toolName,
-            args,
-            success: succeeded,
-            durationMs: Date.now() - startedAt,
-            actingUser: context.actingUser,
-          });
         }
       });
     });
@@ -678,12 +690,8 @@ export abstract class BaseAccessServer {
     });
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      const startedAt = Date.now();
-      let succeeded = false;
       try {
-        const result = await this.handleToolCall(request);
-        succeeded = !result.isError;
-        return result;
+        return await this.recordAndHandle(request);
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         this.logger.error("Error handling tool call", { error: errorMessage });
@@ -698,18 +706,6 @@ export abstract class BaseAccessServer {
           ],
           isError: true,
         };
-      } finally {
-        // Fire-and-forget usage logging for the MCP-protocol path (/mcp, /sse) —
-        // this is the direct-client traffic the REST /tools handler doesn't see.
-        // NOT awaited; record() swallows its own errors and never delays the call.
-        void this._usageLogger.record({
-          server: this.serverName,
-          tool: request.params.name,
-          args: request.params.arguments as Record<string, unknown> | undefined,
-          success: succeeded,
-          durationMs: Date.now() - startedAt,
-          actingUser: requestContextStorage.getStore()?.actingUser,
-        });
       }
     });
 
