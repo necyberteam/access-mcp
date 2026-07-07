@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { resolveGlobalResourceId, normalizeGlobalResourceId } from "./resource-resolver.js";
 
 const mkSearch = (items: Array<{ name: string; info_resourceid: string }>) =>
