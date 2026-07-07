@@ -7,3 +7,10 @@ export * from "./drupal-auth.js";
 export * from "./logger.js";
 export * from "./telemetry.js";
 export * from "./usage-logger.js";
+export {
+  resolveGlobalResourceId,
+  normalizeGlobalResourceId,
+  type ResolverCandidate,
+  type ResolverDeps,
+  type GlobalResourceResolution,
+} from "./resource-resolver.js";

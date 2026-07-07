@@ -2,6 +2,7 @@ import {
   BaseAccessServer,
   handleApiError,
   projectFields,
+  normalizeGlobalResourceId,
   Tool,
   Resource,
   CallToolResult,
@@ -127,39 +128,6 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       return { see_all_url: "https://sds.access-ci.org/" };
     }
     return undefined;
-  }
-
-  /**
-   * Normalizes resource IDs to handle legacy XSEDE format and domain variations.
-   * This provides backward compatibility while the SDS API migrates to ACCESS-CI format.
-   *
-   * @param resourceId - The resource ID to normalize
-   * @returns The normalized resource ID in ACCESS-CI format
-   */
-  private normalizeResourceId(resourceId: string): string {
-    // Convert old XSEDE format to new ACCESS-CI format
-    if (resourceId.includes(".xsede.org")) {
-      resourceId = resourceId.replace(".xsede.org", ".access-ci.org");
-    }
-    // Convert legacy domain variations
-    if (resourceId.includes(".illinois.edu")) {
-      resourceId = resourceId.replace(".illinois.edu", ".access-ci.org");
-    }
-    if (resourceId.includes(".edu")) {
-      resourceId = resourceId.replace(".edu", ".access-ci.org");
-    }
-
-    // Handle specific resource types from compute-resources service
-    // Convert delta-gpu.ncsa.access-ci.org -> delta.ncsa.access-ci.org
-    // Convert delta-cpu.ncsa.access-ci.org -> delta.ncsa.access-ci.org
-    // Convert delta-storage.ncsa.access-ci.org -> delta.ncsa.access-ci.org
-    resourceId = resourceId.replace(/-(gpu|cpu|storage|compute)\./, ".");
-
-    // Handle other common patterns
-    resourceId = resourceId.replace(/-(login|data|transfer)\./, ".");
-
-    // If already in correct format or unknown format, return as-is
-    return resourceId;
   }
 
   protected get sdsClient(): AxiosInstance {
@@ -562,7 +530,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     }
 
     if (resource) {
-      const normalizedResource = this.normalizeResourceId(resource);
+      const normalizedResource = normalizeGlobalResourceId(resource);
       params.rps = [normalizedResource];
       if (fuzzy) {
         params.fuzz_rp = true;
@@ -630,7 +598,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     };
 
     if (resource) {
-      const normalizedResource = this.normalizeResourceId(resource);
+      const normalizedResource = normalizeGlobalResourceId(resource);
       params.rps = [normalizedResource];
       params.fuzz_rp = true;
     }
@@ -693,7 +661,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     };
 
     if (resource) {
-      const normalizedResource = this.normalizeResourceId(resource);
+      const normalizedResource = normalizeGlobalResourceId(resource);
       params.rps = [normalizedResource];
       params.fuzz_rp = true;
     }
@@ -759,7 +727,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       };
 
       if (resources && resources.length > 0) {
-        params.rps = resources.map((r) => this.normalizeResourceId(r));
+        params.rps = resources.map((r) => normalizeGlobalResourceId(r));
         params.fuzz_rp = true;
       }
 

@@ -7,6 +7,8 @@ import {
   getFieldNames,
   Tool,
   CallToolResult,
+  DrupalAuthProvider,
+  getRequestContext,
 } from "@access-mcp/shared";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -90,6 +92,51 @@ export class AllocationsServer extends BaseAccessServer {
       },
       10 * 60 * 1000
     );
+  }
+
+  // Lazily-created Drupal auth provider for authenticated, per-user endpoints
+  // (currently just get_rp_account). The public allocations tools do NOT use
+  // this and stay unauthenticated. Mirrors the announcements server pattern.
+  private drupalAuth?: DrupalAuthProvider;
+
+  private getDrupalAuth(): DrupalAuthProvider {
+    if (!this.drupalAuth) {
+      const baseUrl = process.env.DRUPAL_API_URL;
+      const username = process.env.DRUPAL_USERNAME;
+      const password = process.env.DRUPAL_PASSWORD;
+      if (!baseUrl || !username || !password) {
+        throw new Error(
+          "get_rp_account requires DRUPAL_API_URL, DRUPAL_USERNAME, and DRUPAL_PASSWORD environment variables"
+        );
+      }
+      this.drupalAuth = new DrupalAuthProvider(baseUrl, username, password);
+    }
+
+    // Per-user scoping: the acting user comes from the request context
+    // (X-Acting-User header) or the ACTING_USER env fallback. Required — this
+    // tool returns the caller's own account data, so there must be an actor.
+    const actingUser = getRequestContext()?.actingUser || process.env.ACTING_USER;
+    if (!actingUser) {
+      throw new Error(
+        "get_rp_account requires an acting user (login). No acting user was provided in the request."
+      );
+    }
+    this.drupalAuth.setActingUser(actingUser);
+    return this.drupalAuth;
+  }
+
+  private async getRpAccount(resourceId: string, live: boolean): Promise<CallToolResult> {
+    const auth = this.getDrupalAuth();
+    const path = `/api/1.0/rp-account/by-resource/${encodeURIComponent(resourceId)}${live ? "?live=1" : ""}`;
+    const response = await auth.get(path);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
   }
 
   protected listingLinks(
@@ -348,6 +395,38 @@ export class AllocationsServer extends BaseAccessServer {
           ],
         },
       },
+      {
+        name: "get_rp_account",
+        description:
+          "Get the acting user's account and balance on a specific resource provider (RP). Returns the RP display name, the user's rp_username, and their grants/balances — scoped to the authenticated acting user. resource_id is the ACCESS Global Resource ID (e.g. delta.ncsa.access-ci.org). Get it from the search_resources tool — each result carries its resource ids. Read-only.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            resource_id: {
+              type: "string",
+              description:
+                "The ACCESS Global Resource ID of the resource provider (e.g. delta.ncsa.access-ci.org). Get it from the search_resources tool — each result carries its resource ids.",
+            },
+            live: {
+              type: "boolean",
+              description:
+                "When true, overlay a real-time balance (slower, more current) instead of the default last-synced snapshot.",
+              default: false,
+            },
+          },
+          required: ["resource_id"],
+          examples: [
+            {
+              name: "Get my account on an RP",
+              arguments: { resource_id: "delta.ncsa.access-ci.org" },
+            },
+            {
+              name: "Get my live balance on an RP",
+              arguments: { resource_id: "delta.ncsa.access-ci.org", live: true },
+            },
+          ],
+        },
+      },
     ];
   }
 
@@ -397,6 +476,11 @@ export class AllocationsServer extends BaseAccessServer {
           return await this.analyzeFundingRouter(toolArgs as AnalyzeFundingArgs);
         case "get_allocation_statistics":
           return await this.getAllocationStatistics((toolArgs.pages_to_analyze as number) || 5);
+        case "get_rp_account":
+          return await this.getRpAccount(
+            toolArgs.resource_id as string,
+            Boolean(toolArgs.live)
+          );
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
@@ -408,6 +492,7 @@ export class AllocationsServer extends BaseAccessServer {
             text: `Error: ${handleApiError(error)}`,
           },
         ],
+        isError: true,
       };
     }
   }

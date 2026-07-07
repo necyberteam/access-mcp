@@ -1,0 +1,71 @@
+import { describe, it, expect, beforeEach, vi } from "vitest";
+import { requestContextStorage, RequestContext } from "@access-mcp/shared";
+
+const mockGet = vi.fn();
+const mockSetActingUser = vi.fn();
+vi.mock("@access-mcp/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@access-mcp/shared")>();
+  return {
+    ...actual,
+    DrupalAuthProvider: vi.fn().mockImplementation(() => ({
+      ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
+      get: mockGet,
+      setActingUser: mockSetActingUser,
+    })),
+  };
+});
+import { AllocationsServer } from "../server.js";
+
+describe("get_rp_account", () => {
+  let server: AllocationsServer;
+  beforeEach(() => {
+    server = new AllocationsServer();
+    mockGet.mockReset(); mockSetActingUser.mockReset();
+    delete process.env.ACTING_USER;
+    process.env.DRUPAL_API_URL = "https://drupal.example";
+    process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+  });
+  const call = (args: Record<string, unknown>, actingUser?: string) =>
+    requestContextStorage.run({ actingUser } as RequestContext, () =>
+      server["handleToolCall"]({ method: "tools/call", params: { name: "get_rp_account", arguments: args } }));
+
+  it("requires resource_id and offers an optional live flag", () => {
+    const tool = server["getTools"]().find((t) => t.name === "get_rp_account");
+    const schema = tool?.inputSchema as { properties?: Record<string, unknown>; required?: string[] };
+    expect(schema?.properties).toHaveProperty("resource_id");
+    expect(schema?.properties).toHaveProperty("live");
+    expect(schema?.required).toContain("resource_id");
+    expect(schema?.properties).not.toHaveProperty("rp_nid");
+  });
+
+  it("calls the by-resource route with the resource_id, as the acting user (email/domain form)", async () => {
+    mockGet.mockResolvedValue({ data: { rp_display_name: "NCSA Delta", rp_username: "alice_delta",
+      grants: [{ project_balance: 5000, billable_unit: "GPU hours" }] } });
+    const result = await call({ resource_id: "delta.ncsa.access-ci.org" }, "apasquale@access-ci.org");
+    expect(mockSetActingUser).toHaveBeenCalledWith("apasquale@access-ci.org");
+    expect(mockGet).toHaveBeenCalledWith("/api/1.0/rp-account/by-resource/delta.ncsa.access-ci.org");
+    const text = (result.content[0] as { text: string }).text;
+    expect(text).toContain("alice_delta");
+    expect(text).toContain("5000");
+    expect(text).toContain("GPU hours");
+  });
+
+  it("appends ?live=1 when live is true", async () => {
+    mockGet.mockResolvedValue({ data: {} });
+    await call({ resource_id: "delta.ncsa.access-ci.org", live: true }, "apasquale@access-ci.org");
+    expect(mockGet).toHaveBeenCalledWith("/api/1.0/rp-account/by-resource/delta.ncsa.access-ci.org?live=1");
+  });
+
+  it("refuses with a clear error and no endpoint call when there is no acting user", async () => {
+    const result = await call({ resource_id: "delta.ncsa.access-ci.org" });
+    expect(result.isError).toBe(true);
+    const text = (result.content[0] as { text: string }).text;
+    expect(text).toMatch(/acting user|login|authenticat/i);
+    expect(mockGet).not.toHaveBeenCalled();
+  });
+
+  it("does not gate the public tools", () => {
+    const names = server["getTools"]().map((t) => t.name);
+    expect(names).toEqual(expect.arrayContaining(["search_projects", "analyze_funding", "get_allocation_statistics"]));
+  });
+});

@@ -140,6 +140,11 @@ services:
       - ACCESS_MCP_SERVICES=${ACCESS_MCP_SERVICES}
       - MCP_PATH_PREFIX=/allocations
       - MCP_USAGE_DB_URL=${MCP_USAGE_DB_URL:-postgresql://mcp_usage_app:mcpusage@mcp-usage-db:5432/mcp_usage}
+      # Drupal account holding the mcp_service role (required for the
+      # X-Acting-User header get_rp_account sends).
+      - DRUPAL_API_URL=${DRUPAL_API_URL:-https://support.access-ci.org}
+      - DRUPAL_USERNAME=${MCP_SERVICE_DRUPAL_USERNAME}
+      - DRUPAL_PASSWORD=${MCP_SERVICE_DRUPAL_PASSWORD}
     deploy:
       resources:
         limits:
