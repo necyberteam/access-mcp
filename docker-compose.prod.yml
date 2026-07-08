@@ -140,6 +140,10 @@ services:
       - ACCESS_MCP_SERVICES=${ACCESS_MCP_SERVICES}
       - MCP_PATH_PREFIX=/allocations
       - MCP_USAGE_DB_URL=${MCP_USAGE_DB_URL:-postgresql://mcp_usage_app:mcpusage@mcp-usage-db:5432/mcp_usage}
+      # Verifies the OAuth Bearer token and populates the acting user. Without
+      # this, the acting-user middleware never registers and get_rp_account can
+      # never obtain an acting user (matches announcements/events).
+      - OAUTH_VERIFY_URL=http://mcp-auth:3000/verify
       # Drupal account holding the mcp_service role (required for the
       # X-Acting-User header get_rp_account sends).
       - DRUPAL_API_URL=${DRUPAL_API_URL:-https://support.access-ci.org}
