@@ -56,6 +56,17 @@ describe("get_rp_account", () => {
     expect(mockGet).toHaveBeenCalledWith("/api/1.0/rp-account/by-resource/delta.ncsa.access-ci.org?live=1");
   });
 
+  it("never emits an undefined text block when the response body is empty", async () => {
+    // JSON.stringify(undefined) is undefined (not a string) → a content[0] with
+    // no `text` field, which fails MCP response validation. Guard against it.
+    mockGet.mockResolvedValue({ data: undefined });
+    const result = await call({ resource_id: "delta.ncsa.access-ci.org" }, "apasquale@access-ci.org");
+    const text = (result.content[0] as { text: string }).text;
+    expect(typeof text).toBe("string");
+    expect(text.length).toBeGreaterThan(0);
+    expect(text).toMatch(/no data|syncing/i);
+  });
+
   it("refuses with a clear error and no endpoint call when there is no acting user", async () => {
     const result = await call({ resource_id: "delta.ncsa.access-ci.org" });
     expect(result.isError).toBe(true);
