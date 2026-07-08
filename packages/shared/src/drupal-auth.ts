@@ -18,16 +18,12 @@ export class DrupalAuthProvider {
   private userUuid?: string;
   private httpClient: AxiosInstance;
   private isAuthenticated = false;
-  private actingUser?: string;
 
   constructor(
     private baseUrl: string,
     private username: string,
-    private password: string,
-    actingUser?: string
+    private password: string
   ) {
-    this.actingUser = actingUser;
-
     // Skip TLS verification for local dev domains (DDEV self-signed certs).
     const isLocalDev = /\.(ddev\.site|localhost|local)$/.test(
       new URL(this.baseUrl).hostname
@@ -41,21 +37,6 @@ export class DrupalAuthProvider {
         httpsAgent: new https.Agent({ rejectUnauthorized: false }),
       }),
     });
-  }
-
-  /**
-   * Set the acting user (ACCESS ID) for attribution.
-   * This user will be set as the author of created content.
-   */
-  setActingUser(accessId: string): void {
-    this.actingUser = accessId;
-  }
-
-  /**
-   * Get the current acting user
-   */
-  getActingUser(): string | undefined {
-    return this.actingUser;
   }
 
   /**
@@ -114,26 +95,23 @@ export class DrupalAuthProvider {
    * Defaults to JSON:API content type. Pass overrides for non-JSON:API
    * endpoints (e.g., { "Content-Type": "application/json" }).
    */
-  getAuthHeaders(overrides?: Record<string, string>): Record<string, string> {
+  getAuthHeaders(
+    actingUser: string,
+    overrides?: Record<string, string>
+  ): Record<string, string> {
     if (!this.isAuthenticated || !this.sessionCookie || !this.csrfToken) {
       throw new Error("Not authenticated. Call ensureAuthenticated() first.");
     }
 
-    const headers: Record<string, string> = {
+    return {
       Cookie: this.sessionCookie,
       "X-CSRF-Token": this.csrfToken,
       "Content-Type": "application/vnd.api+json",
       Accept: "application/vnd.api+json",
       "X-Request-ID": randomUUID(),
+      "X-Acting-User": actingUser,
       ...overrides,
     };
-
-    // Include acting user header if set - Drupal will use this for attribution
-    if (this.actingUser) {
-      headers["X-Acting-User"] = this.actingUser;
-    }
-
-    return headers;
   }
 
   /**
@@ -157,11 +135,11 @@ export class DrupalAuthProvider {
   /**
    * Make an authenticated GET request to JSON:API
    */
-  async get(path: string): Promise<any> {
+  async get(actingUser: string, path: string): Promise<any> {
     await this.ensureAuthenticated();
 
     const response = await this.httpClient.get(path, {
-      headers: this.getAuthHeaders(),
+      headers: this.getAuthHeaders(actingUser),
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -170,7 +148,7 @@ export class DrupalAuthProvider {
       await this.ensureAuthenticated();
 
       const retryResponse = await this.httpClient.get(path, {
-        headers: this.getAuthHeaders(),
+        headers: this.getAuthHeaders(actingUser),
       });
 
       return this.handleResponse(retryResponse);
@@ -185,11 +163,16 @@ export class DrupalAuthProvider {
    * Defaults to JSON:API content type. Pass headerOverrides for non-JSON:API
    * endpoints (e.g., { "Content-Type": "application/json", Accept: "application/json" }).
    */
-  async post(path: string, data: any, headerOverrides?: Record<string, string>): Promise<any> {
+  async post(
+    actingUser: string,
+    path: string,
+    data: any,
+    headerOverrides?: Record<string, string>
+  ): Promise<any> {
     await this.ensureAuthenticated();
 
     const response = await this.httpClient.post(path, data, {
-      headers: this.getAuthHeaders(headerOverrides),
+      headers: this.getAuthHeaders(actingUser, headerOverrides),
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -197,7 +180,7 @@ export class DrupalAuthProvider {
       await this.ensureAuthenticated();
 
       const retryResponse = await this.httpClient.post(path, data, {
-        headers: this.getAuthHeaders(headerOverrides),
+        headers: this.getAuthHeaders(actingUser, headerOverrides),
       });
 
       return this.handleResponse(retryResponse);
@@ -209,11 +192,11 @@ export class DrupalAuthProvider {
   /**
    * Make an authenticated PATCH request to JSON:API
    */
-  async patch(path: string, data: any): Promise<any> {
+  async patch(actingUser: string, path: string, data: any): Promise<any> {
     await this.ensureAuthenticated();
 
     const response = await this.httpClient.patch(path, data, {
-      headers: this.getAuthHeaders(),
+      headers: this.getAuthHeaders(actingUser),
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -221,7 +204,7 @@ export class DrupalAuthProvider {
       await this.ensureAuthenticated();
 
       const retryResponse = await this.httpClient.patch(path, data, {
-        headers: this.getAuthHeaders(),
+        headers: this.getAuthHeaders(actingUser),
       });
 
       return this.handleResponse(retryResponse);
@@ -233,11 +216,11 @@ export class DrupalAuthProvider {
   /**
    * Make an authenticated DELETE request to JSON:API
    */
-  async delete(path: string): Promise<any> {
+  async delete(actingUser: string, path: string): Promise<any> {
     await this.ensureAuthenticated();
 
     const response = await this.httpClient.delete(path, {
-      headers: this.getAuthHeaders(),
+      headers: this.getAuthHeaders(actingUser),
     });
 
     if (response.status === 401 || response.status === 403) {
@@ -245,7 +228,7 @@ export class DrupalAuthProvider {
       await this.ensureAuthenticated();
 
       const retryResponse = await this.httpClient.delete(path, {
-        headers: this.getAuthHeaders(),
+        headers: this.getAuthHeaders(actingUser),
       });
 
       return this.handleResponse(retryResponse);

@@ -111,20 +111,19 @@ export class AllocationsServer extends BaseAccessServer {
       }
       this.drupalAuth = new DrupalAuthProvider(baseUrl, username, password);
     }
+    return this.drupalAuth;
+  }
 
-    // Per-user scoping: the acting user comes from the request context
-    // (X-Acting-User header) or the ACTING_USER env fallback. Required — this
-    // tool returns the caller's own account data, so there must be an actor.
+  private getActingUserAccessId(): string {
     const actingUser = getRequestContext()?.actingUser || process.env.ACTING_USER;
     if (!actingUser) {
       throw new Error(
         "Authentication required: No acting user specified.\n\n" +
-        "Please authenticate with your ACCESS-CI credentials to use this tool. " +
-        "If using Claude, add this server as an authenticated connector via Customize > Connectors."
+          "Please authenticate with your ACCESS-CI credentials to use this tool. " +
+          "If using Claude, add this server as an authenticated connector via Customize > Connectors."
       );
     }
-    this.drupalAuth.setActingUser(actingUser);
-    return this.drupalAuth;
+    return actingUser;
   }
 
   /**
@@ -142,15 +141,17 @@ export class AllocationsServer extends BaseAccessServer {
   }
 
   private async getRpAccount(resourceId: string, live: boolean): Promise<CallToolResult> {
+    const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
     const path = `/api/1.0/rp-account/by-resource/${encodeURIComponent(resourceId)}${live ? "?live=1" : ""}`;
-    const response = await auth.get(path);
+    const response = await auth.get(actingUser, path);
     return this.jsonContent(response.data);
   }
 
   private async getMyRpAccounts(): Promise<CallToolResult> {
+    const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
-    const response = await auth.get("/api/1.0/rp-accounts");
+    const response = await auth.get(actingUser, "/api/1.0/rp-accounts");
     return this.jsonContent(response.data);
   }
 
