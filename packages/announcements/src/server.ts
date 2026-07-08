@@ -187,13 +187,6 @@ export class AnnouncementsServer extends BaseAccessServer {
       this.drupalAuth = new DrupalAuthProvider(baseUrl, username, password);
     }
 
-    // Update acting user from request context (takes priority) or env var (fallback)
-    const context = getRequestContext();
-    const actingUser = context?.actingUser || process.env.ACTING_USER;
-    if (actingUser) {
-      this.drupalAuth.setActingUser(actingUser);
-    }
-
     return this.drupalAuth;
   }
 
@@ -887,10 +880,12 @@ Which would you like to do?`,
   /**
    * Create a new announcement via Drupal JSON:API
    *
-   * The X-Acting-User header (set by DrupalAuthProvider) tells Drupal which
-   * ACCESS user is creating the content. Drupal handles user resolution.
+   * The X-Acting-User header (built from the actingUser passed into each
+   * provider call) tells Drupal which ACCESS user is creating the content.
+   * Drupal handles user resolution.
    */
   private async createAnnouncement(args: CreateAnnouncementArgs): Promise<CallToolResult> {
+    const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
     // Build the JSON:API request body
@@ -930,7 +925,7 @@ Which would you like to do?`,
     // Look up tag UUIDs if tags provided
     const unmatchedTags: string[] = [];
     if (args.tags && args.tags.length > 0) {
-      const { uuids: tagUuids, unmatched } = await this.resolveTagNames(args.tags);
+      const { uuids: tagUuids, unmatched } = await this.resolveTagNames(actingUser, args.tags);
       unmatchedTags.push(...unmatched);
       if (tagUuids.length > 0) {
         requestBody.data.relationships!.field_tags = {
@@ -944,7 +939,7 @@ Which would you like to do?`,
 
     // Look up affinity group UUID if provided
     if (args.affinity_group) {
-      const groupUuid = await this.getAffinityGroupUuid(args.affinity_group);
+      const groupUuid = await this.getAffinityGroupUuid(actingUser, args.affinity_group);
       if (groupUuid) {
         requestBody.data.relationships!.field_affinity_group_node = {
           data: {
@@ -974,7 +969,7 @@ Which would you like to do?`,
       );
     }
 
-    const result = await auth.post("/jsonapi/node/access_news", requestBody);
+    const result = await auth.post(actingUser, "/jsonapi/node/access_news", requestBody);
 
     const response: Record<string, unknown> = {
       success: true,
@@ -1002,6 +997,7 @@ Which would you like to do?`,
    * Update an existing announcement via Drupal JSON:API
    */
   private async updateAnnouncement(args: UpdateAnnouncementArgs): Promise<CallToolResult> {
+    const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
     const requestBody: JsonApiRequestBody = {
@@ -1020,7 +1016,7 @@ Which would you like to do?`,
     // Handle body/summary updates
     // Fetch existing to preserve values not being changed
     if (args.body || args.summary) {
-      const existing = await auth.get(`/jsonapi/node/access_news/${args.uuid}`);
+      const existing = await auth.get(actingUser, `/jsonapi/node/access_news/${args.uuid}`);
       const existingBody = existing.data?.attributes?.body?.value || "";
       const existingSummary = existing.data?.attributes?.body?.summary || "";
 
@@ -1039,7 +1035,7 @@ Which would you like to do?`,
     // Update tags if provided
     const unmatchedTags: string[] = [];
     if (args.tags && args.tags.length > 0) {
-      const { uuids: tagUuids, unmatched } = await this.resolveTagNames(args.tags);
+      const { uuids: tagUuids, unmatched } = await this.resolveTagNames(actingUser, args.tags);
       unmatchedTags.push(...unmatched);
       if (tagUuids.length > 0) {
         if (!requestBody.data.relationships) {
@@ -1056,7 +1052,7 @@ Which would you like to do?`,
 
     // Update affinity group if provided
     if (args.affinity_group) {
-      const groupUuid = await this.getAffinityGroupUuid(args.affinity_group);
+      const groupUuid = await this.getAffinityGroupUuid(actingUser, args.affinity_group);
       if (groupUuid) {
         if (!requestBody.data.relationships) {
           requestBody.data.relationships = {};
@@ -1089,7 +1085,7 @@ Which would you like to do?`,
       );
     }
 
-    const result = await auth.patch(`/jsonapi/node/access_news/${args.uuid}`, requestBody);
+    const result = await auth.patch(actingUser, `/jsonapi/node/access_news/${args.uuid}`, requestBody);
     const nid = result.data?.attributes?.drupal_internal__nid;
     const baseUrl = process.env.DRUPAL_API_URL;
 
@@ -1135,9 +1131,10 @@ Which would you like to do?`,
       };
     }
 
+    const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
-    await auth.delete(`/jsonapi/node/access_news/${args.uuid}`);
+    await auth.delete(actingUser, `/jsonapi/node/access_news/${args.uuid}`);
 
     return {
       content: [
@@ -1165,13 +1162,14 @@ Which would you like to do?`,
     const auth = this.getDrupalAuth();
 
     // Ensure acting user is set (will throw if not available)
-    this.getActingUserAccessId();
+    const actingUser = this.getActingUserAccessId();
 
     const limit = args.limit || 25;
     // Fetch one extra so has_more distinguishes exact-limit from
     // limit-plus-more (avoids the >=limit false-positive when the
     // user's total is exactly the requested cap).
     const result = await auth.get(
+      actingUser,
       `/jsonapi/views/mcp_my_announcements/page_1?page[limit]=${limit + 1}`
     );
 
@@ -1235,11 +1233,11 @@ Which would you like to do?`,
     const auth = this.getDrupalAuth();
 
     // Ensure acting user is set (will throw if not available)
-    this.getActingUserAccessId();
+    const actingUser = this.getActingUserAccessId();
 
     // Fetch affinity groups the user coordinates.
     // Tags are NOT fetched here — use suggest_tags tool after the user provides content.
-    const groupsResult = await auth.get("/jsonapi/views/mcp_my_affinity_groups/page_1");
+    const groupsResult = await auth.get(actingUser, "/jsonapi/views/mcp_my_affinity_groups/page_1");
 
     const affinityGroups = (groupsResult.data || []).map((item: JsonApiResourceItem) => ({
       id: item.attributes?.field_group_id,
@@ -1288,13 +1286,15 @@ Which would you like to do?`,
   };
 
   private async suggestTags(args: { text: string; limit?: number }): Promise<CallToolResult> {
+    const actingUser = this.getActingUserAccessId();
+
     if (!args.text || args.text.length < 100) {
       return this.errorResponse("Text must be at least 100 characters for tag suggestions.");
     }
 
     const auth = this.getDrupalAuth();
     const limit = args.limit || 6;
-    const result = await auth.post("/api/suggest-tags", {
+    const result = await auth.post(actingUser, "/api/suggest-tags", {
       text: args.text,
       limit,
     }, AnnouncementsServer.JSON_HEADERS);
@@ -1319,12 +1319,14 @@ Which would you like to do?`,
    * Generate a summary for announcement content using Drupal's AI summary service.
    */
   private async suggestSummary(args: { text: string }): Promise<CallToolResult> {
+    const actingUser = this.getActingUserAccessId();
+
     if (!args.text || args.text.length < 100) {
       return this.errorResponse("Text must be at least 100 characters for summary generation.");
     }
 
     const auth = this.getDrupalAuth();
-    const result = await auth.post("/api/suggest-summary", {
+    const result = await auth.post(actingUser, "/api/suggest-summary", {
       text: args.text,
     }, AnnouncementsServer.JSON_HEADERS);
 
@@ -1343,7 +1345,7 @@ Which would you like to do?`,
   /**
    * Look up affinity group UUID by ID or name
    */
-  private async getAffinityGroupUuid(idOrName: string): Promise<string | null> {
+  private async getAffinityGroupUuid(actingUser: string, idOrName: string): Promise<string | null> {
     const auth = this.getDrupalAuth();
 
     // If it looks like a UUID, return as-is
@@ -1353,6 +1355,7 @@ Which would you like to do?`,
 
     // Try by field_group_id first
     let result = await auth.get(
+      actingUser,
       `/jsonapi/node/affinity_group?filter[field_group_id]=${encodeURIComponent(idOrName)}&filter[status]=1`
     );
 
@@ -1362,6 +1365,7 @@ Which would you like to do?`,
 
     // Try by title
     result = await auth.get(
+      actingUser,
       `/jsonapi/node/affinity_group?filter[title]=${encodeURIComponent(idOrName)}&filter[status]=1`
     );
 
@@ -1414,7 +1418,7 @@ Which would you like to do?`,
   /**
    * Populate the tag cache with all available tags
    */
-  private async populateTagCache(): Promise<void> {
+  private async populateTagCache(actingUser: string): Promise<void> {
     const auth = this.getDrupalAuth();
     try {
       this.tagCache.clear();
@@ -1424,7 +1428,7 @@ Which would you like to do?`,
 
       while (url && pageCount < MAX_PAGES) {
         pageCount++;
-        const result = await auth.get(url);
+        const result = await auth.get(actingUser, url);
         for (const item of result.data || []) {
           const name = item.attributes?.name?.toLowerCase();
           if (name && item.id) {
@@ -1457,10 +1461,10 @@ Which would you like to do?`,
   /**
    * Get tag UUIDs by their names (with caching)
    */
-  private async resolveTagNames(tagNames: string[]): Promise<{ uuids: string[]; unmatched: string[] }> {
+  private async resolveTagNames(actingUser: string, tagNames: string[]): Promise<{ uuids: string[]; unmatched: string[] }> {
     // Ensure cache is populated
     if (!this.isTagCacheValid()) {
-      await this.populateTagCache();
+      await this.populateTagCache(actingUser);
     }
 
     const uuids: string[] = [];

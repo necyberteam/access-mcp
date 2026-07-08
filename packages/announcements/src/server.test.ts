@@ -10,8 +10,6 @@ vi.mock("@access-mcp/shared", async () => {
     DrupalAuthProvider: vi.fn().mockImplementation(() => ({
       ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
       getUserUuid: vi.fn().mockReturnValue("user-uuid-123"),
-      setActingUser: vi.fn(),
-      getActingUser: vi.fn(),
       get: vi.fn(),
       post: vi.fn(),
       patch: vi.fn(),
@@ -534,8 +532,6 @@ describe("AnnouncementsServer", () => {
     let mockDrupalAuth: {
       ensureAuthenticated: Mock;
       getUserUuid: Mock;
-      setActingUser: Mock;
-      getActingUser: Mock;
       get: Mock;
       post: Mock;
       patch: Mock;
@@ -553,8 +549,6 @@ describe("AnnouncementsServer", () => {
       mockDrupalAuth = {
         ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
         getUserUuid: vi.fn().mockReturnValue("user-uuid-123"),
-        setActingUser: vi.fn(),
-        getActingUser: vi.fn(),
         get: vi.fn(),
         post: vi.fn(),
         patch: vi.fn(),
@@ -597,6 +591,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news",
           expect.objectContaining({
             data: expect.objectContaining({
@@ -650,10 +645,12 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/taxonomy_term/tags?page[limit]=50"
         );
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news",
           expect.objectContaining({
             data: expect.objectContaining({
@@ -694,13 +691,18 @@ describe("AnnouncementsServer", () => {
         const result = await server["handleToolCall"]({
           method: "tools/call",
           params: {
-            name: "get_my_announcements",
-            arguments: {},
+            name: "create_announcement",
+            arguments: {
+              title: "Test",
+              body: "Body",
+              summary: "Summary",
+            },
           },
         });
 
-        const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("No acting user specified");
+        const text = (result.content[0] as TextContent).text;
+        expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);
+        expect(mockDrupalAuth.post).not.toHaveBeenCalled();
       });
 
       it("should use actingUser from request context when env var not set", async () => {
@@ -766,8 +768,12 @@ describe("AnnouncementsServer", () => {
           });
         });
 
-        // Should have called setActingUser with the context value, not env var
-        expect(mockDrupalAuth.setActingUser).toHaveBeenCalledWith("contextuser@access-ci.org");
+        // context value takes priority over env: post uses the context actor
+        expect(mockDrupalAuth.post).toHaveBeenCalledWith(
+          "contextuser@access-ci.org",
+          expect.any(String),
+          expect.anything()
+        );
       });
 
       it("should set actingUser on DrupalAuth from request context", async () => {
@@ -796,7 +802,11 @@ describe("AnnouncementsServer", () => {
           });
         });
 
-        expect(mockDrupalAuth.setActingUser).toHaveBeenCalledWith("researcher@access-ci.org");
+        expect(mockDrupalAuth.post).toHaveBeenCalledWith(
+          "researcher@access-ci.org",
+          expect.any(String),
+          expect.anything()
+        );
       });
 
       it("should create announcement with external link", async () => {
@@ -827,6 +837,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news",
           expect.objectContaining({
             data: expect.objectContaining({
@@ -866,6 +877,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news",
           expect.objectContaining({
             data: expect.objectContaining({
@@ -929,6 +941,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news",
           expect.objectContaining({
             data: expect.objectContaining({
@@ -989,6 +1002,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news/announcement-uuid",
           expect.objectContaining({
             data: expect.objectContaining({
@@ -1036,6 +1050,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news/announcement-uuid",
           expect.objectContaining({
             data: expect.objectContaining({
@@ -1079,6 +1094,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news/announcement-uuid",
           expect.objectContaining({
             data: expect.objectContaining({
@@ -1093,6 +1109,26 @@ describe("AnnouncementsServer", () => {
             }),
           })
         );
+      });
+
+      it("should fail without an acting user and make no provider call", async () => {
+        delete process.env.ACTING_USER;
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "update_announcement",
+            arguments: {
+              uuid: "announcement-uuid",
+              title: "Updated Title",
+            },
+          },
+        });
+
+        const text = (result.content[0] as TextContent).text;
+        expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);
+        expect(mockDrupalAuth.patch).not.toHaveBeenCalled();
+        expect(mockDrupalAuth.get).not.toHaveBeenCalled();
       });
     });
 
@@ -1112,6 +1148,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.delete).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/node/access_news/announcement-to-delete"
         );
 
@@ -1137,6 +1174,25 @@ describe("AnnouncementsServer", () => {
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.error).toContain("explicit confirmation");
+      });
+
+      it("should fail without an acting user and make no provider call", async () => {
+        delete process.env.ACTING_USER;
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: {
+              uuid: "announcement-to-delete",
+              confirmed: true,
+            },
+          },
+        });
+
+        const text = (result.content[0] as TextContent).text;
+        expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);
+        expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
       });
     });
 
@@ -1167,6 +1223,7 @@ describe("AnnouncementsServer", () => {
         // Should make exactly 1 call — no user UUID lookup
         expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=11"
         );
 
@@ -1188,6 +1245,7 @@ describe("AnnouncementsServer", () => {
         });
 
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=26"
         );
       });
@@ -1313,6 +1371,7 @@ describe("AnnouncementsServer", () => {
         // Only 1 call — affinity groups view, no tags fetch
         expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
           "/jsonapi/views/mcp_my_affinity_groups/page_1"
         );
 
@@ -1460,6 +1519,22 @@ describe("AnnouncementsServer", () => {
         expect(responseData.suggested_tags).toHaveLength(2);
         expect(responseData.tag_details).toHaveLength(2);
       });
+
+      it("should fail without an acting user and make no provider call", async () => {
+        delete process.env.ACTING_USER;
+
+        // >100 chars so it clears the length gate and reaches the actor
+        // check — with short text the handler returns the length error first
+        // and this test would pass without exercising acting-user enforcement.
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "suggest_tags", arguments: { text: "A".repeat(150) } },
+        });
+
+        const text = (result.content[0] as TextContent).text;
+        expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);
+        expect(mockDrupalAuth.post).not.toHaveBeenCalled();
+      });
     });
 
     describe("suggest_summary", () => {
@@ -1492,6 +1567,22 @@ describe("AnnouncementsServer", () => {
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.summary).toBe("A test summary of the content.");
+      });
+
+      it("should fail without an acting user and make no provider call", async () => {
+        delete process.env.ACTING_USER;
+
+        // >100 chars so it clears the length gate and reaches the actor
+        // check — with short text the handler returns the length error first
+        // and this test would pass without exercising acting-user enforcement.
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "suggest_summary", arguments: { text: "A".repeat(150) } },
+        });
+
+        const text = (result.content[0] as TextContent).text;
+        expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);
+        expect(mockDrupalAuth.post).not.toHaveBeenCalled();
       });
     });
   });
