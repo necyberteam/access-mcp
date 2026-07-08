@@ -77,8 +77,8 @@ describe("DrupalAuthProvider per-call acting user", () => {
     const p = newProvider();
     await p.ensureAuthenticated(); // log in up front so the interleave is GET-only, not a login race
     // Make request A's GET hang until we release it, so B can run in between.
-    let releaseA: (v: any) => void;
-    const aPending = new Promise((res) => { releaseA = res; });
+    let releaseA: (v: unknown) => void;
+    const aPending = new Promise<unknown>((res) => { releaseA = res; });
     get.mockImplementationOnce(() => aPending)                          // A's GET (deferred)
        .mockResolvedValueOnce({ status: 200, data: { who: "B" } });     // B's GET (immediate)
 
