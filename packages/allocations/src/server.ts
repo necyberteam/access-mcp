@@ -127,31 +127,31 @@ export class AllocationsServer extends BaseAccessServer {
     return this.drupalAuth;
   }
 
+  /**
+   * Wrap a Drupal response body as an MCP text content block. Guards against a
+   * missing/undefined body: JSON.stringify(undefined) returns undefined (not a
+   * string), which produces a content[0] with no `text` field and fails MCP
+   * response validation. Emit an explicit message instead.
+   */
+  private jsonContent(data: unknown): CallToolResult {
+    const text =
+      data === undefined || data === null || data === ""
+        ? "The request succeeded but returned no data. If this was a first-time query, the account data may still be syncing — try again in a few seconds."
+        : JSON.stringify(data, null, 2);
+    return { content: [{ type: "text", text }] };
+  }
+
   private async getRpAccount(resourceId: string, live: boolean): Promise<CallToolResult> {
     const auth = this.getDrupalAuth();
     const path = `/api/1.0/rp-account/by-resource/${encodeURIComponent(resourceId)}${live ? "?live=1" : ""}`;
     const response = await auth.get(path);
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(response.data, null, 2),
-        },
-      ],
-    };
+    return this.jsonContent(response.data);
   }
 
   private async getMyRpAccounts(): Promise<CallToolResult> {
     const auth = this.getDrupalAuth();
     const response = await auth.get("/api/1.0/rp-accounts");
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(response.data, null, 2),
-        },
-      ],
-    };
+    return this.jsonContent(response.data);
   }
 
   protected listingLinks(
