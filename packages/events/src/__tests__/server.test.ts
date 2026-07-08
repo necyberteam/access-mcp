@@ -1,4 +1,19 @@
 import { describe, it, expect, beforeEach, vi, afterEach, Mock } from "vitest";
+import { requestContextStorage, RequestContext } from "@access-mcp/shared";
+
+const mockGet = vi.fn();
+const mockSetActingUser = vi.fn();
+vi.mock("@access-mcp/shared", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@access-mcp/shared")>();
+  return {
+    ...actual,
+    DrupalAuthProvider: vi.fn().mockImplementation(() => ({
+      ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
+      get: mockGet,
+      setActingUser: mockSetActingUser,
+    })),
+  };
+});
 import { EventsServer } from "../server.js";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
@@ -700,6 +715,42 @@ describe("EventsServer", () => {
       const myTool = tools.find((t: { name: string }) => t.name === "get_my_events");
       expect(myTool?.inputSchema.properties?.fields).toBeDefined();
       expect((myTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
+
+  describe("get_my_events display URL", () => {
+    it("get_my_events queries the mcp_my_events JSON:API display", async () => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockResolvedValue({ data: [] });
+        const server = new EventsServer();
+        await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () =>
+            server["handleToolCall"]({
+              method: "tools/call",
+              params: { name: "get_my_events", arguments: { limit: 5 } },
+            })
+        );
+        expect(mockGet).toHaveBeenCalledWith(
+          "/jsonapi/views/event_instance_mine/mcp_my_events?page[limit]=6"
+        );
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
     });
   });
 });
