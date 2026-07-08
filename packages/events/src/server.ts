@@ -512,7 +512,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
 
   /**
    * Get events for the authenticated user via the unified Drupal view.
-   * Uses the /jsonapi/views/event_instance_mine/my_events_page endpoint
+   * Uses the /jsonapi/views/event_instance_mine/mcp_my_events endpoint
    * which filters by X-Acting-User header.
    */
   private async getMyEvents(params: GetMyEventsParams): Promise<CallToolResult> {
@@ -527,7 +527,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     // limit-plus-more (avoids the >=limit false-positive when the
     // user's total is exactly the requested cap).
     const result = await auth.get(
-      `/jsonapi/views/event_instance_mine/my_events_page?page[limit]=${limit + 1}`
+      `/jsonapi/views/event_instance_mine/mcp_my_events?page[limit]=${limit + 1}`
     );
 
     const fetchedItems = result.data || [];
