@@ -91,6 +91,39 @@ Get aggregate statistics across ACCESS allocations (top fields, resources, insti
 |-----------|------|-------------|
 | `pages_to_analyze` | number | Pages to analyze (default: 5, max: 20) |
 
+### `get_my_rp_accounts`
+
+List all resource-provider (RP) accounts for the **authenticated user** — every resource they have an allocation on, with cached balances. Returns one entry per RP: the `resource_id` (ACCESS Global Resource ID, e.g. `delta.ncsa.access-ci.org`), `rp_display_name`, `rp_username`, account state, and grants with balances and units. Start here to discover which resources the user has, then call `get_rp_account` for a live balance on one of them. Read-only.
+
+Requires authentication: the acting user is resolved from the `X-Acting-User` header (set by an authenticated MCP connector). Balances reflect the last sync (`synced_at`); a first-time query may return `state: "syncing"` — ask again in a few seconds.
+
+**Parameters:** none.
+
+**Examples:**
+```javascript
+// List the signed-in user's RP accounts
+get_my_rp_accounts({})
+```
+
+### `get_rp_account`
+
+Get the **authenticated user's** account and live balance on ONE resource provider (RP). Returns the RP display name, the user's `rp_username`, and their grants with current balances and units. Read-only, scoped to the acting user.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `resource_id` | string | **Required.** ACCESS Global Resource ID (e.g. `delta.ncsa.access-ci.org`). Get it from `get_my_rp_accounts`, or from `search_resources` for an arbitrary resource. |
+| `live` | boolean | When true, fetch a real-time balance (slower) instead of the last-synced value. |
+
+**Examples:**
+```javascript
+// Cached balance on a specific RP
+get_rp_account({ resource_id: "delta.ncsa.access-ci.org" })
+
+// Real-time balance
+get_rp_account({ resource_id: "delta.ncsa.access-ci.org", live: true })
+```
+
 ## Installation
 
 ```bash
