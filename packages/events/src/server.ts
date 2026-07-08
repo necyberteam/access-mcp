@@ -625,9 +625,12 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
    * { registrations: [...] } at the top level (no data wrapper).
    */
   private async getMyRegistrations(when: string): Promise<CallToolResult> {
+    const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
     const auth = this.getDrupalAuth();
-    this.getActingUserAccessId(); // throws → aligned auth error if no acting user
-    const body = await auth.get(`/api/1.0/registrations?when=${encodeURIComponent(when)}`);
+    const body = await auth.get(
+      actingUser,
+      `/api/1.0/registrations?when=${encodeURIComponent(when)}`
+    );
     return this.jsonContent(body); // body === { registrations: [...] }
   }
 
@@ -661,9 +664,12 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
         ],
       };
     }
+    const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
     const auth = this.getDrupalAuth();
-    this.getActingUserAccessId(); // throws → aligned auth error if no acting user
-    await auth.delete(`/api/1.0/registrations/${encodeURIComponent(registrantId)}`);
+    await auth.delete(
+      actingUser,
+      `/api/1.0/registrations/${encodeURIComponent(registrantId)}`
+    );
     return {
       content: [
         {

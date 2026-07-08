@@ -672,7 +672,10 @@ describe("EventsServer", () => {
           { actingUser: "apasquale@access-ci.org" } as RequestContext,
           () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
         );
-        expect(mockGet).toHaveBeenCalledWith("/api/1.0/registrations?when=upcoming");
+        expect(mockGet).toHaveBeenCalledWith(
+          "apasquale@access-ci.org",
+          "/api/1.0/registrations?when=upcoming"
+        );
         const text = (result.content[0] as { text: string }).text;
         expect(text).toContain("u-1");
       } finally {
@@ -694,7 +697,10 @@ describe("EventsServer", () => {
           { actingUser: "apasquale@access-ci.org" } as RequestContext,
           () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: { when: "past" } } })
         );
-        expect(mockGet).toHaveBeenCalledWith("/api/1.0/registrations?when=past");
+        expect(mockGet).toHaveBeenCalledWith(
+          "apasquale@access-ci.org",
+          "/api/1.0/registrations?when=past"
+        );
       } finally {
         if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
         if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
@@ -739,7 +745,10 @@ describe("EventsServer", () => {
           { actingUser: "apasquale@access-ci.org" } as RequestContext,
           () => server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
         );
-        expect(mockDelete).toHaveBeenCalledWith("/api/1.0/registrations/u-1");
+        expect(mockDelete).toHaveBeenCalledWith(
+          "apasquale@access-ci.org",
+          "/api/1.0/registrations/u-1"
+        );
         const text = (result.content[0] as { text: string }).text;
         const parsed = JSON.parse(text);
         expect(parsed.success).toBe(true);
