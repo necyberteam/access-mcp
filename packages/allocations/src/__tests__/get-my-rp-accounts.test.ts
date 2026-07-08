@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { requestContextStorage, RequestContext } from "@access-mcp/shared";
 
 const mockGet = vi.fn();
-const mockSetActingUser = vi.fn();
 vi.mock("@access-mcp/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@access-mcp/shared")>();
   return {
@@ -10,7 +9,6 @@ vi.mock("@access-mcp/shared", async (importOriginal) => {
     DrupalAuthProvider: vi.fn().mockImplementation(() => ({
       ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
       get: mockGet,
-      setActingUser: mockSetActingUser,
     })),
   };
 });
@@ -20,7 +18,7 @@ describe("get_my_rp_accounts", () => {
   let server: AllocationsServer;
   beforeEach(() => {
     server = new AllocationsServer();
-    mockGet.mockReset(); mockSetActingUser.mockReset();
+    mockGet.mockReset();
     delete process.env.ACTING_USER;
     process.env.DRUPAL_API_URL = "https://drupal.example";
     process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
@@ -41,8 +39,10 @@ describe("get_my_rp_accounts", () => {
       accounts: [{ resource_id: "delta.ncsa.access-ci.org", rp_display_name: "NCSA Delta",
         rp_username: "alice", grants: [{ project_balance: 5000, billable_unit: "GPU hours" }] }] } });
     const result = await call("apasquale@access-ci.org");
-    expect(mockSetActingUser).toHaveBeenCalledWith("apasquale@access-ci.org");
-    expect(mockGet).toHaveBeenCalledWith("/api/1.0/rp-accounts");
+    expect(mockGet).toHaveBeenCalledWith(
+      "apasquale@access-ci.org",
+      "/api/1.0/rp-accounts"
+    );
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("delta.ncsa.access-ci.org");
     expect(text).toContain("5000");
