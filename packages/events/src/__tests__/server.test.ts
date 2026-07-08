@@ -751,10 +751,86 @@ describe("EventsServer", () => {
         else process.env.DRUPAL_PASSWORD = saved.pass;
       }
     });
+
+    it("maps the daterange 'date' and moderation_state from the JSON:API base entity", async () => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        // jsonapi_views serializes the base eventinstance entity: the date is a
+        // daterange field ({value, end_value}, naive UTC), status is the boolean
+        // publish flag, and moderation_state carries the real editorial state.
+        mockGet.mockResolvedValue({
+          data: [
+            {
+              id: "uuid-1",
+              type: "eventinstance--instance",
+              attributes: {
+                title: "Sage Office Hours",
+                date: [{ value: "2026-07-23T20:00:00", end_value: "2026-07-23T21:00:00" }],
+                status: false,
+                moderation_state: "ready_for_review",
+              },
+            },
+          ],
+        });
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () =>
+            server["handleToolCall"]({
+              method: "tools/call",
+              params: { name: "get_my_events", arguments: { limit: 5 } },
+            })
+        );
+        const payload = JSON.parse(
+          (result.content[0] as { text: string }).text
+        );
+        const item = payload.items[0];
+        // start_date/end_date come from the daterange, with Z appended so the
+        // naive-UTC strings are unambiguous ISO instants.
+        expect(item.start_date).toBe("2026-07-23T20:00:00Z");
+        expect(item.end_date).toBe("2026-07-23T21:00:00Z");
+        // status is the editorial moderation_state, NOT the raw publish boolean.
+        expect(item.status).toBe("ready_for_review");
+        // the raw publish boolean must not leak back over the mapped status.
+        expect(typeof item.status).toBe("string");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
   });
 });
 
-import { compactDescription } from "../server.js";
+import { compactDescription, isoInstant } from "../server.js";
+
+describe("isoInstant", () => {
+  it("appends Z to a naive-UTC daterange string", () => {
+    expect(isoInstant("2026-07-23T20:00:00")).toBe("2026-07-23T20:00:00Z");
+  });
+
+  it("leaves an already-zoned string untouched", () => {
+    expect(isoInstant("2026-07-23T20:00:00Z")).toBe("2026-07-23T20:00:00Z");
+    expect(isoInstant("2026-07-23T20:00:00+00:00")).toBe("2026-07-23T20:00:00+00:00");
+  });
+
+  it("returns undefined for missing values", () => {
+    expect(isoInstant(undefined)).toBeUndefined();
+    expect(isoInstant(null)).toBeUndefined();
+    expect(isoInstant("")).toBeUndefined();
+  });
+});
 
 describe("compactDescription", () => {
   it("returns undefined for undefined input", () => {
