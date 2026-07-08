@@ -118,7 +118,9 @@ export class AllocationsServer extends BaseAccessServer {
     const actingUser = getRequestContext()?.actingUser || process.env.ACTING_USER;
     if (!actingUser) {
       throw new Error(
-        "get_rp_account requires an acting user (login). No acting user was provided in the request."
+        "Authentication required: No acting user specified.\n\n" +
+        "Please authenticate with your ACCESS-CI credentials to use this tool. " +
+        "If using Claude, add this server as an authenticated connector via Customize > Connectors."
       );
     }
     this.drupalAuth.setActingUser(actingUser);
@@ -129,6 +131,19 @@ export class AllocationsServer extends BaseAccessServer {
     const auth = this.getDrupalAuth();
     const path = `/api/1.0/rp-account/by-resource/${encodeURIComponent(resourceId)}${live ? "?live=1" : ""}`;
     const response = await auth.get(path);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(response.data, null, 2),
+        },
+      ],
+    };
+  }
+
+  private async getMyRpAccounts(): Promise<CallToolResult> {
+    const auth = this.getDrupalAuth();
+    const response = await auth.get("/api/1.0/rp-accounts");
     return {
       content: [
         {
@@ -398,7 +413,7 @@ export class AllocationsServer extends BaseAccessServer {
       {
         name: "get_rp_account",
         description:
-          "Get the acting user's account and balance on a specific resource provider (RP). Returns the RP display name, the user's rp_username, and their grants/balances — scoped to the authenticated acting user. resource_id is the ACCESS Global Resource ID (e.g. delta.ncsa.access-ci.org). Get it from the search_resources tool — each result carries its resource ids. Read-only.",
+          "Get the authenticated user's account and live balance on ONE resource provider (RP). Returns the RP display name, the user's rp_username, and their grants with current balances and units. Pass resource_id (ACCESS Global Resource ID, e.g. delta.ncsa.access-ci.org) — get it from get_my_rp_accounts (which lists the resources the user actually has), or from search_resources for an arbitrary resource. Use this for a fresh balance on a specific RP; use get_my_rp_accounts to see all accounts at once. Scoped to the authenticated acting user. Read-only.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -426,6 +441,12 @@ export class AllocationsServer extends BaseAccessServer {
             },
           ],
         },
+      },
+      {
+        name: "get_my_rp_accounts",
+        description:
+          "List all resource-provider (RP) accounts for the authenticated user — every resource they have an allocation on, with cached balances. Returns one entry per RP: the resource_id (ACCESS Global Resource ID, e.g. delta.ncsa.access-ci.org), rp_display_name, rp_username, account state, and grants with balances and units. Start here to discover which resources the user has; then call get_rp_account with a resource_id for a live, up-to-the-minute balance on one of them. Balances here reflect the last sync (synced_at); a first-time query may return state \"syncing\" — ask again in a few seconds. Scoped to the authenticated acting user. Read-only.",
+        inputSchema: { type: "object" as const, properties: {}, required: [] },
       },
     ];
   }
@@ -481,6 +502,8 @@ export class AllocationsServer extends BaseAccessServer {
             toolArgs.resource_id as string,
             Boolean(toolArgs.live)
           );
+        case "get_my_rp_accounts":
+          return await this.getMyRpAccounts();
         default:
           throw new Error(`Unknown tool: ${name}`);
       }
