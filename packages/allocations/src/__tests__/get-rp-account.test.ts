@@ -60,7 +60,8 @@ describe("get_rp_account", () => {
     const result = await call({ resource_id: "delta.ncsa.access-ci.org" });
     expect(result.isError).toBe(true);
     const text = (result.content[0] as { text: string }).text;
-    expect(text).toMatch(/acting user|login|authenticat/i);
+    expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);
+    expect(text).toMatch(/Customize > Connectors/i);
     expect(mockGet).not.toHaveBeenCalled();
   });
 
