@@ -55,6 +55,19 @@ interface RawEvent {
 
 const DESCRIPTION_MAX_CHARS = 250;
 
+/**
+ * Normalize a Drupal daterange value to an unambiguous ISO instant.
+ *
+ * Drupal serializes daterange fields as naive UTC strings with no zone
+ * designator (e.g. "2026-07-23T20:00:00"). Appending "Z" marks them as UTC so
+ * consumers don't interpret them in local time. Returns undefined for a missing
+ * value, and leaves an already-zoned string untouched.
+ */
+export function isoInstant(value: string | undefined | null): string | undefined {
+  if (!value) return undefined;
+  return /[Z+-]\d{2}:?\d{2}$|Z$/.test(value) ? value : `${value}Z`;
+}
+
 export function compactDescription(
   raw: string | undefined,
   maxChars: number = DESCRIPTION_MAX_CHARS
@@ -238,7 +251,7 @@ export class EventsServer extends BaseAccessServer {
 Returns events the user has created or is associated with, including unpublished/draft events.
 Requires authentication via X-Acting-User header or ACTING_USER environment variable.
 
-Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
+Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where status is the editorial moderation state (draft / ready_for_review / published).`,
         inputSchema: {
           type: "object",
           properties: {
@@ -568,17 +581,27 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     const hasMore = fetchedItems.length > limit;
     const slicedItems = fetchedItems.slice(0, limit);
 
-    // JSON:API views return data in a different format
+    // jsonapi_views serializes only the base eventinstance entity (it drops
+    // configured view fields / Twig rewrites), so we read the base-entity
+    // attributes directly: `date` is a daterange ({value, end_value}, naive
+    // UTC), `status` is the publish boolean, and `moderation_state` carries the
+    // real editorial state (draft/ready_for_review/published) shown in the view.
+    // We deliberately do NOT spread ...item.attributes — that re-added the raw
+    // boolean `status`, clobbering the mapped value, and leaked revision/langcode
+    // internals into the response.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- JSON:API response shape is dynamic
-    const events = slicedItems.map((item: any) => ({
-      id: item.id,
-      type: item.type,
-      title: item.attributes?.title,
-      start_date: item.attributes?.field_start_date || item.attributes?.start_date,
-      end_date: item.attributes?.field_end_date || item.attributes?.end_date,
-      status: item.attributes?.status ? "published" : "draft",
-      ...item.attributes,
-    }));
+    const events = slicedItems.map((item: any) => {
+      const attrs = item.attributes ?? {};
+      const dateRange = Array.isArray(attrs.date) ? attrs.date[0] : attrs.date;
+      return {
+        id: item.id,
+        type: item.type,
+        title: attrs.title,
+        start_date: isoInstant(dateRange?.value),
+        end_date: isoInstant(dateRange?.end_value),
+        status: attrs.moderation_state,
+      };
+    });
 
     const envelope = {
       total: events.length,
