@@ -112,13 +112,6 @@ export class EventsServer extends BaseAccessServer {
       this.drupalAuth = new DrupalAuthProvider(baseUrl, username, password);
     }
 
-    // Update acting user from request context or env var
-    const context = getRequestContext();
-    const actingUser = context?.actingUser || process.env.ACTING_USER;
-    if (actingUser) {
-      this.drupalAuth.setActingUser(actingUser);
-    }
-
     return this.drupalAuth;
   }
 
@@ -552,14 +545,14 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
 
   /**
    * Get events for the authenticated user via the unified Drupal view.
-   * Uses the /jsonapi/views/event_instance_mine/my_events_page endpoint
+   * Uses the /jsonapi/views/event_instance_mine/mcp_my_events endpoint
    * which filters by X-Acting-User header.
    */
   private async getMyEvents(params: GetMyEventsParams): Promise<CallToolResult> {
     const auth = this.getDrupalAuth();
 
     // Ensure we have an acting user
-    this.getActingUserAccessId();
+    const actingUser = this.getActingUserAccessId();
 
     const limit = params.limit || 50;
 
@@ -567,7 +560,8 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     // limit-plus-more (avoids the >=limit false-positive when the
     // user's total is exactly the requested cap).
     const result = await auth.get(
-      `/jsonapi/views/event_instance_mine/my_events_page?page[limit]=${limit + 1}`
+      actingUser,
+      `/jsonapi/views/event_instance_mine/mcp_my_events?page[limit]=${limit + 1}`
     );
 
     const fetchedItems = result.data || [];

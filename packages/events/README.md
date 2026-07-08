@@ -58,6 +58,24 @@ search_events({ has_video: true, limit: 20 })
 search_events({ start_date: "2025-01-01", end_date: "2025-06-30" })
 ```
 
+### `get_my_events`
+
+Get events created by or associated with the **authenticated user**, including unpublished/draft events. Read-only, scoped to the acting user.
+
+Requires authentication: the acting user is resolved from the `X-Acting-User` header (set by an authenticated MCP connector) or the `ACTING_USER` environment variable. Returns `{ total, items: [{ title, start_date, end_date, status, ... }] }`.
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | number | Max results (default: 50) |
+| `fields` | string[] | Optional projection — return only these fields per event |
+
+**Examples:**
+```javascript
+// The signed-in user's events
+get_my_events({ limit: 25 })
+```
+
 ## Installation
 
 ```bash
