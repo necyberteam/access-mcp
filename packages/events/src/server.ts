@@ -112,13 +112,6 @@ export class EventsServer extends BaseAccessServer {
       this.drupalAuth = new DrupalAuthProvider(baseUrl, username, password);
     }
 
-    // Update acting user from request context or env var
-    const context = getRequestContext();
-    const actingUser = context?.actingUser || process.env.ACTING_USER;
-    if (actingUser) {
-      this.drupalAuth.setActingUser(actingUser);
-    }
-
     return this.drupalAuth;
   }
 
@@ -519,7 +512,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     const auth = this.getDrupalAuth();
 
     // Ensure we have an acting user
-    this.getActingUserAccessId();
+    const actingUser = this.getActingUserAccessId();
 
     const limit = params.limit || 50;
 
@@ -527,6 +520,7 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
     // limit-plus-more (avoids the >=limit false-positive when the
     // user's total is exactly the requested cap).
     const result = await auth.get(
+      actingUser,
       `/jsonapi/views/event_instance_mine/mcp_my_events?page[limit]=${limit + 1}`
     );
 

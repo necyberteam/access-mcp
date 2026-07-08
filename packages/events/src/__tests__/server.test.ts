@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach, vi, afterEach, Mock } from "vitest";
 import { requestContextStorage, RequestContext } from "@access-mcp/shared";
 
 const mockGet = vi.fn();
-const mockSetActingUser = vi.fn();
 vi.mock("@access-mcp/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@access-mcp/shared")>();
   return {
@@ -10,7 +9,6 @@ vi.mock("@access-mcp/shared", async (importOriginal) => {
     DrupalAuthProvider: vi.fn().mockImplementation(() => ({
       ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
       get: mockGet,
-      setActingUser: mockSetActingUser,
     })),
   };
 });
@@ -741,6 +739,7 @@ describe("EventsServer", () => {
             })
         );
         expect(mockGet).toHaveBeenCalledWith(
+          "apasquale@access-ci.org",
           "/jsonapi/views/event_instance_mine/mcp_my_events?page[limit]=6"
         );
       } finally {
