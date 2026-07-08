@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi, afterEach, Mock } from "vitest";
 import { requestContextStorage, RequestContext } from "@access-mcp/shared";
 
 const mockGet = vi.fn();
+const mockDelete = vi.fn();
+const mockSetActingUser = vi.fn();
 vi.mock("@access-mcp/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@access-mcp/shared")>();
   return {
@@ -9,6 +11,8 @@ vi.mock("@access-mcp/shared", async (importOriginal) => {
     DrupalAuthProvider: vi.fn().mockImplementation(() => ({
       ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
       get: mockGet,
+      delete: mockDelete,
+      setActingUser: mockSetActingUser,
     })),
   };
 });
@@ -55,9 +59,11 @@ describe("EventsServer", () => {
     it("should provide the correct tools", () => {
       const tools = server["getTools"]();
 
-      expect(tools).toHaveLength(2);
+      expect(tools).toHaveLength(4);
       expect(tools.map((t: { name: string }) => t.name)).toContain("search_events");
       expect(tools.map((t: { name: string }) => t.name)).toContain("get_my_events");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("get_my_registrations");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("cancel_registration");
     });
 
     it("should provide the correct resources", () => {
@@ -649,6 +655,180 @@ describe("EventsServer", () => {
           params: { uri: "accessci://unknown" },
         });
       }).rejects.toThrow("Unknown resource");
+    });
+  });
+
+  describe("get_my_registrations", () => {
+    it("get_my_registrations calls the registrations endpoint with when=upcoming by default", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        // auth.get returns the response BODY directly; our endpoint returns { registrations: [...] } — mock that shape, NOT wrapped in { data: ... }.
+        mockGet.mockResolvedValue({ registrations: [{ registrant_id: "u-1", eventinstance_id: 5, event_title: "GPU", waitlist: false }] });
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        expect(mockGet).toHaveBeenCalledWith(
+          "apasquale@access-ci.org",
+          "/api/1.0/registrations?when=upcoming"
+        );
+        const text = (result.content[0] as { text: string }).text;
+        expect(text).toContain("u-1");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("get_my_registrations passes when=past through", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockResolvedValue({ registrations: [] });
+        const server = new EventsServer();
+        await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: { when: "past" } } })
+        );
+        expect(mockGet).toHaveBeenCalledWith(
+          "apasquale@access-ci.org",
+          "/api/1.0/registrations?when=past"
+        );
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("get_my_registrations handles an empty/undefined response body", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockResolvedValue(undefined);
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        const text = (result.content[0] as { text: string }).text;
+        expect(typeof text).toBe("string");
+        expect(text.length).toBeGreaterThan(0);
+        expect(text).toMatch(/no data/i);
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+  });
+
+  describe("cancel_registration", () => {
+    it("cancel_registration calls DELETE on the registration endpoint", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockDelete.mockReset();
+        mockDelete.mockResolvedValue({ status: "cancelled", registrant_id: "u-1" });
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
+        );
+        expect(mockDelete).toHaveBeenCalledWith(
+          "apasquale@access-ci.org",
+          "/api/1.0/registrations/u-1"
+        );
+        const text = (result.content[0] as { text: string }).text;
+        const parsed = JSON.parse(text);
+        expect(parsed.success).toBe(true);
+        expect(parsed.registrant_id).toBe("u-1");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("cancel_registration requires registrant_id and confirmed in the schema", () => {
+      const tool = new EventsServer()["getTools"]().find((t) => t.name === "cancel_registration");
+      const schema = tool?.inputSchema as { required?: string[] };
+      expect(schema?.required).toContain("registrant_id");
+      expect(schema?.required).toContain("confirmed");
+    });
+
+    it("cancel_registration refuses to delete without confirmed", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockDelete.mockReset();
+        const server = new EventsServer();
+        for (const args of [{ registrant_id: "u-1" }, { registrant_id: "u-1", confirmed: false }]) {
+          const result = await requestContextStorage.run(
+            { actingUser: "apasquale@access-ci.org" } as RequestContext,
+            () => server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: args } })
+          );
+          const text = (result.content[0] as { text: string }).text;
+          const parsed = JSON.parse(text);
+          expect(parsed.error).toMatch(/requires explicit confirmation/i);
+          expect(parsed.registrant_id).toBe("u-1");
+        }
+        expect(mockDelete).not.toHaveBeenCalled();
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("cancel_registration rejects truthy-but-not-true confirmed values (strict === true)", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockDelete.mockReset();
+        const server = new EventsServer();
+        // A string "true" and the number 1 are truthy but not boolean true;
+        // they must NOT slip through the confirmation gate.
+        for (const confirmed of ["true", 1]) {
+          const result = await requestContextStorage.run(
+            { actingUser: "apasquale@access-ci.org" } as RequestContext,
+            () => server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed } } })
+          );
+          const text = (result.content[0] as { text: string }).text;
+          const parsed = JSON.parse(text);
+          expect(parsed.error).toMatch(/requires explicit confirmation/i);
+          expect(parsed.registrant_id).toBe("u-1");
+        }
+        expect(mockDelete).not.toHaveBeenCalled();
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("cancel_registration errors without registrant_id and never calls DELETE", async () => {
+      mockDelete.mockReset();
+      const server = new EventsServer();
+      const result = await requestContextStorage.run(
+        { actingUser: "apasquale@access-ci.org" } as RequestContext,
+        () => server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: {} } })
+      );
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toMatch(/registrant_id is required/i);
+      expect(mockDelete).not.toHaveBeenCalled();
     });
   });
 

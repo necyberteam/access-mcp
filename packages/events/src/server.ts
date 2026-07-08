@@ -259,6 +259,42 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
           supportsFieldProjection: true,
         },
       },
+      {
+        name: "get_my_registrations",
+        description:
+          "List the events the authenticated user has registered to attend (distinct from get_my_events, which lists events they CREATED). Returns one entry per registration: registrant_id (the handle for cancel_registration), eventinstance_id, event_title, start/end dates, location, virtual_meeting_link, event_type, and waitlist status. Defaults to upcoming registrations; pass when=past or when=all to see past/all. Scoped to the authenticated acting user. Read-only.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            when: {
+              type: "string",
+              enum: ["upcoming", "past", "all"],
+              description: "Which registrations to return (default: upcoming).",
+            },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "cancel_registration",
+        description:
+          "Permanently cancel one of the authenticated user's OWN event registrations. Pass registrant_id, obtained from get_my_registrations. This cannot cancel other users' registrations — it is scoped to the authenticated acting user. Requires explicit user confirmation: show the registration's event details to the user and only set confirmed=true after they explicitly confirm cancelling THIS specific registration.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            registrant_id: {
+              type: "string",
+              description: "The registration id from get_my_registrations.",
+            },
+            confirmed: {
+              type: "boolean",
+              description:
+                "Set to true only after the user has explicitly confirmed cancellation of THIS specific registration. Required.",
+            },
+          },
+          required: ["registrant_id", "confirmed"],
+        },
+      },
     ];
   }
 
@@ -300,6 +336,10 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
           return await this.searchEvents(args as SearchEventsParams);
         case "get_my_events":
           return await this.getMyEvents(args as GetMyEventsParams);
+        case "get_my_registrations":
+          return await this.getMyRegistrations(((args as { when?: string }).when) || "upcoming");
+        case "cancel_registration":
+          return await this.cancelRegistration(args.registrant_id as string, args.confirmed as boolean);
         default:
           return this.errorResponse(`Unknown tool: ${name}`);
       }
@@ -560,6 +600,85 @@ Returns: {total, items: [{title, start_date, end_date, status, ...}]}`,
         {
           type: "text" as const,
           text: JSON.stringify(projectFields(envelope, params.fields)),
+        },
+      ],
+    };
+  }
+
+  /**
+   * Wrap a Drupal response body as an MCP text content block. Guards against a
+   * missing/undefined body: JSON.stringify(undefined) returns undefined (not a
+   * string), which produces a content[0] with no `text` field and fails MCP
+   * response validation. Emit an explicit message instead.
+   */
+  private jsonContent(data: unknown): CallToolResult {
+    const text =
+      data === undefined || data === null || data === ""
+        ? "The request succeeded but returned no data."
+        : JSON.stringify(data, null, 2);
+    return { content: [{ type: "text", text }] };
+  }
+
+  /**
+   * List the acting user's event registrations via the Drupal
+   * /api/1.0/registrations endpoint. The response body is
+   * { registrations: [...] } at the top level (no data wrapper).
+   */
+  private async getMyRegistrations(when: string): Promise<CallToolResult> {
+    const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
+    const auth = this.getDrupalAuth();
+    const body = await auth.get(
+      actingUser,
+      `/api/1.0/registrations?when=${encodeURIComponent(when)}`
+    );
+    return this.jsonContent(body); // body === { registrations: [...] }
+  }
+
+  /**
+   * Cancel one of the acting user's registrations via the Drupal
+   * DELETE /api/1.0/registrations/{registrant_id} endpoint. Ownership is
+   * enforced server-side (403 for another user's registration; 404 for an
+   * unknown id) and surfaces through the shared error handling above.
+   */
+  private async cancelRegistration(registrantId: string, confirmed?: boolean): Promise<CallToolResult> {
+    if (!registrantId || typeof registrantId !== "string") {
+      return this.errorResponse(
+        "registrant_id is required",
+        "Call get_my_registrations to find the registrant_id of the registration to cancel."
+      );
+    }
+    // Enforce confirmation parameter (destructive tool — mirrors delete_announcement).
+    // Require STRICT boolean true: truthy-but-not-true values (1, "false", {})
+    // must not slip through and trigger an irreversible cancel.
+    if (confirmed !== true) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({
+              error:
+                "Cancellation requires explicit confirmation. You must show the registration's event details to the user and get explicit confirmation before setting confirmed=true.",
+              registrant_id: registrantId,
+            }),
+          },
+        ],
+      };
+    }
+    const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
+    const auth = this.getDrupalAuth();
+    await auth.delete(
+      actingUser,
+      `/api/1.0/registrations/${encodeURIComponent(registrantId)}`
+    );
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify({
+            success: true,
+            message: `Registration ${registrantId} cancelled`,
+            registrant_id: registrantId,
+          }),
         },
       ],
     };
