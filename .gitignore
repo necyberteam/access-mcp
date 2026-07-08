@@ -46,3 +46,8 @@ __pycache__/
 
 # Superpowers planning docs
 docs/superpowers/
+
+# Presentation decks + build scratch (local, not repo content)
+docs/presentations/
+# Office lock files
+~$*
