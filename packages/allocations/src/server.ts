@@ -140,13 +140,27 @@ export class AllocationsServer extends BaseAccessServer {
     return { content: [{ type: "text", text }] };
   }
 
+  /**
+   * Drop the freshness-only `stale` flag from an rp-account body. It's a UI
+   * signal for the website's account panel (background-refresh trigger) that an
+   * LLM can't act on, is redundant with `synced_at`, and misreports when the
+   * server's freshness cache marker is evicted. `synced_at` stays as the source
+   * of truth. Account-existence state (`state`, `has_account`) is untouched.
+   */
+  private stripStale<T>(body: T): T {
+    if (body && typeof body === "object") {
+      delete (body as Record<string, unknown>).stale;
+    }
+    return body;
+  }
+
   private async getRpAccount(resourceId: string, live: boolean): Promise<CallToolResult> {
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
     const path = `/api/1.0/rp-account/by-resource/${encodeURIComponent(resourceId)}${live ? "?live=1" : ""}`;
     // Endpoint returns the account object at the top level (no data wrapper).
     const body = await auth.get(actingUser, path);
-    return this.jsonContent(body);
+    return this.jsonContent(this.stripStale(body));
   }
 
   private async getMyRpAccounts(): Promise<CallToolResult> {
@@ -154,7 +168,7 @@ export class AllocationsServer extends BaseAccessServer {
     const auth = this.getDrupalAuth();
     // Body is { accounts, state, synced_at } at the top level (no data wrapper).
     const body = await auth.get(actingUser, "/api/1.0/rp-accounts");
-    return this.jsonContent(body);
+    return this.jsonContent(this.stripStale(body));
   }
 
   protected listingLinks(

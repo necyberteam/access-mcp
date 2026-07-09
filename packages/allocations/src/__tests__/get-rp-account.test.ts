@@ -52,6 +52,16 @@ describe("get_rp_account", () => {
     expect(text).toContain("GPU hours");
   });
 
+  it("strips the freshness-only 'stale' flag from the output (synced_at is the source of truth)", async () => {
+    mockGet.mockResolvedValue({ rp_display_name: "NCSA Delta", stale: true,
+      synced_at: "2026-07-09T00:16:00+00:00", grants: [] });
+    const result = await call({ resource_id: "delta-gpu.ncsa.access-ci.org" }, "apasquale@access-ci.org");
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
+    expect(parsed).not.toHaveProperty("stale");
+    // synced_at is kept — the LLM derives freshness from it if needed.
+    expect(parsed.synced_at).toBe("2026-07-09T00:16:00+00:00");
+  });
+
   it("appends ?live=1 when live is true", async () => {
     mockGet.mockResolvedValue({ rp_display_name: "NCSA Delta", grants: [] });
     await call({ resource_id: "delta-gpu.ncsa.access-ci.org", live: true }, "apasquale@access-ci.org");
