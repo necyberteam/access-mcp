@@ -41,10 +41,10 @@ describe("get_rp_account", () => {
     // returns the account object at the TOP LEVEL (no { data: ... } wrapper).
     mockGet.mockResolvedValue({ rp_display_name: "NCSA Delta", rp_username: "alice_delta",
       grants: [{ project_balance: 5000, billable_unit: "GPU hours" }] });
-    const result = await call({ resource_id: "delta.ncsa.access-ci.org" }, "apasquale@access-ci.org");
+    const result = await call({ resource_id: "delta-gpu.ncsa.access-ci.org" }, "apasquale@access-ci.org");
     expect(mockGet).toHaveBeenCalledWith(
       "apasquale@access-ci.org",
-      "/api/1.0/rp-account/by-resource/delta.ncsa.access-ci.org"
+      "/api/1.0/rp-account/by-resource/delta-gpu.ncsa.access-ci.org"
     );
     const text = (result.content[0] as { text: string }).text;
     expect(text).toContain("alice_delta");
@@ -54,10 +54,10 @@ describe("get_rp_account", () => {
 
   it("appends ?live=1 when live is true", async () => {
     mockGet.mockResolvedValue({ rp_display_name: "NCSA Delta", grants: [] });
-    await call({ resource_id: "delta.ncsa.access-ci.org", live: true }, "apasquale@access-ci.org");
+    await call({ resource_id: "delta-gpu.ncsa.access-ci.org", live: true }, "apasquale@access-ci.org");
     expect(mockGet).toHaveBeenCalledWith(
       "apasquale@access-ci.org",
-      "/api/1.0/rp-account/by-resource/delta.ncsa.access-ci.org?live=1"
+      "/api/1.0/rp-account/by-resource/delta-gpu.ncsa.access-ci.org?live=1"
     );
   });
 
@@ -65,7 +65,7 @@ describe("get_rp_account", () => {
     // JSON.stringify(undefined) is undefined (not a string) → a content[0] with
     // no `text` field, which fails MCP response validation. Guard against it.
     mockGet.mockResolvedValue(undefined);
-    const result = await call({ resource_id: "delta.ncsa.access-ci.org" }, "apasquale@access-ci.org");
+    const result = await call({ resource_id: "delta-gpu.ncsa.access-ci.org" }, "apasquale@access-ci.org");
     const text = (result.content[0] as { text: string }).text;
     expect(typeof text).toBe("string");
     expect(text.length).toBeGreaterThan(0);
@@ -73,7 +73,7 @@ describe("get_rp_account", () => {
   });
 
   it("refuses with a clear error and no endpoint call when there is no acting user", async () => {
-    const result = await call({ resource_id: "delta.ncsa.access-ci.org" });
+    const result = await call({ resource_id: "delta-gpu.ncsa.access-ci.org" });
     expect(result.isError).toBe(true);
     const text = (result.content[0] as { text: string }).text;
     expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);

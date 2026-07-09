@@ -38,7 +38,7 @@ describe("get_my_rp_accounts", () => {
     // auth.get returns the response BODY directly; the rp-accounts endpoint
     // returns { accounts, state, synced_at } at the TOP LEVEL (no data wrapper).
     mockGet.mockResolvedValue({ state: "rows_fresh", synced_at: "2026-07-07T14:32:00Z",
-      accounts: [{ resource_id: "delta.ncsa.access-ci.org", rp_display_name: "NCSA Delta",
+      accounts: [{ resource_id: "delta-gpu.ncsa.access-ci.org", rp_display_name: "NCSA Delta",
         rp_username: "alice", grants: [{ project_balance: 5000, billable_unit: "GPU hours" }] }] });
     const result = await call("apasquale@access-ci.org");
     expect(mockGet).toHaveBeenCalledWith(
@@ -46,7 +46,7 @@ describe("get_my_rp_accounts", () => {
       "/api/1.0/rp-accounts"
     );
     const text = (result.content[0] as { text: string }).text;
-    expect(text).toContain("delta.ncsa.access-ci.org");
+    expect(text).toContain("delta-gpu.ncsa.access-ci.org");
     expect(text).toContain("5000");
     expect(text).toContain("GPU hours");
   });
