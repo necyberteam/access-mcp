@@ -37,8 +37,10 @@ describe("get_rp_account", () => {
   });
 
   it("calls the by-resource route with the resource_id, as the acting user (email/domain form)", async () => {
-    mockGet.mockResolvedValue({ data: { rp_display_name: "NCSA Delta", rp_username: "alice_delta",
-      grants: [{ project_balance: 5000, billable_unit: "GPU hours" }] } });
+    // auth.get returns the response BODY directly; the by-resource endpoint
+    // returns the account object at the TOP LEVEL (no { data: ... } wrapper).
+    mockGet.mockResolvedValue({ rp_display_name: "NCSA Delta", rp_username: "alice_delta",
+      grants: [{ project_balance: 5000, billable_unit: "GPU hours" }] });
     const result = await call({ resource_id: "delta.ncsa.access-ci.org" }, "apasquale@access-ci.org");
     expect(mockGet).toHaveBeenCalledWith(
       "apasquale@access-ci.org",
@@ -51,7 +53,7 @@ describe("get_rp_account", () => {
   });
 
   it("appends ?live=1 when live is true", async () => {
-    mockGet.mockResolvedValue({ data: {} });
+    mockGet.mockResolvedValue({ rp_display_name: "NCSA Delta", grants: [] });
     await call({ resource_id: "delta.ncsa.access-ci.org", live: true }, "apasquale@access-ci.org");
     expect(mockGet).toHaveBeenCalledWith(
       "apasquale@access-ci.org",
@@ -62,7 +64,7 @@ describe("get_rp_account", () => {
   it("never emits an undefined text block when the response body is empty", async () => {
     // JSON.stringify(undefined) is undefined (not a string) → a content[0] with
     // no `text` field, which fails MCP response validation. Guard against it.
-    mockGet.mockResolvedValue({ data: undefined });
+    mockGet.mockResolvedValue(undefined);
     const result = await call({ resource_id: "delta.ncsa.access-ci.org" }, "apasquale@access-ci.org");
     const text = (result.content[0] as { text: string }).text;
     expect(typeof text).toBe("string");
