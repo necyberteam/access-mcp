@@ -144,15 +144,17 @@ export class AllocationsServer extends BaseAccessServer {
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
     const path = `/api/1.0/rp-account/by-resource/${encodeURIComponent(resourceId)}${live ? "?live=1" : ""}`;
-    const response = await auth.get(actingUser, path);
-    return this.jsonContent(response.data);
+    // Endpoint returns the account object at the top level (no data wrapper).
+    const body = await auth.get(actingUser, path);
+    return this.jsonContent(body);
   }
 
   private async getMyRpAccounts(): Promise<CallToolResult> {
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
-    const response = await auth.get(actingUser, "/api/1.0/rp-accounts");
-    return this.jsonContent(response.data);
+    // Body is { accounts, state, synced_at } at the top level (no data wrapper).
+    const body = await auth.get(actingUser, "/api/1.0/rp-accounts");
+    return this.jsonContent(body);
   }
 
   protected listingLinks(
