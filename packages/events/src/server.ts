@@ -50,6 +50,10 @@ interface RawEvent {
   tags?: string | string[];
   video?: string;
   description?: string;
+  registration?: string;
+  registration_enabled?: boolean;
+  registration_capacity?: number;
+  registration_has_waitlist?: boolean;
   [key: string]: unknown;
 }
 
@@ -176,7 +180,7 @@ export class EventsServer extends BaseAccessServer {
       {
         name: "search_events",
         description:
-          "Search ACCESS-CI events (workshops, webinars, training). Returns future events by default. Use date='past' or start_date/end_date for historical events. Returns {total, items}.",
+          "Search ACCESS-CI events (workshops, webinars, training). Returns future events by default. Use date='past' or start_date/end_date for historical events. Returns {total, items}. Each event may carry `access_registration` (native ACCESS registration — when enabled, the user can register through ACCESS itself; manage it with get_event for live availability, register_for_event to sign up, get_my_registrations to list, and cancel_registration to cancel) and/or `registration_url` (an external link to register on the resource provider's own site — ACCESS does not manage these; direct the user to the URL). access_registration.enabled true means act via the ACCESS tools; registration_url means go offsite.",
         inputSchema: {
           type: "object",
           properties: {
@@ -473,28 +477,48 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     // Ensure response is an array (non-array means unexpected response like 403 HTML)
     const events: RawEvent[] = Array.isArray(response.data) ? response.data : [];
 
-    const enhancedEvents = events.map((event: RawEvent) => ({
-      ...event,
-      description: params.full_description
-        ? event.description
-        : compactDescription(event.description),
-      tags:
-        typeof event.tags === "string" && event.tags.trim()
-          ? event.tags.split(",").map((t: string) => t.trim())
-          : Array.isArray(event.tags)
-            ? event.tags
-            : [],
-      duration_hours: event.end_date
-        ? Math.round(
-            (new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) /
-              3600000
-          )
-        : null,
-      starts_in_hours: Math.max(
-        0,
-        Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000)
-      ),
-    }));
+    const enhancedEvents = events.map((event: RawEvent) => {
+      const {
+        registration,
+        registration_enabled,
+        registration_capacity,
+        registration_has_waitlist,
+        ...rest
+      } = event;
+      return {
+        ...rest,
+        description: params.full_description
+          ? event.description
+          : compactDescription(event.description),
+        tags:
+          typeof event.tags === "string" && event.tags.trim()
+            ? event.tags.split(",").map((t: string) => t.trim())
+            : Array.isArray(event.tags)
+              ? event.tags
+              : [],
+        duration_hours: event.end_date
+          ? Math.round(
+              (new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) /
+                3600000
+            )
+          : null,
+        starts_in_hours: Math.max(
+          0,
+          Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000)
+        ),
+        // Native ACCESS registration (managed via the registration tools),
+        // distinct from the external registration_url below.
+        access_registration: registration_enabled
+          ? {
+              enabled: true,
+              capacity: registration_capacity ? registration_capacity : null,
+              has_waitlist: !!registration_has_waitlist,
+            }
+          : { enabled: false },
+        // External offsite registration link (ACCESS does not manage these).
+        registration_url: registration && registration.trim() ? registration : null,
+      };
+    });
 
     // Sort by starts_in_hours ascending so nearest events come first
     enhancedEvents.sort((a, b) => a.starts_in_hours - b.starts_in_hours);

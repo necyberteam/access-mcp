@@ -534,6 +534,39 @@ describe("EventsServer", () => {
         expect(calledUrl).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
         expect(calledUrl).toContain("f%5B1%5D=skill_level%3Abeginner");
       });
+
+      it("surfaces native access_registration and renames registration to registration_url", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: [
+            {
+              id: "9078", title: "Reg Workshop", start_date: "2026-08-01T14:00:00Z",
+              end_date: "2026-08-01T15:00:00Z", tags: "", description: "d",
+              registration: "https://sdsc.edu/register",
+              registration_enabled: true, registration_capacity: 60, registration_has_waitlist: true,
+            },
+            {
+              id: "9079", title: "Plain Event", start_date: "2026-08-02T14:00:00Z",
+              end_date: "2026-08-02T15:00:00Z", tags: "", description: "d",
+              registration: "", registration_enabled: false, registration_capacity: 0, registration_has_waitlist: false,
+            },
+          ],
+        });
+        const result = await server["handleToolCall"]({
+          method: "tools/call", params: { name: "search_events", arguments: {} },
+        });
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        const [a, b] = payload.items;
+        // Registrable event
+        expect(a.access_registration).toEqual({ enabled: true, capacity: 60, has_waitlist: true });
+        expect(a.registration_url).toBe("https://sdsc.edu/register");
+        // Non-registrable: explicit enabled:false, url null, no fabricated capacity
+        expect(b.access_registration.enabled).toBe(false);
+        expect(b.registration_url).toBeNull();
+        // The raw flat keys must NOT leak alongside the nested shape
+        expect(a).not.toHaveProperty("registration_enabled");
+        expect(a).not.toHaveProperty("registration");
+      });
     });
 
     describe("Error Handling", () => {
