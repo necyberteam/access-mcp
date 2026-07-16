@@ -190,6 +190,50 @@ export class DrupalAuthProvider {
   }
 
   /**
+   * Make an authenticated request and return the raw status + body WITHOUT
+   * throwing on non-2xx.
+   *
+   * Unlike get/post/delete (which call handleResponse and throw on non-2xx,
+   * discarding the body), this returns { status, data } straight from the
+   * resolved axios response. Callers branch on status themselves — e.g.
+   * treating a Drupal 409 as a first-class refusal and reading its flat
+   * { error, message } body. Uses application/json (not JSON:API) content type.
+   *
+   * Deliberately omits the 401/403 re-auth retry that get/post/delete have,
+   * so a 403 surfaces to the caller for its own branching.
+   */
+  async requestRaw(
+    actingUser: string,
+    method: "GET" | "POST" | "DELETE",
+    path: string,
+    data?: unknown
+  ): Promise<{ status: number; data: any }> {
+    await this.ensureAuthenticated();
+
+    const headers = this.getAuthHeaders(actingUser, {
+      "Content-Type": "application/json",
+    });
+
+    // validateStatus: () => true (set in the constructor) means every status
+    // resolves, so the raw response is always available. Branch on the verb and
+    // call the verb-specific httpClient method (get/post/delete).
+    let response: any;
+    switch (method) {
+      case "GET":
+        response = await this.httpClient.get(path, { headers });
+        break;
+      case "POST":
+        response = await this.httpClient.post(path, data, { headers });
+        break;
+      case "DELETE":
+        response = await this.httpClient.delete(path, { headers });
+        break;
+    }
+
+    return { status: response.status, data: response.data };
+  }
+
+  /**
    * Make an authenticated PATCH request to JSON:API
    */
   async patch(actingUser: string, path: string, data: any): Promise<any> {
