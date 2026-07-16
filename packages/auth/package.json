@@ -1,7 +1,8 @@
 {
   "name": "@access-mcp/auth",
   "version": "0.1.0",
-  "description": "OAuth auth service for ACCESS-CI MCP servers (CILogon proxy)",
+  "private": true,
+  "description": "OAuth auth service for ACCESS-CI MCP servers (CILogon proxy). Deployed as a singleton container (mcp.access-ci.org/auth), NOT an npm package — private to prevent accidental publish.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {

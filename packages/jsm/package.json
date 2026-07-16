@@ -1,7 +1,8 @@
 {
   "name": "@access-mcp/jsm",
   "version": "0.2.0",
-  "description": "MCP server for ACCESS Jira Service Management ticket creation",
+  "private": true,
+  "description": "MCP server for ACCESS Jira Service Management ticket creation. Deployed as a hosted container only, NOT an npm package — files into real ACCESS JSM via a service-key-gated proxy not meant for third-party self-hosting; private to prevent accidental publish.",
   "type": "module",
   "main": "dist/index.js",
   "bin": {
