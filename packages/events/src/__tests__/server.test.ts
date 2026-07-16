@@ -3,6 +3,7 @@ import { requestContextStorage, RequestContext } from "@access-mcp/shared";
 
 const mockGet = vi.fn();
 const mockDelete = vi.fn();
+const mockRequestRaw = vi.fn();
 const mockSetActingUser = vi.fn();
 vi.mock("@access-mcp/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@access-mcp/shared")>();
@@ -12,6 +13,7 @@ vi.mock("@access-mcp/shared", async (importOriginal) => {
       ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
       get: mockGet,
       delete: mockDelete,
+      requestRaw: mockRequestRaw,
       setActingUser: mockSetActingUser,
     })),
   };
@@ -44,6 +46,10 @@ describe("EventsServer", () => {
     });
   });
 
+  beforeEach(() => {
+    mockRequestRaw.mockReset();
+  });
+
   afterEach(() => {
     vi.clearAllMocks();
   });
@@ -59,11 +65,13 @@ describe("EventsServer", () => {
     it("should provide the correct tools", () => {
       const tools = server["getTools"]();
 
-      expect(tools).toHaveLength(4);
+      expect(tools).toHaveLength(6);
       expect(tools.map((t: { name: string }) => t.name)).toContain("search_events");
       expect(tools.map((t: { name: string }) => t.name)).toContain("get_my_events");
       expect(tools.map((t: { name: string }) => t.name)).toContain("get_my_registrations");
       expect(tools.map((t: { name: string }) => t.name)).toContain("cancel_registration");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("get_event");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("register_for_event");
     });
 
     it("should provide the correct resources", () => {
@@ -375,6 +383,37 @@ describe("EventsServer", () => {
         expect(event.starts_in_hours).toBeDefined();
       });
 
+      it("should Z-normalize start_date and end_date (parity with get_my_events/get_event)", async () => {
+        // Flat-API fixture with naive-UTC dates (no Z), matching what the
+        // /api/2.3/events endpoint actually returns.
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: [
+            {
+              id: "8504",
+              title: "OnDemand",
+              start_date: "2026-08-06T13:00:00",
+              end_date: "2026-08-06T14:00:00",
+            },
+          ],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: {},
+          },
+        });
+
+        const responseData = JSON.parse(result.content[0].text);
+        const item = responseData.items[0];
+        expect(item.start_date).toBe("2026-08-06T13:00:00Z");
+        expect(item.end_date).toBe("2026-08-06T14:00:00Z");
+        // duration_hours/starts_in_hours must still compute from the raw dates.
+        expect(item.duration_hours).toBe(1); // 13:00 to 14:00
+      });
+
       it("should parse comma-separated string tags", async () => {
         const eventsWithStringTags = [
           {
@@ -533,6 +572,39 @@ describe("EventsServer", () => {
         expect(calledUrl).toContain("end_date_relative=%2B1week");
         expect(calledUrl).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
         expect(calledUrl).toContain("f%5B1%5D=skill_level%3Abeginner");
+      });
+
+      it("surfaces native access_registration and renames registration to registration_url", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: [
+            {
+              id: "9078", title: "Reg Workshop", start_date: "2026-08-01T14:00:00Z",
+              end_date: "2026-08-01T15:00:00Z", tags: "", description: "d",
+              registration: "https://sdsc.edu/register",
+              registration_enabled: true, registration_capacity: 60, registration_has_waitlist: true,
+            },
+            {
+              id: "9079", title: "Plain Event", start_date: "2026-08-02T14:00:00Z",
+              end_date: "2026-08-02T15:00:00Z", tags: "", description: "d",
+              registration: "", registration_enabled: false, registration_capacity: 0, registration_has_waitlist: false,
+            },
+          ],
+        });
+        const result = await server["handleToolCall"]({
+          method: "tools/call", params: { name: "search_events", arguments: {} },
+        });
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        const [a, b] = payload.items;
+        // Registrable event
+        expect(a.access_registration).toEqual({ enabled: true, capacity: 60, has_waitlist: true });
+        expect(a.registration_url).toBe("https://sdsc.edu/register");
+        // Non-registrable: explicit enabled:false, url null, no fabricated capacity
+        expect(b.access_registration.enabled).toBe(false);
+        expect(b.registration_url).toBeNull();
+        // The raw flat keys must NOT leak alongside the nested shape
+        expect(a).not.toHaveProperty("registration_enabled");
+        expect(a).not.toHaveProperty("registration");
       });
     });
 
@@ -829,6 +901,238 @@ describe("EventsServer", () => {
       const text = (result.content[0] as { text: string }).text;
       expect(text).toMatch(/registrant_id is required/i);
       expect(mockDelete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("get_event", () => {
+    const withDrupalEnv = async (
+      fn: () => Promise<{ content: { text: string }[]; isError?: boolean }>
+    ) => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        return await requestContextStorage.run(
+          { actingUser: "actor@example.com" } as RequestContext,
+          fn
+        );
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    };
+
+    it("get_event returns detail and registration block", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "8504",
+          title: "OnDemand Call",
+          description: "…",
+          start_date: "2026-08-06T13:00:00Z",
+          series_id: "398",
+          registration: {
+            enabled: true,
+            capacity: 60,
+            seats_remaining: 18,
+            already_registered: false,
+          },
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "8504" } },
+        })
+      );
+      expect(mockRequestRaw).toHaveBeenCalledWith(
+        "actor@example.com",
+        "GET",
+        "/api/1.0/events/8504"
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.id).toBe("8504");
+      expect(body.registration.enabled).toBe(true);
+      expect(body.registration.seats_remaining).toBe(18);
+    });
+
+    it("get_event maps a 404 to a first-class error (no throw)", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 404,
+        data: { error: "not_found" },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "9999" } },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/No event found with id 9999/i);
+    });
+
+    it("get_event errors without an eventinstance_id and never calls the service", async () => {
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: {} },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/eventinstance_id is required/i);
+      expect(mockRequestRaw).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("register_for_event", () => {
+    const withDrupalEnv = async (
+      fn: () => Promise<{ content: { text: string }[]; isError?: boolean }>
+    ) => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        return await requestContextStorage.run(
+          { actingUser: "actor@example.com" } as RequestContext,
+          fn
+        );
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    };
+
+    it("register_for_event without confirmed returns preview and does not write", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: { preview: true, outcome_if_confirmed: "seat", seats_remaining: 18 },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "register_for_event", arguments: { eventinstance_id: "5" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.preview).toBe(true);
+      // Verify a no-write preview was requested: the tool sent confirmed:false.
+      expect(mockRequestRaw).toHaveBeenCalledWith(
+        "actor@example.com",
+        "POST",
+        "/api/1.0/events/5/register",
+        { confirmed: false }
+      );
+    });
+
+    it("register_for_event confirmed:true returns success + registrant_id", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: { success: true, status: "registered", registrant_id: "u-123" },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(mockRequestRaw).toHaveBeenCalledWith(
+        "actor@example.com",
+        "POST",
+        "/api/1.0/events/5/register",
+        { confirmed: true }
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.success).toBe(true);
+      expect(body.registrant_id).toBe("u-123");
+    });
+
+    it("register_for_event maps a 409 to a first-class refusal, not an error", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 409,
+        data: { error: "already_registered", message: "You are already registered." },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      // The key assertion: a 409 is a first-class result, NOT an errorResponse.
+      expect(result.isError).toBeUndefined();
+      const body = JSON.parse(result.content[0].text);
+      expect(body.success).toBe(false);
+      expect(body.error).toBe("already_registered");
+      expect(body.message).toBe("You are already registered.");
+    });
+
+    it("register_for_event maps a bare gate-403 (no not_permitted) to an actionable error", async () => {
+      // A 403 from the RpAccountAccess gate (identity/auth failure) has no
+      // not_permitted code — it is a genuine auth failure, not a state refusal.
+      mockRequestRaw.mockResolvedValue({
+        status: 403,
+        data: {},
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(result.isError).toBe(true); // errorResponse, not a first-class refusal
+    });
+
+    it("register_for_event maps a 404 to a first-class error", async () => {
+      mockRequestRaw.mockResolvedValue({ status: 404, data: { error: "not_found" } });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "9999", confirmed: true },
+          },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/No event found with id 9999/i);
+    });
+
+    it("register_for_event errors without an eventinstance_id and never calls the service", async () => {
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "register_for_event", arguments: {} },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/eventinstance_id is required/i);
+      expect(mockRequestRaw).not.toHaveBeenCalled();
     });
   });
 

@@ -50,6 +50,10 @@ interface RawEvent {
   tags?: string | string[];
   video?: string;
   description?: string;
+  registration?: string;
+  registration_enabled?: boolean;
+  registration_capacity?: number;
+  registration_has_waitlist?: boolean;
   [key: string]: unknown;
 }
 
@@ -176,7 +180,7 @@ export class EventsServer extends BaseAccessServer {
       {
         name: "search_events",
         description:
-          "Search ACCESS-CI events (workshops, webinars, training). Returns future events by default. Use date='past' or start_date/end_date for historical events. Returns {total, items}.",
+          "Search ACCESS-CI events (workshops, webinars, training). Returns future events by default. Use date='past' or start_date/end_date for historical events. Returns {total, items}. Each event may carry `access_registration` (native ACCESS registration — when enabled, the user can register through ACCESS itself; manage it with get_event for live availability, register_for_event to sign up, get_my_registrations to list, and cancel_registration to cancel) and/or `registration_url` (an external link to register on the resource provider's own site — ACCESS does not manage these; direct the user to the URL). access_registration.enabled true means act via the ACCESS tools; registration_url means go offsite.",
         inputSchema: {
           type: "object",
           properties: {
@@ -289,9 +293,44 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         },
       },
       {
+        name: "get_event",
+        description:
+          "Fetch one ACCESS event's full detail and LIVE registration state (seats_remaining, registration_open, and whether the acting user is already_registered). Use before register_for_event to show the user current availability. registration.enabled=false means native ACCESS registration is off; registration_url (if present) is an external offsite link ACCESS does not manage.",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            eventinstance_id: {
+              type: "string",
+              description: "The eventinstance id (from search_events `id`).",
+            },
+          },
+          required: ["eventinstance_id"],
+        },
+      },
+      {
+        name: "register_for_event",
+        description:
+          "Register the acting user for an ACCESS event via native ACCESS registration. WITHOUT `confirmed` (or confirmed:false) this returns a PREVIEW of what would happen (seat vs. waitlist) and writes NOTHING. WITH confirmed:true it registers and returns a registrant_id. NOTE: this is the OPPOSITE default of cancel_registration — here confirmed:false (or omitted) is a SAFE no-write PREVIEW, whereas in cancel_registration confirmed:false REFUSES the action; do not assume one tool's confirmed semantics from the other. Pair with get_event (live availability before registering), get_my_registrations (list the acting user's registrations), and cancel_registration (cancel one, takes the registrant_id).",
+        inputSchema: {
+          type: "object" as const,
+          properties: {
+            eventinstance_id: {
+              type: "string",
+              description: "The eventinstance id (from search_events/get_event `id`).",
+            },
+            confirmed: {
+              type: "boolean",
+              description:
+                "Omit or false for a no-write preview (seat vs. waitlist); true to actually register. This is the OPPOSITE of cancel_registration, where confirmed:false refuses.",
+            },
+          },
+          required: ["eventinstance_id"],
+        },
+      },
+      {
         name: "cancel_registration",
         description:
-          "Permanently cancel one of the authenticated user's OWN event registrations. Pass registrant_id, obtained from get_my_registrations. This cannot cancel other users' registrations — it is scoped to the authenticated acting user. Requires explicit user confirmation: show the registration's event details to the user and only set confirmed=true after they explicitly confirm cancelling THIS specific registration.",
+          "Permanently cancel one of the authenticated user's OWN event registrations. Pass registrant_id, obtained from get_my_registrations. This cannot cancel other users' registrations — it is scoped to the authenticated acting user. Requires explicit user confirmation: show the registration's event details to the user and only set confirmed=true after they explicitly confirm cancelling THIS specific registration. NOTE: here confirmed:false (or omitted) REFUSES the cancel — the opposite of register_for_event, where confirmed:false is a safe no-write preview.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -349,6 +388,13 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
           return await this.searchEvents(args as SearchEventsParams);
         case "get_my_events":
           return await this.getMyEvents(args as GetMyEventsParams);
+        case "get_event":
+          return await this.getEvent(args.eventinstance_id as string);
+        case "register_for_event":
+          return await this.registerForEvent(
+            args.eventinstance_id as string,
+            args.confirmed as boolean | undefined
+          );
         case "get_my_registrations":
           return await this.getMyRegistrations(((args as { when?: string }).when) || "upcoming");
         case "cancel_registration":
@@ -473,28 +519,55 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     // Ensure response is an array (non-array means unexpected response like 403 HTML)
     const events: RawEvent[] = Array.isArray(response.data) ? response.data : [];
 
-    const enhancedEvents = events.map((event: RawEvent) => ({
-      ...event,
-      description: params.full_description
-        ? event.description
-        : compactDescription(event.description),
-      tags:
-        typeof event.tags === "string" && event.tags.trim()
-          ? event.tags.split(",").map((t: string) => t.trim())
-          : Array.isArray(event.tags)
-            ? event.tags
-            : [],
-      duration_hours: event.end_date
-        ? Math.round(
-            (new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) /
-              3600000
-          )
-        : null,
-      starts_in_hours: Math.max(
-        0,
-        Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000)
-      ),
-    }));
+    const enhancedEvents = events.map((event: RawEvent) => {
+      const {
+        registration,
+        registration_enabled,
+        registration_capacity,
+        registration_has_waitlist,
+        ...rest
+      } = event;
+      return {
+        ...rest,
+        // Z-normalize the daterange fields so search_events matches
+        // get_my_events / get_event, which already emit Z-suffixed UTC via
+        // isoInstant. The raw event.start_date/end_date are still used below
+        // for the duration/starts computations (unaffected). Preserve the
+        // original if isoInstant returns undefined (belt and suspenders).
+        start_date: isoInstant(event.start_date) ?? event.start_date,
+        end_date: isoInstant(event.end_date) ?? event.end_date,
+        description: params.full_description
+          ? event.description
+          : compactDescription(event.description),
+        tags:
+          typeof event.tags === "string" && event.tags.trim()
+            ? event.tags.split(",").map((t: string) => t.trim())
+            : Array.isArray(event.tags)
+              ? event.tags
+              : [],
+        duration_hours: event.end_date
+          ? Math.round(
+              (new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) /
+                3600000
+            )
+          : null,
+        starts_in_hours: Math.max(
+          0,
+          Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000)
+        ),
+        // Native ACCESS registration (managed via the registration tools),
+        // distinct from the external registration_url below.
+        access_registration: registration_enabled
+          ? {
+              enabled: true,
+              capacity: registration_capacity ? registration_capacity : null,
+              has_waitlist: !!registration_has_waitlist,
+            }
+          : { enabled: false },
+        // External offsite registration link (ACCESS does not manage these).
+        registration_url: registration && registration.trim() ? registration : null,
+      };
+    });
 
     // Sort by starts_in_hours ascending so nearest events come first
     enhancedEvents.sort((a, b) => a.starts_in_hours - b.starts_in_hours);
@@ -640,6 +713,112 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         ? "The request succeeded but returned no data."
         : JSON.stringify(data, null, 2);
     return { content: [{ type: "text", text }] };
+  }
+
+  /**
+   * Fetch one event's full detail + live registration state via the Drupal
+   * GET /api/1.0/events/{eventinstance_id} route (built in Phase A). Drupal
+   * already Z-normalizes the dates and shapes the registration block, so this
+   * is a thin passthrough with error handling. Uses the non-throwing
+   * requestRaw accessor so a 404 is surfaced as a first-class error rather than
+   * a thrown exception.
+   */
+  private async getEvent(eventinstanceId: string): Promise<CallToolResult> {
+    if (!eventinstanceId || typeof eventinstanceId !== "string") {
+      return this.errorResponse(
+        "eventinstance_id is required",
+        "Pass the event `id` from search_events."
+      );
+    }
+    const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
+    const auth = this.getDrupalAuth();
+    const { status, data } = await auth.requestRaw(
+      actingUser,
+      "GET",
+      `/api/1.0/events/${encodeURIComponent(eventinstanceId)}`
+    );
+    if (status === 404) {
+      return this.errorResponse(
+        `No event found with id ${eventinstanceId}`,
+        "Check the id via search_events."
+      );
+    }
+    if (status < 200 || status >= 300) {
+      return this.errorResponse(`Events service error (${status})`, "Try again shortly.");
+    }
+    return this.jsonContent(data); // pass the Drupal detail through
+  }
+
+  /**
+   * Register the acting user for an event via the Drupal
+   * POST /api/1.0/events/{eventinstance_id}/register route (built in Phase A).
+   * Without confirmed → a no-write preview; confirmed:true → commit + registrant_id.
+   *
+   * Status branching (via the non-throwing requestRaw accessor):
+   *  - 2xx → pass the Drupal body through (preview or success shape).
+   *  - 409 → a state-based refusal (e.g. already_registered, event_full,
+   *    registration_closed). Surfaced as a FIRST-CLASS result
+   *    { success:false, error, message } with isError UNSET — NOT a thrown/error
+   *    response — so the LLM reads the refusal reason instead of an exception.
+   *    (Phase A moved not_permitted to 409, so role refusals arrive here too.)
+   *  - 403 → a genuine identity/auth failure from the RpAccountAccess gate (the
+   *    acting-user could not be resolved/authorized). This is NOT a state refusal
+   *    and must not be conflated with 409 — surface it as an actionable error.
+   *  - 404 → no such event.
+   *  - other non-2xx → generic service error.
+   */
+  private async registerForEvent(
+    eventinstanceId: string,
+    confirmed?: boolean
+  ): Promise<CallToolResult> {
+    if (!eventinstanceId || typeof eventinstanceId !== "string") {
+      return this.errorResponse(
+        "eventinstance_id is required",
+        "Pass the event `id` from search_events or get_event."
+      );
+    }
+    const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
+    const auth = this.getDrupalAuth();
+    const { status, data } = await auth.requestRaw(
+      actingUser,
+      "POST",
+      `/api/1.0/events/${encodeURIComponent(eventinstanceId)}/register`,
+      { confirmed: confirmed === true }
+    );
+
+    if (status >= 200 && status < 300) {
+      // preview or success body, passed through
+      return this.jsonContent(data);
+    }
+
+    // 409 = state-based refusal → first-class result (isError unset). Phase A
+    // returns not_permitted as 409, so role refusals also land here.
+    if (status === 409) {
+      return this.jsonContent({
+        success: false,
+        error: data?.error ?? "refused",
+        message: data?.message ?? "Registration was refused.",
+      });
+    }
+
+    // A bare 403 (no not_permitted state code) is an identity/auth failure from
+    // the acting-user gate, not a state refusal — never conflate it with 409.
+    if (status === 403) {
+      return this.errorResponse(
+        "Not authorized to register — your acting-user identity could not be resolved or authorized.",
+        data?.message ??
+          "Confirm the X-Acting-User identity and the mcp_service credentials."
+      );
+    }
+
+    if (status === 404) {
+      return this.errorResponse(
+        `No event found with id ${eventinstanceId}`,
+        "Check the id via search_events."
+      );
+    }
+
+    return this.errorResponse(`Events service error (${status})`, "Try again shortly.");
   }
 
   /**
