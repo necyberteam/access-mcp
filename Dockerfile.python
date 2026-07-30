@@ -9,14 +9,23 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Install uv (used to install the LOCKED dependency set, not a fresh resolve)
+RUN pip install --no-cache-dir uv
+
 # Copy Python package
 COPY packages/xdmod-mcp-data/ .
 
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash mcp
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -e .
+# Install Python dependencies from the committed lockfile.
+# `uv sync --frozen` installs exactly the versions pinned in uv.lock (mcp 1.28.1),
+# so a rebuild can never silently pull a newer/breaking release the way
+# `pip install -e .` did (it re-resolved `mcp>=1.26.0` and pulled the breaking
+# mcp 2.0.0, which removed lowlevel.Server.list_tools() and crash-looped the
+# container). Keep the app on PATH by also installing the project itself.
+ENV UV_PROJECT_ENVIRONMENT=/usr/local
+RUN uv sync --frozen --no-dev --inexact
 
 # Change to non-root user
 USER mcp
