@@ -213,8 +213,13 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - DRUPAL_API_URL=${DRUPAL_API_URL:-https://support.access-ci.org}
-      - DRUPAL_USERNAME=${DRUPAL_USERNAME}
-      - DRUPAL_PASSWORD=${DRUPAL_PASSWORD}
+      # Drupal account holding the mcp_service role (required for the
+      # X-Acting-User header get_event/register_for_event send — same gate as
+      # get_rp_account). The generic ${DRUPAL_USERNAME} resolves to the mcp_bot
+      # account, which lacks the mcp_service role and gets 403 from the
+      # acting-user gate; use the mcp_service-role account like allocations.
+      - DRUPAL_USERNAME=${MCP_SERVICE_DRUPAL_USERNAME}
+      - DRUPAL_PASSWORD=${MCP_SERVICE_DRUPAL_PASSWORD}
       - MCP_API_KEY=${MCP_API_KEY}
       - MCP_PATH_PREFIX=/events
       - OAUTH_VERIFY_URL=http://mcp-auth:3000/verify
