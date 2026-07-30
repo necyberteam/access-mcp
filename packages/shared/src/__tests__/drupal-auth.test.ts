@@ -73,6 +73,73 @@ describe("DrupalAuthProvider per-call acting user", () => {
     }
   });
 
+  it("requestRaw returns status and body on 409 without throwing", async () => {
+    const p = newProvider();
+    // Login is the default post mock; make the NEXT post (the verb call) a 409.
+    post.mockResolvedValueOnce(LOGIN_OK).mockResolvedValueOnce({
+      status: 409,
+      data: { error: "already_registered", message: "You are already registered." },
+    });
+    const res = await p.requestRaw(
+      "actor@access-ci.org",
+      "POST",
+      "/api/1.0/events/5/register",
+      { confirmed: true }
+    );
+    expect(res.status).toBe(409);
+    expect(res.data.error).toBe("already_registered");
+    expect(res.data.message).toBe("You are already registered.");
+    // Acting user must be forwarded exactly as post/delete do.
+    const cfg = post.mock.calls.at(-1)![2]; // post(path, data, config) → config is 3rd arg
+    expect(cfg.headers["X-Acting-User"]).toBe("actor@access-ci.org");
+    expect(cfg.headers["Content-Type"]).toBe("application/json");
+  });
+
+  it("requestRaw returns status and body on a 2xx GET without throwing", async () => {
+    const p = newProvider();
+    get.mockResolvedValue({ status: 200, data: { id: "8504", title: "OnDemand" } });
+    const res = await p.requestRaw("actor@access-ci.org", "GET", "/api/1.0/events/8504");
+    expect(res.status).toBe(200);
+    expect(res.data.id).toBe("8504");
+    const cfg = get.mock.calls.at(-1)![1]; // get(path, config) → config is 2nd arg
+    expect(cfg.headers["X-Acting-User"]).toBe("actor@access-ci.org");
+  });
+
+  it("requestRaw returns status and body on a 2xx POST without throwing", async () => {
+    const p = newProvider();
+    post.mockResolvedValueOnce(LOGIN_OK).mockResolvedValueOnce({
+      status: 200,
+      data: { success: true, status: "registered", registrant_id: "u-123" },
+    });
+    const res = await p.requestRaw(
+      "actor@access-ci.org",
+      "POST",
+      "/api/1.0/events/5/register",
+      { confirmed: true }
+    );
+    expect(res.status).toBe(200);
+    expect(res.data.success).toBe(true);
+    expect(res.data.registrant_id).toBe("u-123");
+  });
+
+  it("requestRaw does NOT auto-retry on a 403 (caller branches on status)", async () => {
+    const p = newProvider();
+    await p.ensureAuthenticated(); // log in up front so post is only the verb call
+    post.mockResolvedValueOnce({
+      status: 403,
+      data: { message: "X-Acting-User did not resolve to an active user." },
+    });
+    const res = await p.requestRaw(
+      "actor@access-ci.org",
+      "POST",
+      "/api/1.0/events/5/register",
+      { confirmed: true }
+    );
+    expect(res.status).toBe(403);
+    // Exactly one verb POST — no re-auth retry (login post happened in ensureAuthenticated).
+    expect(post.mock.calls.length).toBe(2); // 1 login + 1 verb, no retry
+  });
+
   it("does not bleed acting users across interleaved concurrent calls (issue #13)", async () => {
     const p = newProvider();
     await p.ensureAuthenticated(); // log in up front so the interleave is GET-only, not a login race
