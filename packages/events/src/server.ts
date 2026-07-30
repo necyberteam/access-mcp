@@ -51,9 +51,14 @@ interface RawEvent {
   video?: string;
   description?: string;
   registration?: string;
-  registration_enabled?: boolean;
-  registration_capacity?: number;
-  registration_has_waitlist?: boolean;
+  // The flat /api/2.3/events API serializes Drupal boolean fields as the
+  // strings 'Yes'/'No' and numeric fields as strings ('0'/'11'), so these
+  // arrive as strings in practice. Typed permissively and parsed at the map
+  // (see parseDrupalBool / access_registration below) — do NOT treat the raw
+  // value as a JS truthiness test, since Boolean('No') === true.
+  registration_enabled?: string | boolean | number;
+  registration_capacity?: string | number;
+  registration_has_waitlist?: string | boolean | number;
   [key: string]: unknown;
 }
 
@@ -89,6 +94,21 @@ export function compactDescription(
     .trim();
   if (stripped.length <= maxChars) return stripped;
   return stripped.slice(0, maxChars).trimEnd() + "…";
+}
+
+/**
+ * Parse a Drupal boolean value that may arrive as a string. The flat
+ * /api/2.3/events API renders boolean fields as the strings 'Yes'/'No'
+ * (not JS booleans), so a naive `Boolean(value)` is wrong — Boolean('No')
+ * is `true`. Treats 'yes'/'true'/'1'/true/1 as true; everything else
+ * ('no'/'false'/'0'/''/false/0/null/undefined) as false. Mirrors the
+ * jsm server's Yes/No convention.
+ */
+export function parseDrupalBool(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  const val = String(value ?? "").trim().toLowerCase();
+  return val === "yes" || val === "true" || val === "1";
 }
 
 export class EventsServer extends BaseAccessServer {
@@ -556,12 +576,18 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
           Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000)
         ),
         // Native ACCESS registration (managed via the registration tools),
-        // distinct from the external registration_url below.
-        access_registration: registration_enabled
+        // distinct from the external registration_url below. The flat API
+        // sends these as Drupal strings ('Yes'/'No', '0'/'11'), so parse
+        // rather than testing raw truthiness (Boolean('No') === true).
+        access_registration: parseDrupalBool(registration_enabled)
           ? {
               enabled: true,
-              capacity: registration_capacity ? registration_capacity : null,
-              has_waitlist: !!registration_has_waitlist,
+              // capacity 0 means unlimited → null; also NaN/absent → null.
+              capacity: (() => {
+                const n = parseInt(String(registration_capacity), 10);
+                return Number.isNaN(n) || n === 0 ? null : n;
+              })(),
+              has_waitlist: parseDrupalBool(registration_has_waitlist),
             }
           : { enabled: false },
         // External offsite registration link (ACCESS does not manage these).

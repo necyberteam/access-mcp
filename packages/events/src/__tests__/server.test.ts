@@ -574,6 +574,9 @@ describe("EventsServer", () => {
         expect(calledUrl).toContain("f%5B1%5D=skill_level%3Abeginner");
       });
 
+      // The flat /api/2.3/events API serializes Drupal boolean fields as the
+      // STRINGS 'Yes'/'No' and numeric fields as strings ('0'/'60'), NOT JS
+      // booleans/numbers. These fixtures use that real production shape.
       it("surfaces native access_registration and renames registration to registration_url", async () => {
         mockHttpClient.get.mockResolvedValue({
           status: 200,
@@ -582,12 +585,12 @@ describe("EventsServer", () => {
               id: "9078", title: "Reg Workshop", start_date: "2026-08-01T14:00:00Z",
               end_date: "2026-08-01T15:00:00Z", tags: "", description: "d",
               registration: "https://sdsc.edu/register",
-              registration_enabled: true, registration_capacity: 60, registration_has_waitlist: true,
+              registration_enabled: "Yes", registration_capacity: "60", registration_has_waitlist: "Yes",
             },
             {
               id: "9079", title: "Plain Event", start_date: "2026-08-02T14:00:00Z",
               end_date: "2026-08-02T15:00:00Z", tags: "", description: "d",
-              registration: "", registration_enabled: false, registration_capacity: 0, registration_has_waitlist: false,
+              registration: "", registration_enabled: "No", registration_capacity: "0", registration_has_waitlist: "No",
             },
           ],
         });
@@ -596,15 +599,59 @@ describe("EventsServer", () => {
         });
         const payload = JSON.parse((result.content[0] as { text: string }).text);
         const [a, b] = payload.items;
-        // Registrable event
+        // Registrable event: capacity is a NUMBER, not the string "60"
         expect(a.access_registration).toEqual({ enabled: true, capacity: 60, has_waitlist: true });
         expect(a.registration_url).toBe("https://sdsc.edu/register");
-        // Non-registrable: explicit enabled:false, url null, no fabricated capacity
-        expect(b.access_registration.enabled).toBe(false);
+        // Non-registrable: 'No' must parse to enabled:false, url null, no fabricated capacity
+        expect(b.access_registration).toEqual({ enabled: false });
         expect(b.registration_url).toBeNull();
         // The raw flat keys must NOT leak alongside the nested shape
         expect(a).not.toHaveProperty("registration_enabled");
         expect(a).not.toHaveProperty("registration");
+      });
+
+      it("treats the string 'No' as not-enabled (the real /api/2.3 shape, not a JS boolean)", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: [
+            {
+              id: "1", title: "Offsite Event", start_date: "2026-08-01T14:00:00Z",
+              end_date: "2026-08-01T15:00:00Z", tags: "", description: "d",
+              registration: "https://offsite.example/register",
+              // Every event on live prod comes back like this for non-native events.
+              registration_enabled: "No", registration_capacity: "0", registration_has_waitlist: "No",
+            },
+          ],
+        });
+        const result = await server["handleToolCall"]({
+          method: "tools/call", params: { name: "search_events", arguments: {} },
+        });
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        const [e] = payload.items;
+        // Boolean('No') === true would (wrongly) make this enabled:true with
+        // has_waitlist:true and capacity "0". The string parser must fix all three.
+        expect(e.access_registration).toEqual({ enabled: false });
+      });
+
+      it("parses capacity 0 (unlimited) as null even when enabled", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: [
+            {
+              id: "2", title: "Unlimited Workshop", start_date: "2026-08-01T14:00:00Z",
+              end_date: "2026-08-01T15:00:00Z", tags: "", description: "d",
+              registration: "",
+              registration_enabled: "Yes", registration_capacity: "0", registration_has_waitlist: "No",
+            },
+          ],
+        });
+        const result = await server["handleToolCall"]({
+          method: "tools/call", params: { name: "search_events", arguments: {} },
+        });
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        const [e] = payload.items;
+        // capacity '0' means unlimited → null (not the string "0", not the number 0)
+        expect(e.access_registration).toEqual({ enabled: true, capacity: null, has_waitlist: false });
       });
     });
 
