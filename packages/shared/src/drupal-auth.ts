@@ -33,6 +33,14 @@ export class DrupalAuthProvider {
       baseURL: this.baseUrl,
       timeout: 30000,
       validateStatus: () => true,
+      // Do NOT follow redirects. A stale/invalid session makes Drupal 302 to
+      // CILogon; if axios follows it, the CILogon login page HTML comes back as
+      // a fake 200 and leaks into the tool result as content[0].text. Keeping
+      // maxRedirects:0 preserves the 3xx status so callers surface a structured
+      // auth error instead. Login (/user/login?_format=json) and the JSON API
+      // endpoints respond directly (no redirect), so this affects only the
+      // auth-failure bounce.
+      maxRedirects: 0,
       ...(isLocalDev && {
         httpsAgent: new https.Agent({ rejectUnauthorized: false }),
       }),

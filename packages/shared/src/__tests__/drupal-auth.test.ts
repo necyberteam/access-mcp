@@ -5,8 +5,9 @@ const post = vi.fn();
 const get = vi.fn();
 const del = vi.fn();
 const patch = vi.fn();
+const create = vi.fn((_cfg?: unknown) => ({ post, get, delete: del, patch }));
 vi.mock("axios", () => ({
-  default: { create: () => ({ post, get, delete: del, patch }) },
+  default: { create: (cfg: unknown) => create(cfg) },
 }));
 
 import { DrupalAuthProvider } from "../drupal-auth.js";
@@ -23,8 +24,19 @@ function newProvider() {
 
 describe("DrupalAuthProvider per-call acting user", () => {
   beforeEach(() => {
-    post.mockReset(); get.mockReset(); del.mockReset(); patch.mockReset();
+    post.mockReset(); get.mockReset(); del.mockReset(); patch.mockReset(); create.mockClear();
     post.mockResolvedValue(LOGIN_OK); // default: login succeeds
+  });
+
+  it("creates the axios client with maxRedirects:0 so an auth 302 to CILogon is not followed", () => {
+    // Root cause of the CILogon-HTML-as-tool-result bug: without maxRedirects:0,
+    // axios follows Drupal's 302 auth redirect to CILogon and returns the login
+    // page HTML as a fake 200. Stopping redirects keeps the 3xx status so the
+    // caller surfaces a structured error instead of leaking the login page.
+    newProvider();
+    expect(create).toHaveBeenCalled();
+    const cfg = create.mock.calls[0]?.[0] as { maxRedirects?: number };
+    expect(cfg.maxRedirects).toBe(0);
   });
 
   it("getAuthHeaders puts the actingUser argument in X-Acting-User", async () => {
