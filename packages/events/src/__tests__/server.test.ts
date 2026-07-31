@@ -1027,6 +1027,25 @@ describe("EventsServer", () => {
       expect(result.content[0].text).toMatch(/No event found with id 9999/i);
     });
 
+    it("get_event maps a redirect (stale session) to an auth-expired error, not raw HTML", async () => {
+      // A stale session makes Drupal 3xx-redirect to CILogon; with maxRedirects:0
+      // the client returns the 3xx (not a followed-to-HTML fake 200). The tool must
+      // surface a clear auth error, never the login page.
+      mockRequestRaw.mockResolvedValue({
+        status: 307,
+        data: "<!DOCTYPE html><html>…redirect…</html>",
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "9174" } },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/authentication|session|re-authenticate/i);
+      expect(result.content[0].text).not.toMatch(/DOCTYPE|<html/i);
+    });
+
     it("get_event errors without an eventinstance_id and never calls the service", async () => {
       const result = await withDrupalEnv(() =>
         server["handleToolCall"]({

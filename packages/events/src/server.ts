@@ -769,10 +769,29 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         "Check the id via search_events."
       );
     }
+    const authError = this.authRedirectError(status);
+    if (authError) return authError;
     if (status < 200 || status >= 300) {
       return this.errorResponse(`Events service error (${status})`, "Try again shortly.");
     }
     return this.jsonContent(data); // pass the Drupal detail through
+  }
+
+  /**
+   * A 3xx from an authenticated Drupal request means the session was rejected and
+   * Drupal is redirecting to the CILogon login page (maxRedirects:0 keeps it a 3xx
+   * rather than following it and returning the login HTML). Surface a clear auth
+   * error instead of a generic "service error" so the agent/user knows to
+   * re-authenticate. Returns null for non-redirect statuses.
+   */
+  private authRedirectError(status: number): CallToolResult | null {
+    if (status >= 300 && status < 400) {
+      return this.errorResponse(
+        "Authentication required: your ACCESS session may have expired.",
+        "Re-authenticate the ACCESS connector and try again."
+      );
+    }
+    return null;
   }
 
   /**
@@ -843,6 +862,9 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         "Check the id via search_events."
       );
     }
+
+    const authError = this.authRedirectError(status);
+    if (authError) return authError;
 
     return this.errorResponse(`Events service error (${status})`, "Try again shortly.");
   }
