@@ -743,7 +743,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
 
   /**
    * Fetch one event's full detail + live registration state via the Drupal
-   * GET /api/1.0/events/{eventinstance_id} route (built in Phase A). Drupal
+   * GET /api/2.3/events/{eventinstance_id} route. Drupal
    * already Z-normalizes the dates and shapes the registration block, so this
    * is a thin passthrough with error handling. Uses the non-throwing
    * requestRaw accessor so a 404 is surfaced as a first-class error rather than
@@ -761,7 +761,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     const { status, data } = await auth.requestRaw(
       actingUser,
       "GET",
-      `/api/1.0/events/${encodeURIComponent(eventinstanceId)}`
+      `/api/2.3/events/${encodeURIComponent(eventinstanceId)}`
     );
     if (status === 404) {
       return this.errorResponse(
@@ -796,7 +796,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
 
   /**
    * Register the acting user for an event via the Drupal
-   * POST /api/1.0/events/{eventinstance_id}/register route (built in Phase A).
+   * POST /api/1.0/events/{eventinstance_id}/register route.
    * Without confirmed → a no-write preview; confirmed:true → commit + registrant_id.
    *
    * Status branching (via the non-throwing requestRaw accessor):
@@ -805,9 +805,10 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
    *    registration_closed). Surfaced as a FIRST-CLASS result
    *    { success:false, error, message } with isError UNSET — NOT a thrown/error
    *    response — so the LLM reads the refusal reason instead of an exception.
-   *    (Phase A moved not_permitted to 409, so role refusals arrive here too.)
-   *  - 403 → a genuine identity/auth failure from the RpAccountAccess gate (the
-   *    acting-user could not be resolved/authorized). This is NOT a state refusal
+   *    (The Drupal route returns not_permitted as 409, so role refusals arrive here too.)
+   *  - 403 → a genuine identity/auth failure from the acting-user gate
+   *    (ActingUserAccess / acting_user_uid resolution; the acting-user could not
+   *    be resolved/authorized). This is NOT a state refusal
    *    and must not be conflated with 409 — surface it as an actionable error.
    *  - 404 → no such event.
    *  - other non-2xx → generic service error.
@@ -836,8 +837,8 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       return this.jsonContent(data);
     }
 
-    // 409 = state-based refusal → first-class result (isError unset). Phase A
-    // returns not_permitted as 409, so role refusals also land here.
+    // 409 = state-based refusal → first-class result (isError unset). The Drupal
+    // route returns not_permitted as 409, so role refusals also land here.
     if (status === 409) {
       return this.jsonContent({
         success: false,

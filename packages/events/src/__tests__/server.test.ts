@@ -1004,7 +1004,7 @@ describe("EventsServer", () => {
       expect(mockRequestRaw).toHaveBeenCalledWith(
         "actor@example.com",
         "GET",
-        "/api/1.0/events/8504"
+        "/api/2.3/events/8504"
       );
       const body = JSON.parse(result.content[0].text);
       expect(body.id).toBe("8504");
@@ -1156,7 +1156,7 @@ describe("EventsServer", () => {
     });
 
     it("register_for_event maps a bare gate-403 (no not_permitted) to an actionable error", async () => {
-      // A 403 from the RpAccountAccess gate (identity/auth failure) has no
+      // A 403 from the ActingUserAccess gate (identity/auth failure) has no
       // not_permitted code — it is a genuine auth failure, not a state refusal.
       mockRequestRaw.mockResolvedValue({
         status: 403,
