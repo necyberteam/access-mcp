@@ -588,11 +588,11 @@ describe("AnnouncementsServer", () => {
           },
         });
 
-        // New custom controller: flat body, plain field names, POST to /api/1.0/announcements.
+        // New custom controller: flat body, plain field names, POST to /api/2.3/announcements.
         // The controller hardcodes moderation_state=draft, so the client no longer sends it.
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements",
+          "/api/2.3/announcements",
           expect.objectContaining({
             title: "Test Announcement",
             body: expect.objectContaining({
@@ -649,7 +649,7 @@ describe("AnnouncementsServer", () => {
         // Tags sent as field_tags: a flat array of UUIDs (controller resolves field_tags by uuid).
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements",
+          "/api/2.3/announcements",
           expect.objectContaining({
             field_tags: ["tag-uuid-1", "tag-uuid-2"],
           })
@@ -824,7 +824,7 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements",
+          "/api/2.3/announcements",
           expect.objectContaining({
             field_news_external_link: {
               uri: "https://example.com/resource",
@@ -857,7 +857,7 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements",
+          "/api/2.3/announcements",
           expect.objectContaining({
             field_choose_where_to_share_this: [
               "on_the_announcements_page",
@@ -916,7 +916,7 @@ describe("AnnouncementsServer", () => {
         // field_affinity_group_node by uuid — settled identifier contract).
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements",
+          "/api/2.3/announcements",
           expect.objectContaining({
             field_affinity_group_node: ["group-uuid-456"],
           })
@@ -966,10 +966,10 @@ describe("AnnouncementsServer", () => {
           },
         });
 
-        // New custom controller: flat body of only changed fields, PATCH to /api/1.0/announcements/{uuid}.
+        // New custom controller: flat body of only changed fields, PATCH to /api/2.3/announcements/{uuid}.
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements/announcement-uuid",
+          "/api/2.3/announcements/announcement-uuid",
           expect.objectContaining({
             title: "Updated Title",
           })
@@ -1005,7 +1005,7 @@ describe("AnnouncementsServer", () => {
         // (title unchanged) and no top-level summary.
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements/announcement-uuid",
+          "/api/2.3/announcements/announcement-uuid",
           { body: { summary: "New summary only" } }
         );
         const [, , patchedBody] = mockDrupalAuth.patch.mock.calls[0];
@@ -1041,7 +1041,7 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements/announcement-uuid",
+          "/api/2.3/announcements/announcement-uuid",
           expect.objectContaining({
             field_tags: ["tag-uuid-1", "tag-uuid-2"],
           })
@@ -1089,7 +1089,7 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.delete).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements/announcement-to-delete"
+          "/api/2.3/announcements/announcement-to-delete"
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
@@ -1166,7 +1166,7 @@ describe("AnnouncementsServer", () => {
         expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements/mine?limit=11"
+          "/api/2.3/announcements/mine?limit=11"
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
@@ -1191,7 +1191,7 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/api/1.0/announcements/mine?limit=26"
+          "/api/2.3/announcements/mine?limit=26"
         );
       });
 

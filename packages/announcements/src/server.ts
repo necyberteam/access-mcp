@@ -851,7 +851,7 @@ Which would you like to do?`,
     const auth = this.getDrupalAuth();
 
     // Build a FLAT request body for the custom Drupal controller at
-    // POST /api/1.0/announcements. The controller runs the write AS the acting
+    // POST /api/2.3/announcements. The controller runs the write AS the acting
     // user (per-user permissions) and json_decodes the raw body — no JSON:API
     // envelope. It hardcodes moderation_state=draft, so we do NOT send it.
     // The controller reads Drupal machine-name keys (verified against
@@ -913,7 +913,7 @@ Which would you like to do?`,
       requestBody.field_choose_where_to_share_this = this.normalizeWhereToShare(args.where_to_share);
     }
 
-    const result = await auth.post(actingUser, "/api/1.0/announcements", requestBody);
+    const result = await auth.post(actingUser, "/api/2.3/announcements", requestBody);
 
     // Controller returns a flat {success, uuid, nid, title, edit_url}.
     // Prefer the server-computed edit_url; fall back to building it from nid.
@@ -949,7 +949,7 @@ Which would you like to do?`,
     const auth = this.getDrupalAuth();
 
     // Build a FLAT body of only the changed fields for the custom controller at
-    // PATCH /api/1.0/announcements/{uuid}. The controller applies only the fields
+    // PATCH /api/2.3/announcements/{uuid}. The controller applies only the fields
     // sent (no fetch-and-preserve pre-read) and reads Drupal machine-name keys;
     // summary is NESTED in body. Body/summary are sent together as one body
     // object when either changes; the controller preserves the untouched half.
@@ -1012,7 +1012,7 @@ Which would you like to do?`,
 
     const result = await auth.patch(
       actingUser,
-      `/api/1.0/announcements/${args.uuid}`,
+      `/api/2.3/announcements/${args.uuid}`,
       requestBody
     );
 
@@ -1062,8 +1062,8 @@ Which would you like to do?`,
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
-    // Custom controller: DELETE /api/1.0/announcements/{uuid} → flat {success, uuid}
-    await auth.delete(actingUser, `/api/1.0/announcements/${args.uuid}`);
+    // Custom controller: DELETE /api/2.3/announcements/{uuid} → flat {success, uuid}
+    await auth.delete(actingUser, `/api/2.3/announcements/${args.uuid}`);
 
     return {
       content: [
@@ -1097,13 +1097,13 @@ Which would you like to do?`,
     // Fetch one extra so has_more distinguishes exact-limit from
     // limit-plus-more (avoids the >=limit false-positive when the
     // user's total is exactly the requested cap).
-    // Custom controller: GET /api/1.0/announcements/mine?limit=N → {items: [...]}.
+    // Custom controller: GET /api/2.3/announcements/mine?limit=N → {items: [...]}.
     // Each item is already in final shape: status is a STRING ("published"/"draft"),
     // summary is already HTML-stripped, edit_url is already built — pass through
     // verbatim (no boolean→string derive, no re-strip, no edit_url rebuild).
     const result = await auth.get(
       actingUser,
-      `/api/1.0/announcements/mine?limit=${limit + 1}`
+      `/api/2.3/announcements/mine?limit=${limit + 1}`
     );
 
     const fetchedItems = result.items || [];
