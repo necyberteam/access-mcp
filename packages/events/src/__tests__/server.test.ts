@@ -785,7 +785,7 @@ describe("EventsServer", () => {
         process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
         mockGet.mockReset();
         // auth.get returns the response BODY directly; our endpoint returns { registrations: [...] } — mock that shape, NOT wrapped in { data: ... }.
-        mockGet.mockResolvedValue({ registrations: [{ registrant_id: "u-1", eventinstance_id: 5, event_title: "GPU", waitlist: false }] });
+        mockGet.mockResolvedValue({ registrations: [{ registrant_id: "u-1", eventinstance_id: "5", event_title: "GPU", waitlist: false }] });
         const server = new EventsServer();
         const result = await requestContextStorage.run(
           { actingUser: "apasquale@access-ci.org" } as RequestContext,
