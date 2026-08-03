@@ -569,13 +569,11 @@ describe("AnnouncementsServer", () => {
     describe("create_announcement", () => {
       it("should create an announcement with required fields", async () => {
         mockDrupalAuth.post.mockResolvedValue({
-          data: {
-            id: "new-announcement-uuid",
-            attributes: {
-              title: "Test Announcement",
-              drupal_internal__nid: 12345,
-            },
-          },
+          success: true,
+          uuid: "new-announcement-uuid",
+          nid: 12345,
+          title: "Test Announcement",
+          edit_url: "https://test.drupal.site/node/12345/edit",
         });
 
         const result = await server["handleToolCall"]({
@@ -590,24 +588,24 @@ describe("AnnouncementsServer", () => {
           },
         });
 
+        // New custom controller: flat body, plain field names, POST to /api/2.3/announcements.
+        // The controller hardcodes moderation_state=draft, so the client no longer sends it.
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news",
+          "/api/2.3/announcements",
           expect.objectContaining({
-            data: expect.objectContaining({
-              type: "node--access_news",
-              attributes: expect.objectContaining({
-                title: "Test Announcement",
-                moderation_state: "draft",
-                body: expect.objectContaining({
-                  value: "<p>This is a test</p>",
-                  format: "basic_html",
-                  summary: "Test summary",
-                }),
-              }),
+            title: "Test Announcement",
+            body: expect.objectContaining({
+              value: "<p>This is a test</p>",
+              summary: "Test summary",
             }),
           })
         );
+        const [, , requiredBody] = mockDrupalAuth.post.mock.calls[0];
+        expect(requiredBody).not.toHaveProperty("summary");
+        const [, , postedBody] = mockDrupalAuth.post.mock.calls[0];
+        expect(postedBody).not.toHaveProperty("data");
+        expect(postedBody).not.toHaveProperty("moderation_state");
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.success).toBe(true);
@@ -625,10 +623,9 @@ describe("AnnouncementsServer", () => {
         });
 
         mockDrupalAuth.post.mockResolvedValue({
-          data: {
-            id: "new-announcement-uuid",
-            attributes: { title: "Test" },
-          },
+          success: true,
+          uuid: "new-announcement-uuid",
+          title: "Test",
         });
 
         await server["handleToolCall"]({
@@ -649,20 +646,12 @@ describe("AnnouncementsServer", () => {
           "/jsonapi/taxonomy_term/tags?page[limit]=50"
         );
 
+        // Tags sent as field_tags: a flat array of UUIDs (controller resolves field_tags by uuid).
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news",
+          "/api/2.3/announcements",
           expect.objectContaining({
-            data: expect.objectContaining({
-              relationships: expect.objectContaining({
-                field_tags: {
-                  data: [
-                    { type: "taxonomy_term--tags", id: "tag-uuid-1" },
-                    { type: "taxonomy_term--tags", id: "tag-uuid-2" },
-                  ],
-                },
-              }),
-            }),
+            field_tags: ["tag-uuid-1", "tag-uuid-2"],
           })
         );
       });
@@ -811,13 +800,10 @@ describe("AnnouncementsServer", () => {
 
       it("should create announcement with external link", async () => {
         mockDrupalAuth.post.mockResolvedValue({
-          data: {
-            id: "new-announcement-uuid",
-            attributes: {
-              title: "Test with Link",
-              drupal_internal__nid: 12345,
-            },
-          },
+          success: true,
+          uuid: "new-announcement-uuid",
+          nid: 12345,
+          title: "Test with Link",
         });
 
         await server["handleToolCall"]({
@@ -838,29 +824,22 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news",
+          "/api/2.3/announcements",
           expect.objectContaining({
-            data: expect.objectContaining({
-              attributes: expect.objectContaining({
-                field_news_external_link: {
-                  uri: "https://example.com/resource",
-                  title: "Learn more",
-                },
-              }),
-            }),
+            field_news_external_link: {
+              uri: "https://example.com/resource",
+              title: "Learn more",
+            },
           })
         );
       });
 
       it("should create announcement with where_to_share", async () => {
         mockDrupalAuth.post.mockResolvedValue({
-          data: {
-            id: "new-announcement-uuid",
-            attributes: {
-              title: "Test with sharing",
-              drupal_internal__nid: 12345,
-            },
-          },
+          success: true,
+          uuid: "new-announcement-uuid",
+          nid: 12345,
+          title: "Test with sharing",
         });
 
         await server["handleToolCall"]({
@@ -878,16 +857,12 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news",
+          "/api/2.3/announcements",
           expect.objectContaining({
-            data: expect.objectContaining({
-              attributes: expect.objectContaining({
-                field_choose_where_to_share_this: [
-                  "on_the_announcements_page",
-                  "in_the_access_support_bi_weekly_digest",
-                ],
-              }),
-            }),
+            field_choose_where_to_share_this: [
+              "on_the_announcements_page",
+              "in_the_access_support_bi_weekly_digest",
+            ],
           })
         );
       });
@@ -918,13 +893,10 @@ describe("AnnouncementsServer", () => {
         });
 
         mockDrupalAuth.post.mockResolvedValue({
-          data: {
-            id: "new-announcement-uuid",
-            attributes: {
-              title: "Test with group",
-              drupal_internal__nid: 12345,
-            },
-          },
+          success: true,
+          uuid: "new-announcement-uuid",
+          nid: 12345,
+          title: "Test with group",
         });
 
         await server["handleToolCall"]({
@@ -940,20 +912,13 @@ describe("AnnouncementsServer", () => {
           },
         });
 
+        // Affinity group sent as its resolved UUID (controller resolves
+        // field_affinity_group_node by uuid — settled identifier contract).
         expect(mockDrupalAuth.post).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news",
+          "/api/2.3/announcements",
           expect.objectContaining({
-            data: expect.objectContaining({
-              relationships: expect.objectContaining({
-                field_affinity_group_node: {
-                  data: {
-                    type: "node--affinity_group",
-                    id: "group-uuid-456",
-                  },
-                },
-              }),
-            }),
+            field_affinity_group_node: ["group-uuid-456"],
           })
         );
       });
@@ -984,10 +949,10 @@ describe("AnnouncementsServer", () => {
     describe("update_announcement", () => {
       it("should update an announcement", async () => {
         mockDrupalAuth.patch.mockResolvedValue({
-          data: {
-            id: "announcement-uuid",
-            attributes: { title: "Updated Title" },
-          },
+          success: true,
+          uuid: "announcement-uuid",
+          title: "Updated Title",
+          edit_url: "https://test.drupal.site/node/12345/edit",
         });
 
         const result = await server["handleToolCall"]({
@@ -1001,41 +966,26 @@ describe("AnnouncementsServer", () => {
           },
         });
 
+        // New custom controller: flat body of only changed fields, PATCH to /api/2.3/announcements/{uuid}.
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news/announcement-uuid",
+          "/api/2.3/announcements/announcement-uuid",
           expect.objectContaining({
-            data: expect.objectContaining({
-              id: "announcement-uuid",
-              attributes: expect.objectContaining({
-                title: "Updated Title",
-              }),
-            }),
+            title: "Updated Title",
           })
         );
+        const [, , patchedBody] = mockDrupalAuth.patch.mock.calls[0];
+        expect(patchedBody).not.toHaveProperty("data");
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.success).toBe(true);
       });
 
-      it("should preserve existing body when updating summary only", async () => {
-        // First call: fetch existing announcement
-        mockDrupalAuth.get.mockResolvedValueOnce({
-          data: {
-            attributes: {
-              body: {
-                value: "<p>Existing body content</p>",
-                summary: "Old summary",
-              },
-            },
-          },
-        });
-
+      it("should send only the summary field when updating summary only (no pre-read)", async () => {
         mockDrupalAuth.patch.mockResolvedValue({
-          data: {
-            id: "announcement-uuid",
-            attributes: { title: "Test" },
-          },
+          success: true,
+          uuid: "announcement-uuid",
+          title: "Test",
         });
 
         await server["handleToolCall"]({
@@ -1049,21 +999,18 @@ describe("AnnouncementsServer", () => {
           },
         });
 
+        // The new controller applies only the fields sent; no fetch-and-preserve pre-read.
+        expect(mockDrupalAuth.get).not.toHaveBeenCalled();
+        // Summary is nested inside body — {body: {summary}} — with no value key
+        // (title unchanged) and no top-level summary.
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news/announcement-uuid",
-          expect.objectContaining({
-            data: expect.objectContaining({
-              attributes: expect.objectContaining({
-                body: {
-                  value: "<p>Existing body content</p>",
-                  format: "basic_html",
-                  summary: "New summary only",
-                },
-              }),
-            }),
-          })
+          "/api/2.3/announcements/announcement-uuid",
+          { body: { summary: "New summary only" } }
         );
+        const [, , patchedBody] = mockDrupalAuth.patch.mock.calls[0];
+        expect(patchedBody).not.toHaveProperty("summary");
+        expect(patchedBody.body).not.toHaveProperty("value");
       });
 
       it("should update with tags", async () => {
@@ -1076,10 +1023,9 @@ describe("AnnouncementsServer", () => {
         });
 
         mockDrupalAuth.patch.mockResolvedValue({
-          data: {
-            id: "announcement-uuid",
-            attributes: { title: "Test" },
-          },
+          success: true,
+          uuid: "announcement-uuid",
+          title: "Test",
         });
 
         await server["handleToolCall"]({
@@ -1095,18 +1041,9 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.patch).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news/announcement-uuid",
+          "/api/2.3/announcements/announcement-uuid",
           expect.objectContaining({
-            data: expect.objectContaining({
-              relationships: expect.objectContaining({
-                field_tags: {
-                  data: [
-                    { type: "taxonomy_term--tags", id: "tag-uuid-1" },
-                    { type: "taxonomy_term--tags", id: "tag-uuid-2" },
-                  ],
-                },
-              }),
-            }),
+            field_tags: ["tag-uuid-1", "tag-uuid-2"],
           })
         );
       });
@@ -1134,7 +1071,10 @@ describe("AnnouncementsServer", () => {
 
     describe("delete_announcement", () => {
       it("should delete an announcement when confirmed", async () => {
-        mockDrupalAuth.delete.mockResolvedValue({});
+        mockDrupalAuth.delete.mockResolvedValue({
+          success: true,
+          uuid: "announcement-to-delete",
+        });
 
         const result = await server["handleToolCall"]({
           method: "tools/call",
@@ -1149,7 +1089,7 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.delete).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/node/access_news/announcement-to-delete"
+          "/api/2.3/announcements/announcement-to-delete"
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
@@ -1197,17 +1137,19 @@ describe("AnnouncementsServer", () => {
     });
 
     describe("get_my_announcements", () => {
-      it("should fetch announcements via views endpoint without user UUID lookup", async () => {
+      it("should fetch announcements via the mine endpoint without user UUID lookup", async () => {
         mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [
+          items: [
             {
-              id: "announcement-1",
-              attributes: {
-                title: "My First Announcement",
-                status: false,
-                created: "2024-03-15T10:00:00Z",
-                body: { value: "<p>Content</p>", summary: "Summary" },
-              },
+              uuid: "announcement-1",
+              nid: 111,
+              title: "My First Announcement",
+              status: "draft",
+              created: "2024-03-15T10:00:00Z",
+              published_date: "2024-03-15",
+              summary: "Summary",
+              tags: ["gpu", "maintenance"],
+              edit_url: "https://test.drupal.site/node/111/edit",
             },
           ],
         });
@@ -1224,17 +1166,20 @@ describe("AnnouncementsServer", () => {
         expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=11"
+          "/api/2.3/announcements/mine?limit=11"
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.items).toHaveLength(1);
         expect(responseData.items[0].title).toBe("My First Announcement");
+        // status is already a string from the controller — used verbatim.
         expect(responseData.items[0].status).toBe("draft");
+        // tags come back as english NAMES from the controller — passed through verbatim.
+        expect(responseData.items[0].tags).toEqual(["gpu", "maintenance"]);
       });
 
       it("should use default limit of 25", async () => {
-        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
+        mockDrupalAuth.get.mockResolvedValueOnce({ items: [] });
 
         await server["handleToolCall"]({
           method: "tools/call",
@@ -1246,33 +1191,32 @@ describe("AnnouncementsServer", () => {
 
         expect(mockDrupalAuth.get).toHaveBeenCalledWith(
           "testuser@access-ci.org",
-          "/jsonapi/views/mcp_my_announcements/page_1?page[limit]=26"
+          "/api/2.3/announcements/mine?limit=26"
         );
       });
 
-      it("should map published status and build edit_url from nid", async () => {
+      it("should pass through controller-computed status, summary, and edit_url verbatim", async () => {
         mockDrupalAuth.get.mockResolvedValueOnce({
-          data: [
+          items: [
             {
-              id: "ann-published",
-              attributes: {
-                title: "Published One",
-                status: true,
-                drupal_internal__nid: 999,
-                created: "2024-03-15T10:00:00Z",
-                field_published_date: "2024-03-15",
-                body: { value: "<p>Body</p>", summary: "Short summary" },
-              },
+              uuid: "ann-published",
+              nid: 999,
+              title: "Published One",
+              status: "published",
+              created: "2024-03-15T10:00:00Z",
+              published_date: "2024-03-15",
+              summary: "Short summary",
+              edit_url: "https://test.drupal.site/node/999/edit",
             },
             {
-              id: "ann-draft",
-              attributes: {
-                title: "Draft One",
-                status: false,
-                drupal_internal__nid: 1000,
-                created: "2024-03-14T10:00:00Z",
-                body: { value: "<p>Draft body</p>" },
-              },
+              uuid: "ann-draft",
+              nid: 1000,
+              title: "Draft One",
+              status: "draft",
+              created: "2024-03-14T10:00:00Z",
+              published_date: null,
+              summary: "Draft body",
+              edit_url: "https://test.drupal.site/node/1000/edit",
             },
           ],
         });
@@ -1288,7 +1232,7 @@ describe("AnnouncementsServer", () => {
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.total).toBe(2);
 
-        // Published announcement
+        // Published announcement — fields passed straight through.
         expect(responseData.items[0].uuid).toBe("ann-published");
         expect(responseData.items[0].status).toBe("published");
         expect(responseData.items[0].nid).toBe(999);
@@ -1296,15 +1240,15 @@ describe("AnnouncementsServer", () => {
         expect(responseData.items[0].published_date).toBe("2024-03-15");
         expect(responseData.items[0].summary).toBe("Short summary");
 
-        // Draft announcement — summary falls back to body text
+        // Draft announcement — status string used verbatim, summary already stripped.
         expect(responseData.items[1].uuid).toBe("ann-draft");
         expect(responseData.items[1].status).toBe("draft");
         expect(responseData.items[1].edit_url).toBe("https://test.drupal.site/node/1000/edit");
-        expect(responseData.items[1].summary).toContain("Draft body");
+        expect(responseData.items[1].summary).toBe("Draft body");
       });
 
-      it("should handle empty results from views endpoint", async () => {
-        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
+      it("should handle empty results from the mine endpoint", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({ items: [] });
 
         const result = await server["handleToolCall"]({
           method: "tools/call",
@@ -1322,7 +1266,7 @@ describe("AnnouncementsServer", () => {
       it("should use acting user from request context", async () => {
         delete process.env.ACTING_USER;
 
-        mockDrupalAuth.get.mockResolvedValueOnce({ data: [] });
+        mockDrupalAuth.get.mockResolvedValueOnce({ items: [] });
 
         const context: RequestContext = {
           actingUser: "contextuser@access-ci.org",

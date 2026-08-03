@@ -88,47 +88,8 @@ interface GetMyAnnouncementsArgs {
   fields?: string[];
 }
 
-// JSON:API request/response types for Drupal
-interface JsonApiRelationshipData {
-  type: string;
-  id: string;
-}
-
-interface JsonApiRelationship {
-  data: JsonApiRelationshipData | JsonApiRelationshipData[];
-}
-
-interface JsonApiBodyField {
-  value: string;
-  format?: string;
-  summary?: string;
-}
-
-interface JsonApiLinkField {
-  uri: string;
-  title?: string;
-}
-
-interface JsonApiRequestAttributes {
-  title?: string;
-  moderation_state?: string;
-  body?: JsonApiBodyField;
-  field_published_date?: string;
-  field_affiliation?: string;
-  field_news_external_link?: JsonApiLinkField;
-  field_where_to_share?: string[];
-  [key: string]: unknown; // Allow additional fields
-}
-
-interface JsonApiRequestBody {
-  data: {
-    type: string;
-    id?: string;
-    attributes: JsonApiRequestAttributes;
-    relationships?: Record<string, JsonApiRelationship>;
-  };
-}
-
+// JSON:API response type for Drupal (still used by get_announcement_context,
+// which reads affinity groups from a jsonapi_views display).
 interface JsonApiResourceItem {
   id: string;
   type: string;
@@ -243,7 +204,7 @@ BEFORE CALLING:
    - title (required): Clear, specific headline
    - body (required): Full content with details, dates, links. HTML supported.
    - summary (required): 1-2 sentence teaser for listings
-   - tags (required): Call suggest_tags with the body text to get tag suggestions, then include them
+   - tags (required): Call suggest_tags with the body text, then pass the returned english tag NAMES (the "name" field) as the tags array. Never pass ids or uuids.
    - affiliation (optional): "ACCESS Collaboration" or "Community" (default)
    - external_link (if relevant): URL and link text for external references
 3. IF user is a coordinator (check get_announcement_context response):
@@ -269,7 +230,7 @@ If user describes what they want conversationally:
 5. Show preview (including tags) and get confirmation
 6. Create the announcement with ALL fields including tags
 
-IMPORTANT: Always pass the tags parameter when creating. Tags from suggest_tags are tag names (strings) — pass them as the tags array.
+IMPORTANT: Always pass the tags parameter when creating. Tags are english NAMES (strings) taken verbatim from the "name" field of suggest_tags — pass them as the tags array. Never pass ids or uuids; the tool resolves names internally.
 
 PREVIEW FORMAT (show before creating):
 ---
@@ -313,7 +274,7 @@ ALWAYS display the edit_url to the user so they can review their draft in Drupal
               type: "array",
               items: { type: "string" },
               description:
-                'Tag names as strings, e.g. ["ai", "machine-learning", "gpu"]. Get these from the "name" field in suggest_tags response.',
+                'English tag NAMES as strings, e.g. ["ai", "machine-learning", "gpu"]. Take these verbatim from the "name" field of the suggest_tags response. Pass names only — never ids or any other identifier.',
             },
             affiliation: {
               type: "string",
@@ -382,7 +343,8 @@ ALWAYS display the edit_url to the user so they can review changes in Drupal.`,
             tags: {
               type: "array",
               items: { type: "string" },
-              description: "New tags - replaces ALL existing tags (only if changing)",
+              description:
+                'New tags — replaces ALL existing tags (only if changing). English tag NAMES as strings, taken verbatim from the "name" field of suggest_tags. Never pass ids or uuids.',
             },
             affinity_group: {
               type: "string",
@@ -444,7 +406,7 @@ Returns: {success, uuid}`,
         name: "get_my_announcements",
         description: `List all announcements created by the authenticated user.
 
-Returns announcements with: uuid, nid, title, status (draft/published), created date, published_date, summary, edit_url
+Returns announcements with: uuid, nid, title, status (draft/published), created date, published_date, summary, tags (english NAMES, ready to display or reuse as the tags parameter for update_announcement), edit_url
 
 Use this to:
 - Find announcement UUIDs for update/delete operations
@@ -489,7 +451,7 @@ Does NOT return tags — use suggest_tags after the user provides content.`,
       },
       {
         name: "suggest_tags",
-        description: `Suggest relevant tags for announcement content. Call this AFTER the user provides their announcement body text. Returns {tags: [{tid, name, uuid}]}. Pass the "name" values as the tags array when calling create_announcement or update_announcement.`,
+        description: `Suggest relevant tags for announcement content. Call this AFTER the user provides their announcement body text. Returns {tags: [{name, ...}]}. Use ONLY the "name" values (english words): show those names to the user and pass exactly those names as the tags array when calling create_announcement or update_announcement. Ignore any id/uuid fields — they are internal and must never be passed to create/update.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -888,65 +850,49 @@ Which would you like to do?`,
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
-    // Build the JSON:API request body
-    // Note: We don't set the uid relationship - Drupal handles author attribution
-    // based on the X-Acting-User header sent with the request
-    const requestBody: JsonApiRequestBody = {
-      data: {
-        type: "node--access_news",
-        attributes: {
-          title: args.title,
-          moderation_state: "draft", // Use content moderation workflow
-          body: {
-            value: args.body,
-            format: "basic_html",
-          },
-        },
-        relationships: {},
-      },
+    // Build a FLAT request body for the custom Drupal controller at
+    // POST /api/2.3/announcements. The controller runs the write AS the acting
+    // user (per-user permissions) and json_decodes the raw body — no JSON:API
+    // envelope. It hardcodes moderation_state=draft, so we do NOT send it.
+    // The controller reads Drupal machine-name keys (verified against
+    // AnnouncementApiController): title; body ({value, summary} or a string);
+    // field_published_date; field_affiliation; field_tags (term UUIDs);
+    // field_affinity_group_node (node UUIDs); field_news_external_link;
+    // field_choose_where_to_share_this. Summary is NESTED inside body.
+    const bodyField: { value: string; summary?: string } = { value: args.body };
+    if (args.summary) {
+      bodyField.summary = args.summary;
+    }
+    const requestBody: Record<string, unknown> = {
+      title: args.title,
+      body: bodyField,
     };
 
-    // Add optional fields
-    if (args.summary && requestBody.data.attributes.body) {
-      requestBody.data.attributes.body.summary = args.summary;
-    }
-
-    if (args.published_date) {
-      requestBody.data.attributes.field_published_date = args.published_date;
-    } else {
+    requestBody.field_published_date = args.published_date
+      ? args.published_date
       // Default to today
-      requestBody.data.attributes.field_published_date = new Date().toISOString().split("T")[0];
-    }
+      : new Date().toISOString().split("T")[0];
 
     if (args.affiliation) {
-      requestBody.data.attributes.field_affiliation = args.affiliation;
+      requestBody.field_affiliation = args.affiliation;
     }
 
-    // Look up tag UUIDs if tags provided
+    // Look up tag UUIDs if tags provided (controller resolves field_tags by uuid)
     const unmatchedTags: string[] = [];
     if (args.tags && args.tags.length > 0) {
       const { uuids: tagUuids, unmatched } = await this.resolveTagNames(actingUser, args.tags);
       unmatchedTags.push(...unmatched);
       if (tagUuids.length > 0) {
-        requestBody.data.relationships!.field_tags = {
-          data: tagUuids.map((uuid) => ({
-            type: "taxonomy_term--tags",
-            id: uuid,
-          })),
-        };
+        requestBody.field_tags = tagUuids;
       }
     }
 
-    // Look up affinity group UUID if provided
+    // Look up affinity group UUID if provided (controller resolves
+    // field_affinity_group_node by uuid — settled identifier contract)
     if (args.affinity_group) {
       const groupUuid = await this.getAffinityGroupUuid(actingUser, args.affinity_group);
       if (groupUuid) {
-        requestBody.data.relationships!.field_affinity_group_node = {
-          data: {
-            type: "node--affinity_group",
-            id: groupUuid,
-          },
-        };
+        requestBody.field_affinity_group_node = [groupUuid];
       } else {
         throw new Error(
           `Affinity group not found: ${args.affinity_group}. Use list_affinity_groups to see groups you coordinate.`
@@ -956,7 +902,7 @@ Which would you like to do?`,
 
     // Add external link if provided
     if (args.external_link) {
-      requestBody.data.attributes.field_news_external_link = {
+      requestBody.field_news_external_link = {
         uri: args.external_link.uri,
         title: args.external_link.title || "",
       };
@@ -964,19 +910,21 @@ Which would you like to do?`,
 
     // Add where to share (defaults handled by Drupal if not provided)
     if (args.where_to_share && args.where_to_share.length > 0) {
-      requestBody.data.attributes.field_choose_where_to_share_this = this.normalizeWhereToShare(
-        args.where_to_share
-      );
+      requestBody.field_choose_where_to_share_this = this.normalizeWhereToShare(args.where_to_share);
     }
 
-    const result = await auth.post(actingUser, "/jsonapi/node/access_news", requestBody);
+    const result = await auth.post(actingUser, "/api/2.3/announcements", requestBody);
 
+    // Controller returns a flat {success, uuid, nid, title, edit_url}.
+    // Prefer the server-computed edit_url; fall back to building it from nid.
+    const editUrl =
+      result.edit_url ?? `${process.env.DRUPAL_API_URL}/node/${result.nid}/edit`;
     const response: Record<string, unknown> = {
       success: true,
       message: "Announcement created (draft status)",
-      uuid: result.data?.id,
-      title: result.data?.attributes?.title,
-      edit_url: `${process.env.DRUPAL_API_URL}/node/${result.data?.attributes?.drupal_internal__nid}/edit`,
+      uuid: result.uuid,
+      title: result.title,
+      edit_url: editUrl,
     };
 
     if (unmatchedTags.length > 0) {
@@ -1000,69 +948,48 @@ Which would you like to do?`,
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
-    const requestBody: JsonApiRequestBody = {
-      data: {
-        type: "node--access_news",
-        id: args.uuid,
-        attributes: {},
-      },
-    };
+    // Build a FLAT body of only the changed fields for the custom controller at
+    // PATCH /api/2.3/announcements/{uuid}. The controller applies only the fields
+    // sent (no fetch-and-preserve pre-read) and reads Drupal machine-name keys;
+    // summary is NESTED in body. Body/summary are sent together as one body
+    // object when either changes; the controller preserves the untouched half.
+    const requestBody: Record<string, unknown> = {};
 
     // Add fields to update
     if (args.title) {
-      requestBody.data.attributes.title = args.title;
+      requestBody.title = args.title;
     }
 
-    // Handle body/summary updates
-    // Fetch existing to preserve values not being changed
-    if (args.body || args.summary) {
-      const existing = await auth.get(actingUser, `/jsonapi/node/access_news/${args.uuid}`);
-      const existingBody = existing.data?.attributes?.body?.value || "";
-      const existingSummary = existing.data?.attributes?.body?.summary || "";
-
-      requestBody.data.attributes.body = {
-        value: args.body || existingBody,
-        format: "basic_html",
-        summary: args.summary !== undefined ? args.summary : existingSummary,
-      };
+    if (args.body !== undefined || args.summary !== undefined) {
+      const bodyField: { value?: string; summary?: string } = {};
+      if (args.body !== undefined) {
+        bodyField.value = args.body;
+      }
+      if (args.summary !== undefined) {
+        bodyField.summary = args.summary;
+      }
+      requestBody.body = bodyField;
     }
-    // If neither body nor summary provided, don't include body in request at all
 
     if (args.published_date) {
-      requestBody.data.attributes.field_published_date = args.published_date;
+      requestBody.field_published_date = args.published_date;
     }
 
-    // Update tags if provided
+    // Update tags if provided (controller resolves field_tags by uuid)
     const unmatchedTags: string[] = [];
     if (args.tags && args.tags.length > 0) {
       const { uuids: tagUuids, unmatched } = await this.resolveTagNames(actingUser, args.tags);
       unmatchedTags.push(...unmatched);
       if (tagUuids.length > 0) {
-        if (!requestBody.data.relationships) {
-          requestBody.data.relationships = {};
-        }
-        requestBody.data.relationships.field_tags = {
-          data: tagUuids.map((uuid) => ({
-            type: "taxonomy_term--tags",
-            id: uuid,
-          })),
-        };
+        requestBody.field_tags = tagUuids;
       }
     }
 
-    // Update affinity group if provided
+    // Update affinity group if provided (controller resolves by uuid)
     if (args.affinity_group) {
       const groupUuid = await this.getAffinityGroupUuid(actingUser, args.affinity_group);
       if (groupUuid) {
-        if (!requestBody.data.relationships) {
-          requestBody.data.relationships = {};
-        }
-        requestBody.data.relationships.field_affinity_group_node = {
-          data: {
-            type: "node--affinity_group",
-            id: groupUuid,
-          },
-        };
+        requestBody.field_affinity_group_node = [groupUuid];
       } else {
         throw new Error(
           `Affinity group not found: ${args.affinity_group}. Use list_affinity_groups to see groups you coordinate.`
@@ -1072,7 +999,7 @@ Which would you like to do?`,
 
     // Update external link if provided
     if (args.external_link) {
-      requestBody.data.attributes.field_news_external_link = {
+      requestBody.field_news_external_link = {
         uri: args.external_link.uri,
         title: args.external_link.title || "",
       };
@@ -1080,21 +1007,22 @@ Which would you like to do?`,
 
     // Update where to share if provided
     if (args.where_to_share && args.where_to_share.length > 0) {
-      requestBody.data.attributes.field_choose_where_to_share_this = this.normalizeWhereToShare(
-        args.where_to_share
-      );
+      requestBody.field_choose_where_to_share_this = this.normalizeWhereToShare(args.where_to_share);
     }
 
-    const result = await auth.patch(actingUser, `/jsonapi/node/access_news/${args.uuid}`, requestBody);
-    const nid = result.data?.attributes?.drupal_internal__nid;
-    const baseUrl = process.env.DRUPAL_API_URL;
+    const result = await auth.patch(
+      actingUser,
+      `/api/2.3/announcements/${args.uuid}`,
+      requestBody
+    );
 
+    // Controller returns a flat {success, uuid, title, edit_url}.
     const response: Record<string, unknown> = {
       success: true,
       message: "Announcement updated",
-      uuid: result.data?.id,
-      title: result.data?.attributes?.title,
-      edit_url: nid ? `${baseUrl}/node/${nid}/edit` : null,
+      uuid: result.uuid,
+      title: result.title,
+      edit_url: result.edit_url ?? null,
     };
 
     if (unmatchedTags.length > 0) {
@@ -1134,7 +1062,8 @@ Which would you like to do?`,
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
-    await auth.delete(actingUser, `/jsonapi/node/access_news/${args.uuid}`);
+    // Custom controller: DELETE /api/2.3/announcements/{uuid} → flat {success, uuid}
+    await auth.delete(actingUser, `/api/2.3/announcements/${args.uuid}`);
 
     return {
       content: [
@@ -1168,32 +1097,42 @@ Which would you like to do?`,
     // Fetch one extra so has_more distinguishes exact-limit from
     // limit-plus-more (avoids the >=limit false-positive when the
     // user's total is exactly the requested cap).
+    // Custom controller: GET /api/2.3/announcements/mine?limit=N → {items: [...]}.
+    // Each item is already in final shape: status is a STRING ("published"/"draft"),
+    // summary is already HTML-stripped, edit_url is already built — pass through
+    // verbatim (no boolean→string derive, no re-strip, no edit_url rebuild).
     const result = await auth.get(
       actingUser,
-      `/jsonapi/views/mcp_my_announcements/page_1?page[limit]=${limit + 1}`
+      `/api/2.3/announcements/mine?limit=${limit + 1}`
     );
 
-    const baseUrl = process.env.DRUPAL_API_URL;
-    const fetchedItems = result.data || [];
+    const fetchedItems = result.items || [];
     const hasMore = fetchedItems.length > limit;
     const slicedItems = fetchedItems.slice(0, limit);
-    const announcements = slicedItems.map((item: JsonApiResourceItem) => {
-      const nid = item.attributes?.drupal_internal__nid;
-      return {
-        uuid: item.id,
-        nid,
-        title: item.attributes?.title,
-        status: item.attributes?.status ? "published" : "draft",
-        created: item.attributes?.created,
-        published_date: item.attributes?.field_published_date,
-        summary:
-          item.attributes?.body?.summary ||
-          (item.attributes?.body?.value
-            ? item.attributes.body.value.replace(/<[^>]*>/g, "").substring(0, 200) + "..."
-            : ""),
-        edit_url: nid ? `${baseUrl}/node/${nid}/edit` : null,
-      };
-    });
+    const announcements = slicedItems.map(
+      (item: {
+        uuid?: string;
+        nid?: number;
+        title?: string;
+        status?: string;
+        created?: string;
+        published_date?: string | null;
+        summary?: string;
+        // Tags are english NAMES from the controller (never ids) — pass through.
+        tags?: string[];
+        edit_url?: string | null;
+      }) => ({
+        uuid: item.uuid,
+        nid: item.nid,
+        title: item.title,
+        status: item.status,
+        created: item.created,
+        published_date: item.published_date,
+        summary: item.summary,
+        tags: item.tags ?? [],
+        edit_url: item.edit_url,
+      })
+    );
 
     const envelope = {
       total: announcements.length,
