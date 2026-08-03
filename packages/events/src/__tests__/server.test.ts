@@ -1024,6 +1024,27 @@ describe("EventsServer", () => {
       expect(body.registration.seats_remaining).toBe(18);
     });
 
+    it("get_event surfaces capacity_type/capacity/seats_remaining", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "7807",
+          title: "X",
+          registration: { enabled: true, capacity_type: "limited", capacity: 60, seats_remaining: 12 },
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "7807" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.registration.capacity_type).toBe("limited");
+      expect(body.registration.capacity).toBe(60);
+      expect(body.registration.seats_remaining).toBe(12);
+    });
+
     it("get_event computes registration_path=native and relocates the external url", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 200,
