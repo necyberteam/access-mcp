@@ -315,7 +315,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "get_event",
         description:
-          "Fetch one ACCESS event's full detail and LIVE registration state (seats_remaining, registration_open, and whether the acting user is already_registered). Use before register_for_event to show the user current availability. registration.enabled=false means native ACCESS registration is off; registration_url (if present) is an external offsite link ACCESS does not manage.",
+          "Fetch one ACCESS event's full detail and LIVE registration state (seats_remaining, registration_open, and whether the acting user is already_registered). Use before register_for_event to show the user current availability. Read the top-level registration_path to decide how to register: \"native\" means native ACCESS registration is on — use register_for_event (any external offsite link is surfaced as external_registration_url, a labeled alternative); \"external\" means native registration is off but an offsite registration_url exists — direct the user there, register_for_event does NOT apply; \"none\" means no registration is available. Before reporting seat availability, read registration.capacity_type: \"limited\" means seats_remaining is a real count, \"unlimited\" means there is no cap — do not report a seat count.",
         inputSchema: {
           type: "object" as const,
           properties: {

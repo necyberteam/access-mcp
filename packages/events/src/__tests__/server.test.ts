@@ -86,6 +86,13 @@ describe("EventsServer", () => {
       expect(myRegs.description.toLowerCase()).toContain("registered to attend");
     });
 
+    it("get_event description documents registration_path and capacity_type", () => {
+      const tools = server["getTools"]();
+      const getEvent = tools.find((t) => t.name === "get_event")!;
+      expect(getEvent.description).toContain("registration_path");
+      expect(getEvent.description).toContain("capacity_type");
+    });
+
     it("should provide the correct resources", () => {
       const resources = server["getResources"]();
 
