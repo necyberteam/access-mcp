@@ -1012,6 +1012,70 @@ describe("EventsServer", () => {
       expect(body.registration.seats_remaining).toBe(18);
     });
 
+    it("get_event computes registration_path=native and relocates the external url", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "7807",
+          title: "X",
+          registration: { enabled: true },
+          registration_url: "http://example.com/ext",
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "7807" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.registration_path).toBe("native");
+      expect(body.external_registration_url).toBe("http://example.com/ext");
+      expect(body.registration_url).toBeUndefined();
+    });
+
+    it("get_event computes registration_path=external when native is off and an external url exists", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "7808",
+          title: "Y",
+          registration: { enabled: false },
+          registration_url: "http://example.com/ext",
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "7808" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.registration_path).toBe("external");
+      expect(body.registration_url).toBe("http://example.com/ext");
+      expect(body.external_registration_url).toBeUndefined();
+    });
+
+    it("get_event computes registration_path=none when neither native nor external is available", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "7809",
+          title: "Z",
+          registration: { enabled: false },
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "7809" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.registration_path).toBe("none");
+      expect(body.external_registration_url).toBeUndefined();
+    });
+
     it("get_event maps a 404 to a first-class error (no throw)", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 404,
