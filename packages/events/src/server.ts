@@ -270,7 +270,7 @@ export class EventsServer extends BaseAccessServer {
       },
       {
         name: "get_my_events",
-        description: `Get events created by or associated with the authenticated user.
+        description: `Events the acting user CREATED or organized — NOT events they are attending. For events the user has registered to attend, use get_my_registrations instead.
 
 Returns events the user has created or is associated with, including unpublished/draft events.
 Requires authentication via X-Acting-User header or ACTING_USER environment variable.

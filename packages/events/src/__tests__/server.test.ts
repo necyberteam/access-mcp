@@ -74,6 +74,18 @@ describe("EventsServer", () => {
       expect(tools.map((t: { name: string }) => t.name)).toContain("register_for_event");
     });
 
+    it("get_my_events / get_my_registrations descriptions crisply separate created vs attending", () => {
+      const tools = server["getTools"]();
+      const myEvents = tools.find((t) => t.name === "get_my_events")!;
+      const myRegs = tools.find((t) => t.name === "get_my_registrations")!;
+      // get_my_events must point to get_my_registrations for the attending case (currently does NOT):
+      expect(myEvents.description).toContain("get_my_registrations");
+      expect(myEvents.description.toLowerCase()).toContain("created");
+      // get_my_registrations must cross-reference get_my_events (already does — keep):
+      expect(myRegs.description).toContain("get_my_events");
+      expect(myRegs.description.toLowerCase()).toContain("registered to attend");
+    });
+
     it("should provide the correct resources", () => {
       const resources = server["getResources"]();
 
