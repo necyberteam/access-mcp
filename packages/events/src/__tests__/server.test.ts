@@ -1190,10 +1190,10 @@ describe("EventsServer", () => {
       }
     };
 
-    it("register_for_event without confirmed returns preview and does not write", async () => {
+    it("register preview maps outcome_if_confirmed to the write envelope", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 200,
-        data: { preview: true, outcome_if_confirmed: "seat", seats_remaining: 18 },
+        data: { outcome_if_confirmed: "seat", already_registered: false, seats_remaining: 18 },
       });
       const result = await withDrupalEnv(() =>
         server["handleToolCall"]({
@@ -1201,8 +1201,12 @@ describe("EventsServer", () => {
           params: { name: "register_for_event", arguments: { eventinstance_id: "5" } },
         })
       );
-      const body = JSON.parse(result.content[0].text);
-      expect(body.preview).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "preview",
+        executed: false,
+        data: { outcome_if_confirmed: "seat" },
+      });
       // Verify a no-write preview was requested: the tool sent confirmed:false.
       expect(mockRequestRaw).toHaveBeenCalledWith(
         "actor@example.com",
@@ -1212,7 +1216,26 @@ describe("EventsServer", () => {
       );
     });
 
-    it("register_for_event confirmed:true returns success + registrant_id", async () => {
+    it("register preview surfaces waitlisted_count when present", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: { outcome_if_confirmed: "waitlist", already_registered: false, waitlisted_count: 3 },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "register_for_event", arguments: { eventinstance_id: "5" } },
+        })
+      );
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "preview",
+        executed: false,
+        data: { outcome_if_confirmed: "waitlist", waitlisted_count: 3 },
+      });
+    });
+
+    it("register commit registered maps to executed write envelope", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 200,
         data: { success: true, status: "registered", registrant_id: "u-123" },
@@ -1232,12 +1255,37 @@ describe("EventsServer", () => {
         "/api/1.0/events/5/register",
         { confirmed: true }
       );
-      const body = JSON.parse(result.content[0].text);
-      expect(body.success).toBe(true);
-      expect(body.registrant_id).toBe("u-123");
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "registered",
+        executed: true,
+        data: { registrant_id: "u-123" },
+      });
     });
 
-    it("register_for_event maps a 409 to a first-class refusal, not an error", async () => {
+    it("register commit waitlisted maps to executed write envelope", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: { success: true, status: "waitlisted", registrant_id: "u-2" },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "waitlisted",
+        executed: true,
+        data: { registrant_id: "u-2" },
+      });
+    });
+
+    it("register 409 already_registered is a terminal status, not an error", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 409,
         data: { error: "already_registered", message: "You are already registered." },
@@ -1251,12 +1299,49 @@ describe("EventsServer", () => {
           },
         })
       );
-      // The key assertion: a 409 is a first-class result, NOT an errorResponse.
+      // already_registered is a first-class result, NOT an errorResponse.
       expect(result.isError).toBeUndefined();
-      const body = JSON.parse(result.content[0].text);
-      expect(body.success).toBe(false);
-      expect(body.error).toBe("already_registered");
-      expect(body.message).toBe("You are already registered.");
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "already_registered",
+        executed: false,
+      });
+    });
+
+    it("register 409 event_full is an error with a code", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 409,
+        data: { error: "event_full", message: "full" },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "event_full" });
+    });
+
+    it("register 409 registration_closed is an error carrying the Drupal code", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 409,
+        data: { error: "registration_closed", message: "Registration has closed." },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "registration_closed" });
     });
 
     it("register_for_event maps a bare gate-403 (no not_permitted) to an actionable error", async () => {
@@ -1276,6 +1361,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true); // errorResponse, not a first-class refusal
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "auth_required" });
     });
 
     it("register_for_event maps a 404 to a first-class error", async () => {
@@ -1291,6 +1377,22 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/No event found with id 9999/i);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+    });
+
+    it("register_for_event maps an unexpected upstream status to upstream_error", async () => {
+      mockRequestRaw.mockResolvedValue({ status: 500, data: { error: "boom" } });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "upstream_error" });
     });
 
     it("register_for_event errors without an eventinstance_id and never calls the service", async () => {

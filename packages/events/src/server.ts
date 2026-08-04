@@ -855,18 +855,46 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     );
 
     if (status >= 200 && status < 300) {
-      // preview or success body, passed through
-      return this.jsonContent(data);
+      // Commit (confirmed:true) → Drupal returns a terminal status; preview
+      // (confirmed omitted/false) → the projected outcome, no write performed.
+      if (data?.status === "registered" || data?.status === "waitlisted") {
+        return this.writeResponse({
+          action: "register",
+          status: data.status,
+          executed: true,
+          data: { registrant_id: data.registrant_id },
+        });
+      }
+      return this.writeResponse({
+        action: "register",
+        status: "preview",
+        executed: false,
+        data: {
+          outcome_if_confirmed: data?.outcome_if_confirmed,
+          ...(data?.waitlisted_count != null && {
+            waitlisted_count: data.waitlisted_count,
+          }),
+        },
+      });
     }
 
-    // 409 = state-based refusal → first-class result (isError unset). The Drupal
-    // route returns not_permitted as 409, so role refusals also land here.
+    // 409 = state-based refusal. already_registered is a terminal, non-error
+    // status (the user already holds a seat); every other 409 code is an
+    // actionable error carrying the Drupal code. The Drupal route returns
+    // not_permitted as 409, so role refusals also arrive here.
     if (status === 409) {
-      return this.jsonContent({
-        success: false,
-        error: data?.error ?? "refused",
-        message: data?.message ?? "Registration was refused.",
-      });
+      if (data?.error === "already_registered") {
+        return this.writeResponse({
+          action: "register",
+          status: "already_registered",
+          executed: false,
+        });
+      }
+      return this.errorResponse(
+        data?.message ?? "Registration refused.",
+        "See the event's registration state via get_event.",
+        data?.error
+      );
     }
 
     // A bare 403 (no not_permitted state code) is an identity/auth failure from
@@ -874,22 +902,27 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (status === 403) {
       return this.errorResponse(
         "Not authorized to register — your acting-user identity could not be resolved or authorized.",
-        data?.message ??
-          "Confirm the X-Acting-User identity and the mcp_service credentials."
+        "Re-authenticate the ACCESS connector and try again.",
+        "auth_required"
       );
     }
 
     if (status === 404) {
       return this.errorResponse(
         `No event found with id ${eventinstanceId}`,
-        "Check the id via search_events."
+        "Check the id via search_events.",
+        "not_found"
       );
     }
 
     const authError = this.authRedirectError(status);
     if (authError) return authError;
 
-    return this.errorResponse(`Events service error (${status})`, "Try again shortly.");
+    return this.errorResponse(
+      `Events service error (${status})`,
+      "Try again shortly.",
+      "upstream_error"
+    );
   }
 
   /**
