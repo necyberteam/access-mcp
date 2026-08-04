@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, Mock } from "vitest";
 import { AnnouncementsServer } from "./server.js";
 import { DrupalAuthProvider, DrupalApiError, requestContextStorage, RequestContext } from "@access-mcp/shared";
+import { assertWriteEnvelope } from "@access-mcp/shared/testkit";
 
 // Mock the DrupalAuthProvider
 vi.mock("@access-mcp/shared", async () => {
@@ -1375,6 +1376,32 @@ describe("AnnouncementsServer", () => {
         expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);
         expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
       });
+
+      // The PREVIEW lookup (GET /mine) can itself throw. A failed list-fetch
+      // means "the lookup failed", never "your announcement is absent" — it must
+      // carry a coded upstream_error (not a bare, uncoded {error}), and never
+      // delete.
+      it("preview → a DrupalApiError on the /mine lookup maps to a coded upstream_error", async () => {
+        mockDrupalAuth.get.mockRejectedValueOnce(
+          new DrupalApiError("Drupal API error: 500 Server Error", 500, {
+            errors: [{ detail: "boom" }],
+          })
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: { uuid: "any-1", confirmed: false },
+          },
+        });
+
+        expect(result.isError).toBe(true);
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.code).toBe("upstream_error");
+        expect(responseData.code).not.toBe("not_found");
+        expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+      });
     });
 
     describe("get_my_announcements", () => {
@@ -2011,8 +2038,9 @@ describe("AnnouncementsServer", () => {
   // legacy `changed`/`success`). Plus the `executed` truth table per status.
   // ---------------------------------------------------------------------------
   describe("write-contract conformance", () => {
-    const ALLOWED_KEYS = new Set(["action", "status", "executed", "data", "warning"]);
-    const ACTIONS = new Set(["register", "cancel", "create", "update", "delete"]);
+    // Structural contract (keys/actions/no-changed/boolean-executed) is asserted
+    // by the shared assertWriteEnvelope. Only the STATUS vocabulary is per-server
+    // — announcements never emits `cancelled` (events does).
     const STATUS_VOCAB = new Set([
       "preview",
       "registered",
@@ -2022,25 +2050,8 @@ describe("AnnouncementsServer", () => {
       "updated",
       "deleted",
     ]);
-
-    /**
-     * Assert a parsed body is a conformant write envelope: exactly the allowed
-     * top-level keys (required ones present, no stray keys), a known action, and
-     * a status drawn from the shared vocabulary.
-     */
-    function assertWriteEnvelope(parsed: Record<string, unknown>) {
-      for (const key of Object.keys(parsed)) {
-        expect(ALLOWED_KEYS.has(key)).toBe(true);
-      }
-      expect(parsed).toHaveProperty("action");
-      expect(parsed).toHaveProperty("status");
-      expect(parsed).toHaveProperty("executed");
-      expect(parsed).not.toHaveProperty("changed");
-      expect(parsed).not.toHaveProperty("success");
-      expect(ACTIONS.has(parsed.action as string)).toBe(true);
-      expect(STATUS_VOCAB.has(parsed.status as string)).toBe(true);
-      expect(typeof parsed.executed).toBe("boolean");
-    }
+    const assertEnvelope = (parsed: Record<string, unknown>) =>
+      assertWriteEnvelope(parsed, STATUS_VOCAB, expect);
 
     let mockDrupalAuth: {
       ensureAuthenticated: Mock;
@@ -2095,7 +2106,7 @@ describe("AnnouncementsServer", () => {
         summary: "s",
       });
       const parsed = JSON.parse((result.content[0] as TextContent).text);
-      assertWriteEnvelope(parsed);
+      assertEnvelope(parsed);
       expect(parsed.action).toBe("create");
       expect(parsed.status).toBe("created");
       expect(parsed.executed).toBe(true);
@@ -2110,7 +2121,7 @@ describe("AnnouncementsServer", () => {
       });
       const result = await call("update_announcement", { uuid: "u-1", title: "T2" });
       const parsed = JSON.parse((result.content[0] as TextContent).text);
-      assertWriteEnvelope(parsed);
+      assertEnvelope(parsed);
       expect(parsed.action).toBe("update");
       expect(parsed.status).toBe("updated");
       expect(parsed.executed).toBe(true);
@@ -2120,7 +2131,7 @@ describe("AnnouncementsServer", () => {
       mockDrupalAuth.delete.mockResolvedValue({ success: true, uuid: "u-1" });
       const result = await call("delete_announcement", { uuid: "u-1", confirmed: true });
       const parsed = JSON.parse((result.content[0] as TextContent).text);
-      assertWriteEnvelope(parsed);
+      assertEnvelope(parsed);
       expect(parsed.action).toBe("delete");
       expect(parsed.status).toBe("deleted");
       expect(parsed.executed).toBe(true);
@@ -2134,7 +2145,7 @@ describe("AnnouncementsServer", () => {
       // Preview writes nothing.
       expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
       const parsed = JSON.parse((result.content[0] as TextContent).text);
-      assertWriteEnvelope(parsed);
+      assertEnvelope(parsed);
       expect(parsed.action).toBe("delete");
       expect(parsed.status).toBe("preview");
       expect(parsed.executed).toBe(false);

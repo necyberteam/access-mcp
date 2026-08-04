@@ -878,6 +878,10 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
           data: { registrant_id: data.registrant_id },
         });
       }
+      // The real Drupal preview body always carries outcome_if_confirmed (see the
+      // spec Ground Truth), so no guard is needed here — reading it unconditionally
+      // is safe. If it were ever absent, JSON.stringify drops the undefined key and
+      // data serializes to {}; the envelope stays conformant either way.
       return this.writeResponse({
         action: "register",
         status: "preview",
@@ -986,10 +990,30 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     // irreversible cancel. Look the registration up in the acting user's when=all
     // list so a past-dated registration still previews.
     if (confirmed !== true) {
-      const body = await auth.get(
-        actingUser,
-        `/api/1.0/registrations?when=all`
-      );
+      let body: { registrations?: Array<Record<string, unknown>> } | undefined;
+      try {
+        body = await auth.get(actingUser, `/api/1.0/registrations?when=all`);
+      } catch (error) {
+        // The preview lookup can itself fail. Carry the same machine-readable
+        // code as the execute path so callers branch identically (403→forbidden,
+        // else→upstream_error); a failed read never means the registration is
+        // absent, so it must NOT map to not_found.
+        if (error instanceof DrupalApiError) {
+          if (error.status === 403) {
+            return this.errorResponse(
+              "Not authorized to look up your registrations.",
+              "Re-authenticate the ACCESS connector and try again.",
+              "forbidden"
+            );
+          }
+          return this.errorResponse(
+            `Events service error (${error.status})`,
+            "Try again shortly.",
+            "upstream_error"
+          );
+        }
+        throw error;
+      }
       const registrations = (body?.registrations ?? []) as Array<Record<string, unknown>>;
       const row = registrations.find((r) => r.registrant_id === registrantId);
       if (!row) {

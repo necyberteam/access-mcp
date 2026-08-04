@@ -1055,10 +1055,23 @@ Which would you like to do?`,
       // so a user owning more announcements than the controller's default page
       // cap can still preview any of their own — without it, a deletable uuid
       // past the first page would wrongly read as not_found.
-      const mine = await auth.get(
-        actingUser,
-        `/api/2.3/announcements/mine?limit=1000`
-      );
+      let mine: { items?: Array<{ uuid?: string; title?: string }> };
+      try {
+        mine = await auth.get(actingUser, `/api/2.3/announcements/mine?limit=1000`);
+      } catch (error) {
+        // The preview lookup can itself fail. A failed list-fetch means the
+        // lookup failed, NOT that the announcement is absent — so carry a coded
+        // upstream_error (never not_found), matching the execute path's habit of
+        // a machine-readable code instead of a bare {error}.
+        if (error instanceof DrupalApiError) {
+          return this.errorResponse(
+            `Announcements service error (${error.status})`,
+            "Try again shortly.",
+            "upstream_error"
+          );
+        }
+        throw error;
+      }
       const item = (mine.items || []).find(
         (i: { uuid?: string }) => i.uuid === args.uuid
       );

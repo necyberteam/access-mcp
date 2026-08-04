@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach, Mock } from "vitest";
 import { requestContextStorage, RequestContext, DrupalApiError } from "@access-mcp/shared";
+import { assertWriteEnvelope } from "@access-mcp/shared/testkit";
 
 const mockGet = vi.fn();
 const mockDelete = vi.fn();
@@ -1067,6 +1068,36 @@ describe("EventsServer", () => {
       expect(mockDelete).not.toHaveBeenCalled();
       expect(mockGet).not.toHaveBeenCalled();
     });
+
+    // The PREVIEW lookup (auth.get) can itself throw. It must carry the same
+    // machine-readable code as the execute path — not bubble to a bare {error}.
+    it("preview → a 403 DrupalApiError on the lookup maps to a coded forbidden", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockGet.mockRejectedValue(new DrupalApiError("Drupal API error: 403 Forbidden", 403, { error: "forbidden" }));
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1" } } })
+      );
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.code).toBe("forbidden");
+      expect(parsed.code).not.toBe("not_found");
+      expect(mockDelete).not.toHaveBeenCalled();
+    });
+
+    it("preview → a 500 DrupalApiError on the lookup maps to a coded upstream_error", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockGet.mockRejectedValue(new DrupalApiError("Drupal API error: 500 Server Error", 500, { error: "boom" }));
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1" } } })
+      );
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.code).toBe("upstream_error");
+      expect(parsed.code).not.toBe("not_found");
+      expect(mockDelete).not.toHaveBeenCalled();
+    });
   });
 
   describe("get_event", () => {
@@ -1689,8 +1720,9 @@ describe("EventsServer", () => {
   // legacy `changed`/`success`). Plus the `executed` truth table per status.
   // ---------------------------------------------------------------------------
   describe("write-contract conformance", () => {
-    const ALLOWED_KEYS = new Set(["action", "status", "executed", "data", "warning"]);
-    const ACTIONS = new Set(["register", "cancel", "create", "update", "delete"]);
+    // Structural contract (keys/actions/no-changed/boolean-executed) is asserted
+    // by the shared assertWriteEnvelope. Only the STATUS vocabulary is per-server
+    // — events emits `cancelled` (announcements does not).
     const STATUS_VOCAB = new Set([
       "preview",
       "registered",
@@ -1701,26 +1733,8 @@ describe("EventsServer", () => {
       "updated",
       "deleted",
     ]);
-
-    /**
-     * Assert a parsed body is a conformant write envelope: exactly the allowed
-     * top-level keys (required ones present, no stray keys), a known action, and
-     * a status drawn from the shared vocabulary.
-     */
-    function assertWriteEnvelope(parsed: Record<string, unknown>) {
-      // Exactly the allowed key-set — no stray key (catches a future changed/success regression).
-      for (const key of Object.keys(parsed)) {
-        expect(ALLOWED_KEYS.has(key)).toBe(true);
-      }
-      expect(parsed).toHaveProperty("action");
-      expect(parsed).toHaveProperty("status");
-      expect(parsed).toHaveProperty("executed");
-      expect(parsed).not.toHaveProperty("changed");
-      expect(parsed).not.toHaveProperty("success");
-      expect(ACTIONS.has(parsed.action as string)).toBe(true);
-      expect(STATUS_VOCAB.has(parsed.status as string)).toBe(true);
-      expect(typeof parsed.executed).toBe("boolean");
-    }
+    const assertEnvelope = (parsed: Record<string, unknown>) =>
+      assertWriteEnvelope(parsed, STATUS_VOCAB, expect);
 
     const withDrupalEnv = async (
       fn: () => Promise<{ content: { text: string }[]; isError?: boolean }>
@@ -1805,7 +1819,7 @@ describe("EventsServer", () => {
       it(`${c.name} produces a conformant envelope`, async () => {
         const result = await dispatch(c.mockData, c.mockStatus, c.args);
         const parsed = JSON.parse(result.content[0].text);
-        assertWriteEnvelope(parsed);
+        assertEnvelope(parsed);
         expect(parsed.action).toBe("register");
         expect(parsed.status).toBe(c.status);
         // Truth table (spec §2.1 rank-5): executed matches per status. NO `changed`.
@@ -1831,7 +1845,7 @@ describe("EventsServer", () => {
         })
       );
       const parsed = JSON.parse(result.content[0].text);
-      assertWriteEnvelope(parsed);
+      assertEnvelope(parsed);
       expect(parsed.action).toBe("cancel");
       expect(parsed.status).toBe("preview");
       expect(parsed.executed).toBe(false);
@@ -1848,7 +1862,7 @@ describe("EventsServer", () => {
         })
       );
       const parsed = JSON.parse(result.content[0].text);
-      assertWriteEnvelope(parsed);
+      assertEnvelope(parsed);
       expect(parsed.action).toBe("cancel");
       expect(parsed.status).toBe("cancelled");
       expect(parsed.executed).toBe(true);
