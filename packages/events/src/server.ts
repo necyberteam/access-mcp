@@ -772,7 +772,11 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     const authError = this.authRedirectError(status);
     if (authError) return authError;
     if (status < 200 || status >= 300) {
-      return this.errorResponse(`Events service error (${status})`, "Try again shortly.");
+      return this.errorResponse(
+        `Events service error (${status})`,
+        "Try again shortly.",
+        "upstream_error"
+      );
     }
     // Compute a single top-level registration_path so a caller reads one value
     // instead of inferring intent from two peer fields (native registration vs

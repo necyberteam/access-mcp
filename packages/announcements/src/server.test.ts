@@ -1971,4 +1971,143 @@ describe("AnnouncementsServer", () => {
       expect((myTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Write-contract conformance (Phase 2, Task 5)
+  //
+  // The core guarantee of the write-contract migration: EVERY write tool emits
+  // the exact StandardWriteResponse envelope — {action, status, executed} always
+  // present, {data, warning} optional, and NO other top-level key (especially NO
+  // legacy `changed`/`success`). Plus the `executed` truth table per status.
+  // ---------------------------------------------------------------------------
+  describe("write-contract conformance", () => {
+    const ALLOWED_KEYS = new Set(["action", "status", "executed", "data", "warning"]);
+    const ACTIONS = new Set(["register", "cancel", "create", "update", "delete"]);
+    const STATUS_VOCAB = new Set([
+      "preview",
+      "registered",
+      "waitlisted",
+      "already_registered",
+      "created",
+      "updated",
+      "deleted",
+    ]);
+
+    /**
+     * Assert a parsed body is a conformant write envelope: exactly the allowed
+     * top-level keys (required ones present, no stray keys), a known action, and
+     * a status drawn from the shared vocabulary.
+     */
+    function assertWriteEnvelope(parsed: Record<string, unknown>) {
+      for (const key of Object.keys(parsed)) {
+        expect(ALLOWED_KEYS.has(key)).toBe(true);
+      }
+      expect(parsed).toHaveProperty("action");
+      expect(parsed).toHaveProperty("status");
+      expect(parsed).toHaveProperty("executed");
+      expect(parsed).not.toHaveProperty("changed");
+      expect(parsed).not.toHaveProperty("success");
+      expect(ACTIONS.has(parsed.action as string)).toBe(true);
+      expect(STATUS_VOCAB.has(parsed.status as string)).toBe(true);
+      expect(typeof parsed.executed).toBe("boolean");
+    }
+
+    let mockDrupalAuth: {
+      ensureAuthenticated: Mock;
+      getUserUuid: Mock;
+      get: Mock;
+      post: Mock;
+      patch: Mock;
+      delete: Mock;
+    };
+
+    beforeEach(() => {
+      process.env.DRUPAL_API_URL = "https://test.drupal.site";
+      process.env.DRUPAL_USERNAME = "test_user";
+      process.env.DRUPAL_PASSWORD = "test_password";
+      process.env.ACTING_USER = "testuser@access-ci.org";
+
+      mockDrupalAuth = {
+        ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
+        getUserUuid: vi.fn().mockReturnValue("user-uuid-123"),
+        get: vi.fn(),
+        post: vi.fn(),
+        patch: vi.fn(),
+        delete: vi.fn(),
+      };
+      (DrupalAuthProvider as unknown as Mock).mockImplementation(() => mockDrupalAuth);
+    });
+
+    afterEach(() => {
+      delete process.env.DRUPAL_API_URL;
+      delete process.env.DRUPAL_USERNAME;
+      delete process.env.DRUPAL_PASSWORD;
+      delete process.env.ACTING_USER;
+    });
+
+    const call = (name: string, args: Record<string, unknown>) =>
+      server["handleToolCall"]({
+        method: "tools/call",
+        params: { name, arguments: args },
+      });
+
+    it("create_announcement (created) produces a conformant envelope with executed:true", async () => {
+      mockDrupalAuth.post.mockResolvedValue({
+        success: true,
+        uuid: "u-1",
+        nid: 1,
+        title: "T",
+        edit_url: "https://test.drupal.site/node/1/edit",
+      });
+      const result = await call("create_announcement", {
+        title: "T",
+        body: "<p>b</p>",
+        summary: "s",
+      });
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      assertWriteEnvelope(parsed);
+      expect(parsed.action).toBe("create");
+      expect(parsed.status).toBe("created");
+      expect(parsed.executed).toBe(true);
+    });
+
+    it("update_announcement (updated) produces a conformant envelope with executed:true", async () => {
+      mockDrupalAuth.patch.mockResolvedValue({
+        success: true,
+        uuid: "u-1",
+        title: "T2",
+        edit_url: "https://test.drupal.site/node/1/edit",
+      });
+      const result = await call("update_announcement", { uuid: "u-1", title: "T2" });
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      assertWriteEnvelope(parsed);
+      expect(parsed.action).toBe("update");
+      expect(parsed.status).toBe("updated");
+      expect(parsed.executed).toBe(true);
+    });
+
+    it("delete_announcement (deleted) produces a conformant envelope with executed:true", async () => {
+      mockDrupalAuth.delete.mockResolvedValue({ success: true, uuid: "u-1" });
+      const result = await call("delete_announcement", { uuid: "u-1", confirmed: true });
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      assertWriteEnvelope(parsed);
+      expect(parsed.action).toBe("delete");
+      expect(parsed.status).toBe("deleted");
+      expect(parsed.executed).toBe(true);
+    });
+
+    it("delete_announcement (preview) produces a conformant envelope with executed:false", async () => {
+      mockDrupalAuth.get.mockResolvedValueOnce({
+        items: [{ uuid: "u-1", title: "My Post" }],
+      });
+      const result = await call("delete_announcement", { uuid: "u-1", confirmed: false });
+      // Preview writes nothing.
+      expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      assertWriteEnvelope(parsed);
+      expect(parsed.action).toBe("delete");
+      expect(parsed.status).toBe("preview");
+      expect(parsed.executed).toBe(false);
+    });
+  });
 });

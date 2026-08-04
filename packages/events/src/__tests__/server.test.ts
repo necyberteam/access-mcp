@@ -1150,6 +1150,19 @@ describe("EventsServer", () => {
       expect(result.content[0].text).not.toMatch(/DOCTYPE|<html/i);
     });
 
+    it("get_event maps an unexpected upstream status to a coded upstream_error", async () => {
+      mockRequestRaw.mockResolvedValue({ status: 500, data: { error: "boom" } });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "8504" } },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/Events service error \(500\)/i);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "upstream_error" });
+    });
+
     it("get_event errors without an eventinstance_id and never calls the service", async () => {
       const result = await withDrupalEnv(() =>
         server["handleToolCall"]({
@@ -1566,6 +1579,139 @@ describe("EventsServer", () => {
         else process.env.DRUPAL_PASSWORD = saved.pass;
       }
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Write-contract conformance (Phase 2, Task 5)
+  //
+  // The core guarantee of the write-contract migration: EVERY write tool emits
+  // the exact StandardWriteResponse envelope — {action, status, executed} always
+  // present, {data, warning} optional, and NO other top-level key (especially NO
+  // legacy `changed`/`success`). Plus the `executed` truth table per status.
+  // ---------------------------------------------------------------------------
+  describe("write-contract conformance", () => {
+    const ALLOWED_KEYS = new Set(["action", "status", "executed", "data", "warning"]);
+    const ACTIONS = new Set(["register", "cancel", "create", "update", "delete"]);
+    const STATUS_VOCAB = new Set([
+      "preview",
+      "registered",
+      "waitlisted",
+      "already_registered",
+      "created",
+      "updated",
+      "deleted",
+    ]);
+
+    /**
+     * Assert a parsed body is a conformant write envelope: exactly the allowed
+     * top-level keys (required ones present, no stray keys), a known action, and
+     * a status drawn from the shared vocabulary.
+     */
+    function assertWriteEnvelope(parsed: Record<string, unknown>) {
+      // Exactly the allowed key-set — no stray key (catches a future changed/success regression).
+      for (const key of Object.keys(parsed)) {
+        expect(ALLOWED_KEYS.has(key)).toBe(true);
+      }
+      expect(parsed).toHaveProperty("action");
+      expect(parsed).toHaveProperty("status");
+      expect(parsed).toHaveProperty("executed");
+      expect(parsed).not.toHaveProperty("changed");
+      expect(parsed).not.toHaveProperty("success");
+      expect(ACTIONS.has(parsed.action as string)).toBe(true);
+      expect(STATUS_VOCAB.has(parsed.status as string)).toBe(true);
+      expect(typeof parsed.executed).toBe("boolean");
+    }
+
+    const withDrupalEnv = async (
+      fn: () => Promise<{ content: { text: string }[]; isError?: boolean }>
+    ) => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        return await requestContextStorage.run(
+          { actingUser: "actor@example.com" } as RequestContext,
+          fn
+        );
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    };
+
+    const dispatch = (mockData: unknown, mockStatus: number, args: Record<string, unknown>) => {
+      mockRequestRaw.mockResolvedValue({ status: mockStatus, data: mockData });
+      return withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "register_for_event", arguments: { eventinstance_id: "5", ...args } },
+        })
+      );
+    };
+
+    // action | scenario | mock (status,data) | args | expected status/executed
+    const cases: Array<{
+      name: string;
+      mockStatus: number;
+      mockData: unknown;
+      args: Record<string, unknown>;
+      status: string;
+      executed: boolean;
+    }> = [
+      {
+        name: "register preview",
+        mockStatus: 200,
+        mockData: { outcome_if_confirmed: "seat", already_registered: false },
+        args: {},
+        status: "preview",
+        executed: false,
+      },
+      {
+        name: "register commit → registered",
+        mockStatus: 200,
+        mockData: { success: true, status: "registered", registrant_id: "u-1" },
+        args: { confirmed: true },
+        status: "registered",
+        executed: true,
+      },
+      {
+        name: "register commit → waitlisted",
+        mockStatus: 200,
+        mockData: { success: true, status: "waitlisted", registrant_id: "u-2" },
+        args: { confirmed: true },
+        status: "waitlisted",
+        executed: true,
+      },
+      {
+        name: "register 409 → already_registered",
+        mockStatus: 409,
+        mockData: { error: "already_registered", message: "You are already registered." },
+        args: { confirmed: true },
+        status: "already_registered",
+        executed: false,
+      },
+    ];
+
+    for (const c of cases) {
+      it(`${c.name} produces a conformant envelope`, async () => {
+        const result = await dispatch(c.mockData, c.mockStatus, c.args);
+        const parsed = JSON.parse(result.content[0].text);
+        assertWriteEnvelope(parsed);
+        expect(parsed.action).toBe("register");
+        expect(parsed.status).toBe(c.status);
+        // Truth table (spec §2.1 rank-5): executed matches per status. NO `changed`.
+        expect(parsed.executed).toBe(c.executed);
+      });
+    }
   });
 });
 
