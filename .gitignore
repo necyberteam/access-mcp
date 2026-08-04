@@ -47,6 +47,9 @@ __pycache__/
 # Superpowers planning docs
 docs/superpowers/
 
+# Subagent-driven-development ledger scratch (repo-root, local only)
+.superpowers/
+
 # Presentation decks + build scratch (local, not repo content)
 docs/presentations/
 # Office lock files
