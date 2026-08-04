@@ -6,6 +6,7 @@ import {
   Resource,
   CallToolResult,
   DrupalAuthProvider,
+  DrupalApiError,
   getRequestContext,
 } from "@access-mcp/shared";
 import {
@@ -350,7 +351,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "cancel_registration",
         description:
-          "Permanently cancel one of the authenticated user's OWN event registrations. Pass registrant_id, obtained from get_my_registrations. This cannot cancel other users' registrations — it is scoped to the authenticated acting user. Requires explicit user confirmation: show the registration's event details to the user and only set confirmed=true after they explicitly confirm cancelling THIS specific registration. NOTE: here confirmed:false (or omitted) REFUSES the cancel — the opposite of register_for_event, where confirmed:false is a safe no-write preview.",
+          "Permanently cancel one of the authenticated user's OWN event registrations. Pass registrant_id, obtained from get_my_registrations. This cannot cancel other users' registrations — it is scoped to the authenticated acting user. WITHOUT confirmed:true (confirmed:false or omitted) this returns a PREVIEW of what would be cancelled (the registration's event title and start date) and writes NOTHING — show it to the user for confirmation. WITH confirmed:true it permanently cancels the registration. Returns the write-envelope shape {action:\"cancel\", status, executed, data}: read `status` (preview | cancelled) and `executed` (true only when a cancel actually happened). status:\"preview\" means executed:false — nothing was cancelled; call again with confirmed:true to commit. An unknown registrant_id (or one that is not yours) comes back as an error with code:\"not_found\".",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -954,9 +955,21 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
 
   /**
    * Cancel one of the acting user's registrations via the Drupal
-   * DELETE /api/1.0/registrations/{registrant_id} endpoint. Ownership is
-   * enforced server-side (403 for another user's registration; 404 for an
-   * unknown id) and surfaces through the shared error handling above.
+   * DELETE /api/1.0/registrations/{registrant_id} endpoint. PREVIEW-by-default:
+   *
+   *  - confirmed !== true → a no-write PREVIEW. Looks the registration up in the
+   *    acting user's when=all registration list (when=all, NOT the default
+   *    upcoming, so a past-dated registration still previews) and returns the
+   *    write envelope {action:"cancel", status:"preview", executed:false, data:
+   *    {registrant_id, event}}. STRICT === true gates the destructive path — a
+   *    truthy-but-not-true value (1, "true") lands here, never on the delete.
+   *    An unknown registrant_id (not in the when=all list) → errorResponse
+   *    code:"not_found".
+   *  - confirmed === true → EXECUTE the DELETE. On 2xx → {action:"cancel",
+   *    status:"cancelled", executed:true, data:{registrant_id}}. auth.delete
+   *    throws DrupalApiError on non-2xx: 404 (unknown/other id) → code:"not_found",
+   *    403 (non-owner) → code:"forbidden", else → code:"upstream_error". Branches
+   *    on DrupalApiError.status structurally, never on the message string.
    */
   private async cancelRegistration(registrantId: string, confirmed?: boolean): Promise<CallToolResult> {
     if (!registrantId || typeof registrantId !== "string") {
@@ -965,40 +978,78 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         "Call get_my_registrations to find the registrant_id of the registration to cancel."
       );
     }
-    // Enforce confirmation parameter (destructive tool — mirrors delete_announcement).
-    // Require STRICT boolean true: truthy-but-not-true values (1, "false", {})
-    // must not slip through and trigger an irreversible cancel.
-    if (confirmed !== true) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({
-              error:
-                "Cancellation requires explicit confirmation. You must show the registration's event details to the user and get explicit confirmation before setting confirmed=true.",
-              registrant_id: registrantId,
-            }),
-          },
-        ],
-      };
-    }
     const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
     const auth = this.getDrupalAuth();
-    await auth.delete(
-      actingUser,
-      `/api/1.0/registrations/${encodeURIComponent(registrantId)}`
-    );
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify({
-            success: true,
-            message: `Registration ${registrantId} cancelled`,
-            registrant_id: registrantId,
-          }),
+
+    // PREVIEW (confirmed omitted/false, or any truthy-but-not-true value). Never
+    // deletes — enforce STRICT boolean true so 1/"true"/{} cannot trigger an
+    // irreversible cancel. Look the registration up in the acting user's when=all
+    // list so a past-dated registration still previews.
+    if (confirmed !== true) {
+      const body = await auth.get(
+        actingUser,
+        `/api/1.0/registrations?when=all`
+      );
+      const registrations = (body?.registrations ?? []) as Array<Record<string, unknown>>;
+      const row = registrations.find((r) => r.registrant_id === registrantId);
+      if (!row) {
+        return this.errorResponse(
+          "Registration not found (or not yours).",
+          "Call get_my_registrations to find your registrant_id.",
+          "not_found"
+        );
+      }
+      return this.writeResponse({
+        action: "cancel",
+        status: "preview",
+        executed: false,
+        data: {
+          registrant_id: registrantId,
+          event: {
+            title: row.event_title,
+            start_date: row.start_date,
+          },
         },
-      ],
-    };
+      });
+    }
+
+    // EXECUTE the destructive cancel. auth.delete throws DrupalApiError on
+    // non-2xx; branch on the structured .status (not the message string).
+    try {
+      await auth.delete(
+        actingUser,
+        `/api/1.0/registrations/${encodeURIComponent(registrantId)}`
+      );
+    } catch (error) {
+      if (error instanceof DrupalApiError) {
+        if (error.status === 404) {
+          return this.errorResponse(
+            "Registration not found (or not yours).",
+            "Call get_my_registrations to find your registrant_id.",
+            "not_found"
+          );
+        }
+        if (error.status === 403) {
+          return this.errorResponse(
+            "Not authorized to cancel this registration — you may only cancel your own.",
+            "Confirm the registrant_id belongs to you via get_my_registrations.",
+            "forbidden"
+          );
+        }
+        return this.errorResponse(
+          `Events service error (${error.status})`,
+          "Try again shortly.",
+          "upstream_error"
+        );
+      }
+      throw error;
+    }
+
+    return this.writeResponse({
+      action: "cancel",
+      status: "cancelled",
+      executed: true,
+      data: { registrant_id: registrantId },
+    });
   }
 }
