@@ -608,8 +608,79 @@ describe("AnnouncementsServer", () => {
         expect(postedBody).not.toHaveProperty("moderation_state");
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.success).toBe(true);
-        expect(responseData.uuid).toBe("new-announcement-uuid");
+        expect(responseData).toMatchObject({
+          action: "create",
+          status: "created",
+          executed: true,
+          data: {
+            uuid: "new-announcement-uuid",
+            nid: 12345,
+            title: "Test Announcement",
+            edit_url: "https://test.drupal.site/node/12345/edit",
+            moderation_state: "draft",
+          },
+        });
+        expect(responseData).not.toHaveProperty("success");
+      });
+
+      it("should build edit_url from nid when the controller omits it", async () => {
+        mockDrupalAuth.post.mockResolvedValue({
+          success: true,
+          uuid: "new-announcement-uuid",
+          nid: 999,
+          title: "No Edit URL",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "create_announcement",
+            arguments: {
+              title: "No Edit URL",
+              body: "Body",
+              summary: "Summary",
+            },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.data.edit_url).toBe(
+          "https://test.drupal.site/node/999/edit"
+        );
+      });
+
+      it("should surface skipped tags as a top-level warning in the envelope", async () => {
+        // Tag cache resolves only one of the two requested names.
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          data: [{ id: "tag-uuid-1", attributes: { name: "gpu" } }],
+          links: {},
+        });
+
+        mockDrupalAuth.post.mockResolvedValue({
+          success: true,
+          uuid: "new-announcement-uuid",
+          nid: 12345,
+          title: "Tagged",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "create_announcement",
+            arguments: {
+              title: "Tagged",
+              body: "Body",
+              summary: "Summary",
+              tags: ["gpu", "nonexistent-tag"],
+            },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.action).toBe("create");
+        expect(responseData.status).toBe("created");
+        expect(responseData.warning).toContain("were skipped");
+        expect(responseData.warning).toContain("nonexistent-tag");
       });
 
       it("should look up tags by name when provided (with caching)", async () => {
@@ -726,7 +797,11 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.success).toBe(true);
+        expect(responseData).toMatchObject({
+          action: "create",
+          status: "created",
+          executed: true,
+        });
       });
 
       it("should prefer request context actingUser over env var", async () => {
@@ -978,7 +1053,70 @@ describe("AnnouncementsServer", () => {
         expect(patchedBody).not.toHaveProperty("data");
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.success).toBe(true);
+        expect(responseData).toMatchObject({
+          action: "update",
+          status: "updated",
+          executed: true,
+          data: {
+            uuid: "announcement-uuid",
+            title: "Updated Title",
+            edit_url: "https://test.drupal.site/node/12345/edit",
+          },
+        });
+        expect(responseData).not.toHaveProperty("success");
+        // Update never carries nid in its data.
+        expect(responseData.data).not.toHaveProperty("nid");
+      });
+
+      it("should leave edit_url null when the controller omits it (no nid fallback)", async () => {
+        mockDrupalAuth.patch.mockResolvedValue({
+          success: true,
+          uuid: "announcement-uuid",
+          title: "Updated Title",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "update_announcement",
+            arguments: {
+              uuid: "announcement-uuid",
+              title: "Updated Title",
+            },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.data.edit_url).toBeNull();
+      });
+
+      it("should surface skipped tags as a top-level warning in the envelope", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          data: [{ id: "tag-uuid-1", attributes: { name: "gpu" } }],
+        });
+
+        mockDrupalAuth.patch.mockResolvedValue({
+          success: true,
+          uuid: "announcement-uuid",
+          title: "Test",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "update_announcement",
+            arguments: {
+              uuid: "announcement-uuid",
+              tags: ["gpu", "nonexistent-tag"],
+            },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.action).toBe("update");
+        expect(responseData.status).toBe("updated");
+        expect(responseData.warning).toContain("were skipped");
+        expect(responseData.warning).toContain("nonexistent-tag");
       });
 
       it("should send only the summary field when updating summary only (no pre-read)", async () => {

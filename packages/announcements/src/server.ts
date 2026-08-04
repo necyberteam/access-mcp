@@ -919,26 +919,25 @@ Which would you like to do?`,
     // Prefer the server-computed edit_url; fall back to building it from nid.
     const editUrl =
       result.edit_url ?? `${process.env.DRUPAL_API_URL}/node/${result.nid}/edit`;
-    const response: Record<string, unknown> = {
-      success: true,
-      message: "Announcement created (draft status)",
-      uuid: result.uuid,
-      title: result.title,
-      edit_url: editUrl,
-    };
 
-    if (unmatchedTags.length > 0) {
-      response.warning = `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`;
-    }
+    const warning =
+      unmatchedTags.length > 0
+        ? `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`
+        : undefined;
 
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(response),
-        },
-      ],
-    };
+    return this.writeResponse({
+      action: "create",
+      status: "created",
+      executed: true,
+      data: {
+        uuid: result.uuid,
+        nid: result.nid,
+        title: result.title,
+        edit_url: editUrl,
+        moderation_state: "draft",
+      },
+      ...(warning && { warning }),
+    });
   }
 
   /**
@@ -1017,26 +1016,23 @@ Which would you like to do?`,
     );
 
     // Controller returns a flat {success, uuid, title, edit_url}.
-    const response: Record<string, unknown> = {
-      success: true,
-      message: "Announcement updated",
-      uuid: result.uuid,
-      title: result.title,
-      edit_url: result.edit_url ?? null,
-    };
+    // Update's edit_url can be null — no nid fallback here (unlike create).
+    const warning =
+      unmatchedTags.length > 0
+        ? `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`
+        : undefined;
 
-    if (unmatchedTags.length > 0) {
-      response.warning = `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`;
-    }
-
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(response),
-        },
-      ],
-    };
+    return this.writeResponse({
+      action: "update",
+      status: "updated",
+      executed: true,
+      data: {
+        uuid: result.uuid,
+        title: result.title,
+        edit_url: result.edit_url ?? null,
+      },
+      ...(warning && { warning }),
+    });
   }
 
   /**
