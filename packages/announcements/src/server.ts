@@ -385,7 +385,7 @@ BEFORE CALLING (required for EVERY delete):
 BULK DELETES: When user asks to delete multiple announcements, confirm EACH ONE individually.
 Do NOT batch delete based on general consent. Each deletion requires its own confirmation prompt.
 
-Returns: {success, uuid}`,
+confirmed=false previews the delete (returns the title, writes nothing); confirmed=true performs it.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -1039,40 +1039,60 @@ Which would you like to do?`,
    * Delete an announcement via Drupal JSON:API
    */
   private async deleteAnnouncement(args: DeleteAnnouncementArgs): Promise<CallToolResult> {
-    // Enforce confirmation parameter
-    if (!args.confirmed) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({
-              error:
-                "Deletion requires explicit confirmation. You must show the announcement title and status to the user and get explicit confirmation before setting confirmed=true.",
-              uuid: args.uuid,
-            }),
-          },
-        ],
-      };
-    }
-
+    // Resolve the acting user first so an unauthenticated caller fails before
+    // any provider call (preview or delete).
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
-    // Custom controller: DELETE /api/2.3/announcements/{uuid} → flat {success, uuid}
-    await auth.delete(actingUser, `/api/2.3/announcements/${args.uuid}`);
+    // confirmed is REQUIRED and execute-gated on STRICT === true. Any other
+    // value (false, or a truthy-but-not-true like "true"/1) is a PREVIEW that
+    // writes NOTHING — it only reads the title so the caller can confirm.
+    if (args.confirmed !== true) {
+      // There is no single-item GET-by-uuid route; a user can only delete their
+      // OWN announcements, so the title comes from GET /announcements/mine.
+      const mine = await auth.get(actingUser, `/api/2.3/announcements/mine`);
+      const item = (mine.items || []).find(
+        (i: { uuid?: string }) => i.uuid === args.uuid
+      );
 
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify({
-            success: true,
-            message: "Announcement deleted",
-            uuid: args.uuid,
-          }),
-        },
-      ],
-    };
+      if (!item) {
+        return this.errorResponse(
+          "Announcement not found (or not yours).",
+          "Check the uuid via get_my_announcements.",
+          "not_found"
+        );
+      }
+
+      return this.writeResponse({
+        action: "delete",
+        status: "preview",
+        executed: false,
+        data: { uuid: args.uuid, title: item.title },
+      });
+    }
+
+    // Confirmed: perform the delete. Custom controller:
+    // DELETE /api/2.3/announcements/{uuid} → flat {success, uuid}.
+    try {
+      await auth.delete(actingUser, `/api/2.3/announcements/${args.uuid}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes("404")) {
+        return this.errorResponse(
+          "Announcement not found (or not yours).",
+          "Check the uuid via get_my_announcements.",
+          "not_found"
+        );
+      }
+      throw error;
+    }
+
+    return this.writeResponse({
+      action: "delete",
+      status: "deleted",
+      executed: true,
+      data: { uuid: args.uuid },
+    });
   }
 
   /**

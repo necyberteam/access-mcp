@@ -1231,27 +1231,118 @@ describe("AnnouncementsServer", () => {
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.success).toBe(true);
-        expect(responseData.uuid).toBe("announcement-to-delete");
+        expect(responseData).toEqual({
+          action: "delete",
+          status: "deleted",
+          executed: true,
+          data: { uuid: "announcement-to-delete" },
+        });
       });
 
-      it("should reject deletion without confirmation", async () => {
+      it("should PREVIEW (not delete) when confirmed is false, reading the title from /mine", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: [
+            {
+              uuid: "a-1",
+              nid: 111,
+              title: "My Post",
+              status: "draft",
+              summary: "Summary",
+              tags: [],
+              edit_url: "https://test.drupal.site/node/111/edit",
+            },
+          ],
+        });
+
         const result = await server["handleToolCall"]({
           method: "tools/call",
           params: {
             name: "delete_announcement",
             arguments: {
-              uuid: "announcement-to-delete",
+              uuid: "a-1",
               confirmed: false,
             },
           },
         });
 
-        // Should not call delete
+        // Preview writes NOTHING.
         expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("explicit confirmation");
+        expect(responseData).toEqual({
+          action: "delete",
+          status: "preview",
+          executed: false,
+          data: { uuid: "a-1", title: "My Post" },
+        });
+      });
+
+      it("should NOT delete when confirmed is truthy-but-not-strict-true (falls to preview)", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: [{ uuid: "a-1", title: "My Post" }],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: {
+              uuid: "a-1",
+              // truthy but not strictly === true
+              confirmed: "true" as unknown as boolean,
+            },
+          },
+        });
+
+        expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.status).toBe("preview");
+        expect(responseData.executed).toBe(false);
+      });
+
+      it("should return a not_found error when the preview uuid is not among the user's announcements", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: [{ uuid: "other-1", title: "Not the one" }],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: {
+              uuid: "missing-1",
+              confirmed: false,
+            },
+          },
+        });
+
+        expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+        expect(result.isError).toBe(true);
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.code).toBe("not_found");
+      });
+
+      it("should return a not_found error when the delete returns 404", async () => {
+        mockDrupalAuth.delete.mockRejectedValueOnce(
+          new Error("Drupal API error: 404 Not Found")
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: {
+              uuid: "gone-1",
+              confirmed: true,
+            },
+          },
+        });
+
+        expect(result.isError).toBe(true);
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.code).toBe("not_found");
       });
 
       it("should fail without an acting user and make no provider call", async () => {
