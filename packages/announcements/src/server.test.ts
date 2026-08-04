@@ -1970,6 +1970,24 @@ describe("AnnouncementsServer", () => {
       expect(myTool?.inputSchema.properties?.fields).toBeDefined();
       expect((myTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
     });
+
+    it("write-tool descriptions document the write envelope (status/executed) and delete's preview-by-default", () => {
+      const tools = server["getTools"]();
+      const create = tools.find((t: { name: string }) => t.name === "create_announcement")!;
+      const update = tools.find((t: { name: string }) => t.name === "update_announcement")!;
+      const del = tools.find((t: { name: string }) => t.name === "delete_announcement")!;
+
+      expect(create.description).toContain("write envelope");
+      expect(create.description).toContain("created");
+      expect(update.description).toContain("write envelope");
+      expect(update.description).toContain("updated");
+
+      // delete: write envelope + preview-by-default (confirmed required).
+      expect(del.description).toContain("write envelope");
+      expect(del.description).toContain("preview");
+      expect(del.description).toContain("deleted");
+      expect(del.description).toContain("REQUIRED");
+    });
   });
 
   // ---------------------------------------------------------------------------

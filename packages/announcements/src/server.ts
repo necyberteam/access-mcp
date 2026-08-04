@@ -248,8 +248,8 @@ PREVIEW FORMAT (show before creating):
 ---
 Ask "Does this look correct?" before creating.
 
-Returns: {success, uuid, title, edit_url}
-ALWAYS display the edit_url to the user so they can review their draft in Drupal.`,
+Returns the write envelope {action:"create", status:"created", executed:true, data:{uuid, nid, title, edit_url, moderation_state}} (a "warning" is added when some tags could not be matched). Read "status" and "executed"; the created draft's fields are under "data".
+ALWAYS display data.edit_url to the user so they can review their draft in Drupal.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -315,8 +315,8 @@ BEFORE CALLING:
 3. Only include fields that are changing
 4. Show a preview of the changes and ask for confirmation before updating
 
-Returns: {success, uuid, title, edit_url}
-ALWAYS display the edit_url to the user so they can review changes in Drupal.`,
+Returns the write envelope {action:"update", status:"updated", executed:true, data:{uuid, title, edit_url}} (a "warning" is added when some tags could not be matched). Read "status" and "executed"; the updated fields are under "data".
+ALWAYS display data.edit_url to the user so they can review changes in Drupal.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -385,7 +385,7 @@ BEFORE CALLING (required for EVERY delete):
 BULK DELETES: When user asks to delete multiple announcements, confirm EACH ONE individually.
 Do NOT batch delete based on general consent. Each deletion requires its own confirmation prompt.
 
-confirmed=false previews the delete (returns the title, writes nothing); confirmed=true performs it.`,
+Returns the write envelope {action:"delete", status, executed, data}. "confirmed" is REQUIRED and preview-by-default: confirmed=false (or omitted, or any value other than strict true) previews — status:"preview", executed:false, data:{uuid, title}, writes NOTHING; confirmed=true performs the delete — status:"deleted", executed:true, data:{uuid}. Read "status"/"executed" to know which happened. A uuid the acting user does not own returns an error with code "not_found".`,
         inputSchema: {
           type: "object",
           properties: {

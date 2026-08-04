@@ -330,7 +330,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "register_for_event",
         description:
-          "Register the acting user for an ACCESS event via native ACCESS registration. WITHOUT `confirmed` (or confirmed:false) this returns a PREVIEW of what would happen (seat vs. waitlist) and writes NOTHING. WITH confirmed:true it registers and returns a registrant_id. NOTE: this is the OPPOSITE default of cancel_registration — here confirmed:false (or omitted) is a SAFE no-write PREVIEW, whereas in cancel_registration confirmed:false REFUSES the action; do not assume one tool's confirmed semantics from the other. Pair with get_event (live availability before registering), get_my_registrations (list the acting user's registrations), and cancel_registration (cancel one, takes the registrant_id).",
+          "Register the acting user for an ACCESS event via native ACCESS registration. WITHOUT `confirmed` (or confirmed:false) this returns a PREVIEW of what would happen (seat vs. waitlist) and writes NOTHING. WITH confirmed:true it registers. Returns the write-envelope shape {action:\"register\", status, executed, data}: read `status` (preview | registered | waitlisted | already_registered) and `executed` (true only when a write actually happened). status:\"preview\" means executed:false — nothing was written; call again with confirmed:true to commit. status:\"registered\"/\"waitlisted\" carries data.registrant_id. status:\"already_registered\" (executed:false) means the acting user already holds a seat — no change. Refusals (event_full, registration_closed, not_registrable, not_permitted) come back as errors with a machine-readable `code`. Pair with get_event (live availability before registering), get_my_registrations (list the acting user's registrations), and cancel_registration (cancel one, takes the registrant_id).",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -341,7 +341,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             confirmed: {
               type: "boolean",
               description:
-                "Omit or false for a no-write preview (seat vs. waitlist); true to actually register. This is the OPPOSITE of cancel_registration, where confirmed:false refuses.",
+                "Omit or false for a no-write preview (status:\"preview\", executed:false — seat vs. waitlist); true to actually register (status:\"registered\"/\"waitlisted\", executed:true).",
             },
           },
           required: ["eventinstance_id"],
@@ -825,19 +825,27 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
    * POST /api/1.0/events/{eventinstance_id}/register route.
    * Without confirmed → a no-write preview; confirmed:true → commit + registrant_id.
    *
+   * Every non-error outcome returns the StandardWriteResponse envelope
+   * ({action:"register", status, executed, data?}); errors go through
+   * errorResponse ({error, hint?, code}, isError:true).
+   *
    * Status branching (via the non-throwing requestRaw accessor):
-   *  - 2xx → pass the Drupal body through (preview or success shape).
-   *  - 409 → a state-based refusal (e.g. already_registered, event_full,
-   *    registration_closed). Surfaced as a FIRST-CLASS result
-   *    { success:false, error, message } with isError UNSET — NOT a thrown/error
-   *    response — so the LLM reads the refusal reason instead of an exception.
-   *    (The Drupal route returns not_permitted as 409, so role refusals arrive here too.)
+   *  - 2xx → a writeResponse. status "registered"/"waitlisted" with executed:true
+   *    (a commit) when confirmed:true, else status "preview" with executed:false
+   *    (the projected outcome_if_confirmed; no write performed). The raw Drupal
+   *    body is NOT passed through — it is remapped onto the envelope.
+   *  - 409 = state-based refusal. already_registered is the ONLY 409 that is a
+   *    terminal, non-error writeResponse (status "already_registered",
+   *    executed:false — the user already holds a seat). Every OTHER 409 code
+   *    (event_full, registration_closed, not_permitted) is an errorResponse
+   *    carrying the Drupal `code` (isError:true). The Drupal route returns
+   *    not_permitted as 409, so role refusals arrive here too.
    *  - 403 → a genuine identity/auth failure from the acting-user gate
    *    (ActingUserAccess / acting_user_uid resolution; the acting-user could not
-   *    be resolved/authorized). This is NOT a state refusal
-   *    and must not be conflated with 409 — surface it as an actionable error.
-   *  - 404 → no such event.
-   *  - other non-2xx → generic service error.
+   *    be resolved/authorized). This is NOT a state refusal and must not be
+   *    conflated with 409 — errorResponse with code "auth_required".
+   *  - 404 → no such event; errorResponse with code "not_found".
+   *  - other non-2xx → errorResponse with code "upstream_error".
    */
   private async registerForEvent(
     eventinstanceId: string,

@@ -93,6 +93,20 @@ describe("EventsServer", () => {
       expect(getEvent.description).toContain("capacity_type");
     });
 
+    it("register_for_event description documents the write envelope and drops the cross-tool OPPOSITE/REFUSES clause", () => {
+      const tools = server["getTools"]();
+      const reg = tools.find((t) => t.name === "register_for_event")!;
+      // Documents the write envelope + status reading.
+      expect(reg.description).toContain("status");
+      expect(reg.description).toContain("executed");
+      expect(reg.description).toContain("already_registered");
+      // Stale cross-tool reciprocity clause is gone.
+      expect(reg.description).not.toContain("OPPOSITE");
+      expect(reg.description).not.toContain("REFUSES");
+      const confirmed = reg.inputSchema.properties?.confirmed as { description?: string };
+      expect(confirmed.description).not.toContain("OPPOSITE");
+    });
+
     it("should provide the correct resources", () => {
       const resources = server["getResources"]();
 
