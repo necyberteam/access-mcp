@@ -4,6 +4,7 @@ import {
   Resource,
   CallToolResult,
   DrupalAuthProvider,
+  DrupalApiError,
   getRequestContext,
   projectFields,
 } from "@access-mcp/shared";
@@ -1050,7 +1051,14 @@ Which would you like to do?`,
     if (args.confirmed !== true) {
       // There is no single-item GET-by-uuid route; a user can only delete their
       // OWN announcements, so the title comes from GET /announcements/mine.
-      const mine = await auth.get(actingUser, `/api/2.3/announcements/mine`);
+      // Pass an explicit high limit (mirrors get_my_announcements' bounded fetch)
+      // so a user owning more announcements than the controller's default page
+      // cap can still preview any of their own — without it, a deletable uuid
+      // past the first page would wrongly read as not_found.
+      const mine = await auth.get(
+        actingUser,
+        `/api/2.3/announcements/mine?limit=1000`
+      );
       const item = (mine.items || []).find(
         (i: { uuid?: string }) => i.uuid === args.uuid
       );
@@ -1076,8 +1084,10 @@ Which would you like to do?`,
     try {
       await auth.delete(actingUser, `/api/2.3/announcements/${args.uuid}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (message.includes("404")) {
+      // Post-#30: branch on the structured DrupalApiError.status instead of
+      // string-matching "404" in the message (which could false-match a 404 in
+      // an unrelated part of the text).
+      if (error instanceof DrupalApiError && error.status === 404) {
         return this.errorResponse(
           "Announcement not found (or not yours).",
           "Check the uuid via get_my_announcements.",

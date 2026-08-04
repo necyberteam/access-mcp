@@ -4,6 +4,26 @@ import { randomUUID } from "crypto";
 import https from "https";
 
 /**
+ * Error thrown by the throwing request methods (get/post/patch/delete) on a
+ * non-2xx Drupal response. Extends Error and keeps the SAME message text the
+ * plain Error used to carry (so existing message-based catchers are unaffected),
+ * while additionally exposing the HTTP `status` and the parsed Drupal `body` so
+ * callers can branch structurally (404 → not_found, 403 → forbidden) instead of
+ * string-matching the message. Fixes bug #30 (status + body were previously
+ * flattened into the message string and lost).
+ */
+export class DrupalApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public body: unknown
+  ) {
+    super(message);
+    this.name = "DrupalApiError";
+  }
+}
+
+/**
  * Authentication provider for Drupal JSON:API using cookie-based auth.
  *
  * This is a temporary implementation for development/testing.
@@ -297,14 +317,25 @@ export class DrupalAuthProvider {
       return response.data;
     }
 
-    // JSON:API error format
+    // JSON:API error format. Preserve the status + full body on the thrown
+    // DrupalApiError (bug #30) while keeping the message text identical to the
+    // old plain Error, so callers can branch on e.status/e.body AND existing
+    // message-based catchers keep working.
     if (response.data?.errors) {
       const errors = response.data.errors
         .map((e: any) => e.detail || e.title || "Unknown error")
         .join("; ");
-      throw new Error(`Drupal API error (${response.status}): ${errors}`);
+      throw new DrupalApiError(
+        `Drupal API error (${response.status}): ${errors}`,
+        response.status,
+        response.data
+      );
     }
 
-    throw new Error(`Drupal API error: ${response.status} ${response.statusText}`);
+    throw new DrupalApiError(
+      `Drupal API error: ${response.status} ${response.statusText}`,
+      response.status,
+      response.data
+    );
   }
 }

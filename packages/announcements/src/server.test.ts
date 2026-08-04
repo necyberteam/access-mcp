@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi, Mock } from "vitest";
 import { AnnouncementsServer } from "./server.js";
-import { DrupalAuthProvider, requestContextStorage, RequestContext } from "@access-mcp/shared";
+import { DrupalAuthProvider, DrupalApiError, requestContextStorage, RequestContext } from "@access-mcp/shared";
 
 // Mock the DrupalAuthProvider
 vi.mock("@access-mcp/shared", async () => {
@@ -1268,6 +1268,14 @@ describe("AnnouncementsServer", () => {
         // Preview writes NOTHING.
         expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
 
+        // RECON-2 (#30 follow-up): the preview reads /mine with an explicit high
+        // limit so a user owning more announcements than the controller's default
+        // page cap can still find (and preview-delete) any of their own.
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=1000"
+        );
+
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData).toEqual({
           action: "delete",
@@ -1325,8 +1333,12 @@ describe("AnnouncementsServer", () => {
       });
 
       it("should return a not_found error when the delete returns 404", async () => {
+        // Post-#30: the handler branches on the DrupalApiError.status, not a
+        // string-match of the message, so the mock throws a real DrupalApiError.
         mockDrupalAuth.delete.mockRejectedValueOnce(
-          new Error("Drupal API error: 404 Not Found")
+          new DrupalApiError("Drupal API error: 404 Not Found", 404, {
+            errors: [{ detail: "Not Found" }],
+          })
         );
 
         const result = await server["handleToolCall"]({

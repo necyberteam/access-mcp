@@ -10,7 +10,7 @@ vi.mock("axios", () => ({
   default: { create: (cfg: unknown) => create(cfg) },
 }));
 
-import { DrupalAuthProvider } from "../drupal-auth.js";
+import { DrupalAuthProvider, DrupalApiError } from "../drupal-auth.js";
 
 const LOGIN_OK = {
   status: 200,
@@ -150,6 +150,84 @@ describe("DrupalAuthProvider per-call acting user", () => {
     expect(res.status).toBe(403);
     // Exactly one verb POST — no re-auth retry (login post happened in ensureAuthenticated).
     expect(post.mock.calls.length).toBe(2); // 1 login + 1 verb, no retry
+  });
+
+  // Bug #30: the throwing methods (get/post/patch/delete) flatten Drupal's
+  // status + body into a plain Error string, losing both. They now throw a
+  // DrupalApiError that carries .status (the number) and .body (parsed Drupal
+  // body), while keeping the SAME message text so message-based catchers still
+  // work. Cancel (events) and delete_announcement need to branch on status.
+  it("delete throws a DrupalApiError with .status and .body on a JSON:API 404", async () => {
+    const p = newProvider();
+    del.mockResolvedValue({
+      status: 404,
+      statusText: "Not Found",
+      data: { errors: [{ detail: "The resource was not found." }] },
+    });
+    let caught: unknown;
+    try {
+      await p.delete("actor@access-ci.org", "/api/2.3/announcements/gone");
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(DrupalApiError);
+    const err = caught as DrupalApiError;
+    expect(err.status).toBe(404);
+    expect(err.body).toEqual({ errors: [{ detail: "The resource was not found." }] });
+    // Back-compat: message unchanged from the old plain-Error text.
+    expect(err.message).toBe("Drupal API error (404): The resource was not found.");
+    expect(err.message).toContain("404");
+    expect(err).toBeInstanceOf(Error); // still an Error for existing catchers
+    expect(err.name).toBe("DrupalApiError");
+  });
+
+  it("get throws a DrupalApiError with .status and .body on a 403", async () => {
+    const p = newProvider();
+    // get() re-auths once on 403 then retries; make BOTH the initial and retry
+    // GET return 403 so handleResponse throws on the retry response.
+    get.mockResolvedValue({
+      status: 403,
+      statusText: "Forbidden",
+      data: { errors: [{ detail: "Access denied." }] },
+    });
+    let caught: unknown;
+    try {
+      await p.get("actor@access-ci.org", "/api/2.3/thing");
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(DrupalApiError);
+    const err = caught as DrupalApiError;
+    expect(err.status).toBe(403);
+    expect(err.body).toEqual({ errors: [{ detail: "Access denied." }] });
+    expect(err.message).toBe("Drupal API error (403): Access denied.");
+  });
+
+  it("post throws a DrupalApiError carrying a flat (non-JSON:API-errors) body on 409", async () => {
+    const p = newProvider();
+    // Login is the default post mock; make the NEXT post (the verb call) a 409
+    // with a FLAT body (no .errors array) — hits the statusText message branch.
+    post.mockResolvedValueOnce(LOGIN_OK).mockResolvedValueOnce({
+      status: 409,
+      statusText: "Conflict",
+      data: { error: "already_registered", message: "You are already registered." },
+    });
+    let caught: unknown;
+    try {
+      await p.post("actor@access-ci.org", "/api/2.3/thing", { field: 1 });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(DrupalApiError);
+    const err = caught as DrupalApiError;
+    expect(err.status).toBe(409);
+    // Full parsed body preserved so callers can read .error / .message.
+    expect(err.body).toEqual({
+      error: "already_registered",
+      message: "You are already registered.",
+    });
+    // Flat-body branch keeps the old "status statusText" message text.
+    expect(err.message).toBe("Drupal API error: 409 Conflict");
   });
 
   it("does not bleed acting users across interleaved concurrent calls (issue #13)", async () => {
