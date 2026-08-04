@@ -784,8 +784,9 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     // an external URL). When native is enabled AND an external URL is present,
     // relocate the URL to a labeled external_registration_url and drop the
     // ambiguous registration_url key.
-    const detail = data as Record<string, any>;
-    const nativeEnabled = detail.registration?.enabled === true;
+    const detail = data as Record<string, unknown>;
+    const registration = detail.registration as { enabled?: unknown } | undefined;
+    const nativeEnabled = registration?.enabled === true;
     const externalUrl =
       typeof detail.registration_url === "string" ? detail.registration_url : undefined;
     let registration_path: "native" | "external" | "none";
