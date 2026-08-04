@@ -461,8 +461,10 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     }
   }
 
-  // Allowed values for the Drupal view's exposed items_per_page pager.
-  private static readonly ALLOWED_PAGE_SIZES = [25, 50, 100, 250, 500];
+  // Allowed values for the Drupal view's exposed items_per_page pager. Must
+  // stay in sync with the view's items_per_page_options; a value outside the
+  // list fails the exposed-pager select validation and returns an empty page.
+  private static readonly ALLOWED_PAGE_SIZES = [1, 5, 10, 20, 25, 50, 100, 250, 500];
 
   private buildEventsUrl(params: SearchEventsParams): string {
     const url = new URL("/api/2.3/events", this.baseURL);
