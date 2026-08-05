@@ -970,7 +970,7 @@ describe("EventsServer", () => {
         server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: false } } })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_found" } });
       expect(mockDelete).not.toHaveBeenCalled();
     });
 
@@ -1026,10 +1026,10 @@ describe("EventsServer", () => {
         server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_found" } });
     });
 
-    it("confirmed:true → a 403 DrupalApiError maps to forbidden, NOT not_found (RECON-1 negative branch)", async () => {
+    it("confirmed:true → a 403 DrupalApiError maps to forbidden, NOT not_found", async () => {
       mockDelete.mockReset();
       mockDelete.mockRejectedValue(new DrupalApiError("Drupal API error: 403 Forbidden", 403, { error: "forbidden" }));
       const result = await withDrupalEnv(() =>
@@ -1037,9 +1037,9 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.code).toBe("forbidden");
+      expect(parsed.error.code).toBe("forbidden");
       // Guard: a non-404 must never be mis-mapped to not_found.
-      expect(parsed.code).not.toBe("not_found");
+      expect(parsed.error.code).not.toBe("not_found");
     });
 
     it("confirmed:true → a 500 DrupalApiError maps to upstream_error, NOT not_found", async () => {
@@ -1050,9 +1050,9 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.code).toBe("upstream_error");
-      expect(parsed.error).toMatch(/Events service error \(500\)/i);
-      expect(parsed.code).not.toBe("not_found");
+      expect(parsed.error.code).toBe("upstream_error");
+      expect(parsed.error.message).toMatch(/Events service error \(500\)/i);
+      expect(parsed.error.code).not.toBe("not_found");
     });
 
     it("cancel_registration errors without registrant_id and never calls DELETE or the lookup", async () => {
@@ -1080,8 +1080,8 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.code).toBe("forbidden");
-      expect(parsed.code).not.toBe("not_found");
+      expect(parsed.error.code).toBe("forbidden");
+      expect(parsed.error.code).not.toBe("not_found");
       expect(mockDelete).not.toHaveBeenCalled();
     });
 
@@ -1094,8 +1094,8 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.code).toBe("upstream_error");
-      expect(parsed.code).not.toBe("not_found");
+      expect(parsed.error.code).toBe("upstream_error");
+      expect(parsed.error.code).not.toBe("not_found");
       expect(mockDelete).not.toHaveBeenCalled();
     });
   });
@@ -1290,7 +1290,7 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/Events service error \(500\)/i);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "upstream_error" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "upstream_error" } });
     });
 
     it("get_event errors without an eventinstance_id and never calls the service", async () => {
@@ -1466,7 +1466,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "event_full" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "event_full" } });
     });
 
     it("register 409 registration_closed is an error carrying the Drupal code", async () => {
@@ -1484,7 +1484,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "registration_closed" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "registration_closed" } });
     });
 
     it("register_for_event maps a bare gate-403 (no not_permitted) to an actionable error", async () => {
@@ -1504,7 +1504,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true); // errorResponse, not a first-class refusal
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "auth_required" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "auth_required" } });
     });
 
     it("register_for_event maps a 404 to a first-class error", async () => {
@@ -1520,7 +1520,7 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/No event found with id 9999/i);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_found" } });
     });
 
     it("register_for_event maps an unexpected upstream status to upstream_error", async () => {
@@ -1535,7 +1535,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "upstream_error" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "upstream_error" } });
     });
 
     it("register_for_event errors without an eventinstance_id and never calls the service", async () => {

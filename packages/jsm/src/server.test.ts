@@ -165,7 +165,7 @@ describe("JsmServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("Failed to create ticket");
+      expect(responseData.error.message).toContain("Failed to create ticket");
     });
 
     it("should handle proxy returning success:false", async () => {
@@ -191,7 +191,7 @@ describe("JsmServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("Invalid field values");
+      expect(responseData.error.message).toContain("Invalid field values");
     });
   });
 
@@ -459,7 +459,7 @@ describe("JsmServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("Unknown tool");
+      expect(responseData.error.message).toContain("Unknown tool");
     });
   });
 
@@ -612,7 +612,7 @@ describe("JsmServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("JSM_PROXY_URL not configured");
+      expect(responseData.error.message).toContain("JSM_PROXY_URL not configured");
     });
 
     it("should still return ticket types when proxy URL is missing", async () => {

@@ -151,7 +151,7 @@ describe("DocumentationServer", () => {
 
       expect((result as { isError?: boolean }).isError).toBe(true);
       const data = JSON.parse(textOf(result));
-      expect(data.error).toContain("unavailable");
+      expect(data.error.message).toContain("unavailable");
     });
 
     it("maps 400 to an invalid-request error mentioning rp_name", async () => {
@@ -163,7 +163,7 @@ describe("DocumentationServer", () => {
 
       expect((result as { isError?: boolean }).isError).toBe(true);
       const data = JSON.parse(textOf(result));
-      expect(data.hint).toContain("rp_name");
+      expect(data.error.hint).toContain("rp_name");
     });
 
     it("rejects a missing query", async () => {
@@ -174,7 +174,7 @@ describe("DocumentationServer", () => {
       // Lock MCP error semantics: errorResponse must set isError on the result.
       expect((result as { isError?: boolean }).isError).toBe(true);
       const data = JSON.parse(textOf(result));
-      expect(data.error).toContain("query is required");
+      expect(data.error.message).toContain("query is required");
     });
 
     it("projects fields when requested", async () => {
@@ -206,7 +206,7 @@ describe("DocumentationServer", () => {
       expect((result as { isError?: boolean }).isError).toBe(true);
       const data = JSON.parse(textOf(result));
       // Spec-aligned wording, not the raw axios error string.
-      expect(data.error).toContain("try another approach");
+      expect(data.error.message).toContain("try another approach");
     });
 
     it("prefers an explicit empty documents over a stale top_documents", async () => {

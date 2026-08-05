@@ -51,11 +51,17 @@ export interface StandardToolResponse<T> extends UniversalResponse<T> {
   };
 }
 
-// Standard error response
+// Standard error response — nested error{code,message,hint} so the shape
+// mirrors the success envelope's {action,status,executed,data}.
 export interface StandardErrorResponse {
-  error: string;
-  hint?: string;
-  code?: string;
+  action?: string;
+  status: "error";
+  executed: false;
+  error: {
+    code: string;
+    message: string;
+    hint?: string;
+  };
 }
 
 // Standard write response envelope (register/cancel/create/update/delete tools)

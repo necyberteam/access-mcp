@@ -729,7 +729,7 @@ Consider:
     if (response.status !== 200) {
       return this.errorResponse(
         `Resource not found: '${resourceId}'`,
-        "Use 'search_resources' to find valid resource IDs. Resource IDs typically look like 'delta.ncsa.access-ci.org' or 'bridges2.psc.access-ci.org'"
+        { hint: "Use 'search_resources' to find valid resource IDs. Resource IDs typically look like 'delta.ncsa.access-ci.org' or 'bridges2.psc.access-ci.org'" }
       );
     }
 
@@ -737,7 +737,7 @@ Consider:
     if (!response.data || !response.data.results || response.data.results.length === 0) {
       return this.errorResponse(
         `Resource not found: '${resourceId}'`,
-        "Use 'search_resources' to find valid resource IDs"
+        { hint: "Use 'search_resources' to find valid resource IDs" }
       );
     }
 
@@ -765,7 +765,7 @@ Consider:
     });
 
     if (!resolved.success) {
-      return this.errorResponse(resolved.error, resolved.suggestion);
+      return this.errorResponse(resolved.error, { hint: resolved.suggestion });
     }
     const resourceId = resolved.id;
 

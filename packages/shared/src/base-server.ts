@@ -29,7 +29,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
 import { traceMcpToolCall } from "./telemetry.js";
 import { UsageLogger } from "./usage-logger.js";
-import { StandardWriteResponse } from "./types.js";
+import { StandardWriteResponse, StandardErrorResponse } from "./types.js";
 
 // Re-export SDK types for convenience
 export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
@@ -248,21 +248,28 @@ export abstract class BaseAccessServer {
   }
 
   /**
-   * Helper method to create a standard error response (MCP 2025 compliant)
+   * Helper method to create a standard error response (MCP 2025 compliant).
+   * Emits the same nested envelope shape as writeResponse's success case —
+   * {action?, status:"error", executed:false, error:{code,message,hint?}} —
+   * so every tool speaks one response shape regardless of outcome.
    * @param message The error message
-   * @param hint Optional suggestion for how to fix the error
-   * @param code Optional machine-readable error code
+   * @param opts Optional code, hint, and action to attach
    */
-  protected errorResponse(message: string, hint?: string, code?: string): CallToolResult {
+  protected errorResponse(
+    message: string,
+    opts: { code?: string; hint?: string; action?: string } = {}
+  ): CallToolResult {
+    const body: StandardErrorResponse = {
+      ...(opts.action && { action: opts.action }),
+      status: "error",
+      executed: false,
+      error: { code: opts.code ?? "error", message, ...(opts.hint && { hint: opts.hint }) },
+    };
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            error: message,
-            ...(hint && { hint }),
-            ...(code && { code }),
-          }),
+          text: JSON.stringify(body),
         },
       ],
       isError: true,

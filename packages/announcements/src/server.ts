@@ -1066,8 +1066,7 @@ Which would you like to do?`,
         if (error instanceof DrupalApiError) {
           return this.errorResponse(
             `Announcements service error (${error.status})`,
-            "Try again shortly.",
-            "upstream_error"
+            { hint: "Try again shortly.", code: "upstream_error" }
           );
         }
         throw error;
@@ -1079,8 +1078,7 @@ Which would you like to do?`,
       if (!item) {
         return this.errorResponse(
           "Announcement not found (or not yours).",
-          "Check the uuid via get_my_announcements.",
-          "not_found"
+          { hint: "Check the uuid via get_my_announcements.", code: "not_found" }
         );
       }
 
@@ -1103,8 +1101,7 @@ Which would you like to do?`,
       if (error instanceof DrupalApiError && error.status === 404) {
         return this.errorResponse(
           "Announcement not found (or not yours).",
-          "Check the uuid via get_my_announcements.",
-          "not_found"
+          { hint: "Check the uuid via get_my_announcements.", code: "not_found" }
         );
       }
       throw error;

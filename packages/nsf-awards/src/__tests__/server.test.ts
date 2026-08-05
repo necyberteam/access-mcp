@@ -50,7 +50,7 @@ describe("NSFAwardsServer", () => {
       expect(result).toHaveProperty("isError", true);
       const response = JSON.parse(result.content[0].text);
       expect(response).toHaveProperty("error");
-      expect(response.error).toContain("Unknown tool");
+      expect(response.error.message).toContain("Unknown tool");
     });
   });
 
@@ -116,7 +116,7 @@ describe("NSFAwardsServer", () => {
       expect(result).toHaveProperty("isError", true);
       const response = JSON.parse(result.content[0].text);
       expect(response).toHaveProperty("error");
-      expect(response.error).toContain("No NSF award found");
+      expect(response.error.message).toContain("No NSF award found");
     });
 
     it("should handle API errors gracefully", async () => {
@@ -393,7 +393,7 @@ describe("NSFAwardsServer", () => {
       expect(result).toHaveProperty("isError", true);
       const response = JSON.parse(result.content[0].text);
       expect(response).toHaveProperty("error");
-      expect(response.error).toContain("No NSF award found");
+      expect(response.error.message).toContain("No NSF award found");
     });
 
     it("should require at least one search parameter", async () => {
@@ -407,7 +407,7 @@ describe("NSFAwardsServer", () => {
       expect(result).toHaveProperty("isError", true);
       const response = JSON.parse(result.content[0].text);
       expect(response).toHaveProperty("error");
-      expect(response.error).toContain("Provide");
+      expect(response.error.message).toContain("Provide");
     });
   });
 

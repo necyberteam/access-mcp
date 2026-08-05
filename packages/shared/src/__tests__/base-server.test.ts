@@ -248,37 +248,43 @@ describe("BaseAccessServer helper methods", () => {
       expect(result.isError).toBe(true);
       const textContent = result.content[0] as { type: string; text: string };
       const content = JSON.parse(textContent.text);
-      expect(content.error).toBe("Something went wrong");
-      expect(content.hint).toBeUndefined();
+      expect(content.error.message).toBe("Something went wrong");
+      expect(content.error.hint).toBeUndefined();
     });
 
     it("should create error response with hint", () => {
-      const result = server["errorResponse"]("Invalid input", "Try using a number");
+      const result = server["errorResponse"]("Invalid input", { hint: "Try using a number" });
 
       expect(result.isError).toBe(true);
       const textContent = result.content[0] as { type: string; text: string };
       const content = JSON.parse(textContent.text);
-      expect(content.error).toBe("Invalid input");
-      expect(content.hint).toBe("Try using a number");
+      expect(content.error.message).toBe("Invalid input");
+      expect(content.error.hint).toBe("Try using a number");
     });
 
     it("errorResponse includes code when provided", () => {
-      const r = server["errorResponse"]("nope", "hint", "event_full");
+      const r = server["errorResponse"]("nope", { hint: "hint", code: "event_full" });
       expect(r.isError).toBe(true);
       const textContent = r.content[0] as { type: string; text: string };
       expect(JSON.parse(textContent.text)).toEqual({
-        error: "nope",
-        hint: "hint",
-        code: "event_full",
+        status: "error",
+        executed: false,
+        error: { message: "nope", hint: "hint", code: "event_full" },
       });
     });
 
-    it("errorResponse omits code when not provided (back-compat)", () => {
-      const textContent = server["errorResponse"]("nope").content[0] as {
-        type: string;
-        text: string;
-      };
-      expect(JSON.parse(textContent.text)).toEqual({ error: "nope" });
+    it("errorResponse emits the enveloped error shape with status:error + executed:false", () => {
+      const r = server["errorResponse"]("nope", { code: "not_found", hint: "check the id" });
+      const textContent = r.content[0] as { type: string; text: string };
+      const parsed = JSON.parse(textContent.text);
+      expect(r.isError).toBe(true);
+      expect(parsed).toMatchObject({ status: "error", executed: false, error: { code: "not_found", message: "nope", hint: "check the id" } });
+    });
+
+    it("errorResponse defaults code to 'error' when none given", () => {
+      const textContent = server["errorResponse"]("boom").content[0] as { type: string; text: string };
+      const parsed = JSON.parse(textContent.text);
+      expect(parsed.error.code).toBe("error");
     });
   });
 

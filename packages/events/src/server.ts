@@ -644,14 +644,14 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (params.date && !validDateValues.includes(params.date)) {
       return this.errorResponse(
         `Invalid date value: '${params.date}'`,
-        `Valid values are: ${validDateValues.join(", ")}`
+        { hint: `Valid values are: ${validDateValues.join(", ")}` }
       );
     }
 
     if (params.skill && !validSkillValues.includes(params.skill)) {
       return this.errorResponse(
         `Invalid skill value: '${params.skill}'`,
-        `Valid values are: ${validSkillValues.join(", ")}`
+        { hint: `Valid values are: ${validSkillValues.join(", ")}` }
       );
     }
 
@@ -756,7 +756,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (!eventinstanceId || typeof eventinstanceId !== "string") {
       return this.errorResponse(
         "eventinstance_id is required",
-        "Pass the event `id` from search_events."
+        { hint: "Pass the event `id` from search_events." }
       );
     }
     const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
@@ -769,7 +769,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (status === 404) {
       return this.errorResponse(
         `No event found with id ${eventinstanceId}`,
-        "Check the id via search_events."
+        { hint: "Check the id via search_events." }
       );
     }
     const authError = this.authRedirectError(status);
@@ -777,8 +777,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (status < 200 || status >= 300) {
       return this.errorResponse(
         `Events service error (${status})`,
-        "Try again shortly.",
-        "upstream_error"
+        { hint: "Try again shortly.", code: "upstream_error" }
       );
     }
     // Compute a single top-level registration_path so a caller reads one value
@@ -818,7 +817,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (status >= 300 && status < 400) {
       return this.errorResponse(
         "Authentication required: your ACCESS session may have expired.",
-        "Re-authenticate the ACCESS connector and try again."
+        { code: "unauthenticated", hint: "Re-authenticate the ACCESS connector and try again." }
       );
     }
     return null;
@@ -831,7 +830,8 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
    *
    * Every non-error outcome returns the StandardWriteResponse envelope
    * ({action:"register", status, executed, data?}); errors go through
-   * errorResponse ({error, hint?, code}, isError:true).
+   * errorResponse ({status:"error", executed:false, error:{code,message,hint?}},
+   * isError:true).
    *
    * Status branching (via the non-throwing requestRaw accessor):
    *  - 2xx → a writeResponse. status "registered"/"waitlisted" with executed:true
@@ -858,7 +858,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (!eventinstanceId || typeof eventinstanceId !== "string") {
       return this.errorResponse(
         "eventinstance_id is required",
-        "Pass the event `id` from search_events or get_event."
+        { hint: "Pass the event `id` from search_events or get_event." }
       );
     }
     const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
@@ -912,8 +912,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       }
       return this.errorResponse(
         data?.message ?? "Registration refused.",
-        "See the event's registration state via get_event.",
-        data?.error
+        { hint: "See the event's registration state via get_event.", code: data?.error }
       );
     }
 
@@ -922,16 +921,14 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (status === 403) {
       return this.errorResponse(
         "Not authorized to register — your acting-user identity could not be resolved or authorized.",
-        "Re-authenticate the ACCESS connector and try again.",
-        "auth_required"
+        { hint: "Re-authenticate the ACCESS connector and try again.", code: "auth_required" }
       );
     }
 
     if (status === 404) {
       return this.errorResponse(
         `No event found with id ${eventinstanceId}`,
-        "Check the id via search_events.",
-        "not_found"
+        { hint: "Check the id via search_events.", code: "not_found" }
       );
     }
 
@@ -940,8 +937,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
 
     return this.errorResponse(
       `Events service error (${status})`,
-      "Try again shortly.",
-      "upstream_error"
+      { hint: "Try again shortly.", code: "upstream_error" }
     );
   }
 
@@ -982,7 +978,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (!registrantId || typeof registrantId !== "string") {
       return this.errorResponse(
         "registrant_id is required",
-        "Call get_my_registrations to find the registrant_id of the registration to cancel."
+        { hint: "Call get_my_registrations to find the registrant_id of the registration to cancel." }
       );
     }
     const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
@@ -1005,14 +1001,12 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
           if (error.status === 403) {
             return this.errorResponse(
               "Not authorized to look up your registrations.",
-              "Re-authenticate the ACCESS connector and try again.",
-              "forbidden"
+              { hint: "Re-authenticate the ACCESS connector and try again.", code: "forbidden" }
             );
           }
           return this.errorResponse(
             `Events service error (${error.status})`,
-            "Try again shortly.",
-            "upstream_error"
+            { hint: "Try again shortly.", code: "upstream_error" }
           );
         }
         throw error;
@@ -1022,8 +1016,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       if (!row) {
         return this.errorResponse(
           "Registration not found (or not yours).",
-          "Call get_my_registrations to find your registrant_id.",
-          "not_found"
+          { hint: "Call get_my_registrations to find your registrant_id.", code: "not_found" }
         );
       }
       return this.writeResponse({
@@ -1052,21 +1045,18 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         if (error.status === 404) {
           return this.errorResponse(
             "Registration not found (or not yours).",
-            "Call get_my_registrations to find your registrant_id.",
-            "not_found"
+            { hint: "Call get_my_registrations to find your registrant_id.", code: "not_found" }
           );
         }
         if (error.status === 403) {
           return this.errorResponse(
             "Not authorized to cancel this registration — you may only cancel your own.",
-            "Confirm the registrant_id belongs to you via get_my_registrations.",
-            "forbidden"
+            { hint: "Confirm the registrant_id belongs to you via get_my_registrations.", code: "forbidden" }
           );
         }
         return this.errorResponse(
           `Events service error (${error.status})`,
-          "Try again shortly.",
-          "upstream_error"
+          { hint: "Try again shortly.", code: "upstream_error" }
         );
       }
       throw error;

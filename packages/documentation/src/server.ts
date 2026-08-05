@@ -138,7 +138,7 @@ export class DocumentationServer extends BaseAccessServer {
     const { query, rp_name, fields } = args;
 
     if (!query || !query.trim()) {
-      return this.errorResponse("query is required", "Pass the user's natural-language question.");
+      return this.errorResponse("query is required", { hint: "Pass the user's natural-language question." });
     }
 
     const body: Record<string, string> = { query };
@@ -157,20 +157,20 @@ export class DocumentationServer extends BaseAccessServer {
     } catch {
       return this.errorResponse(
         "Documentation search failed; try another approach.",
-        "The documentation backend did not respond (network or timeout error)."
+        { hint: "The documentation backend did not respond (network or timeout error)." }
       );
     }
 
     if (response.status === 401) {
       return this.errorResponse(
         "Documentation search is currently unavailable (auth).",
-        "The server-side ACCESS_AI_API_KEY is missing or was rejected by UKY."
+        { hint: "The server-side ACCESS_AI_API_KEY is missing or was rejected by UKY." }
       );
     }
     if (response.status === 400) {
       return this.errorResponse(
         "Invalid documentation search request.",
-        "Check the rp_name slug — an unknown resource provider returns 400."
+        { hint: "Check the rp_name slug — an unknown resource provider returns 400." }
       );
     }
     if (response.status < 200 || response.status >= 300) {

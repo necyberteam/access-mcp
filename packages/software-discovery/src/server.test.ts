@@ -798,7 +798,7 @@ describe("SoftwareDiscoveryServer", () => {
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
       expect(responseData.error).toBeDefined();
-      expect(responseData.error).toContain("SDS API error");
+      expect(responseData.error.message).toContain("SDS API error");
     });
 
     it("should handle missing API key", async () => {
@@ -818,7 +818,7 @@ describe("SoftwareDiscoveryServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("SDS API key not configured");
+      expect(responseData.error.message).toContain("SDS API key not configured");
 
       // Restore API key
       if (originalKey) {

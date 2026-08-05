@@ -422,7 +422,7 @@ describe("Software Discovery Integration Tests", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("SDS API key not configured");
+      expect(responseData.error.message).toContain("SDS API key not configured");
 
       // Restore API key
       if (originalKey) process.env.SDS_API_KEY = originalKey;

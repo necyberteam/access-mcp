@@ -743,7 +743,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("DRUPAL_API_URL");
+        expect(responseData.error.message).toContain("DRUPAL_API_URL");
       });
 
       it("should fail without ACTING_USER", async () => {
@@ -958,7 +958,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("Invalid where_to_share value");
+        expect(responseData.error.message).toContain("Invalid where_to_share value");
       });
 
       it("should create announcement with affinity group", async () => {
@@ -1018,7 +1018,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("Affinity group not found");
+        expect(responseData.error.message).toContain("Affinity group not found");
       });
     });
 
@@ -1330,7 +1330,7 @@ describe("AnnouncementsServer", () => {
         expect(result.isError).toBe(true);
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.code).toBe("not_found");
+        expect(responseData.error.code).toBe("not_found");
       });
 
       it("should return a not_found error when the delete returns 404", async () => {
@@ -1355,7 +1355,7 @@ describe("AnnouncementsServer", () => {
 
         expect(result.isError).toBe(true);
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.code).toBe("not_found");
+        expect(responseData.error.code).toBe("not_found");
       });
 
       it("should fail without an acting user and make no provider call", async () => {
@@ -1398,8 +1398,8 @@ describe("AnnouncementsServer", () => {
 
         expect(result.isError).toBe(true);
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.code).toBe("upstream_error");
-        expect(responseData.code).not.toBe("not_found");
+        expect(responseData.error.code).toBe("upstream_error");
+        expect(responseData.error.code).not.toBe("not_found");
         expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
       });
     });
@@ -1630,7 +1630,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("No acting user specified");
+        expect(responseData.error.message).toContain("No acting user specified");
         expect(mockDrupalAuth.get).not.toHaveBeenCalled();
       });
 
@@ -1671,7 +1671,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("at least 100 characters");
+        expect(responseData.error.message).toContain("at least 100 characters");
       });
 
       it("should return error when text is empty", async () => {
@@ -1684,7 +1684,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("at least 100 characters");
+        expect(responseData.error.message).toContain("at least 100 characters");
       });
 
       it("should return suggested tags on success", async () => {
@@ -1760,7 +1760,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("at least 100 characters");
+        expect(responseData.error.message).toContain("at least 100 characters");
       });
 
       it("should return summary on success", async () => {
@@ -1925,7 +1925,7 @@ describe("AnnouncementsServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("Unknown tool");
+      expect(responseData.error.message).toContain("Unknown tool");
     });
   });
 
