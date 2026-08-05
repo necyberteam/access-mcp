@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi, Mock } from "vitest";
 import { AnnouncementsServer } from "./server.js";
-import { DrupalAuthProvider, requestContextStorage, RequestContext } from "@access-mcp/shared";
+import { DrupalAuthProvider, DrupalApiError, requestContextStorage, RequestContext } from "@access-mcp/shared";
+import { assertWriteEnvelope } from "@access-mcp/shared/testkit";
 
 // Mock the DrupalAuthProvider
 vi.mock("@access-mcp/shared", async () => {
@@ -608,8 +609,79 @@ describe("AnnouncementsServer", () => {
         expect(postedBody).not.toHaveProperty("moderation_state");
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.success).toBe(true);
-        expect(responseData.uuid).toBe("new-announcement-uuid");
+        expect(responseData).toMatchObject({
+          action: "create",
+          status: "created",
+          executed: true,
+          data: {
+            uuid: "new-announcement-uuid",
+            nid: 12345,
+            title: "Test Announcement",
+            edit_url: "https://test.drupal.site/node/12345/edit",
+            moderation_state: "draft",
+          },
+        });
+        expect(responseData).not.toHaveProperty("success");
+      });
+
+      it("should build edit_url from nid when the controller omits it", async () => {
+        mockDrupalAuth.post.mockResolvedValue({
+          success: true,
+          uuid: "new-announcement-uuid",
+          nid: 999,
+          title: "No Edit URL",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "create_announcement",
+            arguments: {
+              title: "No Edit URL",
+              body: "Body",
+              summary: "Summary",
+            },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.data.edit_url).toBe(
+          "https://test.drupal.site/node/999/edit"
+        );
+      });
+
+      it("should surface skipped tags as a top-level warning in the envelope", async () => {
+        // Tag cache resolves only one of the two requested names.
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          data: [{ id: "tag-uuid-1", attributes: { name: "gpu" } }],
+          links: {},
+        });
+
+        mockDrupalAuth.post.mockResolvedValue({
+          success: true,
+          uuid: "new-announcement-uuid",
+          nid: 12345,
+          title: "Tagged",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "create_announcement",
+            arguments: {
+              title: "Tagged",
+              body: "Body",
+              summary: "Summary",
+              tags: ["gpu", "nonexistent-tag"],
+            },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.action).toBe("create");
+        expect(responseData.status).toBe("created");
+        expect(responseData.warning).toContain("were skipped");
+        expect(responseData.warning).toContain("nonexistent-tag");
       });
 
       it("should look up tags by name when provided (with caching)", async () => {
@@ -726,7 +798,11 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.success).toBe(true);
+        expect(responseData).toMatchObject({
+          action: "create",
+          status: "created",
+          executed: true,
+        });
       });
 
       it("should prefer request context actingUser over env var", async () => {
@@ -978,7 +1054,70 @@ describe("AnnouncementsServer", () => {
         expect(patchedBody).not.toHaveProperty("data");
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.success).toBe(true);
+        expect(responseData).toMatchObject({
+          action: "update",
+          status: "updated",
+          executed: true,
+          data: {
+            uuid: "announcement-uuid",
+            title: "Updated Title",
+            edit_url: "https://test.drupal.site/node/12345/edit",
+          },
+        });
+        expect(responseData).not.toHaveProperty("success");
+        // Update never carries nid in its data.
+        expect(responseData.data).not.toHaveProperty("nid");
+      });
+
+      it("should leave edit_url null when the controller omits it (no nid fallback)", async () => {
+        mockDrupalAuth.patch.mockResolvedValue({
+          success: true,
+          uuid: "announcement-uuid",
+          title: "Updated Title",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "update_announcement",
+            arguments: {
+              uuid: "announcement-uuid",
+              title: "Updated Title",
+            },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.data.edit_url).toBeNull();
+      });
+
+      it("should surface skipped tags as a top-level warning in the envelope", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          data: [{ id: "tag-uuid-1", attributes: { name: "gpu" } }],
+        });
+
+        mockDrupalAuth.patch.mockResolvedValue({
+          success: true,
+          uuid: "announcement-uuid",
+          title: "Test",
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "update_announcement",
+            arguments: {
+              uuid: "announcement-uuid",
+              tags: ["gpu", "nonexistent-tag"],
+            },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.action).toBe("update");
+        expect(responseData.status).toBe("updated");
+        expect(responseData.warning).toContain("were skipped");
+        expect(responseData.warning).toContain("nonexistent-tag");
       });
 
       it("should send only the summary field when updating summary only (no pre-read)", async () => {
@@ -1093,27 +1232,130 @@ describe("AnnouncementsServer", () => {
         );
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.success).toBe(true);
-        expect(responseData.uuid).toBe("announcement-to-delete");
+        expect(responseData).toEqual({
+          action: "delete",
+          status: "deleted",
+          executed: true,
+          data: { uuid: "announcement-to-delete" },
+        });
       });
 
-      it("should reject deletion without confirmation", async () => {
+      it("should PREVIEW (not delete) when confirmed is false, reading the title from /mine", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: [
+            {
+              uuid: "a-1",
+              nid: 111,
+              title: "My Post",
+              status: "draft",
+              summary: "Summary",
+              tags: [],
+              edit_url: "https://test.drupal.site/node/111/edit",
+            },
+          ],
+        });
+
         const result = await server["handleToolCall"]({
           method: "tools/call",
           params: {
             name: "delete_announcement",
             arguments: {
-              uuid: "announcement-to-delete",
+              uuid: "a-1",
               confirmed: false,
             },
           },
         });
 
-        // Should not call delete
+        // Preview writes NOTHING.
+        expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+
+        // RECON-2 (#30 follow-up): the preview reads /mine with an explicit high
+        // limit so a user owning more announcements than the controller's default
+        // page cap can still find (and preview-delete) any of their own.
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=1000"
+        );
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData).toEqual({
+          action: "delete",
+          status: "preview",
+          executed: false,
+          data: { uuid: "a-1", title: "My Post" },
+        });
+      });
+
+      it("should NOT delete when confirmed is truthy-but-not-strict-true (falls to preview)", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: [{ uuid: "a-1", title: "My Post" }],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: {
+              uuid: "a-1",
+              // truthy but not strictly === true
+              confirmed: "true" as unknown as boolean,
+            },
+          },
+        });
+
         expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("explicit confirmation");
+        expect(responseData.status).toBe("preview");
+        expect(responseData.executed).toBe(false);
+      });
+
+      it("should return a not_found error when the preview uuid is not among the user's announcements", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: [{ uuid: "other-1", title: "Not the one" }],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: {
+              uuid: "missing-1",
+              confirmed: false,
+            },
+          },
+        });
+
+        expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+        expect(result.isError).toBe(true);
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.code).toBe("not_found");
+      });
+
+      it("should return a not_found error when the delete returns 404", async () => {
+        // Post-#30: the handler branches on the DrupalApiError.status, not a
+        // string-match of the message, so the mock throws a real DrupalApiError.
+        mockDrupalAuth.delete.mockRejectedValueOnce(
+          new DrupalApiError("Drupal API error: 404 Not Found", 404, {
+            errors: [{ detail: "Not Found" }],
+          })
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: {
+              uuid: "gone-1",
+              confirmed: true,
+            },
+          },
+        });
+
+        expect(result.isError).toBe(true);
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.code).toBe("not_found");
       });
 
       it("should fail without an acting user and make no provider call", async () => {
@@ -1132,6 +1374,32 @@ describe("AnnouncementsServer", () => {
 
         const text = (result.content[0] as TextContent).text;
         expect(text).toMatch(/authenticate with your ACCESS-CI credentials/i);
+        expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+      });
+
+      // The PREVIEW lookup (GET /mine) can itself throw. A failed list-fetch
+      // means "the lookup failed", never "your announcement is absent" — it must
+      // carry a coded upstream_error (not a bare, uncoded {error}), and never
+      // delete.
+      it("preview → a DrupalApiError on the /mine lookup maps to a coded upstream_error", async () => {
+        mockDrupalAuth.get.mockRejectedValueOnce(
+          new DrupalApiError("Drupal API error: 500 Server Error", 500, {
+            errors: [{ detail: "boom" }],
+          })
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: { uuid: "any-1", confirmed: false },
+          },
+        });
+
+        expect(result.isError).toBe(true);
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.code).toBe("upstream_error");
+        expect(responseData.code).not.toBe("not_found");
         expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
       });
     });
@@ -1740,6 +2008,147 @@ describe("AnnouncementsServer", () => {
       const myTool = tools.find((t: { name: string }) => t.name === "get_my_announcements");
       expect(myTool?.inputSchema.properties?.fields).toBeDefined();
       expect((myTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+
+    it("write-tool descriptions document the write envelope (status/executed) and delete's preview-by-default", () => {
+      const tools = server["getTools"]();
+      const create = tools.find((t: { name: string }) => t.name === "create_announcement")!;
+      const update = tools.find((t: { name: string }) => t.name === "update_announcement")!;
+      const del = tools.find((t: { name: string }) => t.name === "delete_announcement")!;
+
+      expect(create.description).toContain("write envelope");
+      expect(create.description).toContain("created");
+      expect(update.description).toContain("write envelope");
+      expect(update.description).toContain("updated");
+
+      // delete: write envelope + preview-by-default (confirmed required).
+      expect(del.description).toContain("write envelope");
+      expect(del.description).toContain("preview");
+      expect(del.description).toContain("deleted");
+      expect(del.description).toContain("REQUIRED");
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Write-contract conformance (Phase 2, Task 5)
+  //
+  // The core guarantee of the write-contract migration: EVERY write tool emits
+  // the exact StandardWriteResponse envelope — {action, status, executed} always
+  // present, {data, warning} optional, and NO other top-level key (especially NO
+  // legacy `changed`/`success`). Plus the `executed` truth table per status.
+  // ---------------------------------------------------------------------------
+  describe("write-contract conformance", () => {
+    // Structural contract (keys/actions/no-changed/boolean-executed) is asserted
+    // by the shared assertWriteEnvelope. Only the STATUS vocabulary is per-server
+    // — announcements never emits `cancelled` (events does).
+    const STATUS_VOCAB = new Set([
+      "preview",
+      "registered",
+      "waitlisted",
+      "already_registered",
+      "created",
+      "updated",
+      "deleted",
+    ]);
+    const assertEnvelope = (parsed: Record<string, unknown>) =>
+      assertWriteEnvelope(parsed, STATUS_VOCAB, expect);
+
+    let mockDrupalAuth: {
+      ensureAuthenticated: Mock;
+      getUserUuid: Mock;
+      get: Mock;
+      post: Mock;
+      patch: Mock;
+      delete: Mock;
+    };
+
+    beforeEach(() => {
+      process.env.DRUPAL_API_URL = "https://test.drupal.site";
+      process.env.DRUPAL_USERNAME = "test_user";
+      process.env.DRUPAL_PASSWORD = "test_password";
+      process.env.ACTING_USER = "testuser@access-ci.org";
+
+      mockDrupalAuth = {
+        ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
+        getUserUuid: vi.fn().mockReturnValue("user-uuid-123"),
+        get: vi.fn(),
+        post: vi.fn(),
+        patch: vi.fn(),
+        delete: vi.fn(),
+      };
+      (DrupalAuthProvider as unknown as Mock).mockImplementation(() => mockDrupalAuth);
+    });
+
+    afterEach(() => {
+      delete process.env.DRUPAL_API_URL;
+      delete process.env.DRUPAL_USERNAME;
+      delete process.env.DRUPAL_PASSWORD;
+      delete process.env.ACTING_USER;
+    });
+
+    const call = (name: string, args: Record<string, unknown>) =>
+      server["handleToolCall"]({
+        method: "tools/call",
+        params: { name, arguments: args },
+      });
+
+    it("create_announcement (created) produces a conformant envelope with executed:true", async () => {
+      mockDrupalAuth.post.mockResolvedValue({
+        success: true,
+        uuid: "u-1",
+        nid: 1,
+        title: "T",
+        edit_url: "https://test.drupal.site/node/1/edit",
+      });
+      const result = await call("create_announcement", {
+        title: "T",
+        body: "<p>b</p>",
+        summary: "s",
+      });
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      assertEnvelope(parsed);
+      expect(parsed.action).toBe("create");
+      expect(parsed.status).toBe("created");
+      expect(parsed.executed).toBe(true);
+    });
+
+    it("update_announcement (updated) produces a conformant envelope with executed:true", async () => {
+      mockDrupalAuth.patch.mockResolvedValue({
+        success: true,
+        uuid: "u-1",
+        title: "T2",
+        edit_url: "https://test.drupal.site/node/1/edit",
+      });
+      const result = await call("update_announcement", { uuid: "u-1", title: "T2" });
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      assertEnvelope(parsed);
+      expect(parsed.action).toBe("update");
+      expect(parsed.status).toBe("updated");
+      expect(parsed.executed).toBe(true);
+    });
+
+    it("delete_announcement (deleted) produces a conformant envelope with executed:true", async () => {
+      mockDrupalAuth.delete.mockResolvedValue({ success: true, uuid: "u-1" });
+      const result = await call("delete_announcement", { uuid: "u-1", confirmed: true });
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      assertEnvelope(parsed);
+      expect(parsed.action).toBe("delete");
+      expect(parsed.status).toBe("deleted");
+      expect(parsed.executed).toBe(true);
+    });
+
+    it("delete_announcement (preview) produces a conformant envelope with executed:false", async () => {
+      mockDrupalAuth.get.mockResolvedValueOnce({
+        items: [{ uuid: "u-1", title: "My Post" }],
+      });
+      const result = await call("delete_announcement", { uuid: "u-1", confirmed: false });
+      // Preview writes nothing.
+      expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      assertEnvelope(parsed);
+      expect(parsed.action).toBe("delete");
+      expect(parsed.status).toBe("preview");
+      expect(parsed.executed).toBe(false);
     });
   });
 });

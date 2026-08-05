@@ -55,4 +55,14 @@ export interface StandardToolResponse<T> extends UniversalResponse<T> {
 export interface StandardErrorResponse {
   error: string;
   hint?: string;
+  code?: string;
+}
+
+// Standard write response envelope (register/cancel/create/update/delete tools)
+export interface StandardWriteResponse {
+  action: "register" | "cancel" | "create" | "update" | "delete";
+  status: string;
+  executed: boolean;
+  data?: Record<string, unknown>;
+  warning?: string;
 }

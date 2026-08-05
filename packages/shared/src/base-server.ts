@@ -29,6 +29,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
 import { traceMcpToolCall } from "./telemetry.js";
 import { UsageLogger } from "./usage-logger.js";
+import { StandardWriteResponse } from "./types.js";
 
 // Re-export SDK types for convenience
 export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
@@ -250,8 +251,9 @@ export abstract class BaseAccessServer {
    * Helper method to create a standard error response (MCP 2025 compliant)
    * @param message The error message
    * @param hint Optional suggestion for how to fix the error
+   * @param code Optional machine-readable error code
    */
-  protected errorResponse(message: string, hint?: string): CallToolResult {
+  protected errorResponse(message: string, hint?: string, code?: string): CallToolResult {
     return {
       content: [
         {
@@ -259,10 +261,27 @@ export abstract class BaseAccessServer {
           text: JSON.stringify({
             error: message,
             ...(hint && { hint }),
+            ...(code && { code }),
           }),
         },
       ],
       isError: true,
+    };
+  }
+
+  /**
+   * Helper method to create a standard write response envelope.
+   * A write result is never an error; failures go through errorResponse.
+   * @param r The write response envelope
+   */
+  protected writeResponse(r: StandardWriteResponse): CallToolResult {
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(r),
+        },
+      ],
     };
   }
 

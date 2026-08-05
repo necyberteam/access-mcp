@@ -261,6 +261,44 @@ describe("BaseAccessServer helper methods", () => {
       expect(content.error).toBe("Invalid input");
       expect(content.hint).toBe("Try using a number");
     });
+
+    it("errorResponse includes code when provided", () => {
+      const r = server["errorResponse"]("nope", "hint", "event_full");
+      expect(r.isError).toBe(true);
+      const textContent = r.content[0] as { type: string; text: string };
+      expect(JSON.parse(textContent.text)).toEqual({
+        error: "nope",
+        hint: "hint",
+        code: "event_full",
+      });
+    });
+
+    it("errorResponse omits code when not provided (back-compat)", () => {
+      const textContent = server["errorResponse"]("nope").content[0] as {
+        type: string;
+        text: string;
+      };
+      expect(JSON.parse(textContent.text)).toEqual({ error: "nope" });
+    });
+  });
+
+  describe("writeResponse", () => {
+    it("writeResponse serializes the envelope without isError", () => {
+      const r = server["writeResponse"]({
+        action: "register",
+        status: "registered",
+        executed: true,
+        data: { registrant_id: "u-1" },
+      });
+      expect(r.isError).toBeUndefined();
+      const textContent = r.content[0] as { type: string; text: string };
+      expect(JSON.parse(textContent.text)).toEqual({
+        action: "register",
+        status: "registered",
+        executed: true,
+        data: { registrant_id: "u-1" },
+      });
+    });
   });
 
   describe("createJsonResource", () => {

@@ -4,6 +4,7 @@ import {
   Resource,
   CallToolResult,
   DrupalAuthProvider,
+  DrupalApiError,
   getRequestContext,
   projectFields,
 } from "@access-mcp/shared";
@@ -248,8 +249,8 @@ PREVIEW FORMAT (show before creating):
 ---
 Ask "Does this look correct?" before creating.
 
-Returns: {success, uuid, title, edit_url}
-ALWAYS display the edit_url to the user so they can review their draft in Drupal.`,
+Returns the write envelope {action:"create", status:"created", executed:true, data:{uuid, nid, title, edit_url, moderation_state}} (a "warning" is added when some tags could not be matched). Read "status" and "executed"; the created draft's fields are under "data".
+ALWAYS display data.edit_url to the user so they can review their draft in Drupal.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -315,8 +316,8 @@ BEFORE CALLING:
 3. Only include fields that are changing
 4. Show a preview of the changes and ask for confirmation before updating
 
-Returns: {success, uuid, title, edit_url}
-ALWAYS display the edit_url to the user so they can review changes in Drupal.`,
+Returns the write envelope {action:"update", status:"updated", executed:true, data:{uuid, title, edit_url}} (a "warning" is added when some tags could not be matched). Read "status" and "executed"; the updated fields are under "data".
+ALWAYS display data.edit_url to the user so they can review changes in Drupal.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -385,7 +386,7 @@ BEFORE CALLING (required for EVERY delete):
 BULK DELETES: When user asks to delete multiple announcements, confirm EACH ONE individually.
 Do NOT batch delete based on general consent. Each deletion requires its own confirmation prompt.
 
-Returns: {success, uuid}`,
+Returns the write envelope {action:"delete", status, executed, data}. "confirmed" is REQUIRED and preview-by-default: confirmed=false (or omitted, or any value other than strict true) previews — status:"preview", executed:false, data:{uuid, title}, writes NOTHING; confirmed=true performs the delete — status:"deleted", executed:true, data:{uuid}. Read "status"/"executed" to know which happened. A uuid the acting user does not own returns an error with code "not_found".`,
         inputSchema: {
           type: "object",
           properties: {
@@ -919,26 +920,25 @@ Which would you like to do?`,
     // Prefer the server-computed edit_url; fall back to building it from nid.
     const editUrl =
       result.edit_url ?? `${process.env.DRUPAL_API_URL}/node/${result.nid}/edit`;
-    const response: Record<string, unknown> = {
-      success: true,
-      message: "Announcement created (draft status)",
-      uuid: result.uuid,
-      title: result.title,
-      edit_url: editUrl,
-    };
 
-    if (unmatchedTags.length > 0) {
-      response.warning = `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`;
-    }
+    const warning =
+      unmatchedTags.length > 0
+        ? `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`
+        : undefined;
 
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(response),
-        },
-      ],
-    };
+    return this.writeResponse({
+      action: "create",
+      status: "created",
+      executed: true,
+      data: {
+        uuid: result.uuid,
+        nid: result.nid,
+        title: result.title,
+        edit_url: editUrl,
+        moderation_state: "draft",
+      },
+      ...(warning && { warning }),
+    });
   }
 
   /**
@@ -1017,66 +1017,105 @@ Which would you like to do?`,
     );
 
     // Controller returns a flat {success, uuid, title, edit_url}.
-    const response: Record<string, unknown> = {
-      success: true,
-      message: "Announcement updated",
-      uuid: result.uuid,
-      title: result.title,
-      edit_url: result.edit_url ?? null,
-    };
+    // Update's edit_url can be null — no nid fallback here (unlike create).
+    const warning =
+      unmatchedTags.length > 0
+        ? `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`
+        : undefined;
 
-    if (unmatchedTags.length > 0) {
-      response.warning = `These tags were not found and were skipped: ${unmatchedTags.join(", ")}. Use suggest_tags to get valid tag names.`;
-    }
-
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(response),
-        },
-      ],
-    };
+    return this.writeResponse({
+      action: "update",
+      status: "updated",
+      executed: true,
+      data: {
+        uuid: result.uuid,
+        title: result.title,
+        edit_url: result.edit_url ?? null,
+      },
+      ...(warning && { warning }),
+    });
   }
 
   /**
    * Delete an announcement via Drupal JSON:API
    */
   private async deleteAnnouncement(args: DeleteAnnouncementArgs): Promise<CallToolResult> {
-    // Enforce confirmation parameter
-    if (!args.confirmed) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({
-              error:
-                "Deletion requires explicit confirmation. You must show the announcement title and status to the user and get explicit confirmation before setting confirmed=true.",
-              uuid: args.uuid,
-            }),
-          },
-        ],
-      };
-    }
-
+    // Resolve the acting user first so an unauthenticated caller fails before
+    // any provider call (preview or delete).
     const actingUser = this.getActingUserAccessId();
     const auth = this.getDrupalAuth();
 
-    // Custom controller: DELETE /api/2.3/announcements/{uuid} → flat {success, uuid}
-    await auth.delete(actingUser, `/api/2.3/announcements/${args.uuid}`);
+    // confirmed is REQUIRED and execute-gated on STRICT === true. Any other
+    // value (false, or a truthy-but-not-true like "true"/1) is a PREVIEW that
+    // writes NOTHING — it only reads the title so the caller can confirm.
+    if (args.confirmed !== true) {
+      // There is no single-item GET-by-uuid route; a user can only delete their
+      // OWN announcements, so the title comes from GET /announcements/mine.
+      // Pass an explicit high limit (mirrors get_my_announcements' bounded fetch)
+      // so a user owning more announcements than the controller's default page
+      // cap can still preview any of their own — without it, a deletable uuid
+      // past the first page would wrongly read as not_found.
+      let mine: { items?: Array<{ uuid?: string; title?: string }> };
+      try {
+        mine = await auth.get(actingUser, `/api/2.3/announcements/mine?limit=1000`);
+      } catch (error) {
+        // The preview lookup can itself fail. A failed list-fetch means the
+        // lookup failed, NOT that the announcement is absent — so carry a coded
+        // upstream_error (never not_found), matching the execute path's habit of
+        // a machine-readable code instead of a bare {error}.
+        if (error instanceof DrupalApiError) {
+          return this.errorResponse(
+            `Announcements service error (${error.status})`,
+            "Try again shortly.",
+            "upstream_error"
+          );
+        }
+        throw error;
+      }
+      const item = (mine.items || []).find(
+        (i: { uuid?: string }) => i.uuid === args.uuid
+      );
 
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify({
-            success: true,
-            message: "Announcement deleted",
-            uuid: args.uuid,
-          }),
-        },
-      ],
-    };
+      if (!item) {
+        return this.errorResponse(
+          "Announcement not found (or not yours).",
+          "Check the uuid via get_my_announcements.",
+          "not_found"
+        );
+      }
+
+      return this.writeResponse({
+        action: "delete",
+        status: "preview",
+        executed: false,
+        data: { uuid: args.uuid, title: item.title },
+      });
+    }
+
+    // Confirmed: perform the delete. Custom controller:
+    // DELETE /api/2.3/announcements/{uuid} → flat {success, uuid}.
+    try {
+      await auth.delete(actingUser, `/api/2.3/announcements/${args.uuid}`);
+    } catch (error) {
+      // Post-#30: branch on the structured DrupalApiError.status instead of
+      // string-matching "404" in the message (which could false-match a 404 in
+      // an unrelated part of the text).
+      if (error instanceof DrupalApiError && error.status === 404) {
+        return this.errorResponse(
+          "Announcement not found (or not yours).",
+          "Check the uuid via get_my_announcements.",
+          "not_found"
+        );
+      }
+      throw error;
+    }
+
+    return this.writeResponse({
+      action: "delete",
+      status: "deleted",
+      executed: true,
+      data: { uuid: args.uuid },
+    });
   }
 
   /**

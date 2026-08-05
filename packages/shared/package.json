@@ -13,6 +13,10 @@
     "./telemetry-bootstrap": {
       "import": "./dist/telemetry-bootstrap.js",
       "types": "./dist/telemetry-bootstrap.d.ts"
+    },
+    "./testkit": {
+      "import": "./dist/write-contract-testkit.js",
+      "types": "./dist/write-contract-testkit.d.ts"
     }
   },
   "files": [

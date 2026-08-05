@@ -6,6 +6,7 @@ import {
   Resource,
   CallToolResult,
   DrupalAuthProvider,
+  DrupalApiError,
   getRequestContext,
 } from "@access-mcp/shared";
 import {
@@ -270,7 +271,7 @@ export class EventsServer extends BaseAccessServer {
       },
       {
         name: "get_my_events",
-        description: `Get events created by or associated with the authenticated user.
+        description: `Events the acting user CREATED or organized — NOT events they are attending. For events the user has registered to attend, use get_my_registrations instead.
 
 Returns events the user has created or is associated with, including unpublished/draft events.
 Requires authentication via X-Acting-User header or ACTING_USER environment variable.
@@ -315,7 +316,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "get_event",
         description:
-          "Fetch one ACCESS event's full detail and LIVE registration state (seats_remaining, registration_open, and whether the acting user is already_registered). Use before register_for_event to show the user current availability. registration.enabled=false means native ACCESS registration is off; registration_url (if present) is an external offsite link ACCESS does not manage.",
+          "Fetch one ACCESS event's full detail and LIVE registration state (seats_remaining, registration_open, and whether the acting user is already_registered). Use before register_for_event to show the user current availability. Read the top-level registration_path to decide how to register: \"native\" means native ACCESS registration is on — use register_for_event (any external offsite link is surfaced as external_registration_url, a labeled alternative); \"external\" means native registration is off but an offsite registration_url exists — direct the user there, register_for_event does NOT apply; \"none\" means no registration is available. Before reporting seat availability, read registration.capacity_type: \"limited\" means seats_remaining is a real count, \"unlimited\" means there is no cap — do not report a seat count.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -330,7 +331,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "register_for_event",
         description:
-          "Register the acting user for an ACCESS event via native ACCESS registration. WITHOUT `confirmed` (or confirmed:false) this returns a PREVIEW of what would happen (seat vs. waitlist) and writes NOTHING. WITH confirmed:true it registers and returns a registrant_id. NOTE: this is the OPPOSITE default of cancel_registration — here confirmed:false (or omitted) is a SAFE no-write PREVIEW, whereas in cancel_registration confirmed:false REFUSES the action; do not assume one tool's confirmed semantics from the other. Pair with get_event (live availability before registering), get_my_registrations (list the acting user's registrations), and cancel_registration (cancel one, takes the registrant_id).",
+          "Register the acting user for an ACCESS event via native ACCESS registration. WITHOUT `confirmed` (or confirmed:false) this returns a PREVIEW of what would happen (seat vs. waitlist) and writes NOTHING. WITH confirmed:true it registers. Returns the write-envelope shape {action:\"register\", status, executed, data}: read `status` (preview | registered | waitlisted | already_registered) and `executed` (true only when a write actually happened). status:\"preview\" means executed:false — nothing was written; call again with confirmed:true to commit. status:\"registered\"/\"waitlisted\" carries data.registrant_id. status:\"already_registered\" (executed:false) means the acting user already holds a seat — no change. Refusals (event_full, registration_closed, not_registrable, not_permitted) come back as errors with a machine-readable `code`. Pair with get_event (live availability before registering), get_my_registrations (list the acting user's registrations), and cancel_registration (cancel one, takes the registrant_id).",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -341,7 +342,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             confirmed: {
               type: "boolean",
               description:
-                "Omit or false for a no-write preview (seat vs. waitlist); true to actually register. This is the OPPOSITE of cancel_registration, where confirmed:false refuses.",
+                "Omit or false for a no-write preview (status:\"preview\", executed:false — seat vs. waitlist); true to actually register (status:\"registered\"/\"waitlisted\", executed:true).",
             },
           },
           required: ["eventinstance_id"],
@@ -350,7 +351,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "cancel_registration",
         description:
-          "Permanently cancel one of the authenticated user's OWN event registrations. Pass registrant_id, obtained from get_my_registrations. This cannot cancel other users' registrations — it is scoped to the authenticated acting user. Requires explicit user confirmation: show the registration's event details to the user and only set confirmed=true after they explicitly confirm cancelling THIS specific registration. NOTE: here confirmed:false (or omitted) REFUSES the cancel — the opposite of register_for_event, where confirmed:false is a safe no-write preview.",
+          "Permanently cancel one of the authenticated user's OWN event registrations. Pass registrant_id, obtained from get_my_registrations. This cannot cancel other users' registrations — it is scoped to the authenticated acting user. WITHOUT confirmed:true (confirmed:false or omitted) this returns a PREVIEW of what would be cancelled (the registration's event title and start date) and writes NOTHING — show it to the user for confirmation. WITH confirmed:true it permanently cancels the registration. Returns the write-envelope shape {action:\"cancel\", status, executed, data}: read `status` (preview | cancelled) and `executed` (true only when a cancel actually happened). status:\"preview\" means executed:false — nothing was cancelled; call again with confirmed:true to commit. An unknown registrant_id (or one that is not yours) comes back as an error with code:\"not_found\".",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -460,8 +461,10 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     }
   }
 
-  // Allowed values for the Drupal view's exposed items_per_page pager.
-  private static readonly ALLOWED_PAGE_SIZES = [25, 50, 100, 250, 500];
+  // Allowed values for the Drupal view's exposed items_per_page pager. Must
+  // stay in sync with the view's items_per_page_options; a value outside the
+  // list fails the exposed-pager select validation and returns an empty page.
+  private static readonly ALLOWED_PAGE_SIZES = [1, 5, 10, 20, 25, 50, 100, 250, 500];
 
   private buildEventsUrl(params: SearchEventsParams): string {
     const url = new URL("/api/2.3/events", this.baseURL);
@@ -772,9 +775,36 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     const authError = this.authRedirectError(status);
     if (authError) return authError;
     if (status < 200 || status >= 300) {
-      return this.errorResponse(`Events service error (${status})`, "Try again shortly.");
+      return this.errorResponse(
+        `Events service error (${status})`,
+        "Try again shortly.",
+        "upstream_error"
+      );
     }
-    return this.jsonContent(data); // pass the Drupal detail through
+    // Compute a single top-level registration_path so a caller reads one value
+    // instead of inferring intent from two peer fields (native registration vs
+    // an external URL). When native is enabled AND an external URL is present,
+    // relocate the URL to a labeled external_registration_url and drop the
+    // ambiguous registration_url key.
+    const detail = data as Record<string, unknown>;
+    const registration = detail.registration as { enabled?: unknown } | undefined;
+    const nativeEnabled = registration?.enabled === true;
+    const externalUrl =
+      typeof detail.registration_url === "string" ? detail.registration_url : undefined;
+    let registration_path: "native" | "external" | "none";
+    if (nativeEnabled) {
+      registration_path = "native";
+      if (externalUrl) {
+        detail.external_registration_url = externalUrl;
+        delete detail.registration_url;
+      }
+    } else if (externalUrl) {
+      registration_path = "external";
+    } else {
+      registration_path = "none";
+    }
+    detail.registration_path = registration_path;
+    return this.jsonContent(detail);
   }
 
   /**
@@ -799,19 +829,27 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
    * POST /api/1.0/events/{eventinstance_id}/register route.
    * Without confirmed → a no-write preview; confirmed:true → commit + registrant_id.
    *
+   * Every non-error outcome returns the StandardWriteResponse envelope
+   * ({action:"register", status, executed, data?}); errors go through
+   * errorResponse ({error, hint?, code}, isError:true).
+   *
    * Status branching (via the non-throwing requestRaw accessor):
-   *  - 2xx → pass the Drupal body through (preview or success shape).
-   *  - 409 → a state-based refusal (e.g. already_registered, event_full,
-   *    registration_closed). Surfaced as a FIRST-CLASS result
-   *    { success:false, error, message } with isError UNSET — NOT a thrown/error
-   *    response — so the LLM reads the refusal reason instead of an exception.
-   *    (The Drupal route returns not_permitted as 409, so role refusals arrive here too.)
+   *  - 2xx → a writeResponse. status "registered"/"waitlisted" with executed:true
+   *    (a commit) when confirmed:true, else status "preview" with executed:false
+   *    (the projected outcome_if_confirmed; no write performed). The raw Drupal
+   *    body is NOT passed through — it is remapped onto the envelope.
+   *  - 409 = state-based refusal. already_registered is the ONLY 409 that is a
+   *    terminal, non-error writeResponse (status "already_registered",
+   *    executed:false — the user already holds a seat). Every OTHER 409 code
+   *    (event_full, registration_closed, not_permitted) is an errorResponse
+   *    carrying the Drupal `code` (isError:true). The Drupal route returns
+   *    not_permitted as 409, so role refusals arrive here too.
    *  - 403 → a genuine identity/auth failure from the acting-user gate
    *    (ActingUserAccess / acting_user_uid resolution; the acting-user could not
-   *    be resolved/authorized). This is NOT a state refusal
-   *    and must not be conflated with 409 — surface it as an actionable error.
-   *  - 404 → no such event.
-   *  - other non-2xx → generic service error.
+   *    be resolved/authorized). This is NOT a state refusal and must not be
+   *    conflated with 409 — errorResponse with code "auth_required".
+   *  - 404 → no such event; errorResponse with code "not_found".
+   *  - other non-2xx → errorResponse with code "upstream_error".
    */
   private async registerForEvent(
     eventinstanceId: string,
@@ -833,18 +871,50 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     );
 
     if (status >= 200 && status < 300) {
-      // preview or success body, passed through
-      return this.jsonContent(data);
+      // Commit (confirmed:true) → Drupal returns a terminal status; preview
+      // (confirmed omitted/false) → the projected outcome, no write performed.
+      if (data?.status === "registered" || data?.status === "waitlisted") {
+        return this.writeResponse({
+          action: "register",
+          status: data.status,
+          executed: true,
+          data: { registrant_id: data.registrant_id },
+        });
+      }
+      // The real Drupal preview body always carries outcome_if_confirmed (see the
+      // spec Ground Truth), so no guard is needed here — reading it unconditionally
+      // is safe. If it were ever absent, JSON.stringify drops the undefined key and
+      // data serializes to {}; the envelope stays conformant either way.
+      return this.writeResponse({
+        action: "register",
+        status: "preview",
+        executed: false,
+        data: {
+          outcome_if_confirmed: data?.outcome_if_confirmed,
+          ...(data?.waitlisted_count != null && {
+            waitlisted_count: data.waitlisted_count,
+          }),
+        },
+      });
     }
 
-    // 409 = state-based refusal → first-class result (isError unset). The Drupal
-    // route returns not_permitted as 409, so role refusals also land here.
+    // 409 = state-based refusal. already_registered is a terminal, non-error
+    // status (the user already holds a seat); every other 409 code is an
+    // actionable error carrying the Drupal code. The Drupal route returns
+    // not_permitted as 409, so role refusals also arrive here.
     if (status === 409) {
-      return this.jsonContent({
-        success: false,
-        error: data?.error ?? "refused",
-        message: data?.message ?? "Registration was refused.",
-      });
+      if (data?.error === "already_registered") {
+        return this.writeResponse({
+          action: "register",
+          status: "already_registered",
+          executed: false,
+        });
+      }
+      return this.errorResponse(
+        data?.message ?? "Registration refused.",
+        "See the event's registration state via get_event.",
+        data?.error
+      );
     }
 
     // A bare 403 (no not_permitted state code) is an identity/auth failure from
@@ -852,22 +922,27 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (status === 403) {
       return this.errorResponse(
         "Not authorized to register — your acting-user identity could not be resolved or authorized.",
-        data?.message ??
-          "Confirm the X-Acting-User identity and the mcp_service credentials."
+        "Re-authenticate the ACCESS connector and try again.",
+        "auth_required"
       );
     }
 
     if (status === 404) {
       return this.errorResponse(
         `No event found with id ${eventinstanceId}`,
-        "Check the id via search_events."
+        "Check the id via search_events.",
+        "not_found"
       );
     }
 
     const authError = this.authRedirectError(status);
     if (authError) return authError;
 
-    return this.errorResponse(`Events service error (${status})`, "Try again shortly.");
+    return this.errorResponse(
+      `Events service error (${status})`,
+      "Try again shortly.",
+      "upstream_error"
+    );
   }
 
   /**
@@ -887,9 +962,21 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
 
   /**
    * Cancel one of the acting user's registrations via the Drupal
-   * DELETE /api/1.0/registrations/{registrant_id} endpoint. Ownership is
-   * enforced server-side (403 for another user's registration; 404 for an
-   * unknown id) and surfaces through the shared error handling above.
+   * DELETE /api/1.0/registrations/{registrant_id} endpoint. PREVIEW-by-default:
+   *
+   *  - confirmed !== true → a no-write PREVIEW. Looks the registration up in the
+   *    acting user's when=all registration list (when=all, NOT the default
+   *    upcoming, so a past-dated registration still previews) and returns the
+   *    write envelope {action:"cancel", status:"preview", executed:false, data:
+   *    {registrant_id, event}}. STRICT === true gates the destructive path — a
+   *    truthy-but-not-true value (1, "true") lands here, never on the delete.
+   *    An unknown registrant_id (not in the when=all list) → errorResponse
+   *    code:"not_found".
+   *  - confirmed === true → EXECUTE the DELETE. On 2xx → {action:"cancel",
+   *    status:"cancelled", executed:true, data:{registrant_id}}. auth.delete
+   *    throws DrupalApiError on non-2xx: 404 (unknown/other id) → code:"not_found",
+   *    403 (non-owner) → code:"forbidden", else → code:"upstream_error". Branches
+   *    on DrupalApiError.status structurally, never on the message string.
    */
   private async cancelRegistration(registrantId: string, confirmed?: boolean): Promise<CallToolResult> {
     if (!registrantId || typeof registrantId !== "string") {
@@ -898,40 +985,98 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         "Call get_my_registrations to find the registrant_id of the registration to cancel."
       );
     }
-    // Enforce confirmation parameter (destructive tool — mirrors delete_announcement).
-    // Require STRICT boolean true: truthy-but-not-true values (1, "false", {})
-    // must not slip through and trigger an irreversible cancel.
-    if (confirmed !== true) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify({
-              error:
-                "Cancellation requires explicit confirmation. You must show the registration's event details to the user and get explicit confirmation before setting confirmed=true.",
-              registrant_id: registrantId,
-            }),
-          },
-        ],
-      };
-    }
     const actingUser = this.getActingUserAccessId(); // throws → aligned auth error if no acting user
     const auth = this.getDrupalAuth();
-    await auth.delete(
-      actingUser,
-      `/api/1.0/registrations/${encodeURIComponent(registrantId)}`
-    );
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify({
-            success: true,
-            message: `Registration ${registrantId} cancelled`,
-            registrant_id: registrantId,
-          }),
+
+    // PREVIEW (confirmed omitted/false, or any truthy-but-not-true value). Never
+    // deletes — enforce STRICT boolean true so 1/"true"/{} cannot trigger an
+    // irreversible cancel. Look the registration up in the acting user's when=all
+    // list so a past-dated registration still previews.
+    if (confirmed !== true) {
+      let body: { registrations?: Array<Record<string, unknown>> } | undefined;
+      try {
+        body = await auth.get(actingUser, `/api/1.0/registrations?when=all`);
+      } catch (error) {
+        // The preview lookup can itself fail. Carry the same machine-readable
+        // code as the execute path so callers branch identically (403→forbidden,
+        // else→upstream_error); a failed read never means the registration is
+        // absent, so it must NOT map to not_found.
+        if (error instanceof DrupalApiError) {
+          if (error.status === 403) {
+            return this.errorResponse(
+              "Not authorized to look up your registrations.",
+              "Re-authenticate the ACCESS connector and try again.",
+              "forbidden"
+            );
+          }
+          return this.errorResponse(
+            `Events service error (${error.status})`,
+            "Try again shortly.",
+            "upstream_error"
+          );
+        }
+        throw error;
+      }
+      const registrations = (body?.registrations ?? []) as Array<Record<string, unknown>>;
+      const row = registrations.find((r) => r.registrant_id === registrantId);
+      if (!row) {
+        return this.errorResponse(
+          "Registration not found (or not yours).",
+          "Call get_my_registrations to find your registrant_id.",
+          "not_found"
+        );
+      }
+      return this.writeResponse({
+        action: "cancel",
+        status: "preview",
+        executed: false,
+        data: {
+          registrant_id: registrantId,
+          event: {
+            title: row.event_title,
+            start_date: row.start_date,
+          },
         },
-      ],
-    };
+      });
+    }
+
+    // EXECUTE the destructive cancel. auth.delete throws DrupalApiError on
+    // non-2xx; branch on the structured .status (not the message string).
+    try {
+      await auth.delete(
+        actingUser,
+        `/api/1.0/registrations/${encodeURIComponent(registrantId)}`
+      );
+    } catch (error) {
+      if (error instanceof DrupalApiError) {
+        if (error.status === 404) {
+          return this.errorResponse(
+            "Registration not found (or not yours).",
+            "Call get_my_registrations to find your registrant_id.",
+            "not_found"
+          );
+        }
+        if (error.status === 403) {
+          return this.errorResponse(
+            "Not authorized to cancel this registration — you may only cancel your own.",
+            "Confirm the registrant_id belongs to you via get_my_registrations.",
+            "forbidden"
+          );
+        }
+        return this.errorResponse(
+          `Events service error (${error.status})`,
+          "Try again shortly.",
+          "upstream_error"
+        );
+      }
+      throw error;
+    }
+
+    return this.writeResponse({
+      action: "cancel",
+      status: "cancelled",
+      executed: true,
+      data: { registrant_id: registrantId },
+    });
   }
 }

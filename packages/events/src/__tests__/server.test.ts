@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, afterEach, Mock } from "vitest";
-import { requestContextStorage, RequestContext } from "@access-mcp/shared";
+import { requestContextStorage, RequestContext, DrupalApiError } from "@access-mcp/shared";
+import { assertWriteEnvelope } from "@access-mcp/shared/testkit";
 
 const mockGet = vi.fn();
 const mockDelete = vi.fn();
@@ -9,6 +10,9 @@ vi.mock("@access-mcp/shared", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@access-mcp/shared")>();
   return {
     ...actual,
+    // Re-export the real DrupalApiError explicitly so tests can `new` it (the
+    // cancel error-branch tests throw a real DrupalApiError at auth.delete).
+    DrupalApiError: actual.DrupalApiError,
     DrupalAuthProvider: vi.fn().mockImplementation(() => ({
       ensureAuthenticated: vi.fn().mockResolvedValue(undefined),
       get: mockGet,
@@ -72,6 +76,51 @@ describe("EventsServer", () => {
       expect(tools.map((t: { name: string }) => t.name)).toContain("cancel_registration");
       expect(tools.map((t: { name: string }) => t.name)).toContain("get_event");
       expect(tools.map((t: { name: string }) => t.name)).toContain("register_for_event");
+    });
+
+    it("get_my_events / get_my_registrations descriptions crisply separate created vs attending", () => {
+      const tools = server["getTools"]();
+      const myEvents = tools.find((t) => t.name === "get_my_events")!;
+      const myRegs = tools.find((t) => t.name === "get_my_registrations")!;
+      // get_my_events must point to get_my_registrations for the attending case (currently does NOT):
+      expect(myEvents.description).toContain("get_my_registrations");
+      expect(myEvents.description.toLowerCase()).toContain("created");
+      // get_my_registrations must cross-reference get_my_events (already does — keep):
+      expect(myRegs.description).toContain("get_my_events");
+      expect(myRegs.description.toLowerCase()).toContain("registered to attend");
+    });
+
+    it("get_event description documents registration_path and capacity_type", () => {
+      const tools = server["getTools"]();
+      const getEvent = tools.find((t) => t.name === "get_event")!;
+      expect(getEvent.description).toContain("registration_path");
+      expect(getEvent.description).toContain("capacity_type");
+    });
+
+    it("register_for_event description documents the write envelope and drops the cross-tool OPPOSITE/REFUSES clause", () => {
+      const tools = server["getTools"]();
+      const reg = tools.find((t) => t.name === "register_for_event")!;
+      // Documents the write envelope + status reading.
+      expect(reg.description).toContain("status");
+      expect(reg.description).toContain("executed");
+      expect(reg.description).toContain("already_registered");
+      // Stale cross-tool reciprocity clause is gone.
+      expect(reg.description).not.toContain("OPPOSITE");
+      expect(reg.description).not.toContain("REFUSES");
+      const confirmed = reg.inputSchema.properties?.confirmed as { description?: string };
+      expect(confirmed.description).not.toContain("OPPOSITE");
+    });
+
+    it("cancel_registration description documents the unified preview/execute rule and drops the OPPOSITE/REFUSES clause", () => {
+      const tools = server["getTools"]();
+      const cancel = tools.find((t) => t.name === "cancel_registration")!;
+      // Unified rule: confirmed:true executes, confirmed:false previews; read status/executed.
+      expect(cancel.description).toContain("status");
+      expect(cancel.description).toContain("executed");
+      expect(cancel.description.toLowerCase()).toContain("preview");
+      // The stale reciprocal REFUSES/OPPOSITE clause left by Task 6 is gone.
+      expect(cancel.description).not.toContain("OPPOSITE");
+      expect(cancel.description).not.toContain("REFUSES");
     });
 
     it("should provide the correct resources", () => {
@@ -785,7 +834,7 @@ describe("EventsServer", () => {
         process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
         mockGet.mockReset();
         // auth.get returns the response BODY directly; our endpoint returns { registrations: [...] } — mock that shape, NOT wrapped in { data: ... }.
-        mockGet.mockResolvedValue({ registrations: [{ registrant_id: "u-1", eventinstance_id: 5, event_title: "GPU", waitlist: false }] });
+        mockGet.mockResolvedValue({ registrations: [{ registrant_id: "u-1", eventinstance_id: "5", event_title: "GPU", waitlist: false }] });
         const server = new EventsServer();
         const result = await requestContextStorage.run(
           { actingUser: "apasquale@access-ci.org" } as RequestContext,
@@ -852,32 +901,23 @@ describe("EventsServer", () => {
   });
 
   describe("cancel_registration", () => {
-    it("cancel_registration calls DELETE on the registration endpoint", async () => {
+    const withDrupalEnv = async (
+      fn: () => Promise<{ content: { text: string }[]; isError?: boolean }>
+    ) => {
       const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
       try {
         process.env.DRUPAL_API_URL = "https://drupal.example";
         process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
-        mockDelete.mockReset();
-        mockDelete.mockResolvedValue({ status: "cancelled", registrant_id: "u-1" });
-        const server = new EventsServer();
-        const result = await requestContextStorage.run(
+        return await requestContextStorage.run(
           { actingUser: "apasquale@access-ci.org" } as RequestContext,
-          () => server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
+          fn
         );
-        expect(mockDelete).toHaveBeenCalledWith(
-          "apasquale@access-ci.org",
-          "/api/1.0/registrations/u-1"
-        );
-        const text = (result.content[0] as { text: string }).text;
-        const parsed = JSON.parse(text);
-        expect(parsed.success).toBe(true);
-        expect(parsed.registrant_id).toBe("u-1");
       } finally {
         if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
         if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
         if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
       }
-    });
+    };
 
     it("cancel_registration requires registrant_id and confirmed in the schema", () => {
       const tool = new EventsServer()["getTools"]().find((t) => t.name === "cancel_registration");
@@ -886,59 +926,137 @@ describe("EventsServer", () => {
       expect(schema?.required).toContain("confirmed");
     });
 
-    it("cancel_registration refuses to delete without confirmed", async () => {
-      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
-      try {
-        process.env.DRUPAL_API_URL = "https://drupal.example";
-        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
-        mockDelete.mockReset();
-        const server = new EventsServer();
-        for (const args of [{ registrant_id: "u-1" }, { registrant_id: "u-1", confirmed: false }]) {
-          const result = await requestContextStorage.run(
-            { actingUser: "apasquale@access-ci.org" } as RequestContext,
-            () => server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: args } })
-          );
-          const text = (result.content[0] as { text: string }).text;
-          const parsed = JSON.parse(text);
-          expect(parsed.error).toMatch(/requires explicit confirmation/i);
-          expect(parsed.registrant_id).toBe("u-1");
-        }
-        expect(mockDelete).not.toHaveBeenCalled();
-      } finally {
-        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
-        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
-        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
-      }
+    it("confirmed:false PREVIEWS via a when=all lookup and writes NOTHING", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      // The when=all list carries the row for u-1 (event_title/start_date come
+      // straight from the /registrations row).
+      mockGet.mockResolvedValue({
+        registrations: [
+          { registrant_id: "u-1", eventinstance_id: "5", event_title: "GPU Workshop", start_date: "2026-08-01T14:00:00Z", end_date: "2026-08-01T15:00:00Z" },
+          { registrant_id: "u-2", eventinstance_id: "6", event_title: "Other", start_date: "2026-09-01T14:00:00Z" },
+        ],
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: false } } })
+      );
+      // The lookup uses when=all so a PAST-dated registration still previews.
+      expect(mockGet).toHaveBeenCalledWith(
+        "apasquale@access-ci.org",
+        "/api/1.0/registrations?when=all"
+      );
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "cancel",
+        status: "preview",
+        executed: false,
+        data: {
+          registrant_id: "u-1",
+          event: { title: "GPU Workshop", start_date: "2026-08-01T14:00:00Z" },
+        },
+      });
+      // Preview writes nothing.
+      expect(mockDelete).not.toHaveBeenCalled();
     });
 
-    it("cancel_registration rejects truthy-but-not-true confirmed values (strict === true)", async () => {
-      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
-      try {
-        process.env.DRUPAL_API_URL = "https://drupal.example";
-        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
-        mockDelete.mockReset();
-        const server = new EventsServer();
-        // A string "true" and the number 1 are truthy but not boolean true;
-        // they must NOT slip through the confirmation gate.
-        for (const confirmed of ["true", 1]) {
-          const result = await requestContextStorage.run(
-            { actingUser: "apasquale@access-ci.org" } as RequestContext,
-            () => server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed } } })
-          );
-          const text = (result.content[0] as { text: string }).text;
-          const parsed = JSON.parse(text);
-          expect(parsed.error).toMatch(/requires explicit confirmation/i);
-          expect(parsed.registrant_id).toBe("u-1");
-        }
-        expect(mockDelete).not.toHaveBeenCalled();
-      } finally {
-        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
-        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
-        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
-      }
+    it("confirmed:false with a registrant_id NOT in the when=all list is a coded not_found", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockGet.mockResolvedValue({
+        registrations: [
+          { registrant_id: "u-2", eventinstance_id: "6", event_title: "Other", start_date: "2026-09-01T14:00:00Z" },
+        ],
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: false } } })
+      );
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+      expect(mockDelete).not.toHaveBeenCalled();
     });
 
-    it("cancel_registration errors without registrant_id and never calls DELETE", async () => {
+    it("truthy-but-not-true confirmed values PREVIEW (strict === true execute-gate), never delete", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockGet.mockResolvedValue({
+        registrations: [
+          { registrant_id: "u-1", eventinstance_id: "5", event_title: "GPU Workshop", start_date: "2026-08-01T14:00:00Z" },
+        ],
+      });
+      // A string "true" and the number 1 are truthy but not boolean true; they
+      // must land in the PREVIEW path, not the destructive execute path.
+      for (const confirmed of ["true", 1]) {
+        const result = await withDrupalEnv(() =>
+          server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed } } })
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "cancel",
+          status: "preview",
+          executed: false,
+          data: { registrant_id: "u-1" },
+        });
+      }
+      expect(mockDelete).not.toHaveBeenCalled();
+    });
+
+    it("confirmed:true EXECUTES: DELETE the registration and return the cancelled envelope", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockDelete.mockResolvedValue({ status: "cancelled", registrant_id: "u-1" });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
+      );
+      expect(mockDelete).toHaveBeenCalledWith(
+        "apasquale@access-ci.org",
+        "/api/1.0/registrations/u-1"
+      );
+      // No preview lookup on the execute path.
+      expect(mockGet).not.toHaveBeenCalled();
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "cancel",
+        status: "cancelled",
+        executed: true,
+        data: { registrant_id: "u-1" },
+      });
+    });
+
+    it("confirmed:true → DrupalApiError 404 maps to a coded not_found", async () => {
+      mockDelete.mockReset();
+      mockDelete.mockRejectedValue(new DrupalApiError("Drupal API error: 404 Not Found", 404, { error: "not_found" }));
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
+      );
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+    });
+
+    it("confirmed:true → a 403 DrupalApiError maps to forbidden, NOT not_found (RECON-1 negative branch)", async () => {
+      mockDelete.mockReset();
+      mockDelete.mockRejectedValue(new DrupalApiError("Drupal API error: 403 Forbidden", 403, { error: "forbidden" }));
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
+      );
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.code).toBe("forbidden");
+      // Guard: a non-404 must never be mis-mapped to not_found.
+      expect(parsed.code).not.toBe("not_found");
+    });
+
+    it("confirmed:true → a 500 DrupalApiError maps to upstream_error, NOT not_found", async () => {
+      mockDelete.mockReset();
+      mockDelete.mockRejectedValue(new DrupalApiError("Drupal API error: 500 Server Error", 500, { error: "boom" }));
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
+      );
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.code).toBe("upstream_error");
+      expect(parsed.error).toMatch(/Events service error \(500\)/i);
+      expect(parsed.code).not.toBe("not_found");
+    });
+
+    it("cancel_registration errors without registrant_id and never calls DELETE or the lookup", async () => {
+      mockGet.mockReset();
       mockDelete.mockReset();
       const server = new EventsServer();
       const result = await requestContextStorage.run(
@@ -947,6 +1065,37 @@ describe("EventsServer", () => {
       );
       const text = (result.content[0] as { text: string }).text;
       expect(text).toMatch(/registrant_id is required/i);
+      expect(mockDelete).not.toHaveBeenCalled();
+      expect(mockGet).not.toHaveBeenCalled();
+    });
+
+    // The PREVIEW lookup (auth.get) can itself throw. It must carry the same
+    // machine-readable code as the execute path — not bubble to a bare {error}.
+    it("preview → a 403 DrupalApiError on the lookup maps to a coded forbidden", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockGet.mockRejectedValue(new DrupalApiError("Drupal API error: 403 Forbidden", 403, { error: "forbidden" }));
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1" } } })
+      );
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.code).toBe("forbidden");
+      expect(parsed.code).not.toBe("not_found");
+      expect(mockDelete).not.toHaveBeenCalled();
+    });
+
+    it("preview → a 500 DrupalApiError on the lookup maps to a coded upstream_error", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockGet.mockRejectedValue(new DrupalApiError("Drupal API error: 500 Server Error", 500, { error: "boom" }));
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1" } } })
+      );
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse(result.content[0].text);
+      expect(parsed.code).toBe("upstream_error");
+      expect(parsed.code).not.toBe("not_found");
       expect(mockDelete).not.toHaveBeenCalled();
     });
   });
@@ -1012,6 +1161,91 @@ describe("EventsServer", () => {
       expect(body.registration.seats_remaining).toBe(18);
     });
 
+    it("get_event surfaces capacity_type/capacity/seats_remaining", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "7807",
+          title: "X",
+          registration: { enabled: true, capacity_type: "limited", capacity: 60, seats_remaining: 12 },
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "7807" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.registration.capacity_type).toBe("limited");
+      expect(body.registration.capacity).toBe(60);
+      expect(body.registration.seats_remaining).toBe(12);
+    });
+
+    it("get_event computes registration_path=native and relocates the external url", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "7807",
+          title: "X",
+          registration: { enabled: true },
+          registration_url: "http://example.com/ext",
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "7807" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.registration_path).toBe("native");
+      expect(body.external_registration_url).toBe("http://example.com/ext");
+      expect(body.registration_url).toBeUndefined();
+    });
+
+    it("get_event computes registration_path=external when native is off and an external url exists", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "7808",
+          title: "Y",
+          registration: { enabled: false },
+          registration_url: "http://example.com/ext",
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "7808" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.registration_path).toBe("external");
+      expect(body.registration_url).toBe("http://example.com/ext");
+      expect(body.external_registration_url).toBeUndefined();
+    });
+
+    it("get_event computes registration_path=none when neither native nor external is available", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: {
+          id: "7809",
+          title: "Z",
+          registration: { enabled: false },
+        },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "7809" } },
+        })
+      );
+      const body = JSON.parse(result.content[0].text);
+      expect(body.registration_path).toBe("none");
+      expect(body.external_registration_url).toBeUndefined();
+    });
+
     it("get_event maps a 404 to a first-class error (no throw)", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 404,
@@ -1044,6 +1278,19 @@ describe("EventsServer", () => {
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/authentication|session|re-authenticate/i);
       expect(result.content[0].text).not.toMatch(/DOCTYPE|<html/i);
+    });
+
+    it("get_event maps an unexpected upstream status to a coded upstream_error", async () => {
+      mockRequestRaw.mockResolvedValue({ status: 500, data: { error: "boom" } });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_event", arguments: { eventinstance_id: "8504" } },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content[0].text).toMatch(/Events service error \(500\)/i);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "upstream_error" });
     });
 
     it("get_event errors without an eventinstance_id and never calls the service", async () => {
@@ -1086,10 +1333,10 @@ describe("EventsServer", () => {
       }
     };
 
-    it("register_for_event without confirmed returns preview and does not write", async () => {
+    it("register preview maps outcome_if_confirmed to the write envelope", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 200,
-        data: { preview: true, outcome_if_confirmed: "seat", seats_remaining: 18 },
+        data: { outcome_if_confirmed: "seat", already_registered: false, seats_remaining: 18 },
       });
       const result = await withDrupalEnv(() =>
         server["handleToolCall"]({
@@ -1097,8 +1344,12 @@ describe("EventsServer", () => {
           params: { name: "register_for_event", arguments: { eventinstance_id: "5" } },
         })
       );
-      const body = JSON.parse(result.content[0].text);
-      expect(body.preview).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "preview",
+        executed: false,
+        data: { outcome_if_confirmed: "seat" },
+      });
       // Verify a no-write preview was requested: the tool sent confirmed:false.
       expect(mockRequestRaw).toHaveBeenCalledWith(
         "actor@example.com",
@@ -1108,7 +1359,26 @@ describe("EventsServer", () => {
       );
     });
 
-    it("register_for_event confirmed:true returns success + registrant_id", async () => {
+    it("register preview surfaces waitlisted_count when present", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: { outcome_if_confirmed: "waitlist", already_registered: false, waitlisted_count: 3 },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "register_for_event", arguments: { eventinstance_id: "5" } },
+        })
+      );
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "preview",
+        executed: false,
+        data: { outcome_if_confirmed: "waitlist", waitlisted_count: 3 },
+      });
+    });
+
+    it("register commit registered maps to executed write envelope", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 200,
         data: { success: true, status: "registered", registrant_id: "u-123" },
@@ -1128,12 +1398,37 @@ describe("EventsServer", () => {
         "/api/1.0/events/5/register",
         { confirmed: true }
       );
-      const body = JSON.parse(result.content[0].text);
-      expect(body.success).toBe(true);
-      expect(body.registrant_id).toBe("u-123");
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "registered",
+        executed: true,
+        data: { registrant_id: "u-123" },
+      });
     });
 
-    it("register_for_event maps a 409 to a first-class refusal, not an error", async () => {
+    it("register commit waitlisted maps to executed write envelope", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 200,
+        data: { success: true, status: "waitlisted", registrant_id: "u-2" },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "waitlisted",
+        executed: true,
+        data: { registrant_id: "u-2" },
+      });
+    });
+
+    it("register 409 already_registered is a terminal status, not an error", async () => {
       mockRequestRaw.mockResolvedValue({
         status: 409,
         data: { error: "already_registered", message: "You are already registered." },
@@ -1147,12 +1442,49 @@ describe("EventsServer", () => {
           },
         })
       );
-      // The key assertion: a 409 is a first-class result, NOT an errorResponse.
+      // already_registered is a first-class result, NOT an errorResponse.
       expect(result.isError).toBeUndefined();
-      const body = JSON.parse(result.content[0].text);
-      expect(body.success).toBe(false);
-      expect(body.error).toBe("already_registered");
-      expect(body.message).toBe("You are already registered.");
+      expect(JSON.parse(result.content[0].text)).toMatchObject({
+        action: "register",
+        status: "already_registered",
+        executed: false,
+      });
+    });
+
+    it("register 409 event_full is an error with a code", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 409,
+        data: { error: "event_full", message: "full" },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "event_full" });
+    });
+
+    it("register 409 registration_closed is an error carrying the Drupal code", async () => {
+      mockRequestRaw.mockResolvedValue({
+        status: 409,
+        data: { error: "registration_closed", message: "Registration has closed." },
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "registration_closed" });
     });
 
     it("register_for_event maps a bare gate-403 (no not_permitted) to an actionable error", async () => {
@@ -1172,6 +1504,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true); // errorResponse, not a first-class refusal
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "auth_required" });
     });
 
     it("register_for_event maps a 404 to a first-class error", async () => {
@@ -1187,6 +1520,22 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/No event found with id 9999/i);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+    });
+
+    it("register_for_event maps an unexpected upstream status to upstream_error", async () => {
+      mockRequestRaw.mockResolvedValue({ status: 500, data: { error: "boom" } });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "register_for_event",
+            arguments: { eventinstance_id: "5", confirmed: true },
+          },
+        })
+      );
+      expect(result.isError).toBe(true);
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "upstream_error" });
     });
 
     it("register_for_event errors without an eventinstance_id and never calls the service", async () => {
@@ -1359,6 +1708,164 @@ describe("EventsServer", () => {
         if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
         else process.env.DRUPAL_PASSWORD = saved.pass;
       }
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Write-contract conformance (Phase 2, Task 5)
+  //
+  // The core guarantee of the write-contract migration: EVERY write tool emits
+  // the exact StandardWriteResponse envelope — {action, status, executed} always
+  // present, {data, warning} optional, and NO other top-level key (especially NO
+  // legacy `changed`/`success`). Plus the `executed` truth table per status.
+  // ---------------------------------------------------------------------------
+  describe("write-contract conformance", () => {
+    // Structural contract (keys/actions/no-changed/boolean-executed) is asserted
+    // by the shared assertWriteEnvelope. Only the STATUS vocabulary is per-server
+    // — events emits `cancelled` (announcements does not).
+    const STATUS_VOCAB = new Set([
+      "preview",
+      "registered",
+      "waitlisted",
+      "already_registered",
+      "cancelled",
+      "created",
+      "updated",
+      "deleted",
+    ]);
+    const assertEnvelope = (parsed: Record<string, unknown>) =>
+      assertWriteEnvelope(parsed, STATUS_VOCAB, expect);
+
+    const withDrupalEnv = async (
+      fn: () => Promise<{ content: { text: string }[]; isError?: boolean }>
+    ) => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        return await requestContextStorage.run(
+          { actingUser: "actor@example.com" } as RequestContext,
+          fn
+        );
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    };
+
+    const dispatch = (mockData: unknown, mockStatus: number, args: Record<string, unknown>) => {
+      mockRequestRaw.mockResolvedValue({ status: mockStatus, data: mockData });
+      return withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "register_for_event", arguments: { eventinstance_id: "5", ...args } },
+        })
+      );
+    };
+
+    // action | scenario | mock (status,data) | args | expected status/executed
+    const cases: Array<{
+      name: string;
+      mockStatus: number;
+      mockData: unknown;
+      args: Record<string, unknown>;
+      status: string;
+      executed: boolean;
+    }> = [
+      {
+        name: "register preview",
+        mockStatus: 200,
+        mockData: { outcome_if_confirmed: "seat", already_registered: false },
+        args: {},
+        status: "preview",
+        executed: false,
+      },
+      {
+        name: "register commit → registered",
+        mockStatus: 200,
+        mockData: { success: true, status: "registered", registrant_id: "u-1" },
+        args: { confirmed: true },
+        status: "registered",
+        executed: true,
+      },
+      {
+        name: "register commit → waitlisted",
+        mockStatus: 200,
+        mockData: { success: true, status: "waitlisted", registrant_id: "u-2" },
+        args: { confirmed: true },
+        status: "waitlisted",
+        executed: true,
+      },
+      {
+        name: "register 409 → already_registered",
+        mockStatus: 409,
+        mockData: { error: "already_registered", message: "You are already registered." },
+        args: { confirmed: true },
+        status: "already_registered",
+        executed: false,
+      },
+    ];
+
+    for (const c of cases) {
+      it(`${c.name} produces a conformant envelope`, async () => {
+        const result = await dispatch(c.mockData, c.mockStatus, c.args);
+        const parsed = JSON.parse(result.content[0].text);
+        assertEnvelope(parsed);
+        expect(parsed.action).toBe("register");
+        expect(parsed.status).toBe(c.status);
+        // Truth table (spec §2.1 rank-5): executed matches per status. NO `changed`.
+        expect(parsed.executed).toBe(c.executed);
+      });
+    }
+
+    // cancel_registration now emits the envelope too (Task 9). Cancel's write
+    // paths run through auth.get (preview lookup) + auth.delete (execute), not
+    // requestRaw, so exercise it with its own dispatch.
+    it("cancel preview produces a conformant envelope", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockGet.mockResolvedValue({
+        registrations: [
+          { registrant_id: "u-1", eventinstance_id: "5", event_title: "GPU Workshop", start_date: "2026-08-01T14:00:00Z" },
+        ],
+      });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: false } },
+        })
+      );
+      const parsed = JSON.parse(result.content[0].text);
+      assertEnvelope(parsed);
+      expect(parsed.action).toBe("cancel");
+      expect(parsed.status).toBe("preview");
+      expect(parsed.executed).toBe(false);
+    });
+
+    it("cancel commit → cancelled produces a conformant envelope", async () => {
+      mockGet.mockReset();
+      mockDelete.mockReset();
+      mockDelete.mockResolvedValue({ status: "cancelled", registrant_id: "u-1" });
+      const result = await withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } },
+        })
+      );
+      const parsed = JSON.parse(result.content[0].text);
+      assertEnvelope(parsed);
+      expect(parsed.action).toBe("cancel");
+      expect(parsed.status).toBe("cancelled");
+      expect(parsed.executed).toBe(true);
     });
   });
 });
