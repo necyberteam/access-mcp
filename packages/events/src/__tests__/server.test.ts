@@ -876,6 +876,33 @@ describe("EventsServer", () => {
       }
     });
 
+    it("get_my_registrations surfaces the cancelled flag per registration", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockResolvedValue({
+          registrations: [
+            { registrant_id: "u-1", eventinstance_id: "5", event_title: "GPU", waitlist: false, cancelled: true },
+            { registrant_id: "u-2", eventinstance_id: "6", event_title: "Other", waitlist: false, cancelled: false },
+          ],
+        });
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.registrations[0].cancelled).toBe(true);
+        expect(parsed.registrations[1].cancelled).toBe(false);
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
     it("get_my_registrations handles an empty/undefined response body", async () => {
       const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
       try {
