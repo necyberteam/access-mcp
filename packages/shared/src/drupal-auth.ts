@@ -232,7 +232,7 @@ export class DrupalAuthProvider {
    */
   async requestRaw(
     actingUser: string,
-    method: "GET" | "POST" | "DELETE",
+    method: "GET" | "POST" | "PATCH" | "DELETE",
     path: string,
     data?: unknown
   ): Promise<{ status: number; data: any }> {
@@ -244,7 +244,7 @@ export class DrupalAuthProvider {
 
     // validateStatus: () => true (set in the constructor) means every status
     // resolves, so the raw response is always available. Branch on the verb and
-    // call the verb-specific httpClient method (get/post/delete).
+    // call the verb-specific httpClient method (get/post/patch/delete).
     let response: any;
     switch (method) {
       case "GET":
@@ -252,6 +252,9 @@ export class DrupalAuthProvider {
         break;
       case "POST":
         response = await this.httpClient.post(path, data, { headers });
+        break;
+      case "PATCH":
+        response = await this.httpClient.patch(path, data, { headers });
         break;
       case "DELETE":
         response = await this.httpClient.delete(path, { headers });
