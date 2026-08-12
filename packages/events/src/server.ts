@@ -686,6 +686,14 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
           return this.errorResponse(`Unknown tool: ${name}`);
       }
     } catch (error) {
+      // Paths that use the THROWING auth accessors (get/post/patch/delete —
+      // get_my_registrations, get_my_events, the write tools) raise a
+      // DrupalApiError. A persistent auth failure among those must land on the
+      // structured envelope, not the raw "Drupal API error: 307 Temporary
+      // Redirect" text that leaked to production users. The shared base-server
+      // helper branches on .status/.code structurally, never on the message.
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
       return this.errorResponse(handleApiError(error));
     }
   }
@@ -1066,23 +1074,6 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     }
     detail.registration_path = registration_path;
     return this.jsonContent(detail);
-  }
-
-  /**
-   * A 3xx from an authenticated Drupal request means the session was rejected and
-   * Drupal is redirecting to the CILogon login page (maxRedirects:0 keeps it a 3xx
-   * rather than following it and returning the login HTML). Surface a clear auth
-   * error instead of a generic "service error" so the agent/user knows to
-   * re-authenticate. Returns null for non-redirect statuses.
-   */
-  private authRedirectError(status: number): CallToolResult | null {
-    if (status >= 300 && status < 400) {
-      return this.errorResponse(
-        "Authentication required: your ACCESS session may have expired.",
-        { code: "unauthenticated", hint: "Re-authenticate the ACCESS connector and try again." }
-      );
-    }
-    return null;
   }
 
   /**

@@ -27,6 +27,8 @@ import { IncomingMessage, Server as HttpServer, ServerResponse } from "node:http
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
+// Safe direction: drupal-auth depends only on logger, never on base-server.
+import { DrupalApiError } from "./drupal-auth.js";
 import { traceMcpToolCall } from "./telemetry.js";
 import { UsageLogger } from "./usage-logger.js";
 import { StandardWriteResponse, StandardErrorResponse } from "./types.js";
@@ -274,6 +276,66 @@ export abstract class BaseAccessServer {
       ],
       isError: true,
     };
+  }
+
+  /**
+   * Map a PERSISTENT Drupal authentication failure onto the standard error
+   * envelope. Returns null for anything else, so callers keep their own
+   * handling for ordinary errors:
+   *
+   *   } catch (error) {
+   *     const authError = this.drupalAuthError(error);
+   *     if (authError) return authError;
+   *     ...existing handling...
+   *   }
+   *
+   * Two distinct outcomes, and the difference matters to whoever reads the
+   * message:
+   *
+   *  - A 3xx — Drupal bounced an authenticated request to the CILogon login
+   *    page because the session was rejected. DrupalAuthProvider keeps this a
+   *    raw 3xx (maxRedirects:0) rather than following it and returning login
+   *    HTML as a fake 200. The provider already re-logs-in and retries once, so
+   *    a 3xx arriving here means recovery did not stick → "unauthenticated",
+   *    and re-authenticating is the right advice.
+   *  - code "reauth_failed" — the re-login itself failed, so the service
+   *    credentials or Drupal are broken. No retry or restart helps; this needs
+   *    an operator, and saying "try again" would be misleading.
+   *
+   * Lives here rather than in one server because every Drupal-backed server
+   * (announcements, allocations, events) hits the identical failure and used to
+   * leak the raw "Drupal API error: 307 Temporary Redirect" text instead.
+   */
+  protected drupalAuthError(error: unknown): CallToolResult | null {
+    if (!(error instanceof DrupalApiError)) return null;
+
+    if (error.code === "reauth_failed") {
+      return this.errorResponse(error.message, {
+        code: "reauth_failed",
+        hint: "The service could not re-authenticate with Drupal. This needs an operator, not a retry.",
+      });
+    }
+
+    return this.authRedirectError(error.status);
+  }
+
+  /**
+   * The status-based half of drupalAuthError, for callers holding a raw status
+   * rather than a thrown error — the non-throwing requestRaw accessor returns
+   * { status, data }, so those paths branch on the number directly.
+   *
+   * A 3xx means Drupal rejected the session and bounced to the CILogon login
+   * page. Returns null for every non-redirect status so callers fall through to
+   * their own handling. Single source of the message shared with drupalAuthError.
+   */
+  protected authRedirectError(status: number): CallToolResult | null {
+    if (status >= 300 && status < 400) {
+      return this.errorResponse(
+        "Authentication required: your ACCESS session may have expired.",
+        { code: "unauthenticated", hint: "Re-authenticate the ACCESS connector and try again." }
+      );
+    }
+    return null;
   }
 
   /**

@@ -657,6 +657,12 @@ Which would you like to do?`,
           return this.errorResponse(`Unknown tool: ${name}`);
       }
     } catch (error) {
+      // A persistent Drupal auth failure (an expired session the shared auth
+      // layer could not recover, or a re-login that itself failed) gets the
+      // structured envelope instead of the raw upstream text, e.g.
+      // "Drupal API error: 307 Temporary Redirect".
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
       const message = error instanceof Error ? error.message : String(error);
       return this.errorResponse(message);
     }
@@ -1059,6 +1065,12 @@ Which would you like to do?`,
       try {
         mine = await auth.get(actingUser, `/api/2.3/announcements/mine?limit=1000`);
       } catch (error) {
+        // A persistent auth failure is diagnosed first: coding an expired
+        // session as upstream_error would hide it behind "try again shortly",
+        // which is the wrong advice and swallows it before the tool-call-level
+        // mapping can see it.
+        const authError = this.drupalAuthError(error);
+        if (authError) return authError;
         // The preview lookup can itself fail. A failed list-fetch means the
         // lookup failed, NOT that the announcement is absent — so carry a coded
         // upstream_error (never not_found), matching the execute path's habit of

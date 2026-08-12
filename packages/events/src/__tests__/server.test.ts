@@ -939,6 +939,121 @@ describe("EventsServer", () => {
         if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
       }
     });
+
+    // Production bug (2026-08-12): an expired Drupal session comes back as a 3xx
+    // redirect to CILogon. get_my_registrations calls the THROWING auth.get, whose
+    // DrupalApiError fell through to the generic handleToolCall catch and surfaced
+    // the raw "Drupal API error: 307 Temporary Redirect". Authenticated reads must
+    // map a 3xx onto the same structured authRedirectError shape the requestRaw
+    // paths already use. With the shared-layer re-login retry in place this only
+    // fires when re-login itself fails.
+    it("get_my_registrations maps a persistent 3xx to the structured auth error", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockRejectedValue(
+          new DrupalApiError("Drupal API error: 307 Temporary Redirect", 307, "")
+        );
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.status).toBe("error");
+        expect(parsed.error.code).toBe("unauthenticated");
+        expect(parsed.error.message).toMatch(/session may have expired/i);
+        // The raw upstream string must NOT leak to the user.
+        expect(parsed.error.message).not.toContain("307");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("get_my_events maps a persistent 3xx to the structured auth error", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockRejectedValue(
+          new DrupalApiError("Drupal API error: 302 Found", 302, "")
+        );
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_events", arguments: {} } })
+        );
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.error.code).toBe("unauthenticated");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    // A failed re-login is NOT ordinary expiry: retrying or restarting will not
+    // help, the credentials/Drupal are broken. It must not be reported as the
+    // reassuring "re-authenticate and try again" message.
+    it("get_my_registrations reports a failed re-login distinctly from expiry", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        const err = new DrupalApiError(
+          "Drupal session expired and re-authentication failed: Drupal login failed: 503 Service Unavailable",
+          401,
+          undefined,
+          "reauth_failed"
+        );
+        mockGet.mockRejectedValue(err);
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.error.code).toBe("reauth_failed");
+        expect(parsed.error.code).not.toBe("unauthenticated");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("a non-3xx DrupalApiError is NOT swallowed into the auth error", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockRejectedValue(
+          new DrupalApiError("Drupal API error (500): boom", 500, { errors: [{ detail: "boom" }] })
+        );
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.error.code).not.toBe("unauthenticated");
+        expect(parsed.error.message).toContain("boom");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
   });
 
   describe("cancel_registration", () => {

@@ -230,6 +230,293 @@ describe("DrupalAuthProvider per-call acting user", () => {
     expect(err.message).toBe("Drupal API error: 409 Conflict");
   });
 
+  // Production bug (2026-08-12): this CILogon-fronted Drupal signals an EXPIRED
+  // session as a 3xx redirect to the login page, not a 401/403. With
+  // maxRedirects:0 the raw 3xx came back and never matched the 401/403 recovery
+  // condition, so isAuthenticated was never reset and every authenticated call
+  // failed with "Drupal API error: 307 Temporary Redirect" until process restart.
+  // 3xx must therefore drive the same invalidate → re-login → retry-once path.
+  describe("3xx session-expiry recovery", () => {
+    it("get re-logs-in and retries ONCE when the session expired (307), then succeeds", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated(); // log in up front; post is then login-only
+      post.mockResolvedValue(LOGIN_OK); // the re-login inside the recovery path
+      get.mockResolvedValueOnce({ status: 307, statusText: "Temporary Redirect", data: "" })
+         .mockResolvedValueOnce({ status: 200, data: { registrations: [] } });
+
+      const body = await p.get("dave@access-ci.org", "/api/1.0/registrations");
+
+      expect(body).toEqual({ registrations: [] });
+      expect(get.mock.calls.length).toBe(2); // initial + exactly one retry
+      expect(post.mock.calls.length).toBe(2); // initial login + exactly one re-login
+      // Retry must carry the acting user and the FRESH session cookie.
+      expect(get.mock.calls[1][1].headers["X-Acting-User"]).toBe("dave@access-ci.org");
+    });
+
+    it("get surfaces a structured DrupalApiError when the retry is ALSO 3xx (no loop)", async () => {
+      const p = newProvider();
+      get.mockResolvedValue({ status: 307, statusText: "Temporary Redirect", data: "" });
+      let caught: unknown;
+      try {
+        await p.get("dave@access-ci.org", "/api/1.0/registrations");
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(DrupalApiError);
+      expect((caught as DrupalApiError).status).toBe(307);
+      // Bounded: exactly one retry, never a recursive re-entry.
+      expect(get.mock.calls.length).toBe(2);
+    });
+
+    it("post recovers from a 302 session expiry and retries once", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValueOnce({ status: 302, statusText: "Found", data: "" }) // verb call
+          .mockResolvedValueOnce(LOGIN_OK)                                       // re-login
+          .mockResolvedValueOnce({ status: 201, data: { ok: true } });           // retry
+      const body = await p.post("erin@access-ci.org", "/api/2.3/thing", { field: 1 });
+      expect(body).toEqual({ ok: true });
+    });
+
+    it("delete recovers from a 307 session expiry and retries once", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValue(LOGIN_OK);
+      del.mockResolvedValueOnce({ status: 307, statusText: "Temporary Redirect", data: "" })
+         .mockResolvedValueOnce({ status: 204, data: { status: "cancelled" } });
+      const body = await p.delete("carol@access-ci.org", "/api/1.0/registrations/1");
+      expect(body).toEqual({ status: "cancelled" });
+      expect(del.mock.calls.length).toBe(2);
+    });
+
+    it("patch recovers from a 307 session expiry and retries once", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValue(LOGIN_OK);
+      patch.mockResolvedValueOnce({ status: 307, statusText: "Temporary Redirect", data: "" })
+           .mockResolvedValueOnce({ status: 200, data: { ok: true } });
+      const body = await p.patch("carol@access-ci.org", "/api/2.3/thing/1", { field: 2 });
+      expect(body).toEqual({ ok: true });
+      expect(patch.mock.calls.length).toBe(2);
+    });
+
+    // requestRaw deliberately has NO 401/403 retry so callers can branch on a
+    // 403 (the events acting-user gate). A 3xx is different in kind: it is never
+    // a caller-branchable outcome, only session expiry — so it DOES recover.
+    it("requestRaw recovers from a 3xx session expiry and returns the retried result", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValue(LOGIN_OK);
+      get.mockResolvedValueOnce({ status: 307, statusText: "Temporary Redirect", data: "" })
+         .mockResolvedValueOnce({ status: 200, data: { id: "8504" } });
+      const res = await p.requestRaw("actor@access-ci.org", "GET", "/api/2.3/events/8504");
+      expect(res.status).toBe(200);
+      expect(res.data.id).toBe("8504");
+      expect(get.mock.calls.length).toBe(2);
+    });
+
+    it("requestRaw returns the raw 3xx when the retry is ALSO 3xx (bounded, no throw)", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValue(LOGIN_OK);
+      get.mockResolvedValue({ status: 307, statusText: "Temporary Redirect", data: "" });
+      const res = await p.requestRaw("actor@access-ci.org", "GET", "/api/2.3/events/8504");
+      expect(res.status).toBe(307);
+      expect(get.mock.calls.length).toBe(2); // exactly one retry
+    });
+
+    // Not every 3xx is session expiry. Only a redirect whose Location points at
+    // CILogon or a /user/login path is the auth gate bouncing us; a config-level
+    // 301 to a normalized URL must NOT burn a re-login and must stay visible.
+    it("treats a 3xx whose Location points at CILogon as session expiry", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValue(LOGIN_OK);
+      get.mockResolvedValueOnce({
+        status: 302,
+        statusText: "Found",
+        headers: { location: "https://cilogon.org/authorize?client_id=x" },
+        data: "",
+      }).mockResolvedValueOnce({ status: 200, data: { ok: true } });
+      const body = await p.get("dave@access-ci.org", "/api/1.0/registrations");
+      expect(body).toEqual({ ok: true });
+      expect(get.mock.calls.length).toBe(2);
+    });
+
+    it("treats a 3xx whose Location is a /user/login path as session expiry", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValue(LOGIN_OK);
+      get.mockResolvedValueOnce({
+        status: 307,
+        statusText: "Temporary Redirect",
+        headers: { location: "/user/login?destination=/api/1.0/registrations" },
+        data: "",
+      }).mockResolvedValueOnce({ status: 200, data: { ok: true } });
+      const body = await p.get("dave@access-ci.org", "/api/1.0/registrations");
+      expect(body).toEqual({ ok: true });
+    });
+
+    it("treats a 3xx with NO Location header as session expiry (safe fallback)", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValue(LOGIN_OK);
+      get.mockResolvedValueOnce({ status: 307, statusText: "Temporary Redirect", data: "" })
+         .mockResolvedValueOnce({ status: 200, data: { ok: true } });
+      const body = await p.get("dave@access-ci.org", "/api/1.0/registrations");
+      expect(body).toEqual({ ok: true });
+    });
+
+    // 304 Not Modified is numerically 3xx but is NOT a redirect — it carries no
+    // Location and means "your cached copy is current". The missing-Location →
+    // expiry fallback would otherwise misfire and burn a pointless re-login on
+    // every conditional GET.
+    it("does NOT treat a 304 Not Modified as session expiry", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      const loginsBefore = post.mock.calls.length;
+      get.mockResolvedValue({ status: 304, statusText: "Not Modified", data: "" });
+      let caught: unknown;
+      try {
+        await p.get("dave@access-ci.org", "/api/1.0/registrations");
+      } catch (e) {
+        caught = e;
+      }
+      // Flows to handleResponse as an ordinary non-2xx, with no recovery attempt.
+      expect(caught).toBeInstanceOf(DrupalApiError);
+      expect((caught as DrupalApiError).status).toBe(304);
+      expect(get.mock.calls.length).toBe(1); // no retry
+      expect(post.mock.calls.length).toBe(loginsBefore); // no re-login
+    });
+
+    it("requestRaw does not re-login on a 304 and returns it raw", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      const loginsBefore = post.mock.calls.length;
+      get.mockResolvedValue({ status: 304, statusText: "Not Modified", data: "" });
+      const res = await p.requestRaw("actor@access-ci.org", "GET", "/api/2.3/events/1");
+      expect(res.status).toBe(304);
+      expect(get.mock.calls.length).toBe(1);
+      expect(post.mock.calls.length).toBe(loginsBefore);
+    });
+
+    it("does NOT re-login on a non-auth 3xx, and surfaces the Location in the error", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      const loginsBefore = post.mock.calls.length;
+      get.mockResolvedValue({
+        status: 301,
+        statusText: "Moved Permanently",
+        headers: { location: "https://support.access-ci.org/api/1.0/registrations/" },
+        data: "",
+      });
+      let caught: unknown;
+      try {
+        await p.get("dave@access-ci.org", "/api/1.0/registrations");
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(DrupalApiError);
+      const err = caught as DrupalApiError;
+      expect(err.status).toBe(301);
+      // The real problem (where it wanted to send us) must be visible.
+      expect(err.message).toContain("https://support.access-ci.org/api/1.0/registrations/");
+      expect(get.mock.calls.length).toBe(1); // no retry
+      expect(post.mock.calls.length).toBe(loginsBefore); // no re-login
+    });
+
+    it("requestRaw does not re-login on a non-auth 3xx and returns it raw", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      const loginsBefore = post.mock.calls.length;
+      get.mockResolvedValue({
+        status: 301,
+        statusText: "Moved Permanently",
+        headers: { location: "https://support.access-ci.org/api/2.3/events/1/" },
+        data: "",
+      });
+      const res = await p.requestRaw("actor@access-ci.org", "GET", "/api/2.3/events/1");
+      expect(res.status).toBe(301);
+      expect(get.mock.calls.length).toBe(1);
+      expect(post.mock.calls.length).toBe(loginsBefore);
+    });
+
+    // Concurrent recoveries must ride ONE login, not stampede Drupal with N.
+    it("single-flights the login when concurrent calls recover at the same time", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      const loginsBefore = post.mock.calls.length;
+      // Both GETs expire, then both succeed on retry.
+      get.mockResolvedValueOnce({ status: 307, statusText: "Temporary Redirect", data: "" })
+         .mockResolvedValueOnce({ status: 307, statusText: "Temporary Redirect", data: "" })
+         .mockResolvedValue({ status: 200, data: { ok: true } });
+      // Make the re-login slow so both recoveries overlap on it.
+      let releaseLogin: (v: unknown) => void;
+      const pendingLogin = new Promise<unknown>((res) => { releaseLogin = res; });
+      post.mockImplementationOnce(() => pendingLogin);
+
+      const a = p.get("alice@access-ci.org", "/a");
+      const b = p.get("bob@access-ci.org", "/b");
+      await Promise.resolve(); // let both reach their recovery
+      await Promise.resolve();
+      releaseLogin!(LOGIN_OK);
+      await Promise.all([a, b]);
+
+      // Exactly ONE re-login serviced both recoveries.
+      expect(post.mock.calls.length).toBe(loginsBefore + 1);
+    });
+
+    it("re-login failure surfaces as reauth_failed, distinct from session expiry", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      get.mockResolvedValue({ status: 307, statusText: "Temporary Redirect", data: "" });
+      // The recovery's re-login itself fails — credentials/Drupal are the problem,
+      // and a restart will NOT help. Must be distinguishable from plain expiry.
+      post.mockResolvedValue({ status: 503, statusText: "Service Unavailable", data: {} });
+      let caught: unknown;
+      try {
+        await p.get("dave@access-ci.org", "/api/1.0/registrations");
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(DrupalApiError);
+      const err = caught as DrupalApiError;
+      expect(err.code).toBe("reauth_failed");
+      expect(err.message).toMatch(/re-authenticat/i);
+      expect(err.message).toContain("503"); // the underlying login failure detail
+    });
+
+    it("logs one warning per recovery so session churn is visible in logs", async () => {
+      const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const p = newProvider();
+        await p.ensureAuthenticated();
+        post.mockResolvedValue(LOGIN_OK);
+        get.mockResolvedValueOnce({ status: 307, statusText: "Temporary Redirect", data: "" })
+           .mockResolvedValueOnce({ status: 200, data: { ok: true } });
+        await p.get("dave@access-ci.org", "/api/1.0/registrations");
+        const messages = warn.mock.calls.map((c) => String(c[0]));
+        expect(messages.some((m) => /session expired/i.test(m) && /WARN/.test(m))).toBe(true);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it("requestRaw still surfaces a 403 RAW with no retry (caller branches on it)", async () => {
+      const p = newProvider();
+      await p.ensureAuthenticated();
+      post.mockResolvedValueOnce({
+        status: 403,
+        data: { message: "X-Acting-User did not resolve to an active user." },
+      });
+      const res = await p.requestRaw("actor@access-ci.org", "POST", "/api/1.0/events/5/register", {
+        confirmed: true,
+      });
+      expect(res.status).toBe(403);
+      expect(post.mock.calls.length).toBe(2); // 1 login + 1 verb, no retry, no re-login
+    });
+  });
+
   it("does not bleed acting users across interleaved concurrent calls (issue #13)", async () => {
     const p = newProvider();
     await p.ensureAuthenticated(); // log in up front so the interleave is GET-only, not a login race

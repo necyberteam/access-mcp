@@ -10,6 +10,7 @@ import {
   requestContextStorage,
   RequestContext,
 } from "../base-server.js";
+import { DrupalApiError } from "../drupal-auth.js";
 import { CallToolRequest } from "@modelcontextprotocol/sdk/types.js";
 
 // Concrete implementation for testing
@@ -285,6 +286,63 @@ describe("BaseAccessServer helper methods", () => {
       const textContent = server["errorResponse"]("boom").content[0] as { type: string; text: string };
       const parsed = JSON.parse(textContent.text);
       expect(parsed.error.code).toBe("error");
+    });
+  });
+
+  // Lifted out of the events server so EVERY Drupal-backed server presents a
+  // persistent auth failure the same way. Two distinct outcomes: an expired
+  // session that never recovered (a 3xx CILogon bounce → "unauthenticated",
+  // the user re-authenticates), and a re-login that itself failed
+  // ("reauth_failed", an operator problem no retry will fix).
+  describe("drupalAuthError", () => {
+    it("maps a persistent 3xx to the structured unauthenticated error", () => {
+      const err = new DrupalApiError("Drupal API error: 307 Temporary Redirect", 307, "");
+      const result = server["drupalAuthError"](err)!;
+      expect(result).not.toBeNull();
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      expect(parsed.status).toBe("error");
+      expect(parsed.error.code).toBe("unauthenticated");
+      expect(parsed.error.message).toMatch(/session may have expired/i);
+      // The raw upstream status text must never reach the user.
+      expect(parsed.error.message).not.toContain("307");
+    });
+
+    it("maps every 3xx in the range, not just 307", () => {
+      for (const status of [300, 302, 308, 399]) {
+        const r = server["drupalAuthError"](new DrupalApiError("redirect", status, ""))!;
+        expect(r).not.toBeNull();
+        expect(JSON.parse((r.content[0] as { text: string }).text).error.code).toBe(
+          "unauthenticated"
+        );
+      }
+    });
+
+    it("maps a failed re-login to reauth_failed, keeping its diagnostic detail", () => {
+      const err = new DrupalApiError(
+        "Drupal session expired and re-authentication failed: Drupal login failed: 503 Service Unavailable",
+        401,
+        undefined,
+        "reauth_failed"
+      );
+      const result = server["drupalAuthError"](err)!;
+      const parsed = JSON.parse((result.content[0] as { text: string }).text);
+      expect(parsed.error.code).toBe("reauth_failed");
+      expect(parsed.error.message).toContain("503");
+      // Advice must not tell the user to just retry — this needs an operator.
+      expect(parsed.error.hint).toMatch(/operator/i);
+    });
+
+    it("returns null for ordinary Drupal errors so callers keep their own handling", () => {
+      expect(server["drupalAuthError"](new DrupalApiError("nope", 404, {}))).toBeNull();
+      expect(server["drupalAuthError"](new DrupalApiError("nope", 403, {}))).toBeNull();
+      expect(server["drupalAuthError"](new DrupalApiError("boom", 500, {}))).toBeNull();
+    });
+
+    it("returns null for non-DrupalApiError values", () => {
+      expect(server["drupalAuthError"](new Error("plain"))).toBeNull();
+      expect(server["drupalAuthError"]("a string")).toBeNull();
+      expect(server["drupalAuthError"](undefined)).toBeNull();
     });
   });
 

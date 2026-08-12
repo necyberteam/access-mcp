@@ -525,6 +525,12 @@ export class AllocationsServer extends BaseAccessServer {
           throw new Error(`Unknown tool: ${name}`);
       }
     } catch (error) {
+      // A persistent Drupal auth failure (an expired session the shared auth
+      // layer could not recover, or a re-login that itself failed) gets the
+      // structured envelope instead of the raw upstream text, e.g.
+      // "Drupal API error: 307 Temporary Redirect".
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
       return {
         content: [
           {
