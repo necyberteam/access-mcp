@@ -178,15 +178,6 @@ Available MCP endpoints:
     }
 }
 
-ask.cnct.ci {
-    reverse_proxy host.docker.internal:8080 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-    }
-}
-
 qa.access-ci.org {
     # Reporting dashboard (Nuxt). The app expects the /dashboard prefix
     # (baseURL is baked in), so no path stripping. Bare /dashboard redirects
@@ -211,3 +202,9 @@ qa.access-ci.org {
         format json
     }
 }
+
+# Host-specific extra site blocks (not in git). Each deployment host may drop a
+# Caddyfile.local next to this file for services that live only on that host —
+# e.g. the droplet serves a Discourse test instance at ask.cnct.ci. The glob
+# matches zero files without error, so hosts with no local extras need nothing.
+import Caddyfile.local*

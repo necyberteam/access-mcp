@@ -10,6 +10,10 @@ services:
       - "80:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Host-specific extras imported by the main Caddyfile (import Caddyfile.local*).
+      # Must exist as a file on every host — deploy creates an empty one if absent
+      # (a missing bind source would be auto-created as a directory). Gitignored.
+      - ./Caddyfile.local:/etc/caddy/Caddyfile.local:ro
       - caddy_data:/data
       - caddy_config:/config
     extra_hosts:

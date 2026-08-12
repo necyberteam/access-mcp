@@ -1,0 +1,16 @@
+# Caddyfile.local — host-specific site blocks, NOT committed (see .gitignore).
+# Copy to `Caddyfile.local` on a host that needs extra site blocks and edit.
+# The main Caddyfile ends with `import Caddyfile.local*`, so anything here is
+# appended to the served config. Hosts with no extras omit the file entirely.
+#
+# Example: the droplet serves a Discourse test instance. Recreate its block here
+# on that host only (burrow does not run Discourse, so it has no Caddyfile.local).
+
+# ask.cnct.ci {
+#     reverse_proxy host.docker.internal:8080 {
+#         header_up Host {host}
+#         header_up X-Real-IP {remote_host}
+#         header_up X-Forwarded-For {remote_host}
+#         header_up X-Forwarded-Proto {scheme}
+#     }
+# }
