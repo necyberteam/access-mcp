@@ -1522,6 +1522,38 @@ sort_by: "date_desc"
     };
   }
 
+  /**
+   * Build a listing envelope from the COMPLETE filtered set. `total` is the true
+   * match count over the whole corpus; `items` is sliced to `limit`. Surfaces
+   * corpus freshness (fetchedAt) and, if the corpus was itself truncated at
+   * hardCap, a truncated flag so a partial corpus is never reported as complete.
+   */
+  private corpusListingEnvelope(
+    matched: Project[],
+    snapshot: CorpusSnapshot<Project>,
+    limit: number,
+  ) {
+    const items = matched.slice(0, limit);
+    return {
+      total: matched.length,
+      items,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: matched.length > items.length,
+        },
+        query_relevance: "loose_match" as const,
+        fetched_at: new Date(snapshot.fetchedAt).toISOString(),
+        ...(snapshot.truncated ? { corpus_truncated: true } : {}),
+        ...(this.corpus.isStale() ? { stale: true } : {}),
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
+    };
+  }
+
   private async listProjectsByResource(resourceName: string, limit: number = 20, fields?: string[]) {
     // Input validation
     if (!resourceName || typeof resourceName !== "string" || resourceName.trim().length === 0) {
@@ -1532,52 +1564,15 @@ sort_by: "date_desc"
       throw new Error("Limit must be between 1 and 200");
     }
 
-    const results: Project[] = [];
-    let currentPage = 1;
-    const maxPages = 10;
-    let innerBreak = false;
-    let exhausted = false;
+    // Filter the COMPLETE corpus so `total` is the true match count (past the
+    // old 10-page cap, e.g. PNRP's projects that lived on later pages).
+    const snapshot = await this.ensureCorpus();
+    const needle = resourceName.toLowerCase();
+    const matched = snapshot.records.filter((project) =>
+      project.resources.some((resource) => resource.resourceName.toLowerCase().includes(needle)),
+    );
 
-    while (results.length < limit && currentPage <= maxPages) {
-      const data = await this.fetchProjects(currentPage);
-
-      for (const project of data.projects) {
-        if (results.length >= limit) {
-          innerBreak = true;
-          break;
-        }
-
-        const hasResource = project.resources.some((resource) =>
-          resource.resourceName.toLowerCase().includes(resourceName.toLowerCase())
-        );
-
-        if (hasResource) {
-          results.push(project);
-        }
-      }
-
-      currentPage++;
-      if (currentPage > data.pages) {
-        exhausted = true;
-        break;
-      }
-    }
-
-    const envelope = {
-      total: results.length,
-      items: results,
-      metadata: {
-        pagination: {
-          limit,
-          offset: 0,
-          has_more: innerBreak || !exhausted,
-        },
-        query_relevance: "loose_match" as const,
-      },
-      documentation: {
-        links: this.listingLinks("list"),
-      },
-    };
+    const envelope = this.corpusListingEnvelope(matched, snapshot, limit);
 
     return {
       content: [
