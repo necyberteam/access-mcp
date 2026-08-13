@@ -625,7 +625,15 @@ export class AllocationsServer extends BaseAccessServer {
 
     if (uri === "accessci://allocations") {
       try {
-        const data = await this.fetchProjects(1);
+        // Serve a page-1-equivalent preview from the resident corpus (the
+        // resource is a sample of the full data, not a filtered query).
+        const snapshot = await this.ensureCorpus();
+        const data = {
+          projects: snapshot.records.slice(0, 20),
+          total: snapshot.records.length,
+          pages: snapshot.pages,
+          fetched_at: new Date(snapshot.fetchedAt).toISOString(),
+        };
         return {
           contents: [
             {
@@ -969,16 +977,10 @@ sort_by: "date_desc"
     // Parse advanced search query
     const searchTerms = this.parseAdvancedQuery(query);
 
-    // Use parallel fetching for better performance
-    const maxPages = Math.min(15, limit > 50 ? 20 : 15);
-
-    // Fetch first page to get total pages available
-    const firstPageData = await this.fetchProjects(1);
-    const totalPages = Math.min(firstPageData.pages, maxPages);
-    const actualPages = Array.from({ length: totalPages }, (_, i) => i + 1);
-
-    // Fetch all pages in parallel
-    const allProjects = await this.fetchMultiplePages(actualPages);
+    // Score/filter over the COMPLETE corpus, not a page-capped window — a match
+    // whose abstract sits past the old cap was previously invisible.
+    const snapshot = await this.ensureCorpus();
+    const allProjects = snapshot.records;
 
     // Apply filters
     const filteredProjects = allProjects.filter((project) => {
@@ -1041,11 +1043,14 @@ sort_by: "date_desc"
           // the requested cap.
           limit,
           offset: 0,
-          has_more:
-            sortedAll.length > items.length ||
-            actualPages.length < firstPageData.pages,
+          // Scoring runs over the complete corpus, so total is the true match
+          // count; more remain only when it exceeds what we returned.
+          has_more: sortedAll.length > items.length,
         },
         query_relevance: "loose_match" as const,
+        fetched_at: new Date(snapshot.fetchedAt).toISOString(),
+        ...(snapshot.truncated ? { corpus_truncated: true } : {}),
+        ...(this.corpus.isStale() ? { stale: true } : {}),
       },
       documentation: {
         links: this.listingLinks("search"),
@@ -1315,34 +1320,16 @@ sort_by: "date_desc"
       throw new Error("Project ID must be a positive number");
     }
 
-    // Search through pages to find the specific project
-    let currentPage = 1;
-    const maxPages = 20;
-
-    while (currentPage <= maxPages) {
-      const data = await this.fetchProjects(currentPage);
-
-      const project = data.projects.find((p) => p.projectId === projectId);
-      if (project) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  total: 1,
-                  items: [project],
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      }
-
-      currentPage++;
-      if (currentPage > data.pages) break;
+    const found = await this.findProjectById(projectId);
+    if (found) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ total: 1, items: [found] }, null, 2),
+          },
+        ],
+      };
     }
 
     return {
@@ -1361,6 +1348,36 @@ sort_by: "date_desc"
     };
   }
 
+  /**
+   * Look up a project by id in the complete corpus. D2 (freshness): the upstream
+   * is real-time and page 1 is newest-first, so a project approved after the last
+   * snapshot would be a false "not found". On a MISS against a stale snapshot,
+   * revalidate with a bounded live page scan (newest pages first) before giving up.
+   */
+  private async findProjectById(projectId: number): Promise<Project | undefined> {
+    const snapshot = await this.ensureCorpus();
+    const hit = snapshot.records.find((p) => p.projectId === projectId);
+    if (hit) return hit;
+
+    // Miss. If the snapshot is fresh, the project genuinely isn't in the corpus.
+    if (!this.corpus.isStale()) return undefined;
+
+    // Stale miss: the project may be newer than the snapshot. Scan the first few
+    // (newest-first) live pages before asserting non-existence.
+    const REVALIDATE_PAGES = 3;
+    for (let page = 1; page <= REVALIDATE_PAGES; page++) {
+      try {
+        const data = await this.fetchProjects(page);
+        const p = data.projects.find((x) => x.projectId === projectId);
+        if (p) return p;
+        if (page >= data.pages) break;
+      } catch {
+        break; // upstream hiccup — fall through to not-found
+      }
+    }
+    return undefined;
+  }
+
   private async listProjectsByField(fieldOfScience: string, limit: number = 20, fields?: string[]) {
     // Input validation
     if (
@@ -1375,54 +1392,11 @@ sort_by: "date_desc"
       throw new Error("Limit must be between 1 and 200");
     }
 
-    const results: Project[] = [];
-    let currentPage = 1;
-    const maxPages = 10;
-    let innerBreak = false;
-    let exhausted = false;
+    const snapshot = await this.ensureCorpus();
+    const needle = fieldOfScience.toLowerCase();
+    const matched = snapshot.records.filter((project) => project.fos.toLowerCase().includes(needle));
 
-    while (results.length < limit && currentPage <= maxPages) {
-      const data = await this.fetchProjects(currentPage);
-
-      for (const project of data.projects) {
-        if (results.length >= limit) {
-          innerBreak = true;
-          break;
-        }
-
-        if (project.fos.toLowerCase().includes(fieldOfScience.toLowerCase())) {
-          results.push(project);
-        }
-      }
-
-      currentPage++;
-      if (currentPage > data.pages) {
-        exhausted = true;
-        break;
-      }
-    }
-
-    const envelope = {
-      total: results.length,
-      items: results,
-      metadata: {
-        pagination: {
-          limit,
-          offset: 0,
-          // True if we skipped matches on the last scanned page, OR we
-          // stopped because of the maxPages cap rather than upstream
-          // exhaustion. The >=limit heuristic gave false positives
-          // whenever the universe was exactly limit-sized.
-          has_more: innerBreak || !exhausted,
-        },
-        // Substring match (toLowerCase().includes(...)) — agent should
-        // verify each result actually fits the user's intended topic.
-        query_relevance: "loose_match" as const,
-      },
-      documentation: {
-        links: this.listingLinks("list"),
-      },
-    };
+    const envelope = this.corpusListingEnvelope(matched, snapshot, limit);
 
     return {
       content: [
@@ -1456,59 +1430,24 @@ sort_by: "date_desc"
       throw new Error("Limit must be between 1 and 200");
     }
 
-    const results: Project[] = [];
-    let currentPage = 1;
-    const maxPages = 10;
-    let innerBreak = false;
-    let exhausted = false;
+    const snapshot = await this.ensureCorpus();
+    const typeNeedle = allocationType.toLowerCase();
+    const fosNeedle = fieldOfScience?.toLowerCase();
+    const matched = snapshot.records.filter((project) => {
+      const typeMatch = project.allocationType.toLowerCase().includes(typeNeedle);
+      const fieldMatch = !fosNeedle || project.fos.toLowerCase().includes(fosNeedle);
+      return typeMatch && fieldMatch;
+    });
 
-    while (results.length < limit && currentPage <= maxPages) {
-      const data = await this.fetchProjects(currentPage);
-
-      for (const project of data.projects) {
-        if (results.length >= limit) {
-          innerBreak = true;
-          break;
-        }
-
-        // Match allocation type (case-insensitive)
-        const typeMatch = project.allocationType
-          .toLowerCase()
-          .includes(allocationType.toLowerCase());
-
-        // If field is also specified, require both to match
-        const fieldMatch =
-          !fieldOfScience || project.fos.toLowerCase().includes(fieldOfScience.toLowerCase());
-
-        if (typeMatch && fieldMatch) {
-          results.push(project);
-        }
-      }
-
-      currentPage++;
-      if (currentPage > data.pages) {
-        exhausted = true;
-        break;
-      }
-    }
-
+    const base = this.corpusListingEnvelope(matched, snapshot, limit);
     const envelope = {
-      total: results.length,
-      items: results,
+      ...base,
       metadata: {
         filters_applied: {
           allocation_type: allocationType,
           ...(fieldOfScience && { field_of_science: fieldOfScience }),
         },
-        pagination: {
-          limit,
-          offset: 0,
-          has_more: innerBreak || !exhausted,
-        },
-        query_relevance: "loose_match" as const,
-      },
-      documentation: {
-        links: this.listingLinks("list"),
+        ...base.metadata,
       },
     };
 
@@ -1685,15 +1624,7 @@ sort_by: "date_desc"
 
     // Get reference project if projectId provided
     if (projectId) {
-      let currentPage = 1;
-      const maxPages = 20;
-
-      while (currentPage <= maxPages && !referenceProject) {
-        const data = await this.fetchProjects(currentPage);
-        referenceProject = data.projects.find((p) => p.projectId === projectId) || null;
-        currentPage++;
-        if (currentPage > data.pages) break;
-      }
+      referenceProject = (await this.findProjectById(projectId)) || null;
 
       if (!referenceProject) {
         return {
@@ -1735,10 +1666,9 @@ sort_by: "date_desc"
       };
     }
 
-    // Fetch projects for similarity analysis
-    const maxPages = 15;
-    const actualPages = Array.from({ length: maxPages }, (_, i) => i + 1);
-    const allProjects = await this.fetchMultiplePages(actualPages);
+    // Score similarity over the COMPLETE corpus, not a 15-page window.
+    const snapshot = await this.ensureCorpus();
+    const allProjects = snapshot.records;
 
     // Calculate similarity scores for all projects
     const allScored = allProjects
@@ -2133,17 +2063,9 @@ sort_by: "date_desc"
   // NSF Integration Methods
   private async analyzeProjectFunding(projectId: number) {
     try {
-      // Get the ACCESS project details directly
-      let accessProject: Project | null = null;
-      let currentPage = 1;
-      const maxPages = 20;
-
-      while (currentPage <= maxPages && !accessProject) {
-        const data = await this.fetchProjects(currentPage);
-        accessProject = data.projects.find((p) => p.projectId === projectId) || null;
-        currentPage++;
-        if (currentPage > data.pages) break;
-      }
+      // Get the ACCESS project details from the complete corpus (D2 revalidation
+      // for a just-approved project is handled inside findProjectById).
+      const accessProject = (await this.findProjectById(projectId)) || null;
 
       if (!accessProject) {
         return {

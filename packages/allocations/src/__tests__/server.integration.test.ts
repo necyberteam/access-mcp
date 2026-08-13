@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import { AllocationsServer } from "../server.js";
 
 interface TextContent {
@@ -11,13 +11,22 @@ interface TextContent {
  * These tests make real API calls to the ACCESS Allocations API
  *
  * NOTE: The allocations server returns {total, items} JSON format
+ *
+ * The server now holds the full current-projects corpus resident and filters
+ * over it (so `total` is a true count). The corpus is warmed ONCE for the whole
+ * suite in beforeAll — mirroring production, where it is fetched once and reused
+ * — rather than per-test, which would re-fetch all ~338 pages before every case.
+ * Individual tests then filter the in-memory corpus, so their own timeouts stay
+ * small; only the one-time warm needs a long budget.
  */
 describe("AllocationsServer Integration Tests", () => {
   let server: AllocationsServer;
 
-  beforeEach(() => {
+  beforeAll(async () => {
     server = new AllocationsServer();
-  });
+    // Warm the resident corpus once (full current-projects fetch).
+    await server["ensureCorpus"]();
+  }, 120000);
 
   describe("Real API Calls - Basic Search", () => {
     it("should search for machine learning projects", async () => {
