@@ -133,6 +133,21 @@ export class AllocationsServer extends BaseAccessServer {
    * from the live revalidation scan, so every project the tools see is the same
    * shape regardless of which path produced it.
    */
+  /**
+   * A project's ACCESS Credits allocation — the one comparable magnitude across
+   * projects. Resource allocations carry heterogeneous, non-additive units
+   * (ACCESS Credits, SUs, GB, Dollars, and "[Yes = 1, No = 0]" flags on support
+   * line items), so summing `allocation` across a project's resources produces a
+   * meaningless number. ~97% of current projects carry an ACCESS Credits line;
+   * those without one (legacy SU/core-hour allocations) report 0 for ranking and
+   * threshold purposes. Sum in case a project lists the credits unit more than once.
+   */
+  private accessCreditsAmount(p: Project): number {
+    return p.resources
+      .filter((r) => r.units === "ACCESS Credits")
+      .reduce((sum, r) => sum + (r.allocation || 0), 0);
+  }
+
   private projectRecord(p: Project): Project {
     return {
       projectId: p.projectId,
@@ -975,10 +990,10 @@ sort_by: "date_desc"
         }
       }
 
-      // Minimum allocation filter
+      // Minimum allocation filter — compare against the ACCESS Credits amount,
+      // not a cross-unit sum (see accessCreditsAmount).
       if (minAllocation) {
-        const totalAllocation = project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-        if (totalAllocation < minAllocation) return false;
+        if (this.accessCreditsAmount(project) < minAllocation) return false;
       }
 
       return true;
@@ -1216,17 +1231,13 @@ sort_by: "date_desc"
             new Date(a.project.beginDate).getTime() - new Date(b.project.beginDate).getTime()
         );
       case "allocation_desc":
-        return scoredResults.sort((a, b) => {
-          const aTotal = a.project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-          const bTotal = b.project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-          return bTotal - aTotal;
-        });
+        return scoredResults.sort(
+          (a, b) => this.accessCreditsAmount(b.project) - this.accessCreditsAmount(a.project)
+        );
       case "allocation_asc":
-        return scoredResults.sort((a, b) => {
-          const aTotal = a.project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-          const bTotal = b.project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-          return aTotal - bTotal;
-        });
+        return scoredResults.sort(
+          (a, b) => this.accessCreditsAmount(a.project) - this.accessCreditsAmount(b.project)
+        );
       case "pi_name":
         return scoredResults.sort((a, b) => a.project.pi.localeCompare(b.project.pi));
       case "relevance":
