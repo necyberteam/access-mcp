@@ -36,21 +36,53 @@ export interface InstitutionResolution {
 }
 
 /**
- * Normalize an institution string for comparison: lowercase, drop punctuation
- * that varies between the vocab and user input (commas, periods, hyphens, the
- * en-dash some Texas A&M campuses use), expand "&" to "and", and collapse
- * whitespace. Applied SYMMETRICALLY to the query and every vocab entry, so
- * "UC Berkeley"/"University of California, Berkeley" punctuation differences do
- * not cause a false miss. Word ORDER is preserved (it carries institution
- * identity: "University of X" != "X University").
+ * Query-side abbreviation expansions. A tool-calling agent knows the institution
+ * but not the vocabulary's spelling, so it emits "Univ of X". No vocab entry
+ * contains these abbreviations as a token (the vocab is fully spelled out), so
+ * expansion only ever fires on the user's query — it is a query rewrite, not a
+ * symmetric transform, but normalizeForMatch applies it to both sides harmlessly.
+ */
+const ABBREVIATIONS: Record<string, string> = {
+  univ: "university",
+  inst: "institute",
+  dept: "department",
+};
+
+/**
+ * Connective/positional words that carry no institution identity and vary freely
+ * between the vocab and agent output ("University of Texas at Austin" vs
+ * "University of Texas Austin"). Dropped as whole TOKENS so distinct institutions
+ * never merge — verified zero collisions across the full vocab.
+ */
+const CONNECTIVES = new Set(["at"]);
+
+/**
+ * Normalize an institution string for comparison so that format differences the
+ * vocab and an agent's phrasing disagree on collapse: lowercase, expand "&" to
+ * "and", drop punctuation that varies (commas, periods, hyphens, the en-dash some
+ * Texas A&M campuses use), expand the "Univ"/"Inst"/"Dept" abbreviations, and
+ * drop the "at" connective. Applied to the query and every vocab entry.
+ *
+ * Word ORDER is preserved — it carries institution identity ("University of X" !=
+ * "X University") — and only format tokens are neutralized, so "University of
+ * Texas Austin"/"...at Austin"/"...,Austin" all normalize to one form while
+ * genuinely distinct institutions stay distinct. "at" and the abbreviations are
+ * handled at the TOKEN level (never as substrings), so "Automattic", "Bates",
+ * "State", "Institute" are untouched.
  */
 export function normalizeForMatch(name: string): string {
-  return name
+  const tokens = name
     .toLowerCase()
     .replace(/&/g, " and ")
     .replace(/[.,]/g, " ")
     .replace(/[-–—]/g, " ")
-    .replace(/\s+/g, " ")
+    .split(/\s+/)
+    .filter(Boolean);
+
+  return tokens
+    .map((t) => ABBREVIATIONS[t] ?? t)
+    .filter((t) => !CONNECTIVES.has(t))
+    .join(" ")
     .trim();
 }
 
