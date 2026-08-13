@@ -119,6 +119,15 @@ export class CorpusCache<T> {
     return this.snapshot;
   }
 
+  /**
+   * True if the current snapshot is past the TTL (a background refresh is due).
+   * Distinct from isStale(): expiry is the soft TTL, staleness is the hard ceiling.
+   */
+  isExpiredNow(): boolean {
+    const s = this.snapshot;
+    return !!s && this.isExpired(s);
+  }
+
   /** True if the current snapshot is older than the hard staleness ceiling. */
   isStale(): boolean {
     const s = this.snapshot;

@@ -102,9 +102,11 @@ export class AllocationsServer extends BaseAccessServer {
   }
 
   /**
-   * Fetch the complete current-projects corpus, projecting out the heavy unused
-   * `publications` field at ingest (~51% of payload; nothing reads it — the
-   * Project interface omits it). Dedupe/over-range-guard live in fetchAllPages.
+   * Fetch the complete current-projects corpus, projecting out the unused
+   * `publications` field at ingest (nothing reads it — the Project interface
+   * omits it). Its size is non-uniform: near-zero on the newest projects, up to
+   * ~12KB on older ones with real publication lists, so dropping it mainly trims
+   * the tail. Dedupe/over-range-guard live in fetchAllPages.
    */
   private async fetchCorpus(): Promise<CorpusSnapshot<Project>> {
     const { records, pages, truncated } = await fetchAllPages<Project, Project>(
@@ -119,23 +121,32 @@ export class AllocationsServer extends BaseAccessServer {
       },
       (p) => p.projectId,
       { concurrency: 10 },
-      // Projector: keep the Project fields (incl. abstract for search); drop
-      // anything extra the raw payload carries (publications).
-      (p) => ({
-        projectId: p.projectId,
-        requestNumber: p.requestNumber,
-        requestTitle: p.requestTitle,
-        pi: p.pi,
-        piInstitution: p.piInstitution,
-        fos: p.fos,
-        abstract: p.abstract,
-        allocationType: p.allocationType,
-        beginDate: p.beginDate,
-        endDate: p.endDate,
-        resources: p.resources,
-      }),
+      (p) => this.projectRecord(p),
     );
     return { records, pages, truncated, fetchedAt: Date.now() };
+  }
+
+  /**
+   * Keep the Project fields (incl. abstract, which search reads) and drop
+   * anything extra the raw payload carries (notably the heavy `publications`
+   * array). Applied both when building the corpus and when returning a record
+   * from the live revalidation scan, so every project the tools see is the same
+   * shape regardless of which path produced it.
+   */
+  private projectRecord(p: Project): Project {
+    return {
+      projectId: p.projectId,
+      requestNumber: p.requestNumber,
+      requestTitle: p.requestTitle,
+      pi: p.pi,
+      piInstitution: p.piInstitution,
+      fos: p.fos,
+      abstract: p.abstract,
+      allocationType: p.allocationType,
+      beginDate: p.beginDate,
+      endDate: p.endDate,
+      resources: p.resources,
+    };
   }
 
   /**
@@ -1351,7 +1362,7 @@ sort_by: "date_desc"
   /**
    * Look up a project by id in the complete corpus. D2 (freshness): the upstream
    * is real-time and page 1 is newest-first, so a project approved after the last
-   * snapshot would be a false "not found". On a MISS against a stale snapshot,
+   * snapshot would be a false "not found". On a MISS against an expired snapshot,
    * revalidate with a bounded live page scan (newest pages first) before giving up.
    */
   private async findProjectById(projectId: number): Promise<Project | undefined> {
@@ -1359,17 +1370,20 @@ sort_by: "date_desc"
     const hit = snapshot.records.find((p) => p.projectId === projectId);
     if (hit) return hit;
 
-    // Miss. If the snapshot is fresh, the project genuinely isn't in the corpus.
-    if (!this.corpus.isStale()) return undefined;
+    // Miss. If the snapshot is still within its TTL, the project genuinely isn't
+    // in the corpus — don't hit the network. (Expiry, not the hard staleness
+    // ceiling: a project approved after a snapshot went stale must still resolve.)
+    if (!this.corpus.isExpiredNow()) return undefined;
 
-    // Stale miss: the project may be newer than the snapshot. Scan the first few
-    // (newest-first) live pages before asserting non-existence.
+    // Expired miss: the project may be newer than the snapshot. Scan the first
+    // few (newest-first) live pages before asserting non-existence. Project each
+    // hit so it matches the corpus shape (no leaked `publications`).
     const REVALIDATE_PAGES = 3;
     for (let page = 1; page <= REVALIDATE_PAGES; page++) {
       try {
         const data = await this.fetchProjects(page);
         const p = data.projects.find((x) => x.projectId === projectId);
-        if (p) return p;
+        if (p) return this.projectRecord(p);
         if (page >= data.pages) break;
       } catch {
         break; // upstream hiccup — fall through to not-found

@@ -151,8 +151,10 @@ services:
       - DRUPAL_PASSWORD=${MCP_SERVICE_DRUPAL_PASSWORD}
       # search_projects/analyze_funding hold the full current-projects corpus
       # (~6,760 records) in memory to filter over the complete set. Measured
-      # ~119MB RSS resident, ~151MB at the atomic refresh swap. 128M OOMs; 256M
-      # holds it with headroom. Cap the V8 old space below the container limit.
+      # against live data: ~20MB retained heap for one corpus, ~40MB during the
+      # atomic refresh swap (old + new snapshots briefly coexist); process RSS
+      # peaks ~140-150MB. 128M is too tight; 256M leaves ~100MB RSS headroom for
+      # growth. Cap the V8 old space below the container limit.
       - NODE_OPTIONS=--max-old-space-size=224
     deploy:
       resources:

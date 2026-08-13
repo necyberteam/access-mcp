@@ -96,4 +96,24 @@ describe("listProjectsByResource over the complete corpus", () => {
     expect(out.metadata.fetched_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(out.metadata.corpus_truncated).toBeUndefined();
   });
+
+  it("flags corpus_truncated when the snapshot is incomplete (never reports a partial as complete)", async () => {
+    const snapshot = corpusWithDeepResource("PNRP", 3);
+    (snapshot as { truncated: boolean }).truncated = true; // corpus exceeded the fetch hardCap
+    const server = makeServer(snapshot);
+    const out = await listByResource(server, "PNRP");
+    expect(out.metadata.corpus_truncated).toBe(true);
+  });
+
+  it("flags stale when the snapshot is past the staleness ceiling", async () => {
+    const snapshot = corpusWithDeepResource("PNRP", 3);
+    const server = makeServer(snapshot);
+    // The envelope reads staleness from the live cache, not the snapshot object.
+    vi.spyOn(
+      (server as unknown as { corpus: { isStale: () => boolean } }).corpus,
+      "isStale",
+    ).mockReturnValue(true);
+    const out = await listByResource(server, "PNRP");
+    expect(out.metadata.stale).toBe(true);
+  });
 });
