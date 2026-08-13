@@ -14,3 +14,4 @@ export {
   type ResolverDeps,
   type GlobalResourceResolution,
 } from "./resource-resolver.js";
+export * from "./fetch-all-pages.js";
