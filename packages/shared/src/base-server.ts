@@ -27,9 +27,11 @@ import { IncomingMessage, Server as HttpServer, ServerResponse } from "node:http
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createLogger, Logger } from "./logger.js";
+// Safe direction: drupal-auth depends only on logger, never on base-server.
+import { DrupalApiError } from "./drupal-auth.js";
 import { traceMcpToolCall } from "./telemetry.js";
 import { UsageLogger } from "./usage-logger.js";
-import { StandardWriteResponse } from "./types.js";
+import { StandardWriteResponse, StandardErrorResponse } from "./types.js";
 
 // Re-export SDK types for convenience
 export type { Tool, Resource, Prompt, CallToolResult, ReadResourceResult, GetPromptResult };
@@ -248,25 +250,92 @@ export abstract class BaseAccessServer {
   }
 
   /**
-   * Helper method to create a standard error response (MCP 2025 compliant)
+   * Helper method to create a standard error response (MCP 2025 compliant).
+   * Emits the same nested envelope shape as writeResponse's success case —
+   * {action?, status:"error", executed:false, error:{code,message,hint?}} —
+   * so every tool speaks one response shape regardless of outcome.
    * @param message The error message
-   * @param hint Optional suggestion for how to fix the error
-   * @param code Optional machine-readable error code
+   * @param opts Optional code, hint, and action to attach
    */
-  protected errorResponse(message: string, hint?: string, code?: string): CallToolResult {
+  protected errorResponse(
+    message: string,
+    opts: { code?: string; hint?: string; action?: string } = {}
+  ): CallToolResult {
+    const body: StandardErrorResponse = {
+      ...(opts.action && { action: opts.action }),
+      status: "error",
+      executed: false,
+      error: { code: opts.code ?? "error", message, ...(opts.hint && { hint: opts.hint }) },
+    };
     return {
       content: [
         {
           type: "text" as const,
-          text: JSON.stringify({
-            error: message,
-            ...(hint && { hint }),
-            ...(code && { code }),
-          }),
+          text: JSON.stringify(body),
         },
       ],
       isError: true,
     };
+  }
+
+  /**
+   * Map a PERSISTENT Drupal authentication failure onto the standard error
+   * envelope. Returns null for anything else, so callers keep their own
+   * handling for ordinary errors:
+   *
+   *   } catch (error) {
+   *     const authError = this.drupalAuthError(error);
+   *     if (authError) return authError;
+   *     ...existing handling...
+   *   }
+   *
+   * Two distinct outcomes, and the difference matters to whoever reads the
+   * message:
+   *
+   *  - A 3xx — Drupal bounced an authenticated request to the CILogon login
+   *    page because the session was rejected. DrupalAuthProvider keeps this a
+   *    raw 3xx (maxRedirects:0) rather than following it and returning login
+   *    HTML as a fake 200. The provider already re-logs-in and retries once, so
+   *    a 3xx arriving here means recovery did not stick → "unauthenticated",
+   *    and re-authenticating is the right advice.
+   *  - code "reauth_failed" — the re-login itself failed, so the service
+   *    credentials or Drupal are broken. No retry or restart helps; this needs
+   *    an operator, and saying "try again" would be misleading.
+   *
+   * Lives here rather than in one server because every Drupal-backed server
+   * (announcements, allocations, events) hits the identical failure and used to
+   * leak the raw "Drupal API error: 307 Temporary Redirect" text instead.
+   */
+  protected drupalAuthError(error: unknown): CallToolResult | null {
+    if (!(error instanceof DrupalApiError)) return null;
+
+    if (error.code === "reauth_failed") {
+      return this.errorResponse(error.message, {
+        code: "reauth_failed",
+        hint: "The service could not re-authenticate with Drupal. This needs an operator, not a retry.",
+      });
+    }
+
+    return this.authRedirectError(error.status);
+  }
+
+  /**
+   * The status-based half of drupalAuthError, for callers holding a raw status
+   * rather than a thrown error — the non-throwing requestRaw accessor returns
+   * { status, data }, so those paths branch on the number directly.
+   *
+   * A 3xx means Drupal rejected the session and bounced to the CILogon login
+   * page. Returns null for every non-redirect status so callers fall through to
+   * their own handling. Single source of the message shared with drupalAuthError.
+   */
+  protected authRedirectError(status: number): CallToolResult | null {
+    if (status >= 300 && status < 400) {
+      return this.errorResponse(
+        "Authentication required: your ACCESS session may have expired.",
+        { code: "unauthenticated", hint: "Re-authenticate the ACCESS connector and try again." }
+      );
+    }
+    return null;
   }
 
   /**

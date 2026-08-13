@@ -743,7 +743,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("DRUPAL_API_URL");
+        expect(responseData.error.message).toContain("DRUPAL_API_URL");
       });
 
       it("should fail without ACTING_USER", async () => {
@@ -958,7 +958,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("Invalid where_to_share value");
+        expect(responseData.error.message).toContain("Invalid where_to_share value");
       });
 
       it("should create announcement with affinity group", async () => {
@@ -1018,7 +1018,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("Affinity group not found");
+        expect(responseData.error.message).toContain("Affinity group not found");
       });
     });
 
@@ -1240,6 +1240,72 @@ describe("AnnouncementsServer", () => {
         });
       });
 
+      // The preview's /mine lookup has its own catch that coded EVERY
+      // DrupalApiError as upstream_error, which swallowed a persistent auth
+      // failure before the tool-call-level mapping could see it. An expired
+      // session must read as unauthenticated here too, not as a vague upstream
+      // fault that suggests retrying.
+      it("preview surfaces a persistent 3xx as unauthenticated, not upstream_error", async () => {
+        mockDrupalAuth.get.mockRejectedValueOnce(
+          new DrupalApiError("Drupal API error: 307 Temporary Redirect", 307, "")
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: { uuid: "a-1", confirmed: false },
+          },
+        });
+
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse((result.content[0] as TextContent).text);
+        expect(parsed.error.code).toBe("unauthenticated");
+        expect(parsed.error.code).not.toBe("upstream_error");
+        expect(parsed.error.message).not.toContain("307");
+        // Nothing was written on a failed preview.
+        expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
+      });
+
+      it("preview surfaces a failed re-login as reauth_failed", async () => {
+        mockDrupalAuth.get.mockRejectedValueOnce(
+          new DrupalApiError(
+            "Drupal session expired and re-authentication failed: Drupal login failed: 503 Service Unavailable",
+            401,
+            undefined,
+            "reauth_failed"
+          )
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: { uuid: "a-1", confirmed: false },
+          },
+        });
+
+        const parsed = JSON.parse((result.content[0] as TextContent).text);
+        expect(parsed.error.code).toBe("reauth_failed");
+      });
+
+      it("preview still codes a non-auth Drupal failure as upstream_error", async () => {
+        mockDrupalAuth.get.mockRejectedValueOnce(
+          new DrupalApiError("Drupal API error (500): boom", 500, { errors: [{ detail: "boom" }] })
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "delete_announcement",
+            arguments: { uuid: "a-1", confirmed: false },
+          },
+        });
+
+        const parsed = JSON.parse((result.content[0] as TextContent).text);
+        expect(parsed.error.code).toBe("upstream_error");
+      });
+
       it("should PREVIEW (not delete) when confirmed is false, reading the title from /mine", async () => {
         mockDrupalAuth.get.mockResolvedValueOnce({
           items: [
@@ -1330,7 +1396,7 @@ describe("AnnouncementsServer", () => {
         expect(result.isError).toBe(true);
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.code).toBe("not_found");
+        expect(responseData.error.code).toBe("not_found");
       });
 
       it("should return a not_found error when the delete returns 404", async () => {
@@ -1355,7 +1421,7 @@ describe("AnnouncementsServer", () => {
 
         expect(result.isError).toBe(true);
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.code).toBe("not_found");
+        expect(responseData.error.code).toBe("not_found");
       });
 
       it("should fail without an acting user and make no provider call", async () => {
@@ -1398,8 +1464,8 @@ describe("AnnouncementsServer", () => {
 
         expect(result.isError).toBe(true);
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.code).toBe("upstream_error");
-        expect(responseData.code).not.toBe("not_found");
+        expect(responseData.error.code).toBe("upstream_error");
+        expect(responseData.error.code).not.toBe("not_found");
         expect(mockDrupalAuth.delete).not.toHaveBeenCalled();
       });
     });
@@ -1444,6 +1510,61 @@ describe("AnnouncementsServer", () => {
         expect(responseData.items[0].status).toBe("draft");
         // tags come back as english NAMES from the controller — passed through verbatim.
         expect(responseData.items[0].tags).toEqual(["gpu", "maintenance"]);
+      });
+
+      // An expired Drupal session arrives as a 3xx CILogon bounce. The shared
+      // auth layer re-logs-in and retries, so reaching here means recovery
+      // itself failed — the user must get the structured auth error, not the
+      // raw "Drupal API error: 307 Temporary Redirect" upstream string.
+      it("surfaces a persistent 3xx as the structured auth error, not the generic message", async () => {
+        mockDrupalAuth.get.mockRejectedValueOnce(
+          new DrupalApiError("Drupal API error: 307 Temporary Redirect", 307, "")
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_my_announcements", arguments: {} },
+        });
+
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse((result.content[0] as TextContent).text);
+        expect(parsed.error.code).toBe("unauthenticated");
+        expect(parsed.error.message).toMatch(/session may have expired/i);
+        expect(parsed.error.message).not.toContain("307");
+      });
+
+      it("surfaces a failed re-login as reauth_failed", async () => {
+        mockDrupalAuth.get.mockRejectedValueOnce(
+          new DrupalApiError(
+            "Drupal session expired and re-authentication failed: Drupal login failed: 503 Service Unavailable",
+            401,
+            undefined,
+            "reauth_failed"
+          )
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_my_announcements", arguments: {} },
+        });
+
+        const parsed = JSON.parse((result.content[0] as TextContent).text);
+        expect(parsed.error.code).toBe("reauth_failed");
+      });
+
+      it("leaves a non-auth Drupal error on its existing generic path", async () => {
+        mockDrupalAuth.get.mockRejectedValueOnce(
+          new DrupalApiError("Drupal API error (500): boom", 500, { errors: [{ detail: "boom" }] })
+        );
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: { name: "get_my_announcements", arguments: {} },
+        });
+
+        const parsed = JSON.parse((result.content[0] as TextContent).text);
+        expect(parsed.error.code).not.toBe("unauthenticated");
+        expect(parsed.error.message).toContain("boom");
       });
 
       it("should use default limit of 25", async () => {
@@ -1630,7 +1751,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("No acting user specified");
+        expect(responseData.error.message).toContain("No acting user specified");
         expect(mockDrupalAuth.get).not.toHaveBeenCalled();
       });
 
@@ -1671,7 +1792,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("at least 100 characters");
+        expect(responseData.error.message).toContain("at least 100 characters");
       });
 
       it("should return error when text is empty", async () => {
@@ -1684,7 +1805,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("at least 100 characters");
+        expect(responseData.error.message).toContain("at least 100 characters");
       });
 
       it("should return suggested tags on success", async () => {
@@ -1760,7 +1881,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
-        expect(responseData.error).toContain("at least 100 characters");
+        expect(responseData.error.message).toContain("at least 100 characters");
       });
 
       it("should return summary on success", async () => {
@@ -1925,7 +2046,7 @@ describe("AnnouncementsServer", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("Unknown tool");
+      expect(responseData.error.message).toContain("Unknown tool");
     });
   });
 

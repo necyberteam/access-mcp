@@ -49,6 +49,24 @@ export function assertWriteEnvelope(
     not: { toHaveProperty(key: string): void };
   }
 ): void {
+  // The error envelope ({status:"error", executed:false, error:{code,message,
+  // hint?}}) is a legitimate sibling shape, not a malformed write envelope —
+  // it carries an `error` key outside WRITE_ENVELOPE_ALLOWED_KEYS and a status
+  // outside statusVocab by design. Branch on it here rather than widening the
+  // allowed-key/status sets, which would silently accept a stray key on the
+  // success path too.
+  if (parsed.status === "error") {
+    expect(parsed.executed).toBe(false);
+    expect(typeof parsed.error).toBe("object");
+    const error = parsed.error as Record<string, unknown>;
+    expect(typeof error.code).toBe("string");
+    expect(typeof error.message).toBe("string");
+    if (error.hint !== undefined) {
+      expect(typeof error.hint).toBe("string");
+    }
+    return;
+  }
+
   for (const key of Object.keys(parsed)) {
     expect(WRITE_ENVELOPE_ALLOWED_KEYS.has(key)).toBe(true);
   }

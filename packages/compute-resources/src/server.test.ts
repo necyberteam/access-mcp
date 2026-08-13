@@ -516,9 +516,9 @@ describe("ComputeResourcesServer", () => {
       });
 
       const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.error).toContain("Multiple resources match");
-      expect(responseData.error).toContain("Stampede 2");
-      expect(responseData.error).toContain("Stampede 3");
+      expect(responseData.error.message).toContain("Multiple resources match");
+      expect(responseData.error.message).toContain("Stampede 2");
+      expect(responseData.error.message).toContain("Stampede 3");
     });
 
     it("should return error when no resources match", async () => {
@@ -542,7 +542,7 @@ describe("ComputeResourcesServer", () => {
       });
 
       const responseData = JSON.parse(result.content[0].text);
-      expect(responseData.error).toContain("No resource found");
+      expect(responseData.error.message).toContain("No resource found");
     });
   });
 

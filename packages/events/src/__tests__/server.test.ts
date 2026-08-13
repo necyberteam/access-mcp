@@ -69,13 +69,27 @@ describe("EventsServer", () => {
     it("should provide the correct tools", () => {
       const tools = server["getTools"]();
 
-      expect(tools).toHaveLength(6);
+      expect(tools).toHaveLength(15);
       expect(tools.map((t: { name: string }) => t.name)).toContain("search_events");
       expect(tools.map((t: { name: string }) => t.name)).toContain("get_my_events");
       expect(tools.map((t: { name: string }) => t.name)).toContain("get_my_registrations");
       expect(tools.map((t: { name: string }) => t.name)).toContain("cancel_registration");
       expect(tools.map((t: { name: string }) => t.name)).toContain("get_event");
       expect(tools.map((t: { name: string }) => t.name)).toContain("register_for_event");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("create_event");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("update_event");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("delete_event");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("restore_event");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("send_for_review");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("cancel_occurrence");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("restore_occurrence");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("edit_occurrence");
+      expect(tools.map((t: { name: string }) => t.name)).toContain("add_occurrence");
+      // No update_recurrence tool: access_events.routing.yml has no recurrence
+      // route (the kernel test base's doRecurrence() dispatcher is dead
+      // scaffolding, unreachable via crudOpMethodMap()). The API deliberately
+      // has no whole-schedule rebuild surface — see update_event/add_occurrence.
+      expect(tools.map((t: { name: string }) => t.name)).not.toContain("update_recurrence");
     });
 
     it("get_my_events / get_my_registrations descriptions crisply separate created vs attending", () => {
@@ -876,6 +890,33 @@ describe("EventsServer", () => {
       }
     });
 
+    it("get_my_registrations surfaces the cancelled flag per registration", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockResolvedValue({
+          registrations: [
+            { registrant_id: "u-1", eventinstance_id: "5", event_title: "GPU", waitlist: false, cancelled: true },
+            { registrant_id: "u-2", eventinstance_id: "6", event_title: "Other", waitlist: false, cancelled: false },
+          ],
+        });
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.registrations[0].cancelled).toBe(true);
+        expect(parsed.registrations[1].cancelled).toBe(false);
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
     it("get_my_registrations handles an empty/undefined response body", async () => {
       const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
       try {
@@ -892,6 +933,121 @@ describe("EventsServer", () => {
         expect(typeof text).toBe("string");
         expect(text.length).toBeGreaterThan(0);
         expect(text).toMatch(/no data/i);
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    // Production bug (2026-08-12): an expired Drupal session comes back as a 3xx
+    // redirect to CILogon. get_my_registrations calls the THROWING auth.get, whose
+    // DrupalApiError fell through to the generic handleToolCall catch and surfaced
+    // the raw "Drupal API error: 307 Temporary Redirect". Authenticated reads must
+    // map a 3xx onto the same structured authRedirectError shape the requestRaw
+    // paths already use. With the shared-layer re-login retry in place this only
+    // fires when re-login itself fails.
+    it("get_my_registrations maps a persistent 3xx to the structured auth error", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockRejectedValue(
+          new DrupalApiError("Drupal API error: 307 Temporary Redirect", 307, "")
+        );
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.status).toBe("error");
+        expect(parsed.error.code).toBe("unauthenticated");
+        expect(parsed.error.message).toMatch(/session may have expired/i);
+        // The raw upstream string must NOT leak to the user.
+        expect(parsed.error.message).not.toContain("307");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("get_my_events maps a persistent 3xx to the structured auth error", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockRejectedValue(
+          new DrupalApiError("Drupal API error: 302 Found", 302, "")
+        );
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_events", arguments: {} } })
+        );
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.error.code).toBe("unauthenticated");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    // A failed re-login is NOT ordinary expiry: retrying or restarting will not
+    // help, the credentials/Drupal are broken. It must not be reported as the
+    // reassuring "re-authenticate and try again" message.
+    it("get_my_registrations reports a failed re-login distinctly from expiry", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        const err = new DrupalApiError(
+          "Drupal session expired and re-authentication failed: Drupal login failed: 503 Service Unavailable",
+          401,
+          undefined,
+          "reauth_failed"
+        );
+        mockGet.mockRejectedValue(err);
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.error.code).toBe("reauth_failed");
+        expect(parsed.error.code).not.toBe("unauthenticated");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD; else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("a non-3xx DrupalApiError is NOT swallowed into the auth error", async () => {
+      const saved = { url: process.env.DRUPAL_API_URL, user: process.env.DRUPAL_USERNAME, pass: process.env.DRUPAL_PASSWORD };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc"; process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockRejectedValue(
+          new DrupalApiError("Drupal API error (500): boom", 500, { errors: [{ detail: "boom" }] })
+        );
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () => server["handleToolCall"]({ method: "tools/call", params: { name: "get_my_registrations", arguments: {} } })
+        );
+        const parsed = JSON.parse((result.content[0] as { text: string }).text);
+        expect(parsed.error.code).not.toBe("unauthenticated");
+        expect(parsed.error.message).toContain("boom");
       } finally {
         if (saved.url === undefined) delete process.env.DRUPAL_API_URL; else process.env.DRUPAL_API_URL = saved.url;
         if (saved.user === undefined) delete process.env.DRUPAL_USERNAME; else process.env.DRUPAL_USERNAME = saved.user;
@@ -970,7 +1126,7 @@ describe("EventsServer", () => {
         server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: false } } })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_found" } });
       expect(mockDelete).not.toHaveBeenCalled();
     });
 
@@ -1026,10 +1182,10 @@ describe("EventsServer", () => {
         server["handleToolCall"]({ method: "tools/call", params: { name: "cancel_registration", arguments: { registrant_id: "u-1", confirmed: true } } })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_found" } });
     });
 
-    it("confirmed:true → a 403 DrupalApiError maps to forbidden, NOT not_found (RECON-1 negative branch)", async () => {
+    it("confirmed:true → a 403 DrupalApiError maps to forbidden, NOT not_found", async () => {
       mockDelete.mockReset();
       mockDelete.mockRejectedValue(new DrupalApiError("Drupal API error: 403 Forbidden", 403, { error: "forbidden" }));
       const result = await withDrupalEnv(() =>
@@ -1037,9 +1193,9 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.code).toBe("forbidden");
+      expect(parsed.error.code).toBe("forbidden");
       // Guard: a non-404 must never be mis-mapped to not_found.
-      expect(parsed.code).not.toBe("not_found");
+      expect(parsed.error.code).not.toBe("not_found");
     });
 
     it("confirmed:true → a 500 DrupalApiError maps to upstream_error, NOT not_found", async () => {
@@ -1050,9 +1206,9 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.code).toBe("upstream_error");
-      expect(parsed.error).toMatch(/Events service error \(500\)/i);
-      expect(parsed.code).not.toBe("not_found");
+      expect(parsed.error.code).toBe("upstream_error");
+      expect(parsed.error.message).toMatch(/Events service error \(500\)/i);
+      expect(parsed.error.code).not.toBe("not_found");
     });
 
     it("cancel_registration errors without registrant_id and never calls DELETE or the lookup", async () => {
@@ -1080,8 +1236,8 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.code).toBe("forbidden");
-      expect(parsed.code).not.toBe("not_found");
+      expect(parsed.error.code).toBe("forbidden");
+      expect(parsed.error.code).not.toBe("not_found");
       expect(mockDelete).not.toHaveBeenCalled();
     });
 
@@ -1094,8 +1250,8 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       const parsed = JSON.parse(result.content[0].text);
-      expect(parsed.code).toBe("upstream_error");
-      expect(parsed.code).not.toBe("not_found");
+      expect(parsed.error.code).toBe("upstream_error");
+      expect(parsed.error.code).not.toBe("not_found");
       expect(mockDelete).not.toHaveBeenCalled();
     });
   });
@@ -1290,7 +1446,7 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/Events service error \(500\)/i);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "upstream_error" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "upstream_error" } });
     });
 
     it("get_event errors without an eventinstance_id and never calls the service", async () => {
@@ -1466,7 +1622,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "event_full" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "event_full" } });
     });
 
     it("register 409 registration_closed is an error carrying the Drupal code", async () => {
@@ -1484,7 +1640,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "registration_closed" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "registration_closed" } });
     });
 
     it("register_for_event maps a bare gate-403 (no not_permitted) to an actionable error", async () => {
@@ -1504,7 +1660,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true); // errorResponse, not a first-class refusal
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "auth_required" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "auth_required" } });
     });
 
     it("register_for_event maps a 404 to a first-class error", async () => {
@@ -1520,7 +1676,7 @@ describe("EventsServer", () => {
       );
       expect(result.isError).toBe(true);
       expect(result.content[0].text).toMatch(/No event found with id 9999/i);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "not_found" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_found" } });
     });
 
     it("register_for_event maps an unexpected upstream status to upstream_error", async () => {
@@ -1535,7 +1691,7 @@ describe("EventsServer", () => {
         })
       );
       expect(result.isError).toBe(true);
-      expect(JSON.parse(result.content[0].text)).toMatchObject({ code: "upstream_error" });
+      expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "upstream_error" } });
     });
 
     it("register_for_event errors without an eventinstance_id and never calls the service", async () => {
@@ -1866,6 +2022,788 @@ describe("EventsServer", () => {
       expect(parsed.action).toBe("cancel");
       expect(parsed.status).toBe("cancelled");
       expect(parsed.executed).toBe(true);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Organizer write toolset: create_event, update_event, delete_event,
+  // restore_event, send_for_review, cancel_occurrence, restore_occurrence,
+  // edit_occurrence, add_occurrence.
+  // ---------------------------------------------------------------------------
+  describe("organizer write tools", () => {
+    const withDrupalEnv = async (
+      fn: () => Promise<{ content: { text: string }[]; isError?: boolean }>
+    ) => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        return await requestContextStorage.run(
+          { actingUser: "actor@example.com" } as RequestContext,
+          fn
+        );
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    };
+
+    const call = (name: string, args: Record<string, unknown>) =>
+      withDrupalEnv(() =>
+        server["handleToolCall"]({
+          method: "tools/call",
+          params: { name, arguments: args },
+        })
+      );
+
+    beforeEach(() => {
+      mockRequestRaw.mockReset();
+    });
+
+    describe("schema shapes", () => {
+      it("create_event requires title, recur_type, field_affinity_group_node", () => {
+        const tool = server["getTools"]().find((t) => t.name === "create_event")!;
+        const schema = tool.inputSchema as { required?: string[] };
+        expect(schema.required).toEqual(
+          expect.arrayContaining(["title", "recur_type", "field_affinity_group_node"])
+        );
+      });
+
+      it("update_event requires only eventseries_id and does NOT expose confirmed (content-only, no preview step)", () => {
+        const tool = server["getTools"]().find((t) => t.name === "update_event")!;
+        const schema = tool.inputSchema as { required?: string[]; properties?: Record<string, unknown> };
+        expect(schema.required).toEqual(["eventseries_id"]);
+        expect(schema.properties?.confirmed).toBeUndefined();
+      });
+
+      it("delete_event requires eventseries_id and exposes confirmed", () => {
+        const tool = server["getTools"]().find((t) => t.name === "delete_event")!;
+        const schema = tool.inputSchema as { required?: string[]; properties?: Record<string, unknown> };
+        expect(schema.required).toEqual(["eventseries_id"]);
+        expect(schema.properties?.confirmed).toBeDefined();
+      });
+
+      it("restore_event and send_for_review require only eventseries_id (no confirm)", () => {
+        for (const name of ["restore_event", "send_for_review"]) {
+          const tool = server["getTools"]().find((t) => t.name === name)!;
+          const schema = tool.inputSchema as { required?: string[] };
+          expect(schema.required).toEqual(["eventseries_id"]);
+        }
+      });
+
+      it("cancel_occurrence requires eventinstance_id and exposes confirmed", () => {
+        const tool = server["getTools"]().find((t) => t.name === "cancel_occurrence")!;
+        const schema = tool.inputSchema as { required?: string[]; properties?: Record<string, unknown> };
+        expect(schema.required).toEqual(["eventinstance_id"]);
+        expect(schema.properties?.confirmed).toBeDefined();
+      });
+
+      it("restore_occurrence requires only eventinstance_id", () => {
+        const tool = server["getTools"]().find((t) => t.name === "restore_occurrence")!;
+        const schema = tool.inputSchema as { required?: string[] };
+        expect(schema.required).toEqual(["eventinstance_id"]);
+      });
+
+      it("edit_occurrence requires eventinstance_id and exposes date/field_location/confirmed", () => {
+        const tool = server["getTools"]().find((t) => t.name === "edit_occurrence")!;
+        const schema = tool.inputSchema as { required?: string[]; properties?: Record<string, unknown> };
+        expect(schema.required).toEqual(["eventinstance_id"]);
+        expect(schema.properties?.date).toBeDefined();
+        expect(schema.properties?.field_location).toBeDefined();
+        expect(schema.properties?.confirmed).toBeDefined();
+      });
+
+      it("add_occurrence requires eventseries_id and date", () => {
+        const tool = server["getTools"]().find((t) => t.name === "add_occurrence")!;
+        const schema = tool.inputSchema as { required?: string[] };
+        expect(schema.required).toEqual(["eventseries_id", "date"]);
+      });
+    });
+
+    describe("doc-text teaching topics", () => {
+      const toolDoc = (name: string) => server["getTools"]().find((t) => t.name === name)!.description;
+
+      it("cancel_occurrence teaches the postponement story and partial restore", () => {
+        const doc = toolDoc("cancel_occurrence");
+        expect(doc).toContain("edit_occurrence");
+        expect(doc).toContain("restore_occurrence");
+        expect(doc.toLowerCase()).toContain("partial");
+      });
+
+      it("edit_occurrence teaches the live-reschedule story, contrasts the postpone-with-a-gap story, and notes there is no whole-schedule rebuild", () => {
+        const doc = toolDoc("edit_occurrence");
+        expect(doc).toContain("cancel_occurrence");
+        expect(doc).toContain("registrants_to_notify");
+        expect(doc.toLowerCase()).toContain("no whole-schedule rebuild");
+      });
+
+      it("restore_occurrence teaches dates-before-restore ordering and duplicate_date -> restore_occurrence", () => {
+        const doc = toolDoc("restore_occurrence");
+        expect(doc).toContain("returns_with_series");
+        expect(doc.toLowerCase()).toContain("before");
+        expect(doc).toContain("duplicate_date");
+      });
+
+      it("add_occurrence teaches duplicate_date -> restore_occurrence", () => {
+        const doc = toolDoc("add_occurrence");
+        expect(doc).toContain("duplicate_date");
+        expect(doc).toContain("restore_occurrence");
+      });
+
+      it("update_event is documented as content-only and never dates/state, pointing schedule/state changes elsewhere", () => {
+        const doc = toolDoc("update_event");
+        expect(doc.toLowerCase()).toContain("content");
+        expect(doc).toContain("edit_occurrence");
+        expect(doc).toContain("add_occurrence");
+        expect(doc).toContain("delete_event");
+        expect(doc).toContain("restore_event");
+        expect(doc).toContain("send_for_review");
+        // No stray preview/confirm language — update_event has no preview step.
+        expect(doc).not.toContain("confirmed:true");
+        // No update_recurrence reference — that tool doesn't exist (no route).
+        expect(doc).not.toContain("update_recurrence");
+      });
+
+      it("update_event and add_occurrence both teach that the API deliberately has no whole-schedule rebuild operation", () => {
+        // The teaching relocated from the removed update_recurrence tool: no
+        // whole-pattern rebuild surface exists anywhere in the API (verified
+        // absent from access_events.routing.yml) — schedule changes are
+        // per-occurrence only, via edit_occurrence/add_occurrence/cancel_occurrence.
+        for (const name of ["update_event", "add_occurrence"]) {
+          const doc = toolDoc(name);
+          expect(doc.toLowerCase()).toContain("no whole-schedule rebuild");
+          expect(doc).toContain("edit_occurrence");
+          expect(doc).toContain("cancel_occurrence");
+        }
+        // update_event's version names add_occurrence explicitly as the third leg.
+        expect(toolDoc("update_event")).toContain("add_occurrence");
+      });
+
+      it("update_event and add_occurrence teach that a registered series' recurrence pattern can never be rebuilt, and the reschedule path is cancel -> edit dates -> restore", () => {
+        for (const name of ["update_event", "add_occurrence"]) {
+          const doc = toolDoc(name);
+          expect(doc.toLowerCase()).toContain("never be rebuilt");
+          expect(doc.toLowerCase()).toContain("registrations");
+          expect(doc).toContain("cancel_occurrence");
+          expect(doc).toContain("edit_occurrence");
+          expect(doc).toContain("restore_occurrence");
+        }
+      });
+
+      it("delete_event and restore_event cross-reference each other", () => {
+        expect(toolDoc("delete_event")).toContain("restore_event");
+      });
+
+      it("create_event documents the draft-only moderation block", () => {
+        const doc = toolDoc("create_event");
+        expect(doc.toLowerCase()).toContain("draft");
+        expect(doc).toContain("can_publish");
+        expect(doc).toContain("send_for_review");
+      });
+
+      it("every write tool's description surfaces the relevant envelope fields", () => {
+        expect(toolDoc("delete_event")).toContain("instances_archived");
+        expect(toolDoc("delete_event")).toContain("notified");
+        expect(toolDoc("delete_event")).toContain("notifications_disabled");
+        expect(toolDoc("restore_event")).toContain("instances_restored");
+        expect(toolDoc("cancel_occurrence")).toContain("registrants_affected");
+        expect(toolDoc("restore_occurrence")).toContain("returns_with_series");
+      });
+    });
+
+    describe("create_event", () => {
+      it("POSTs to /api/2.3/events and maps a created response", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 42,
+            instance_ids: [100, 101],
+            title: "GPU Bootcamp",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        const result = await call("create_event", {
+          title: "GPU Bootcamp",
+          recur_type: "custom",
+          field_affinity_group_node: ["uuid-1"],
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/events",
+          expect.objectContaining({ title: "GPU Bootcamp", recur_type: "custom", field_affinity_group_node: ["uuid-1"] })
+        );
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed).toMatchObject({
+          action: "create",
+          status: "created",
+          executed: true,
+          data: { series_id: 42, instance_ids: [100, 101], moderation_state: "draft" },
+        });
+      });
+
+      it("requires title/recur_type/field_affinity_group_node client-side without calling Drupal", async () => {
+        const r1 = await call("create_event", { recur_type: "custom", field_affinity_group_node: ["u"] });
+        expect(r1.isError).toBe(true);
+        expect(r1.content[0].text).toMatch(/title is required/i);
+
+        const r2 = await call("create_event", { title: "X", field_affinity_group_node: ["u"] });
+        expect(r2.isError).toBe(true);
+        expect(r2.content[0].text).toMatch(/recur_type is required/i);
+
+        const r3 = await call("create_event", { title: "X", recur_type: "custom" });
+        expect(r3.isError).toBe(true);
+        expect(r3.content[0].text).toMatch(/field_affinity_group_node is required/i);
+
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+      });
+
+      it("maps a not_coordinator 409 to a coded error", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: { error: "not_coordinator", message: "You are not a coordinator of the selected affinity group(s)." },
+        });
+        const result = await call("create_event", {
+          title: "X",
+          recur_type: "custom",
+          field_affinity_group_node: ["uuid-1"],
+        });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_coordinator" } });
+      });
+    });
+
+    describe("update_event", () => {
+      it("PATCHes /api/2.3/event-series/{id} with NO confirmed query param (content-only, applies immediately) and maps an updated response", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 42, updated_fields: ["title", "field_summary"] },
+        });
+        const result = await call("update_event", { eventseries_id: "42", title: "New Title" });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "PATCH",
+          "/api/2.3/event-series/42",
+          { title: "New Title" }
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "update",
+          status: "updated",
+          executed: true,
+          data: { series_id: 42, updated_fields: ["title", "field_summary"] },
+        });
+      });
+
+      it("does not accept/forward a confirmed flag — content-only edits are not gated on it", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 42, updated_fields: [] },
+        });
+        // Even if a caller mistakenly passes confirmed, the tool's param type
+        // does not include it, so it is never read into the request body.
+        await call("update_event", { eventseries_id: "42" });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "PATCH",
+          "/api/2.3/event-series/42",
+          {}
+        );
+      });
+
+      it("requires eventseries_id and never calls Drupal without it", async () => {
+        const result = await call("update_event", { title: "X" });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toMatch(/eventseries_id is required/i);
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("delete_event", () => {
+      it("confirmed:false previews via a query-string flag and writes nothing", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { status: "preview", executed: false, series_id: 42, would_archive: true, would_hard_delete: false, registrants_affected: 3 },
+        });
+        const result = await call("delete_event", { eventseries_id: "42" });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "DELETE",
+          "/api/2.3/event-series/42?confirmed=false",
+          undefined
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "delete",
+          status: "preview",
+          executed: false,
+          data: { would_archive: true, registrants_affected: 3 },
+        });
+      });
+
+      it("confirmed:true executes and maps instances_archived/notified/notifications_disabled", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 42,
+            instances_archived: 5,
+            registrants_affected: 3,
+            notified: 3,
+            notifications_disabled: false,
+            hard_deleted: false,
+          },
+        });
+        const result = await call("delete_event", { eventseries_id: "42", confirmed: true });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "DELETE",
+          "/api/2.3/event-series/42?confirmed=true",
+          undefined
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "delete",
+          status: "deleted",
+          executed: true,
+          data: { instances_archived: 5, notified: 3, notifications_disabled: false, hard_deleted: false },
+        });
+      });
+
+      it("a 409 registrations_exist refusal surfaces the real message + hint", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: { error: "registrations_exist", message: "This draft has registrations and cannot be deleted." },
+        });
+        const result = await call("delete_event", { eventseries_id: "42", confirmed: true });
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.error.code).toBe("registrations_exist");
+        expect(parsed.error.message).toBe("This draft has registrations and cannot be deleted.");
+        expect(parsed.error.hint).toMatch(/silently destroyed/i);
+      });
+
+      it("a 409 registrations_exist refusal maps to a coded error", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: { error: "registrations_exist", message: "Registrations exist." },
+        });
+        const result = await call("delete_event", { eventseries_id: "42", confirmed: true });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "registrations_exist" } });
+      });
+
+      it("requires eventseries_id", async () => {
+        const result = await call("delete_event", {});
+        expect(result.isError).toBe(true);
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("restore_event", () => {
+      it("POSTs to the restore route and maps instances_restored/notified", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 42, instances_restored: 4, notified: 4, notifications_disabled: false },
+        });
+        const result = await call("restore_event", { eventseries_id: "42" });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/event-series/42/restore",
+          undefined
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "update",
+          status: "updated",
+          executed: true,
+          data: { instances_restored: 4, notified: 4 },
+        });
+      });
+
+      it("an invalid_state 409 (never archived) maps to a coded error", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: { error: "invalid_state", message: "This event is not archived." },
+        });
+        const result = await call("restore_event", { eventseries_id: "42" });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "invalid_state" } });
+      });
+    });
+
+    describe("send_for_review", () => {
+      it("POSTs to the send-for-review route and maps moderation_state", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 42, moderation_state: "ready_for_review" },
+        });
+        const result = await call("send_for_review", { eventseries_id: "42" });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/event-series/42/send-for-review",
+          undefined
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "update",
+          status: "updated",
+          executed: true,
+          data: { moderation_state: "ready_for_review" },
+        });
+      });
+
+      it("an invalid_state 409 maps to a coded error", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: { error: "invalid_state", message: "Not draft or needs_adjustment." },
+        });
+        const result = await call("send_for_review", { eventseries_id: "42" });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "invalid_state" } });
+      });
+    });
+
+    describe("cancel_occurrence", () => {
+      it("confirmed:false previews", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { status: "preview", executed: false, eventinstance_id: 900, registrants_affected: 2 },
+        });
+        const result = await call("cancel_occurrence", { eventinstance_id: "900" });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "DELETE",
+          "/api/2.3/event-occurrences/900?confirmed=false",
+          undefined
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "delete",
+          status: "preview",
+          executed: false,
+          data: { registrants_affected: 2 },
+        });
+      });
+
+      it("confirmed:true executes and maps notified/notifications_disabled", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, eventinstance_id: 900, registrants_affected: 2, notified: 2, notifications_disabled: false },
+        });
+        const result = await call("cancel_occurrence", { eventinstance_id: "900", confirmed: true });
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "delete",
+          status: "deleted",
+          executed: true,
+          data: { notified: 2, notifications_disabled: false },
+        });
+      });
+
+      it("an invalid_state 409 (draft occurrence) maps to a coded error", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: { error: "invalid_state", message: "This occurrence is an unpublished draft; delete it instead." },
+        });
+        const result = await call("cancel_occurrence", { eventinstance_id: "900", confirmed: true });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "invalid_state" } });
+      });
+    });
+
+    describe("restore_occurrence", () => {
+      it("POSTs to the restore route and maps notified", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, eventinstance_id: 900, notified: 1, notifications_disabled: false },
+        });
+        const result = await call("restore_occurrence", { eventinstance_id: "900" });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/event-occurrences/900/restore",
+          undefined
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "update",
+          status: "updated",
+          executed: true,
+          data: { notified: 1 },
+        });
+      });
+
+      it("surfaces returns_with_series:true when restoring under a dark parent", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, eventinstance_id: 900, returns_with_series: true, notified: 0 },
+        });
+        const result = await call("restore_occurrence", { eventinstance_id: "900" });
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          data: { returns_with_series: true, notified: 0 },
+        });
+      });
+
+      it("an invalid_state 409 (not archived) maps to a coded error", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: { error: "invalid_state", message: "This occurrence is not cancelled." },
+        });
+        const result = await call("restore_occurrence", { eventinstance_id: "900" });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "invalid_state" } });
+      });
+    });
+
+    describe("edit_occurrence", () => {
+      it("PATCHes the occurrence route with confirmed=false by default", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, eventinstance_id: 900, registrants_affected: 0 },
+        });
+        const result = await call("edit_occurrence", { eventinstance_id: "900", field_location: "Room 2" });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "PATCH",
+          "/api/2.3/event-occurrences/900?confirmed=false",
+          { field_location: "Room 2" }
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "update",
+          status: "updated",
+          executed: true,
+          data: { eventinstance_id: 900, registrants_affected: 0 },
+        });
+      });
+
+      it("a date change on a live registered occurrence returns a preview with registrants_to_notify", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { status: "preview", executed: false, eventinstance_id: 900, date_changes: true, registrants_to_notify: 4 },
+        });
+        const result = await call("edit_occurrence", {
+          eventinstance_id: "900",
+          date: { value: "2026-09-05T14:00:00", end_value: "2026-09-05T15:00:00" },
+        });
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed).toMatchObject({ action: "update", status: "preview", executed: false });
+        expect(parsed.data.registrants_to_notify).toBe(4);
+      });
+
+      it("confirmed:true commits a date change", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, eventinstance_id: 900, registrants_affected: 4 },
+        });
+        const result = await call("edit_occurrence", {
+          eventinstance_id: "900",
+          confirmed: true,
+          date: { value: "2026-09-05T14:00:00", end_value: "2026-09-05T15:00:00" },
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "PATCH",
+          "/api/2.3/event-occurrences/900?confirmed=true",
+          { date: { value: "2026-09-05T14:00:00", end_value: "2026-09-05T15:00:00" } }
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          status: "updated",
+          executed: true,
+          data: { registrants_affected: 4 },
+        });
+      });
+
+      it("requires eventinstance_id", async () => {
+        const result = await call("edit_occurrence", {});
+        expect(result.isError).toBe(true);
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("add_occurrence", () => {
+      it("POSTs to /api/2.3/event-series/{id}/occurrence (singular) and maps the created instance", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 42, eventinstance_id: 950, moderation_state: "published" },
+        });
+        const result = await call("add_occurrence", {
+          eventseries_id: "42",
+          date: { value: "2026-09-10T14:00:00", end_value: "2026-09-10T15:00:00" },
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/event-series/42/occurrence",
+          { date: { value: "2026-09-10T14:00:00", end_value: "2026-09-10T15:00:00" } }
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "create",
+          status: "created",
+          executed: true,
+          data: { series_id: 42, eventinstance_id: 950, moderation_state: "published" },
+        });
+      });
+
+      it("a duplicate_date 409 maps to a coded error whose message points at restore_occurrence for a cancelled twin", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: {
+            error: "duplicate_date",
+            message: "An occurrence already exists at this date; it is cancelled — use restore_occurrence to bring it back instead of adding a duplicate.",
+          },
+        });
+        const result = await call("add_occurrence", {
+          eventseries_id: "42",
+          date: { value: "2026-09-10T14:00:00", end_value: "2026-09-10T15:00:00" },
+        });
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.error.code).toBe("duplicate_date");
+        expect(parsed.error.message).toContain("restore_occurrence");
+      });
+
+      it("an invalid_state 409 (draft series) maps to a coded error", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 409,
+          data: { error: "invalid_state", message: "This event is a draft; publish it before adding occurrences." },
+        });
+        const result = await call("add_occurrence", {
+          eventseries_id: "42",
+          date: { value: "2026-09-10T14:00:00", end_value: "2026-09-10T15:00:00" },
+        });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "invalid_state" } });
+      });
+
+      it("requires eventseries_id and date.value/date.end_value client-side", async () => {
+        const r1 = await call("add_occurrence", { date: { value: "x", end_value: "y" } });
+        expect(r1.isError).toBe(true);
+        const r2 = await call("add_occurrence", { eventseries_id: "42" });
+        expect(r2.isError).toBe(true);
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("shared auth/error handling", () => {
+      it("a 403 identity refusal (No acting user.) maps to auth_required", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 403,
+          data: { error: "forbidden", message: "No acting user." },
+        });
+        const result = await call("restore_event", { eventseries_id: "42" });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "auth_required" } });
+      });
+
+      it("a 403 state refusal (not archivable) surfaces the real message, NOT auth_required", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 403,
+          data: { error: "forbidden", message: "You may not archive this event." },
+        });
+        const result = await call("delete_event", { eventseries_id: "42", confirmed: true });
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.error.code).toBe("forbidden");
+        expect(parsed.error.code).not.toBe("auth_required");
+        expect(parsed.error.message).toBe("You may not archive this event.");
+        expect(parsed.error.hint).toMatch(/editorial permission/i);
+      });
+
+      it("a 403 permission refusal (events-editor required) surfaces the real message, NOT auth_required", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 403,
+          data: {
+            error: "forbidden",
+            message: "Cancelling this occurrence's participation requires the events-editor permission.",
+          },
+        });
+        const result = await call("cancel_occurrence", { eventinstance_id: "900", confirmed: true });
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.error.code).toBe("forbidden");
+        expect(parsed.error.code).not.toBe("auth_required");
+        expect(parsed.error.message).toBe(
+          "Cancelling this occurrence's participation requires the events-editor permission."
+        );
+        expect(parsed.error.hint).toMatch(/editorial permission/i);
+      });
+
+      it("an auth-redirect (3xx, stale session) maps to a re-authenticate error, not raw HTML", async () => {
+        mockRequestRaw.mockResolvedValue({ status: 307, data: "<!DOCTYPE html>…" });
+        const result = await call("send_for_review", { eventseries_id: "42" });
+        expect(result.isError).toBe(true);
+        expect(result.content[0].text).toMatch(/authentication|session|re-authenticate/i);
+        expect(result.content[0].text).not.toMatch(/DOCTYPE/i);
+      });
+
+      it("a 404 not_found maps cleanly for a series-scoped tool", async () => {
+        mockRequestRaw.mockResolvedValue({ status: 404, data: { error: "not_found", message: "Event series not found." } });
+        const result = await call("delete_event", { eventseries_id: "9999", confirmed: true });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_found" } });
+      });
+
+      it("a not_coordinator 409 maps cleanly for an occurrence-scoped tool", async () => {
+        mockRequestRaw.mockResolvedValue({ status: 409, data: { error: "not_coordinator", message: "You may not cancel this occurrence." } });
+        const result = await call("cancel_occurrence", { eventinstance_id: "900", confirmed: true });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_coordinator" } });
+      });
+
+      it("an unexpected 500 with no coded refusal body maps to upstream_error", async () => {
+        mockRequestRaw.mockResolvedValue({ status: 500, data: { message: "Internal server error" } });
+        const result = await call("add_occurrence", {
+          eventseries_id: "42",
+          date: { value: "x", end_value: "y" },
+        });
+        expect(result.isError).toBe(true);
+        expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "upstream_error" } });
+      });
+    });
+
+    describe("write-envelope conformance", () => {
+      const STATUS_VOCAB = new Set([
+        "preview", "created", "updated", "deleted",
+      ]);
+      const assertEnvelope = (parsed: Record<string, unknown>) =>
+        assertWriteEnvelope(parsed, STATUS_VOCAB, expect);
+
+      it("create_event, delete_event (executed), and add_occurrence all produce conformant envelopes", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 1, instance_ids: [], title: "X", moderation_state: "draft", moderation: {} },
+        });
+        const created = await call("create_event", {
+          title: "X",
+          recur_type: "custom",
+          field_affinity_group_node: ["u"],
+        });
+        assertEnvelope(JSON.parse(created.content[0].text));
+
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 1, instances_archived: 0, registrants_affected: 0, notified: 0, notifications_disabled: false, hard_deleted: true },
+        });
+        const deleted = await call("delete_event", { eventseries_id: "1", confirmed: true });
+        assertEnvelope(JSON.parse(deleted.content[0].text));
+
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 1, eventinstance_id: 2, moderation_state: "published" },
+        });
+        const added = await call("add_occurrence", {
+          eventseries_id: "1",
+          date: { value: "x", end_value: "y" },
+        });
+        assertEnvelope(JSON.parse(added.content[0].text));
+      });
     });
   });
 });

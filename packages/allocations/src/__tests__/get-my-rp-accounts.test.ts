@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { requestContextStorage, RequestContext } from "@access-mcp/shared";
+import { requestContextStorage, RequestContext, DrupalApiError } from "@access-mcp/shared";
 
 const mockGet = vi.fn();
 vi.mock("@access-mcp/shared", async (importOriginal) => {
@@ -71,6 +71,36 @@ describe("get_my_rp_accounts", () => {
     expect(result.isError).toBe(true);
     const text = (result.content[0] as { text: string }).text;
     expect(text).toMatch(/error|403/i);
+  });
+
+  // An expired Drupal session comes back as a 3xx CILogon bounce. The shared
+  // auth layer re-logs-in and retries, so a 3xx reaching the tool boundary means
+  // recovery failed and the user needs the structured auth error rather than the
+  // raw "Drupal API error: 307 Temporary Redirect" upstream text.
+  it("surfaces a persistent 3xx as the structured auth error", async () => {
+    mockGet.mockRejectedValue(
+      new DrupalApiError("Drupal API error: 307 Temporary Redirect", 307, "")
+    );
+    const result = await call("apasquale@access-ci.org");
+    expect(result.isError).toBe(true);
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
+    expect(parsed.error.code).toBe("unauthenticated");
+    expect(parsed.error.message).toMatch(/session may have expired/i);
+    expect(parsed.error.message).not.toContain("307");
+  });
+
+  it("surfaces a failed re-login as reauth_failed", async () => {
+    mockGet.mockRejectedValue(
+      new DrupalApiError(
+        "Drupal session expired and re-authentication failed: Drupal login failed: 503 Service Unavailable",
+        401,
+        undefined,
+        "reauth_failed"
+      )
+    );
+    const result = await call("apasquale@access-ci.org");
+    const parsed = JSON.parse((result.content[0] as { text: string }).text);
+    expect(parsed.error.code).toBe("reauth_failed");
   });
 
   it("does not gate the public tools", () => {

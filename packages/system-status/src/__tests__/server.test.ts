@@ -583,7 +583,7 @@ describe("SystemStatusServer", () => {
 
       const content = result.content[0] as TextContent;
       const response = JSON.parse(content.text);
-      expect(response.error).toBe("Network error");
+      expect(response.error.message).toBe("Network error");
     });
 
     it("should handle unknown tools", async () => {

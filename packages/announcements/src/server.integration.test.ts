@@ -507,7 +507,7 @@ describe.skipIf(!hasDrupalCreds)("Authenticated CRUD E2E Tests", () => {
       });
 
       const responseData = JSON.parse((result.content[0] as TextContent).text);
-      expect(responseData.error).toContain("explicit confirmation");
+      expect(responseData.error.message).toContain("explicit confirmation");
     }, 10000);
   });
 
