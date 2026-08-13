@@ -131,12 +131,24 @@ function substringResolve(
     .sort((a, b) => b.rank - a.rank || a.canonical.localeCompare(b.canonical));
 
   if (hits.length === 0) return { candidates: [] };
-  if (hits.length === 1) return { resolved: hits[0].canonical, candidates: [] };
 
   // If exactly one hit is an exact-normalized match (rank 3), prefer it as
   // resolved even when weaker substrings also matched.
   const exactRank = hits.filter((h) => h.rank === 3);
   if (exactRank.length === 1) return { resolved: exactRank[0].canonical, candidates: [] };
+
+  // Auto-resolve a lone hit ONLY when it is a strong match: an exact normalized
+  // form (rank 3) or a whole-token prefix/suffix (rank 2). A lone WEAK hit
+  // (rank 0 bare-substring, rank 1 mid-name word) is NOT confidently the intended
+  // institution — a short/ambiguous needle like "MD" or "Lee" incidentally
+  // substring-hits exactly one org — so it is returned as a candidate for the
+  // caller to confirm rather than silently resolving to the wrong funding.
+  const MIN_AUTORESOLVE_RANK = 2;
+  if (hits.length === 1) {
+    return hits[0].rank >= MIN_AUTORESOLVE_RANK
+      ? { resolved: hits[0].canonical, candidates: [] }
+      : { candidates: [hits[0].canonical] };
+  }
 
   return { candidates: hits.slice(0, maxCandidates).map((h) => h.canonical) };
 }

@@ -489,7 +489,7 @@ export class AllocationsServer extends BaseAccessServer {
             institution: {
               type: "string",
               description:
-                "Generate comprehensive funding profile for an institution. Shows ACCESS allocations, NSF awards, top researchers, and funding trends.",
+                "Generate a comprehensive funding profile for an institution (ACCESS allocations, NSF awards, top researchers, funding trends). Use the institution's full name. If the name is ambiguous — a system with several campuses (e.g. \"University of California\") or a shared word (e.g. \"Washington\") — the tool returns a list of candidate institutions; re-call with one specific name from that list.",
             },
             pi_name: {
               type: "string",
@@ -523,7 +523,7 @@ export class AllocationsServer extends BaseAccessServer {
             {
               name: "Generate institutional funding profile",
               arguments: {
-                institution: "University of Illinois",
+                institution: "University of Illinois at Urbana-Champaign",
                 limit: 20,
               },
             },
@@ -978,13 +978,9 @@ sort_by: "date_desc"
       return await this.institutionalFundingProfile(args.institution, args.limit || 20);
     }
 
-    // Find funded projects (with or without filters)
-    return await this.findFundedProjects(
-      args.pi_name,
-      args.institution,
-      args.field_of_science,
-      args.limit || 10
-    );
+    // Find funded projects (with or without filters). An `institution` arg is
+    // handled above by institutionalFundingProfile, so it never reaches here.
+    return await this.findFundedProjects(args.pi_name, args.field_of_science, args.limit || 10);
   }
 
   private async searchProjects(
@@ -2429,12 +2425,7 @@ sort_by: "date_desc"
     return analysis;
   }
 
-  private async findFundedProjects(
-    piName?: string,
-    institutionName?: string,
-    fieldOfScience?: string,
-    limit: number = 10
-  ) {
+  private async findFundedProjects(piName?: string, fieldOfScience?: string, limit: number = 10) {
     // Input validation
     if (limit < 1 || limit > 50) {
       throw new Error("Limit must be between 1 and 50");
@@ -2444,17 +2435,15 @@ sort_by: "date_desc"
       throw new Error("PI name must be at least 3 characters");
     }
 
-    if (institutionName && institutionName.trim().length < 3) {
-      throw new Error("Institution name must be at least 3 characters");
-    }
-
+    // Note: an `institution` argument is handled upstream by
+    // institutionalFundingProfile (analyzeFundingRouter), so it never reaches
+    // this method; the institution path is not duplicated here.
     try {
       // Step 1: Get ACCESS projects
       let accessProjects: Project[] = [];
       let searchQuery = "";
       const searchMetadata = {
         piNameVariations: [] as string[],
-        institutionVariants: [] as string[],
       };
 
       if (piName) {
@@ -2464,23 +2453,6 @@ sort_by: "date_desc"
         // Search for projects by PI name, filtering by field if specified
         accessProjects = await this.searchProjectsByPIName(piName, fieldOfScience, limit * 2);
         searchQuery += `PI: ${piName}`;
-        if (fieldOfScience) searchQuery += `, Field: ${fieldOfScience}`;
-      } else if (institutionName) {
-        // Resolve the query to a canonical institution and record what matched.
-        const { resolved } = resolveInstitution(
-          institutionName,
-          await this.institutionVocab(),
-          ACCESS_INSTITUTION_ALIASES
-        );
-        if (resolved) searchMetadata.institutionVariants = [resolved];
-
-        // Search for projects by institution, filtering by field if specified
-        accessProjects = await this.searchProjectsByInstitution(
-          institutionName,
-          fieldOfScience,
-          limit * 2
-        );
-        searchQuery += `Institution: ${institutionName}`;
         if (fieldOfScience) searchQuery += `, Field: ${fieldOfScience}`;
       } else if (fieldOfScience) {
         // This should work correctly now
@@ -2502,9 +2474,6 @@ sort_by: "date_desc"
       // Add search metadata if available
       if (searchMetadata.piNameVariations.length > 0) {
         result += `**Name Variations Tried:** ${Math.min(searchMetadata.piNameVariations.length, 5)} format(s)\n`;
-      }
-      if (searchMetadata.institutionVariants.length > 0) {
-        result += `**Institution Variants:** ${searchMetadata.institutionVariants.slice(0, 3).join(", ")}\n`;
       }
       result += `\n`;
 
@@ -2594,34 +2563,6 @@ sort_by: "date_desc"
         const fieldMatch =
           !fieldOfScience || project.fos.toLowerCase().includes(fieldOfScience.toLowerCase());
         return piMatch && fieldMatch;
-      })
-      .slice(0, limit);
-  }
-
-  /**
-   * Projects at an institution, resolved to the controlled vocabulary and
-   * exact-joined. On an ambiguous or unmatched query this returns no projects
-   * (the caller reports the empty set); it never fuzzily bridges to a different
-   * institution the way a substring/word-overlap match did.
-   */
-  private async searchProjectsByInstitution(
-    institutionName: string,
-    fieldOfScience?: string,
-    limit: number = 20
-  ): Promise<Project[]> {
-    const { records } = await this.ensureCorpus();
-    const { resolved } = resolveInstitution(
-      institutionName,
-      [...new Set(records.map((p) => p.piInstitution))],
-      ACCESS_INSTITUTION_ALIASES
-    );
-    if (!resolved) return [];
-    return records
-      .filter((project) => {
-        const institutionMatch = project.piInstitution === resolved;
-        const fieldMatch =
-          !fieldOfScience || project.fos.toLowerCase().includes(fieldOfScience.toLowerCase());
-        return institutionMatch && fieldMatch;
       })
       .slice(0, limit);
   }
@@ -2755,12 +2696,14 @@ sort_by: "date_desc"
   }
 
   /**
-   * Name variants to query the NSF award API with. NSF awardee names are free
-   * text with no controlled vocabulary, so a few forms improve recall: the
-   * canonical name, an acronym expansion if the input was an acronym, and a
-   * comma/"at" punctuation normalization. Deliberately does NOT generate the
-   * "University of X" <-> "X University" swap — that manufactures matches to
-   * genuinely different institutions.
+   * Name forms to query the NSF award API with. NSF awardee names are free text
+   * with no controlled vocabulary, so we try light punctuation normalizations of
+   * the canonical name: comma-stripped and "at"-stripped. These bridge only
+   * punctuation differences — they do NOT reach NSF's hyphenated or acronym
+   * awardee spellings (e.g. "University of California-Berkeley", "UC Berkeley"),
+   * so NSF recall is best-effort (tracked as a follow-up). Deliberately does NOT
+   * generate the "University of X" <-> "X University" swap, which manufactures
+   * matches to genuinely different institutions.
    */
   private nsfQueryVariants(canonical: string): string[] {
     const variants = new Set<string>([canonical]);

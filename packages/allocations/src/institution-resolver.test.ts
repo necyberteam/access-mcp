@@ -119,3 +119,32 @@ describe("resolveInstitution — ambiguous partials return candidates, not a gue
     expect(r.resolved).toBe("Purdue University");
   });
 });
+
+describe("resolveInstitution — a lone WEAK substring hit does not auto-resolve", () => {
+  it("does not resolve a short mid-name fragment to the only org that contains it", () => {
+    // "A&M" (normalizes to "a and m") is a mid-name fragment. It must not silently
+    // resolve to one Texas A&M campus; it is not a confident institution match.
+    const r = resolveInstitution("A&M", VOCAB, ALIASES);
+    expect(r.resolved).toBeUndefined();
+  });
+
+  it("returns a lone weak (mid-name) hit as a candidate, not resolved", () => {
+    // "Mellon" appears mid-name in exactly one fixture org (rank 1). A lone weak
+    // hit is offered as a candidate to confirm, never auto-resolved.
+    const r = resolveInstitution("Mellon", VOCAB, ALIASES);
+    expect(r.resolved).toBeUndefined();
+    expect(r.candidates).toContain("Carnegie Mellon University");
+  });
+
+  it("still auto-resolves a lone STRONG hit (whole-token prefix/suffix)", () => {
+    // "Carnegie Mellon" is a whole-token prefix of exactly one org (rank 2): resolves.
+    const r = resolveInstitution("Carnegie Mellon", VOCAB, ALIASES);
+    expect(r.resolved).toBe("Carnegie Mellon University");
+  });
+
+  it("auto-resolves a lone suffix-token hit (rank 2)", () => {
+    // "Carbondale" is a trailing whole token of exactly one org (rank 2): resolves.
+    const r = resolveInstitution("Carbondale", VOCAB, ALIASES);
+    expect(r.resolved).toBe("Southern Illinois University, Carbondale");
+  });
+});
