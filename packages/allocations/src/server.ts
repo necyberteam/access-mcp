@@ -2006,22 +2006,6 @@ sort_by: "date_desc"
     return stopWords.includes(word.toLowerCase());
   }
 
-  // Cache management methods
-  private cleanupExpiredCache(): void {
-    const now = Date.now();
-    for (const [page, timestamp] of this.cacheTimestamps.entries()) {
-      if (now - timestamp >= this.CACHE_TTL) {
-        this.projectCache.delete(page);
-        this.cacheTimestamps.delete(page);
-      }
-    }
-  }
-
-  private clearCache(): void {
-    this.projectCache.clear();
-    this.cacheTimestamps.clear();
-  }
-
   // Helper Methods
 
   // Formatting helpers
@@ -2559,16 +2543,16 @@ sort_by: "date_desc"
 
   // Helper method to get projects by field directly
   private async getProjectsByField(fieldOfScience: string, limit: number): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
-    return allProjects
+    const { records } = await this.ensureCorpus();
+    return records
       .filter((project) => project.fos.toLowerCase().includes(fieldOfScience.toLowerCase()))
       .slice(0, limit);
   }
 
   // Helper method to get top projects
   private async getTopProjects(limit: number): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3]);
-    return allProjects.slice(0, limit);
+    const { records } = await this.ensureCorpus();
+    return records.slice(0, limit);
   }
 
   // Helper method to search projects by PI name
@@ -2577,8 +2561,8 @@ sort_by: "date_desc"
     fieldOfScience?: string,
     limit: number = 20
   ): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
-    return allProjects
+    const { records } = await this.ensureCorpus();
+    return records
       .filter((project) => {
         const piMatch = project.pi.toLowerCase().includes(piName.toLowerCase());
         const fieldMatch =
@@ -2594,8 +2578,8 @@ sort_by: "date_desc"
     fieldOfScience?: string,
     limit: number = 20
   ): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
-    return allProjects
+    const { records } = await this.ensureCorpus();
+    return records
       .filter((project) => {
         const institutionMatch = project.piInstitution
           .toLowerCase()
@@ -3177,14 +3161,14 @@ sort_by: "date_desc"
     institutionName: string,
     limit: number
   ): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
+    const { records } = await this.ensureCorpus();
 
     // Generate institution variants for better matching
     const institutionVariants = this.getInstitutionVariants(
       this.normalizeInstitutionName(institutionName)
     );
 
-    return allProjects
+    return records
       .filter((project) => this.matchesInstitution(project.piInstitution, institutionVariants))
       .slice(0, limit);
   }
