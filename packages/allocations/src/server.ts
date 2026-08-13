@@ -1282,60 +1282,6 @@ sort_by: "date_desc"
     }
   }
 
-  private calculateSearchScore(
-    project: Project,
-    query: string,
-    fieldOfScience?: string,
-    allocationType?: string
-  ): number {
-    let score = 0;
-    const queryLower = query.toLowerCase();
-
-    // Field of science filter (required match)
-    if (fieldOfScience && !project.fos.toLowerCase().includes(fieldOfScience.toLowerCase())) {
-      return 0;
-    }
-
-    // Allocation type filter (required match)
-    if (
-      allocationType &&
-      !project.allocationType.toLowerCase().includes(allocationType.toLowerCase())
-    ) {
-      return 0;
-    }
-
-    // Basic query matching with scoring
-    const titleMatch = project.requestTitle.toLowerCase().includes(queryLower);
-    const abstractMatch = project.abstract.toLowerCase().includes(queryLower);
-    const piMatch = project.pi.toLowerCase().includes(queryLower);
-    const institutionMatch = project.piInstitution.toLowerCase().includes(queryLower);
-    const fosMatch = project.fos.toLowerCase().includes(queryLower);
-
-    // Weighted scoring
-    if (titleMatch) score += 3;
-    if (piMatch) score += 2;
-    if (fosMatch) score += 1.5;
-    if (institutionMatch) score += 1;
-    if (abstractMatch) score += 0.5;
-
-    // Exact matches get bonus points
-    if (project.requestTitle.toLowerCase() === queryLower) score += 5;
-    if (project.pi.toLowerCase() === queryLower) score += 3;
-
-    return score;
-  }
-
-  private projectMatchesQuery(project: Project, query: string): boolean {
-    const searchTerms = query.toLowerCase();
-    return (
-      project.requestTitle.toLowerCase().includes(searchTerms) ||
-      project.abstract.toLowerCase().includes(searchTerms) ||
-      project.pi.toLowerCase().includes(searchTerms) ||
-      project.piInstitution.toLowerCase().includes(searchTerms) ||
-      project.fos.toLowerCase().includes(searchTerms)
-    );
-  }
-
   private async getProjectDetails(projectId: number) {
     // Input validation
     if (!projectId || typeof projectId !== "number" || projectId <= 0) {
@@ -1722,6 +1668,9 @@ sort_by: "date_desc"
           has_more: allScored.length > items.length,
         },
         query_relevance: "loose_match" as const,
+        fetched_at: new Date(snapshot.fetchedAt).toISOString(),
+        ...(snapshot.truncated ? { corpus_truncated: true } : {}),
+        ...(this.corpus.isStale() ? { stale: true } : {}),
       },
       documentation: {
         links: this.listingLinks("search"),
@@ -1880,47 +1829,6 @@ sort_by: "date_desc"
     }
 
     return Math.min(resourceScore, 1.0);
-  }
-
-  private calculateProjectSimilarity(
-    project: Project,
-    searchTerms: string,
-    referenceField?: string
-  ): number {
-    let score = 0;
-
-    // Field of science match (high importance)
-    if (referenceField && project.fos.toLowerCase() === referenceField.toLowerCase()) {
-      score += 0.6;
-    } else if (referenceField && project.fos.toLowerCase().includes(referenceField.toLowerCase())) {
-      score += 0.3;
-    }
-
-    // Enhanced text similarity with weighted scoring
-    const titleText = project.requestTitle.toLowerCase();
-    const keywords = searchTerms
-      .toLowerCase()
-      .split(" ")
-      .filter((word) => word.length > 3 && !this.isStopWord(word));
-
-    if (keywords.length === 0) return score;
-
-    // Title matches (highest weight)
-    const titleMatches = keywords.filter((keyword) => titleText.includes(keyword));
-    score += (titleMatches.length / keywords.length) * 0.4;
-
-    // Abstract matches
-    const abstractMatches = keywords.filter(
-      (keyword) => project.abstract.toLowerCase().includes(keyword) && !titleText.includes(keyword)
-    );
-    score += (abstractMatches.length / keywords.length) * 0.3;
-
-    // Bonus for multiple keyword clusters
-    if (titleMatches.length > 1 && abstractMatches.length > 0) {
-      score += 0.2;
-    }
-
-    return Math.min(score, 1.0); // Cap at 1.0
   }
 
   private isStopWord(word: string): boolean {
