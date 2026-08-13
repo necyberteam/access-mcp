@@ -12,6 +12,7 @@ import {
   fetchAllPages,
 } from "@access-mcp/shared";
 import { CorpusCache, type CorpusSnapshot } from "./corpus-cache.js";
+import { resolveInstitution, type AliasTable } from "./institution-resolver.js";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
@@ -78,6 +79,45 @@ interface AnalyzeFundingArgs {
   field_of_science?: string;
   limit?: number;
 }
+
+/**
+ * Acronyms and short forms -> the institution's full name. Used only to
+ * pre-normalize a user's QUERY before resolving it against the controlled vocab
+ * (acronyms like "TAMU"/"MIT" appear nowhere in the vocab, and a bare substring
+ * match sends "MIT" to "Smith College"). The full-name target is matched against
+ * the vocab after normalization, so punctuation differences (e.g. "University of
+ * California, Berkeley") do not matter. This is NOT a variant generator: it never
+ * swaps "University of X" with "X University".
+ */
+const ACCESS_INSTITUTION_ALIASES: AliasTable = {
+  UIUC: "University of Illinois at Urbana-Champaign",
+  MIT: "Massachusetts Institute of Technology",
+  Caltech: "California Institute of Technology",
+  CIT: "California Institute of Technology",
+  CMU: "Carnegie Mellon University",
+  "Georgia Tech": "Georgia Institute of Technology",
+  GT: "Georgia Institute of Technology",
+  "UC Berkeley": "University of California, Berkeley",
+  Berkeley: "University of California, Berkeley",
+  UCLA: "University of California, Los Angeles",
+  UCSD: "University of California, San Diego",
+  UCSB: "University of California, Santa Barbara",
+  "CU Boulder": "University of Colorado Boulder",
+  "UT Austin": "University of Texas at Austin",
+  TAMU: "Texas A&M University",
+  OSU: "Ohio State University",
+  "Penn State": "Pennsylvania State University",
+  PSU: "Pennsylvania State University",
+  MSU: "Michigan State University",
+  ASU: "Arizona State University",
+  FSU: "Florida State University",
+  Stanford: "Stanford University",
+  Harvard: "Harvard University",
+  Princeton: "Princeton University",
+  Yale: "Yale University",
+  Columbia: "Columbia University",
+  UChicago: "University of Chicago",
+};
 
 export class AllocationsServer extends BaseAccessServer {
   private projectCache = new Map<number, ProjectsResponse>();
@@ -2342,15 +2382,13 @@ sort_by: "date_desc"
     return awards.slice(0, 5); // Limit to 5 most relevant
   }
 
-  // Validate institution matching between ACCESS and NSF
+  // Validate that an NSF award's text refers to a given ACCESS institution.
+  // NSF award text is free-form, so match against the NSF query variants (which
+  // do NOT include the "University of X" <-> "X University" swap).
   private validateInstitutionMatch(nsfAward: string, accessInstitution: string): boolean {
-    const institutionVariants = this.getInstitutionVariants(accessInstitution);
     const nsfLower = nsfAward.toLowerCase();
-
-    return institutionVariants.some(
-      (variant) =>
-        nsfLower.includes(variant.toLowerCase()) ||
-        variant.toLowerCase().includes(accessInstitution.toLowerCase().split(" ")[0]) // First word match
+    return this.nsfQueryVariants(accessInstitution).some((variant) =>
+      nsfLower.includes(variant.toLowerCase())
     );
   }
 
@@ -2428,9 +2466,13 @@ sort_by: "date_desc"
         searchQuery += `PI: ${piName}`;
         if (fieldOfScience) searchQuery += `, Field: ${fieldOfScience}`;
       } else if (institutionName) {
-        // Generate institution variants for better matching
-        const normalized = this.normalizeInstitutionName(institutionName);
-        searchMetadata.institutionVariants = this.getInstitutionVariants(normalized);
+        // Resolve the query to a canonical institution and record what matched.
+        const { resolved } = resolveInstitution(
+          institutionName,
+          await this.institutionVocab(),
+          ACCESS_INSTITUTION_ALIASES
+        );
+        if (resolved) searchMetadata.institutionVariants = [resolved];
 
         // Search for projects by institution, filtering by field if specified
         accessProjects = await this.searchProjectsByInstitution(
@@ -2556,18 +2598,27 @@ sort_by: "date_desc"
       .slice(0, limit);
   }
 
-  // Helper method to search projects by institution
+  /**
+   * Projects at an institution, resolved to the controlled vocabulary and
+   * exact-joined. On an ambiguous or unmatched query this returns no projects
+   * (the caller reports the empty set); it never fuzzily bridges to a different
+   * institution the way a substring/word-overlap match did.
+   */
   private async searchProjectsByInstitution(
     institutionName: string,
     fieldOfScience?: string,
     limit: number = 20
   ): Promise<Project[]> {
     const { records } = await this.ensureCorpus();
+    const { resolved } = resolveInstitution(
+      institutionName,
+      [...new Set(records.map((p) => p.piInstitution))],
+      ACCESS_INSTITUTION_ALIASES
+    );
+    if (!resolved) return [];
     return records
       .filter((project) => {
-        const institutionMatch = project.piInstitution
-          .toLowerCase()
-          .includes(institutionName.toLowerCase());
+        const institutionMatch = project.piInstitution === resolved;
         const fieldMatch =
           !fieldOfScience || project.fos.toLowerCase().includes(fieldOfScience.toLowerCase());
         return institutionMatch && fieldMatch;
@@ -2691,6 +2742,55 @@ sort_by: "date_desc"
     );
   }
 
+  /**
+   * The controlled institution vocabulary: the distinct piInstitution values in
+   * the resident corpus. Every project's institution is a verbatim member, so
+   * this is the exact set to resolve a query against — and it only ever contains
+   * institutions that actually have projects. Derived from the corpus already in
+   * memory (no extra fetch).
+   */
+  private async institutionVocab(): Promise<string[]> {
+    const { records } = await this.ensureCorpus();
+    return [...new Set(records.map((p) => p.piInstitution))];
+  }
+
+  /**
+   * Name variants to query the NSF award API with. NSF awardee names are free
+   * text with no controlled vocabulary, so a few forms improve recall: the
+   * canonical name, an acronym expansion if the input was an acronym, and a
+   * comma/"at" punctuation normalization. Deliberately does NOT generate the
+   * "University of X" <-> "X University" swap — that manufactures matches to
+   * genuinely different institutions.
+   */
+  private nsfQueryVariants(canonical: string): string[] {
+    const variants = new Set<string>([canonical]);
+    // "University of California, Berkeley" -> "University of California Berkeley"
+    variants.add(canonical.replace(/,\s*/g, " ").replace(/\s+/g, " ").trim());
+    // "University of Texas at Austin" -> "University of Texas Austin"
+    variants.add(canonical.replace(/\s+at\s+/gi, " "));
+    return [...variants].filter((v) => v.length > 0);
+  }
+
+  /**
+   * A query matched several institutions and no single one exactly. Return the
+   * candidate list so the caller (the tool-calling agent) re-queries a specific
+   * institution rather than the tool profiling the wrong one.
+   */
+  private institutionDisambiguation(query: string, candidates: string[]) {
+    let text = `Multiple institutions match "${query}". Please specify one of:\n`;
+    for (const c of candidates) text += `• ${c}\n`;
+    if (candidates.length === 0) {
+      text = `No ACCESS institution matches "${query}". Check the spelling, or try the full institution name.\n`;
+    }
+    return { content: [{ type: "text" as const, text }] };
+  }
+
+  /**
+   * A funding profile for one institution, resolved against the controlled vocab.
+   * An exact/unambiguous query is profiled; an ambiguous one (e.g. "Texas A&M"
+   * matching several campuses) returns a disambiguation list so the caller picks
+   * a specific campus rather than the tool guessing and reporting the wrong one.
+   */
   private async institutionalFundingProfile(institutionName: string, limit: number = 20) {
     // Input validation
     if (
@@ -2706,31 +2806,32 @@ sort_by: "date_desc"
     }
 
     try {
-      // Step 1: Normalize institution name for better matching
-      const normalizedInstitution = this.normalizeInstitutionName(institutionName);
-      const institutionVariants = this.getInstitutionVariants(normalizedInstitution);
-
-      // Step 2: Get ACCESS projects for this institution using variants
-      let accessProjects: Project[] = [];
-      let bestVariant = institutionName;
-      let maxMatches = 0;
-
-      for (const variant of institutionVariants) {
-        const projects = await this.getProjectsByInstitution(variant, limit * 2);
-        if (projects.length > maxMatches) {
-          maxMatches = projects.length;
-          accessProjects = projects;
-          bestVariant = variant;
-        }
+      // Step 1: Resolve the free-text query to a canonical vocabulary entry.
+      const resolution = resolveInstitution(
+        institutionName,
+        await this.institutionVocab(),
+        ACCESS_INSTITUTION_ALIASES,
+      );
+      if (!resolution.resolved) {
+        return this.institutionDisambiguation(institutionName, resolution.candidates);
       }
+      const canonical = resolution.resolved;
 
-      // Step 3: Get NSF awards using multiple institution variants
-      // CRITICAL FIX: Filter by primary institution only to avoid false positives
+      // Step 2: Exact-join the corpus on the resolved institution.
+      const { records } = await this.ensureCorpus();
+      const accessProjects = records
+        .filter((p) => p.piInstitution === canonical)
+        .slice(0, limit * 2);
+
+      // Step 3: Get NSF awards for the resolved institution. NSF awardee names
+      // are free text (no controlled vocab), so query a few name variants — but
+      // NOT the "University of X" <-> "X University" swap, which manufactures
+      // cross-institution false positives.
+      const nsfVariants = this.nsfQueryVariants(canonical);
       const nsfAwardsByVariant = new Map<string, string>();
       let totalNSFAwards = 0;
 
-      for (const variant of institutionVariants.slice(0, 3)) {
-        // Try top 3 variants
+      for (const variant of nsfVariants.slice(0, 3)) {
         try {
           // Use primary_only parameter - filtering now handled by NSF server
           const nsfData = (await this.callRemoteServer("nsf-awards", "search_nsf_awards", {
@@ -2762,8 +2863,7 @@ sort_by: "date_desc"
 
       // Institution matching info
       result += `**🎯 Institution Matching:**\n`;
-      result += `• **Primary Match:** ${bestVariant}\n`;
-      result += `• **Variants Searched:** ${institutionVariants.slice(0, 3).join(", ")}\n\n`;
+      result += `• **Resolved To:** ${canonical}\n\n`;
 
       // ACCESS Projects Section
       result += `**📊 ACCESS Computational Allocations (${accessProjects.length} projects):**\n`;
@@ -2774,8 +2874,7 @@ sort_by: "date_desc"
         const resourceStats = this.analyzeInstitutionalResources(accessProjects);
         result += `\n**Resource Portfolio:**\n${resourceStats}\n`;
       } else {
-        result += `No ACCESS projects found for ${institutionName}.\n`;
-        result += `Try variations like "${institutionVariants.slice(1, 3).join('" or "')}"\n`;
+        result += `No current ACCESS projects found for ${canonical}.\n`;
       }
 
       // NSF Awards Section (CRITICAL FIX: Now filtered by primary institution only)
@@ -2792,7 +2891,6 @@ sort_by: "date_desc"
         result += `• These results are filtered to show ONLY awards where this institution is the primary recipient\n`;
         result += `• Collaborations and co-PI mentions are excluded to ensure accuracy\n`;
         result += `• If you expected to see awards, this could indicate:\n`;
-        result += `  - Institution name formatting differences (try: "${institutionVariants.slice(1, 3).join('", "')}")\n`;
         result += `  - Awards under department/college names instead of university name\n`;
         result += `  - Recent institutional name changes or mergers\n`;
         result += `  - Awards may be under affiliated research centers\n\n`;
@@ -2842,319 +2940,6 @@ sort_by: "date_desc"
         ],
       };
     }
-  }
-
-  // Advanced institution name normalization
-  private normalizeInstitutionName(name: string): string {
-    return (
-      name
-        // Normalize punctuation variations
-        .replace(/,\s*(at|in|of)\s*/gi, " $1 ") // "Colorado, Boulder" → "Colorado at Boulder"
-        .replace(/,\s+/g, " ") // Remove other commas
-        .replace(/\s*-\s*/g, "-") // Normalize hyphens
-        .replace(/\s*&\s*/g, " and ") // Normalize ampersands
-        // Normalize institution type words
-        .replace(/\b(University|College|Institute|School|Center|Laboratory|Lab)\b/gi, (match) => {
-          const mappings: Record<string, string> = {
-            university: "University",
-            college: "College",
-            institute: "Institute",
-            school: "School",
-            center: "Center",
-            laboratory: "Laboratory",
-            lab: "Laboratory",
-          };
-          return mappings[match.toLowerCase()] || match;
-        })
-        // Handle common abbreviations
-        .replace(/\bU\b/g, "University")
-        .replace(/\bUniv\b/gi, "University")
-        .replace(/\bColl\b/gi, "College")
-        .replace(/\bInst\b/gi, "Institute")
-        // Normalize whitespace
-        .replace(/\s+/g, " ")
-        .trim()
-    );
-  }
-
-  private getInstitutionVariants(normalizedName: string): string[] {
-    const variants = [normalizedName];
-
-    // Generate systematic variations
-    const systematicVariants = this.generateSystematicInstitutionVariants(normalizedName);
-    variants.push(...systematicVariants);
-
-    // Add location-specific variations
-    const locationVariants = this.generateLocationVariants(normalizedName);
-    variants.push(...locationVariants);
-
-    // Add common abbreviations/expansions
-    const knownVariants = this.getKnownInstitutionVariants(normalizedName);
-    variants.push(...knownVariants);
-
-    return [...new Set(variants)]; // Remove duplicates
-  }
-
-  private generateSystematicInstitutionVariants(name: string): string[] {
-    const variants: string[] = [];
-
-    // Pattern variations for different institution formats
-    const patterns = [
-      // "University of X" ↔ "X University"
-      {
-        from: /University of ([^,]+?)(?:\s+at\s+([^,]+))?$/i,
-        to: (match: string, p1: string, p2: string) =>
-          p2 ? `${p1} University at ${p2}` : `${p1} University`,
-      },
-      {
-        from: /^([^,]+?)\s+University(?:\s+at\s+([^,]+))?$/i,
-        to: (match: string, p1: string, p2: string) =>
-          p2 ? `University of ${p1} at ${p2}` : `University of ${p1}`,
-      },
-
-      // "X at Y" ↔ "X, Y" ↔ "X-Y"
-      {
-        from: /^(.+?)\s+at\s+(.+)$/i,
-        to: (match: string, p1: string, p2: string) => `${p1}, ${p2}`,
-      },
-      {
-        from: /^(.+?)\s+at\s+(.+)$/i,
-        to: (match: string, p1: string, p2: string) => `${p1}-${p2}`,
-      },
-      { from: /^(.+?),\s*(.+)$/i, to: (match: string, p1: string, p2: string) => `${p1} at ${p2}` },
-      { from: /^(.+?)-(.+)$/i, to: (match: string, p1: string, p2: string) => `${p1} at ${p2}` },
-
-      // State/Campus variations
-      {
-        from: /^(.+?)\s+University\s+of\s+(.+?)(?:\s+at\s+(.+))?$/i,
-        to: (match: string, p1: string, p2: string, p3: string) =>
-          p3 ? `University of ${p2} ${p1} at ${p3}` : `University of ${p2} ${p1}`,
-      },
-    ];
-
-    patterns.forEach((pattern) => {
-      const match = name.match(pattern.from);
-      if (match && typeof pattern.to === "function") {
-        const variant = pattern.to(match[0], match[1], match[2], match[3]);
-        if (variant && variant !== name) {
-          variants.push(variant);
-        }
-      }
-    });
-
-    // Simple transformations
-    const simpleReplacements = [
-      { from: /\band\b/g, to: "&" },
-      { from: /&/g, to: "and" },
-      { from: /\s+/g, to: " " },
-    ];
-
-    simpleReplacements.forEach((replacement) => {
-      const variant = name.replace(replacement.from, replacement.to).trim();
-      if (variant !== name) {
-        variants.push(variant);
-      }
-    });
-
-    return variants;
-  }
-
-  private generateLocationVariants(name: string): string[] {
-    const variants: string[] = [];
-
-    // Common location format variations
-    const locationPatterns = [
-      // Campus-specific variations
-      /University of (.+?) (?:at )?(.+?)$/i,
-      /(.+?) University (?:at )?(.+?)$/i,
-      /(.+?) State University (?:at )?(.+?)$/i,
-    ];
-
-    locationPatterns.forEach((pattern) => {
-      const match = name.match(pattern);
-      if (match) {
-        const [, institution, location] = match;
-        // Generate multiple format variations
-        variants.push(`University of ${institution} at ${location}`);
-        variants.push(`University of ${institution}, ${location}`);
-        variants.push(`University of ${institution}-${location}`);
-        variants.push(`${institution} University at ${location}`);
-        variants.push(`${institution} University, ${location}`);
-        variants.push(`${institution} University-${location}`);
-      }
-    });
-
-    return variants;
-  }
-
-  /**
-   * Get known institution variants with SAFE matching logic.
-   *
-   * CRITICAL FIX: Previous version had substring matching bug where "MIT" matched "UT"
-   * because "ut" is substring of "mit". Now uses word-boundary aware matching.
-   */
-  private getKnownInstitutionVariants(name: string): string[] {
-    const variants: string[] = [];
-    const nameLower = name.toLowerCase().trim();
-    const nameWords = new Set(nameLower.split(/\s+/));
-
-    // Comprehensive mapping of known institution variations
-    const knownMappings: Record<string, string[]> = {
-      // Major research universities
-      "University of Illinois at Urbana-Champaign": [
-        "UIUC",
-        "U of I",
-        "University of Illinois Urbana-Champaign",
-        "University of Illinois, Urbana-Champaign",
-        "UI Urbana-Champaign",
-      ],
-      "Massachusetts Institute of Technology": ["MIT"],
-      "California Institute of Technology": ["Caltech", "CIT"],
-      "Carnegie Mellon University": ["CMU"],
-      "Georgia Institute of Technology": ["Georgia Tech", "GIT", "GT"],
-
-      // University of California system
-      "University of California Berkeley": ["UC Berkeley", "Berkeley", "Cal"],
-      "University of California Los Angeles": ["UCLA", "UC Los Angeles"],
-      "University of California San Diego": ["UCSD", "UC San Diego"],
-      "University of California Santa Barbara": ["UCSB", "UC Santa Barbara"],
-
-      // University of Colorado system
-      "University of Colorado Boulder": [
-        "CU Boulder",
-        "UC Boulder",
-        "University of Colorado at Boulder",
-        "University of Colorado, Boulder",
-        "Colorado University Boulder",
-      ],
-      "University of Colorado Denver": [
-        "CU Denver",
-        "UC Denver",
-        "University of Colorado at Denver",
-        "University of Colorado, Denver",
-      ],
-
-      // Texas system
-      "University of Texas at Austin": [
-        "UT Austin",
-        "UT",
-        "University of Texas Austin",
-        "University of Texas, Austin",
-      ],
-      "Texas A&M University": ["TAMU", "Texas A and M University", "Texas A&M"],
-
-      // State universities
-      "Ohio State University": ["OSU", "The Ohio State University"],
-      "Pennsylvania State University": ["Penn State", "PSU"],
-      "Michigan State University": ["MSU"],
-      "Arizona State University": ["ASU"],
-      "Florida State University": ["FSU"],
-
-      // Private institutions
-      "Stanford University": ["Stanford"],
-      "Harvard University": ["Harvard"],
-      "Princeton University": ["Princeton"],
-      "Yale University": ["Yale"],
-      "Columbia University": ["Columbia"],
-      "University of Chicago": ["UChicago", "Chicago"],
-
-      // International variations
-      "University College London": ["UCL"],
-      "Swiss Federal Institute of Technology": ["ETH Zurich", "ETHZ"],
-    };
-
-    // Look for SAFE matches using word-boundary aware logic
-    for (const [canonical, alternates] of Object.entries(knownMappings)) {
-      const canonicalLower = canonical.toLowerCase();
-      let matched = false;
-
-      // 1. Exact match (highest confidence)
-      if (nameLower === canonicalLower) {
-        variants.push(canonical, ...alternates);
-        continue;
-      }
-
-      // 2. Safe substring match for long strings (15+ chars)
-      // Prevents "MIT" from matching "Committee" but allows "University of X" variations
-      if (name.length >= 15 && canonical.length >= 15) {
-        if (nameLower.includes(canonicalLower) || canonicalLower.includes(nameLower)) {
-          variants.push(canonical, ...alternates);
-          continue;
-        }
-      }
-
-      // 3. Check alternates with word-boundary aware logic
-      for (const alt of alternates) {
-        if (matched) break;
-
-        const altLower = alt.toLowerCase().trim();
-
-        // Exact match
-        if (nameLower === altLower) {
-          variants.push(canonical, ...alternates);
-          matched = true;
-          break;
-        }
-
-        // CRITICAL: Use word boundaries, not naive substring matching
-        // This prevents "MIT" from matching "UT" (substring) but allows "UT Austin" to match "UT" (word)
-
-        // For single-word abbreviations, require exact word match
-        if (!alt.includes(" ") && alt.length <= 6) {
-          // Check if abbreviation appears as complete word in name
-          const wordBoundaryRegex = new RegExp(
-            `\\b${alt.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
-            "i"
-          );
-          if (wordBoundaryRegex.test(name)) {
-            variants.push(canonical, ...alternates);
-            matched = true;
-            break;
-          }
-        }
-
-        // For multi-word matches, check significant word overlap
-        if (alt.includes(" ") && name.includes(" ")) {
-          const altWords = new Set(altLower.split(/\s+/));
-          const overlap = [...nameWords].filter((word) => altWords.has(word) && word.length > 3);
-
-          // Require at least 50% word overlap and minimum 2 matching words
-          const overlapRatio = overlap.length / Math.max(nameWords.size, altWords.size);
-          if (overlapRatio >= 0.5 && overlap.length >= 2) {
-            variants.push(canonical, ...alternates);
-            matched = true;
-            break;
-          }
-        }
-
-        // Long string safe substring (10+ chars each)
-        if (alt.length >= 10 && name.length >= 10) {
-          if (nameLower.includes(altLower) || altLower.includes(nameLower)) {
-            variants.push(canonical, ...alternates);
-            matched = true;
-            break;
-          }
-        }
-      }
-    }
-
-    return [...new Set(variants)]; // Remove duplicates
-  }
-
-  private async getProjectsByInstitution(
-    institutionName: string,
-    limit: number
-  ): Promise<Project[]> {
-    const { records } = await this.ensureCorpus();
-
-    // Generate institution variants for better matching
-    const institutionVariants = this.getInstitutionVariants(
-      this.normalizeInstitutionName(institutionName)
-    );
-
-    return records
-      .filter((project) => this.matchesInstitution(project.piInstitution, institutionVariants))
-      .slice(0, limit);
   }
 
   private formatInstitutionalAccessProjects(projects: Project[]): string {
@@ -3259,66 +3044,4 @@ sort_by: "date_desc"
     return JSON.stringify(response);
   }
 
-  /**
-   * Check if an institution name matches any of the search variants.
-   * Uses multi-tier matching strategy to avoid false positives.
-   *
-   * CRITICAL FIX: Excludes common institution words (university, institute, college)
-   * from word overlap matching to prevent false positives where "Stanford University"
-   * matches "Carnegie Mellon University" just because both contain "university".
-   */
-  private matchesInstitution(institutionText: string, searchVariants: string[]): boolean {
-    const normalizedText = this.normalizeInstitutionName(institutionText).toLowerCase();
-
-    // Common words that should be ignored in word overlap matching
-    // These appear in almost all institution names and cause false positives
-    const COMMON_INSTITUTION_WORDS = new Set([
-      "university",
-      "institute",
-      "college",
-      "school",
-      "center",
-      "academy",
-      "polytechnic",
-      "tech",
-      "state",
-      "national",
-    ]);
-
-    for (const variant of searchVariants) {
-      const normalizedVariant = variant.toLowerCase();
-
-      // Tier 1: Exact match (highest confidence)
-      if (normalizedText === normalizedVariant) {
-        return true;
-      }
-
-      // Tier 2: Full variant contained in text (with length check to avoid false positives)
-      if (normalizedVariant.length > 8 && normalizedText.includes(normalizedVariant)) {
-        return true;
-      }
-
-      // Tier 3: Check significant word overlap (FIXED: excludes common words)
-      // Extract all words > 3 chars and exclude common institution words
-      const textWords = new Set(
-        normalizedText.split(/\s+/).filter((w) => w.length > 3 && !COMMON_INSTITUTION_WORDS.has(w))
-      );
-
-      const variantWords = normalizedVariant
-        .split(/\s+/)
-        .filter((w) => w.length > 3 && !COMMON_INSTITUTION_WORDS.has(w));
-
-      if (variantWords.length > 0 && textWords.size > 0) {
-        const matchingWords = variantWords.filter((word) => textWords.has(word));
-        const overlapRatio = matchingWords.length / variantWords.length;
-
-        // CRITICAL: Require EITHER high overlap (75%+) OR at least 2 matching significant words
-        if (overlapRatio >= 0.75 || (matchingWords.length >= 2 && overlapRatio >= 0.5)) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
 }
