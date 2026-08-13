@@ -25,6 +25,75 @@ describe("normalizeForMatch", () => {
       "texas a and m university texarkana",
     );
   });
+
+  it("drops the 'at' connective so 'X at Y' and 'X Y' normalize alike", () => {
+    expect(normalizeForMatch("University of Texas at Austin")).toBe("university of texas austin");
+    expect(normalizeForMatch("University of Texas Austin")).toBe("university of texas austin");
+    expect(normalizeForMatch("SUNY at Buffalo")).toBe("suny buffalo");
+  });
+
+  it("drops 'at' only as a whole TOKEN, never inside another word", () => {
+    // Substrings that contain the letters "at" must be untouched.
+    expect(normalizeForMatch("Automattic")).toBe("automattic");
+    expect(normalizeForMatch("Bates College")).toBe("bates college");
+    expect(normalizeForMatch("Ohio State University")).toBe("ohio state university");
+  });
+
+  it("expands Univ/Inst/Dept abbreviations (query-side format the vocab spells out)", () => {
+    expect(normalizeForMatch("Univ of Washington")).toBe("university of washington");
+    expect(normalizeForMatch("Massachusetts Inst of Technology")).toBe(
+      "massachusetts institute of technology",
+    );
+    // Not inside another word: "Institute" already spelled out stays put.
+    expect(normalizeForMatch("Georgia Institute of Technology")).toBe(
+      "georgia institute of technology",
+    );
+  });
+});
+
+describe("resolveInstitution — format-variant queries resolve (the agent's actual failure mode)", () => {
+  it("resolves a dropped 'at'", () => {
+    expect(resolveInstitution("University of Texas Austin", VOCAB, ALIASES).resolved).toBe(
+      "University of Texas at Austin",
+    );
+    expect(resolveInstitution("SUNY Buffalo", VOCAB, ALIASES).resolved).toBe("SUNY at Buffalo");
+  });
+
+  it("resolves an 'at' swapped for a comma", () => {
+    expect(resolveInstitution("University of Texas, Austin", VOCAB, ALIASES).resolved).toBe(
+      "University of Texas at Austin",
+    );
+  });
+
+  it("resolves a dropped 'at' plus a hyphen-to-space", () => {
+    expect(
+      resolveInstitution("University of Illinois Urbana Champaign", VOCAB, ALIASES).resolved,
+    ).toBe("University of Illinois at Urbana-Champaign");
+  });
+
+  it("resolves a 'Univ' abbreviation (the regression PR #38 introduced)", () => {
+    expect(resolveInstitution("Univ of Washington", VOCAB, ALIASES).resolved).toBe(
+      "University of Washington",
+    );
+  });
+});
+
+describe("normalizeForMatch collision invariant", () => {
+  // Guards against a future normalization change merging distinct institutions.
+  // Runs over the fixture (the collision-prone families — SUNY, Cal State, Texas
+  // A&M, the "at" cluster); the zero-collision property was also verified over
+  // the full live 715-org vocab when the normalization was designed.
+  it("maps no two distinct vocab entries to the same normalized form", () => {
+    const seen = new Map<string, string>();
+    for (const org of VOCAB) {
+      const norm = normalizeForMatch(org);
+      const prior = seen.get(norm);
+      // If a collision exists, surface both distinct orgs that collapsed.
+      expect(prior === undefined || prior === org, `collision: "${prior}" vs "${org}" -> "${norm}"`)
+        .toBe(true);
+      seen.set(norm, org);
+    }
+  });
 });
 
 describe("resolveInstitution — collisions stay distinct", () => {
