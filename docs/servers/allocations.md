@@ -64,7 +64,7 @@ Cross-reference ACCESS allocations with NSF awards for funding analysis.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `project_id` | number | Analyze funding for specific project |
-| `institution` | string | Generate institutional funding profile |
+| `institution` | string | Generate an institutional funding profile. Use the full name; an ambiguous name (a multi-campus system, or a shared word like "Washington") returns a list of candidate institutions to re-query. |
 | `pi_name` | string | Find funded projects by PI name |
 | `has_nsf_funding` | boolean | Filter to only NSF-funded projects |
 | `field_of_science` | string | Filter by field |
@@ -75,8 +75,8 @@ Cross-reference ACCESS allocations with NSF awards for funding analysis.
 // Analyze project funding
 analyze_funding({ project_id: 12345 })
 
-// Institutional profile
-analyze_funding({ institution: "University of Illinois" })
+// Institutional profile (use the full institution name)
+analyze_funding({ institution: "University of Illinois at Urbana-Champaign" })
 
 // Find PI's funded projects
 analyze_funding({ pi_name: "John Smith", has_nsf_funding: true })
@@ -84,12 +84,9 @@ analyze_funding({ pi_name: "John Smith", has_nsf_funding: true })
 
 ### `get_allocation_statistics`
 
-Get aggregate statistics across ACCESS allocations (top fields, resources, institutions).
+Get aggregate statistics (top fields of science, resources, institutions, and allocation types) as an **exact census over all current ACCESS-CI projects**. Returns aggregate counts.
 
-**Parameters:**
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `pages_to_analyze` | number | Pages to analyze (default: 5, max: 20) |
+**Parameters:** none.
 
 ### `get_my_rp_accounts`
 
