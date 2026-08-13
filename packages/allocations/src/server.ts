@@ -9,7 +9,9 @@ import {
   CallToolResult,
   DrupalAuthProvider,
   getRequestContext,
+  fetchAllPages,
 } from "@access-mcp/shared";
+import { CorpusCache, type CorpusSnapshot } from "./corpus-cache.js";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
@@ -82,16 +84,97 @@ export class AllocationsServer extends BaseAccessServer {
   private cacheTimestamps = new Map<number, number>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+  // Resident full-corpus cache: tools filter the COMPLETE project set so `total`
+  // is a true count (the fix for the page-cap false-negatives, e.g. PNRP). See
+  // corpus-cache.ts for the lifecycle contracts.
+  private static readonly CORPUS_TTL_MS = 6 * 60 * 60 * 1000; // 6h (data is ~quarterly)
+  private readonly corpus = new CorpusCache<Project>(() => this.fetchCorpus(), {
+    ttlMs: AllocationsServer.CORPUS_TTL_MS,
+    onError: (err) =>
+      this.logger.error("Allocations corpus refresh failed; serving previous snapshot", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+  });
+  private refreshTimer?: ReturnType<typeof setTimeout>;
+
   constructor() {
     super("access-allocations", version, "https://allocations.access-ci.org");
+  }
 
-    // Set up periodic cache cleanup every 10 minutes
-    setInterval(
-      () => {
-        this.cleanupExpiredCache();
+  /**
+   * Fetch the complete current-projects corpus, projecting out the heavy unused
+   * `publications` field at ingest (~51% of payload; nothing reads it — the
+   * Project interface omits it). Dedupe/over-range-guard live in fetchAllPages.
+   */
+  private async fetchCorpus(): Promise<CorpusSnapshot<Project>> {
+    const { records, pages, truncated } = await fetchAllPages<Project, Project>(
+      async (page) => {
+        const url = `${this.baseURL}/current-projects.json?page=${page}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = (await response.json()) as ProjectsResponse;
+        return { items: data.projects, totalPages: data.pages };
       },
-      10 * 60 * 1000
+      (p) => p.projectId,
+      { concurrency: 10 },
+      // Projector: keep the Project fields (incl. abstract for search); drop
+      // anything extra the raw payload carries (publications).
+      (p) => ({
+        projectId: p.projectId,
+        requestNumber: p.requestNumber,
+        requestTitle: p.requestTitle,
+        pi: p.pi,
+        piInstitution: p.piInstitution,
+        fos: p.fos,
+        abstract: p.abstract,
+        allocationType: p.allocationType,
+        beginDate: p.beginDate,
+        endDate: p.endDate,
+        resources: p.resources,
+      }),
     );
+    return { records, pages, truncated, fetchedAt: Date.now() };
+  }
+
+  /**
+   * Return the complete corpus for filtering. Stale-while-revalidate: a warm
+   * request is never blocked by a refresh.
+   */
+  private async ensureCorpus(): Promise<CorpusSnapshot<Project>> {
+    return this.corpus.ensure();
+  }
+
+  /** Schedule the next background refresh AFTER the previous one settles (no overlap). */
+  private scheduleCorpusRefresh(): void {
+    this.refreshTimer = setTimeout(() => {
+      void this.corpus
+        .refresh()
+        .catch(() => {}) // failures already logged via onError; keep-old handles it
+        .finally(() => this.scheduleCorpusRefresh());
+    }, AllocationsServer.CORPUS_TTL_MS);
+    this.refreshTimer.unref?.();
+  }
+
+  async start(options?: { httpPort?: number }): Promise<void> {
+    await super.start(options);
+    // Eager warm, fire-and-forget with a catch (a floating rejection would crash
+    // the process). A request that beats the warm awaits the single-flight fetch.
+    void this.ensureCorpus().catch((err) =>
+      this.logger.error("Allocations corpus warm-up failed", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+    this.scheduleCorpusRefresh();
+  }
+
+  async stop(): Promise<void> {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
+    await super.stop();
   }
 
   // Lazily-created Drupal auth provider for authenticated, per-user endpoints
