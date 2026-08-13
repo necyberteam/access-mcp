@@ -9,7 +9,9 @@ import {
   CallToolResult,
   DrupalAuthProvider,
   getRequestContext,
+  fetchAllPages,
 } from "@access-mcp/shared";
+import { CorpusCache, type CorpusSnapshot } from "./corpus-cache.js";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
@@ -82,16 +84,123 @@ export class AllocationsServer extends BaseAccessServer {
   private cacheTimestamps = new Map<number, number>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
+  // Resident full-corpus cache: tools filter the COMPLETE project set so `total`
+  // is a true count (the fix for the page-cap false-negatives, e.g. PNRP). See
+  // corpus-cache.ts for the lifecycle contracts.
+  private static readonly CORPUS_TTL_MS = 6 * 60 * 60 * 1000; // 6h (data is ~quarterly)
+  private readonly corpus = new CorpusCache<Project>(() => this.fetchCorpus(), {
+    ttlMs: AllocationsServer.CORPUS_TTL_MS,
+    onError: (err) =>
+      this.logger.error("Allocations corpus refresh failed; serving previous snapshot", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+  });
+  private refreshTimer?: ReturnType<typeof setTimeout>;
+
   constructor() {
     super("access-allocations", version, "https://allocations.access-ci.org");
+  }
 
-    // Set up periodic cache cleanup every 10 minutes
-    setInterval(
-      () => {
-        this.cleanupExpiredCache();
+  /**
+   * Fetch the complete current-projects corpus, projecting out the unused
+   * `publications` field at ingest (nothing reads it — the Project interface
+   * omits it). Its size is non-uniform: near-zero on the newest projects, up to
+   * ~12KB on older ones with real publication lists, so dropping it mainly trims
+   * the tail. Dedupe/over-range-guard live in fetchAllPages.
+   */
+  private async fetchCorpus(): Promise<CorpusSnapshot<Project>> {
+    const { records, pages, truncated } = await fetchAllPages<Project, Project>(
+      async (page) => {
+        const url = `${this.baseURL}/current-projects.json?page=${page}`;
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = (await response.json()) as ProjectsResponse;
+        return { items: data.projects, totalPages: data.pages };
       },
-      10 * 60 * 1000
+      (p) => p.projectId,
+      { concurrency: 10 },
+      (p) => this.projectRecord(p),
     );
+    return { records, pages, truncated, fetchedAt: Date.now() };
+  }
+
+  /**
+   * Keep the Project fields (incl. abstract, which search reads) and drop
+   * anything extra the raw payload carries (notably the heavy `publications`
+   * array). Applied both when building the corpus and when returning a record
+   * from the live revalidation scan, so every project the tools see is the same
+   * shape regardless of which path produced it.
+   */
+  /**
+   * A project's ACCESS Credits allocation — the one comparable magnitude across
+   * projects. Resource allocations carry heterogeneous, non-additive units
+   * (ACCESS Credits, SUs, GB, Dollars, and "[Yes = 1, No = 0]" flags on support
+   * line items), so summing `allocation` across a project's resources produces a
+   * meaningless number. ~97% of current projects carry an ACCESS Credits line;
+   * those without one (legacy SU/core-hour allocations) report 0 for ranking and
+   * threshold purposes. Sum in case a project lists the credits unit more than once.
+   */
+  private accessCreditsAmount(p: Project): number {
+    return p.resources
+      .filter((r) => r.units === "ACCESS Credits")
+      .reduce((sum, r) => sum + (r.allocation || 0), 0);
+  }
+
+  private projectRecord(p: Project): Project {
+    return {
+      projectId: p.projectId,
+      requestNumber: p.requestNumber,
+      requestTitle: p.requestTitle,
+      pi: p.pi,
+      piInstitution: p.piInstitution,
+      fos: p.fos,
+      abstract: p.abstract,
+      allocationType: p.allocationType,
+      beginDate: p.beginDate,
+      endDate: p.endDate,
+      resources: p.resources,
+    };
+  }
+
+  /**
+   * Return the complete corpus for filtering. Stale-while-revalidate: a warm
+   * request is never blocked by a refresh.
+   */
+  private async ensureCorpus(): Promise<CorpusSnapshot<Project>> {
+    return this.corpus.ensure();
+  }
+
+  /** Schedule the next background refresh AFTER the previous one settles (no overlap). */
+  private scheduleCorpusRefresh(): void {
+    this.refreshTimer = setTimeout(() => {
+      void this.corpus
+        .refresh()
+        .catch(() => {}) // failures already logged via onError; keep-old handles it
+        .finally(() => this.scheduleCorpusRefresh());
+    }, AllocationsServer.CORPUS_TTL_MS);
+    this.refreshTimer.unref?.();
+  }
+
+  async start(options?: { httpPort?: number }): Promise<void> {
+    await super.start(options);
+    // Eager warm, fire-and-forget with a catch (a floating rejection would crash
+    // the process). A request that beats the warm awaits the single-flight fetch.
+    void this.ensureCorpus().catch((err) =>
+      this.logger.error("Allocations corpus warm-up failed", {
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+    this.scheduleCorpusRefresh();
+  }
+
+  async stop(): Promise<void> {
+    if (this.refreshTimer) {
+      clearTimeout(this.refreshTimer);
+      this.refreshTimer = undefined;
+    }
+    await super.stop();
   }
 
   // Lazily-created Drupal auth provider for authenticated, per-user endpoints
@@ -399,30 +508,15 @@ export class AllocationsServer extends BaseAccessServer {
       {
         name: "get_allocation_statistics",
         description:
-          "Get allocation statistics (top fields, resources, institutions, types) based on a sample of recent projects. Results are estimates, not a full census. Returns aggregate stats.",
+          "Get allocation statistics (top fields of science, resources, institutions, and allocation types) as an exact census over all current ACCESS-CI projects. Returns aggregate counts.",
         inputSchema: {
           type: "object" as const,
-          properties: {
-            pages_to_analyze: {
-              type: "number",
-              description:
-                "Number of pages of projects to sample for statistics (default: 5, max: 20). Each page contains approximately 20 projects, so default samples ~100 projects.",
-              default: 5,
-            },
-          },
+          properties: {},
           required: [],
           examples: [
             {
               name: "Get allocation statistics",
-              arguments: {
-                pages_to_analyze: 5,
-              },
-            },
-            {
-              name: "Get comprehensive allocation statistics",
-              arguments: {
-                pages_to_analyze: 10,
-              },
+              arguments: {},
             },
           ],
         },
@@ -513,7 +607,7 @@ export class AllocationsServer extends BaseAccessServer {
         case "analyze_funding":
           return await this.analyzeFundingRouter(toolArgs as AnalyzeFundingArgs);
         case "get_allocation_statistics":
-          return await this.getAllocationStatistics((toolArgs.pages_to_analyze as number) || 5);
+          return await this.getAllocationStatistics();
         case "get_rp_account":
           return await this.getRpAccount(
             toolArgs.resource_id as string,
@@ -542,7 +636,15 @@ export class AllocationsServer extends BaseAccessServer {
 
     if (uri === "accessci://allocations") {
       try {
-        const data = await this.fetchProjects(1);
+        // Serve a page-1-equivalent preview from the resident corpus (the
+        // resource is a sample of the full data, not a filtered query).
+        const snapshot = await this.ensureCorpus();
+        const data = {
+          projects: snapshot.records.slice(0, 20),
+          total: snapshot.records.length,
+          pages: snapshot.pages,
+          fetched_at: new Date(snapshot.fetchedAt).toISOString(),
+        };
         return {
           contents: [
             {
@@ -746,27 +848,6 @@ sort_by: "date_desc"
     this.cacheTimestamps.set(page, Date.now());
   }
 
-  private async fetchMultiplePages(pages: number[], maxConcurrent: number = 5): Promise<Project[]> {
-    const results: Project[] = [];
-
-    // Process pages in batches to avoid overwhelming the server
-    for (let i = 0; i < pages.length; i += maxConcurrent) {
-      const batch = pages.slice(i, i + maxConcurrent);
-      const promises = batch.map((page) => this.fetchProjects(page));
-
-      try {
-        const batchResults = await Promise.all(promises);
-        batchResults.forEach((data) => {
-          results.push(...data.projects);
-        });
-      } catch (error) {
-        // Log error but continue with other batches
-        console.warn(`Error fetching batch starting at page ${batch[0]}:`, error);
-      }
-    }
-
-    return results;
-  }
 
   /**
    * Router for consolidated search_projects tool
@@ -886,16 +967,10 @@ sort_by: "date_desc"
     // Parse advanced search query
     const searchTerms = this.parseAdvancedQuery(query);
 
-    // Use parallel fetching for better performance
-    const maxPages = Math.min(15, limit > 50 ? 20 : 15);
-
-    // Fetch first page to get total pages available
-    const firstPageData = await this.fetchProjects(1);
-    const totalPages = Math.min(firstPageData.pages, maxPages);
-    const actualPages = Array.from({ length: totalPages }, (_, i) => i + 1);
-
-    // Fetch all pages in parallel
-    const allProjects = await this.fetchMultiplePages(actualPages);
+    // Score/filter over the COMPLETE corpus, not a page-capped window — a match
+    // whose abstract sits past the old cap was previously invisible.
+    const snapshot = await this.ensureCorpus();
+    const allProjects = snapshot.records;
 
     // Apply filters
     const filteredProjects = allProjects.filter((project) => {
@@ -915,10 +990,10 @@ sort_by: "date_desc"
         }
       }
 
-      // Minimum allocation filter
+      // Minimum allocation filter — compare against the ACCESS Credits amount,
+      // not a cross-unit sum (see accessCreditsAmount).
       if (minAllocation) {
-        const totalAllocation = project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-        if (totalAllocation < minAllocation) return false;
+        if (this.accessCreditsAmount(project) < minAllocation) return false;
       }
 
       return true;
@@ -958,11 +1033,14 @@ sort_by: "date_desc"
           // the requested cap.
           limit,
           offset: 0,
-          has_more:
-            sortedAll.length > items.length ||
-            actualPages.length < firstPageData.pages,
+          // Scoring runs over the complete corpus, so total is the true match
+          // count; more remain only when it exceeds what we returned.
+          has_more: sortedAll.length > items.length,
         },
         query_relevance: "loose_match" as const,
+        fetched_at: new Date(snapshot.fetchedAt).toISOString(),
+        ...(snapshot.truncated ? { corpus_truncated: true } : {}),
+        ...(this.corpus.isStale() ? { stale: true } : {}),
       },
       documentation: {
         links: this.listingLinks("search"),
@@ -1153,17 +1231,13 @@ sort_by: "date_desc"
             new Date(a.project.beginDate).getTime() - new Date(b.project.beginDate).getTime()
         );
       case "allocation_desc":
-        return scoredResults.sort((a, b) => {
-          const aTotal = a.project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-          const bTotal = b.project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-          return bTotal - aTotal;
-        });
+        return scoredResults.sort(
+          (a, b) => this.accessCreditsAmount(b.project) - this.accessCreditsAmount(a.project)
+        );
       case "allocation_asc":
-        return scoredResults.sort((a, b) => {
-          const aTotal = a.project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-          const bTotal = b.project.resources.reduce((sum, r) => sum + (r.allocation || 0), 0);
-          return aTotal - bTotal;
-        });
+        return scoredResults.sort(
+          (a, b) => this.accessCreditsAmount(a.project) - this.accessCreditsAmount(b.project)
+        );
       case "pi_name":
         return scoredResults.sort((a, b) => a.project.pi.localeCompare(b.project.pi));
       case "relevance":
@@ -1232,34 +1306,16 @@ sort_by: "date_desc"
       throw new Error("Project ID must be a positive number");
     }
 
-    // Search through pages to find the specific project
-    let currentPage = 1;
-    const maxPages = 20;
-
-    while (currentPage <= maxPages) {
-      const data = await this.fetchProjects(currentPage);
-
-      const project = data.projects.find((p) => p.projectId === projectId);
-      if (project) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  total: 1,
-                  items: [project],
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      }
-
-      currentPage++;
-      if (currentPage > data.pages) break;
+    const found = await this.findProjectById(projectId);
+    if (found) {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ total: 1, items: [found] }, null, 2),
+          },
+        ],
+      };
     }
 
     return {
@@ -1278,6 +1334,39 @@ sort_by: "date_desc"
     };
   }
 
+  /**
+   * Look up a project by id in the complete corpus. D2 (freshness): the upstream
+   * is real-time and page 1 is newest-first, so a project approved after the last
+   * snapshot would be a false "not found". On a MISS against an expired snapshot,
+   * revalidate with a bounded live page scan (newest pages first) before giving up.
+   */
+  private async findProjectById(projectId: number): Promise<Project | undefined> {
+    const snapshot = await this.ensureCorpus();
+    const hit = snapshot.records.find((p) => p.projectId === projectId);
+    if (hit) return hit;
+
+    // Miss. If the snapshot is still within its TTL, the project genuinely isn't
+    // in the corpus — don't hit the network. (Expiry, not the hard staleness
+    // ceiling: a project approved after a snapshot went stale must still resolve.)
+    if (!this.corpus.isExpiredNow()) return undefined;
+
+    // Expired miss: the project may be newer than the snapshot. Scan the first
+    // few (newest-first) live pages before asserting non-existence. Project each
+    // hit so it matches the corpus shape (no leaked `publications`).
+    const REVALIDATE_PAGES = 3;
+    for (let page = 1; page <= REVALIDATE_PAGES; page++) {
+      try {
+        const data = await this.fetchProjects(page);
+        const p = data.projects.find((x) => x.projectId === projectId);
+        if (p) return this.projectRecord(p);
+        if (page >= data.pages) break;
+      } catch {
+        break; // upstream hiccup — fall through to not-found
+      }
+    }
+    return undefined;
+  }
+
   private async listProjectsByField(fieldOfScience: string, limit: number = 20, fields?: string[]) {
     // Input validation
     if (
@@ -1292,54 +1381,11 @@ sort_by: "date_desc"
       throw new Error("Limit must be between 1 and 200");
     }
 
-    const results: Project[] = [];
-    let currentPage = 1;
-    const maxPages = 10;
-    let innerBreak = false;
-    let exhausted = false;
+    const snapshot = await this.ensureCorpus();
+    const needle = fieldOfScience.toLowerCase();
+    const matched = snapshot.records.filter((project) => project.fos.toLowerCase().includes(needle));
 
-    while (results.length < limit && currentPage <= maxPages) {
-      const data = await this.fetchProjects(currentPage);
-
-      for (const project of data.projects) {
-        if (results.length >= limit) {
-          innerBreak = true;
-          break;
-        }
-
-        if (project.fos.toLowerCase().includes(fieldOfScience.toLowerCase())) {
-          results.push(project);
-        }
-      }
-
-      currentPage++;
-      if (currentPage > data.pages) {
-        exhausted = true;
-        break;
-      }
-    }
-
-    const envelope = {
-      total: results.length,
-      items: results,
-      metadata: {
-        pagination: {
-          limit,
-          offset: 0,
-          // True if we skipped matches on the last scanned page, OR we
-          // stopped because of the maxPages cap rather than upstream
-          // exhaustion. The >=limit heuristic gave false positives
-          // whenever the universe was exactly limit-sized.
-          has_more: innerBreak || !exhausted,
-        },
-        // Substring match (toLowerCase().includes(...)) — agent should
-        // verify each result actually fits the user's intended topic.
-        query_relevance: "loose_match" as const,
-      },
-      documentation: {
-        links: this.listingLinks("list"),
-      },
-    };
+    const envelope = this.corpusListingEnvelope(matched, snapshot, limit);
 
     return {
       content: [
@@ -1373,59 +1419,24 @@ sort_by: "date_desc"
       throw new Error("Limit must be between 1 and 200");
     }
 
-    const results: Project[] = [];
-    let currentPage = 1;
-    const maxPages = 10;
-    let innerBreak = false;
-    let exhausted = false;
+    const snapshot = await this.ensureCorpus();
+    const typeNeedle = allocationType.toLowerCase();
+    const fosNeedle = fieldOfScience?.toLowerCase();
+    const matched = snapshot.records.filter((project) => {
+      const typeMatch = project.allocationType.toLowerCase().includes(typeNeedle);
+      const fieldMatch = !fosNeedle || project.fos.toLowerCase().includes(fosNeedle);
+      return typeMatch && fieldMatch;
+    });
 
-    while (results.length < limit && currentPage <= maxPages) {
-      const data = await this.fetchProjects(currentPage);
-
-      for (const project of data.projects) {
-        if (results.length >= limit) {
-          innerBreak = true;
-          break;
-        }
-
-        // Match allocation type (case-insensitive)
-        const typeMatch = project.allocationType
-          .toLowerCase()
-          .includes(allocationType.toLowerCase());
-
-        // If field is also specified, require both to match
-        const fieldMatch =
-          !fieldOfScience || project.fos.toLowerCase().includes(fieldOfScience.toLowerCase());
-
-        if (typeMatch && fieldMatch) {
-          results.push(project);
-        }
-      }
-
-      currentPage++;
-      if (currentPage > data.pages) {
-        exhausted = true;
-        break;
-      }
-    }
-
+    const base = this.corpusListingEnvelope(matched, snapshot, limit);
     const envelope = {
-      total: results.length,
-      items: results,
+      ...base,
       metadata: {
         filters_applied: {
           allocation_type: allocationType,
           ...(fieldOfScience && { field_of_science: fieldOfScience }),
         },
-        pagination: {
-          limit,
-          offset: 0,
-          has_more: innerBreak || !exhausted,
-        },
-        query_relevance: "loose_match" as const,
-      },
-      documentation: {
-        links: this.listingLinks("list"),
+        ...base.metadata,
       },
     };
 
@@ -1436,6 +1447,38 @@ sort_by: "date_desc"
           text: JSON.stringify(projectFields(envelope, fields), null, 2),
         },
       ],
+    };
+  }
+
+  /**
+   * Build a listing envelope from the COMPLETE filtered set. `total` is the true
+   * match count over the whole corpus; `items` is sliced to `limit`. Surfaces
+   * corpus freshness (fetchedAt) and, if the corpus was itself truncated at
+   * hardCap, a truncated flag so a partial corpus is never reported as complete.
+   */
+  private corpusListingEnvelope(
+    matched: Project[],
+    snapshot: CorpusSnapshot<Project>,
+    limit: number,
+  ) {
+    const items = matched.slice(0, limit);
+    return {
+      total: matched.length,
+      items,
+      metadata: {
+        pagination: {
+          limit,
+          offset: 0,
+          has_more: matched.length > items.length,
+        },
+        query_relevance: "loose_match" as const,
+        fetched_at: new Date(snapshot.fetchedAt).toISOString(),
+        ...(snapshot.truncated ? { corpus_truncated: true } : {}),
+        ...(this.corpus.isStale() ? { stale: true } : {}),
+      },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
   }
 
@@ -1449,52 +1492,15 @@ sort_by: "date_desc"
       throw new Error("Limit must be between 1 and 200");
     }
 
-    const results: Project[] = [];
-    let currentPage = 1;
-    const maxPages = 10;
-    let innerBreak = false;
-    let exhausted = false;
+    // Filter the COMPLETE corpus so `total` is the true match count (past the
+    // old 10-page cap, e.g. PNRP's projects that lived on later pages).
+    const snapshot = await this.ensureCorpus();
+    const needle = resourceName.toLowerCase();
+    const matched = snapshot.records.filter((project) =>
+      project.resources.some((resource) => resource.resourceName.toLowerCase().includes(needle)),
+    );
 
-    while (results.length < limit && currentPage <= maxPages) {
-      const data = await this.fetchProjects(currentPage);
-
-      for (const project of data.projects) {
-        if (results.length >= limit) {
-          innerBreak = true;
-          break;
-        }
-
-        const hasResource = project.resources.some((resource) =>
-          resource.resourceName.toLowerCase().includes(resourceName.toLowerCase())
-        );
-
-        if (hasResource) {
-          results.push(project);
-        }
-      }
-
-      currentPage++;
-      if (currentPage > data.pages) {
-        exhausted = true;
-        break;
-      }
-    }
-
-    const envelope = {
-      total: results.length,
-      items: results,
-      metadata: {
-        pagination: {
-          limit,
-          offset: 0,
-          has_more: innerBreak || !exhausted,
-        },
-        query_relevance: "loose_match" as const,
-      },
-      documentation: {
-        links: this.listingLinks("list"),
-      },
-    };
+    const envelope = this.corpusListingEnvelope(matched, snapshot, limit);
 
     return {
       content: [
@@ -1506,22 +1512,15 @@ sort_by: "date_desc"
     };
   }
 
-  private async getAllocationStatistics(pagesToAnalyze: number = 5) {
-    // Input validation
-    if (pagesToAnalyze < 1 || pagesToAnalyze > 20) {
-      throw new Error("Pages to analyze must be between 1 and 20");
-    }
-
-    const projects: Project[] = [];
+  private async getAllocationStatistics() {
     const fieldsMap = new Map<string, number>();
     const resourcesMap = new Map<string, number>();
     const institutionsMap = new Map<string, number>();
     const allocationTypesMap = new Map<string, number>();
 
-    // Collect data from multiple pages using parallel fetching for better performance
-    const pagesToFetch = Array.from({ length: Math.min(pagesToAnalyze, 20) }, (_, i) => i + 1);
-    const allProjects = await this.fetchMultiplePages(pagesToFetch);
-    projects.push(...allProjects);
+    // Census over the complete corpus (not a recent-pages sample): exact counts.
+    const snapshot = await this.ensureCorpus();
+    const allProjects = snapshot.records;
 
     // Update statistics
     for (const project of allProjects) {
@@ -1556,7 +1555,9 @@ sort_by: "date_desc"
     const allocationTypes = Array.from(allocationTypesMap.entries()).sort((a, b) => b[1] - a[1]);
 
     let statsText = `📊 **ACCESS-CI Allocation Statistics**\n`;
-    statsText += `*(Analysis of ${projects.length} projects from ${pagesToAnalyze} pages)*\n\n`;
+    statsText += snapshot.truncated
+      ? `*(Analysis of ${allProjects.length} projects — corpus incomplete; counts are a lower bound)*\n\n`
+      : `*(Census of all ${allProjects.length} current projects)*\n\n`;
 
     statsText += `**🔬 Top Fields of Science:**\n`;
     topFields.forEach(([field, count], i) => {
@@ -1607,15 +1608,7 @@ sort_by: "date_desc"
 
     // Get reference project if projectId provided
     if (projectId) {
-      let currentPage = 1;
-      const maxPages = 20;
-
-      while (currentPage <= maxPages && !referenceProject) {
-        const data = await this.fetchProjects(currentPage);
-        referenceProject = data.projects.find((p) => p.projectId === projectId) || null;
-        currentPage++;
-        if (currentPage > data.pages) break;
-      }
+      referenceProject = (await this.findProjectById(projectId)) || null;
 
       if (!referenceProject) {
         return {
@@ -1657,10 +1650,9 @@ sort_by: "date_desc"
       };
     }
 
-    // Fetch projects for similarity analysis
-    const maxPages = 15;
-    const actualPages = Array.from({ length: maxPages }, (_, i) => i + 1);
-    const allProjects = await this.fetchMultiplePages(actualPages);
+    // Score similarity over the COMPLETE corpus, not a 15-page window.
+    const snapshot = await this.ensureCorpus();
+    const allProjects = snapshot.records;
 
     // Calculate similarity scores for all projects
     const allScored = allProjects
@@ -1998,22 +1990,6 @@ sort_by: "date_desc"
     return stopWords.includes(word.toLowerCase());
   }
 
-  // Cache management methods
-  private cleanupExpiredCache(): void {
-    const now = Date.now();
-    for (const [page, timestamp] of this.cacheTimestamps.entries()) {
-      if (now - timestamp >= this.CACHE_TTL) {
-        this.projectCache.delete(page);
-        this.cacheTimestamps.delete(page);
-      }
-    }
-  }
-
-  private clearCache(): void {
-    this.projectCache.clear();
-    this.cacheTimestamps.clear();
-  }
-
   // Helper Methods
 
   // Formatting helpers
@@ -2055,17 +2031,9 @@ sort_by: "date_desc"
   // NSF Integration Methods
   private async analyzeProjectFunding(projectId: number) {
     try {
-      // Get the ACCESS project details directly
-      let accessProject: Project | null = null;
-      let currentPage = 1;
-      const maxPages = 20;
-
-      while (currentPage <= maxPages && !accessProject) {
-        const data = await this.fetchProjects(currentPage);
-        accessProject = data.projects.find((p) => p.projectId === projectId) || null;
-        currentPage++;
-        if (currentPage > data.pages) break;
-      }
+      // Get the ACCESS project details from the complete corpus (D2 revalidation
+      // for a just-approved project is handled inside findProjectById).
+      const accessProject = (await this.findProjectById(projectId)) || null;
 
       if (!accessProject) {
         return {
@@ -2559,16 +2527,16 @@ sort_by: "date_desc"
 
   // Helper method to get projects by field directly
   private async getProjectsByField(fieldOfScience: string, limit: number): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
-    return allProjects
+    const { records } = await this.ensureCorpus();
+    return records
       .filter((project) => project.fos.toLowerCase().includes(fieldOfScience.toLowerCase()))
       .slice(0, limit);
   }
 
   // Helper method to get top projects
   private async getTopProjects(limit: number): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3]);
-    return allProjects.slice(0, limit);
+    const { records } = await this.ensureCorpus();
+    return records.slice(0, limit);
   }
 
   // Helper method to search projects by PI name
@@ -2577,8 +2545,8 @@ sort_by: "date_desc"
     fieldOfScience?: string,
     limit: number = 20
   ): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
-    return allProjects
+    const { records } = await this.ensureCorpus();
+    return records
       .filter((project) => {
         const piMatch = project.pi.toLowerCase().includes(piName.toLowerCase());
         const fieldMatch =
@@ -2594,8 +2562,8 @@ sort_by: "date_desc"
     fieldOfScience?: string,
     limit: number = 20
   ): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
-    return allProjects
+    const { records } = await this.ensureCorpus();
+    return records
       .filter((project) => {
         const institutionMatch = project.piInstitution
           .toLowerCase()
@@ -3177,14 +3145,14 @@ sort_by: "date_desc"
     institutionName: string,
     limit: number
   ): Promise<Project[]> {
-    const allProjects = await this.fetchMultiplePages([1, 2, 3, 4, 5]);
+    const { records } = await this.ensureCorpus();
 
     // Generate institution variants for better matching
     const institutionVariants = this.getInstitutionVariants(
       this.normalizeInstitutionName(institutionName)
     );
 
-    return allProjects
+    return records
       .filter((project) => this.matchesInstitution(project.piInstitution, institutionVariants))
       .slice(0, limit);
   }
