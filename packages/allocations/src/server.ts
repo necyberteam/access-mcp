@@ -493,30 +493,15 @@ export class AllocationsServer extends BaseAccessServer {
       {
         name: "get_allocation_statistics",
         description:
-          "Get allocation statistics (top fields, resources, institutions, types) based on a sample of recent projects. Results are estimates, not a full census. Returns aggregate stats.",
+          "Get allocation statistics (top fields of science, resources, institutions, and allocation types) as an exact census over all current ACCESS-CI projects. Returns aggregate counts.",
         inputSchema: {
           type: "object" as const,
-          properties: {
-            pages_to_analyze: {
-              type: "number",
-              description:
-                "Number of pages of projects to sample for statistics (default: 5, max: 20). Each page contains approximately 20 projects, so default samples ~100 projects.",
-              default: 5,
-            },
-          },
+          properties: {},
           required: [],
           examples: [
             {
               name: "Get allocation statistics",
-              arguments: {
-                pages_to_analyze: 5,
-              },
-            },
-            {
-              name: "Get comprehensive allocation statistics",
-              arguments: {
-                pages_to_analyze: 10,
-              },
+              arguments: {},
             },
           ],
         },
@@ -607,7 +592,7 @@ export class AllocationsServer extends BaseAccessServer {
         case "analyze_funding":
           return await this.analyzeFundingRouter(toolArgs as AnalyzeFundingArgs);
         case "get_allocation_statistics":
-          return await this.getAllocationStatistics((toolArgs.pages_to_analyze as number) || 5);
+          return await this.getAllocationStatistics();
         case "get_rp_account":
           return await this.getRpAccount(
             toolArgs.resource_id as string,
@@ -848,27 +833,6 @@ sort_by: "date_desc"
     this.cacheTimestamps.set(page, Date.now());
   }
 
-  private async fetchMultiplePages(pages: number[], maxConcurrent: number = 5): Promise<Project[]> {
-    const results: Project[] = [];
-
-    // Process pages in batches to avoid overwhelming the server
-    for (let i = 0; i < pages.length; i += maxConcurrent) {
-      const batch = pages.slice(i, i + maxConcurrent);
-      const promises = batch.map((page) => this.fetchProjects(page));
-
-      try {
-        const batchResults = await Promise.all(promises);
-        batchResults.forEach((data) => {
-          results.push(...data.projects);
-        });
-      } catch (error) {
-        // Log error but continue with other batches
-        console.warn(`Error fetching batch starting at page ${batch[0]}:`, error);
-      }
-    }
-
-    return results;
-  }
 
   /**
    * Router for consolidated search_projects tool
@@ -1537,22 +1501,15 @@ sort_by: "date_desc"
     };
   }
 
-  private async getAllocationStatistics(pagesToAnalyze: number = 5) {
-    // Input validation
-    if (pagesToAnalyze < 1 || pagesToAnalyze > 20) {
-      throw new Error("Pages to analyze must be between 1 and 20");
-    }
-
-    const projects: Project[] = [];
+  private async getAllocationStatistics() {
     const fieldsMap = new Map<string, number>();
     const resourcesMap = new Map<string, number>();
     const institutionsMap = new Map<string, number>();
     const allocationTypesMap = new Map<string, number>();
 
-    // Collect data from multiple pages using parallel fetching for better performance
-    const pagesToFetch = Array.from({ length: Math.min(pagesToAnalyze, 20) }, (_, i) => i + 1);
-    const allProjects = await this.fetchMultiplePages(pagesToFetch);
-    projects.push(...allProjects);
+    // Census over the complete corpus (not a recent-pages sample): exact counts.
+    const snapshot = await this.ensureCorpus();
+    const allProjects = snapshot.records;
 
     // Update statistics
     for (const project of allProjects) {
@@ -1587,7 +1544,9 @@ sort_by: "date_desc"
     const allocationTypes = Array.from(allocationTypesMap.entries()).sort((a, b) => b[1] - a[1]);
 
     let statsText = `📊 **ACCESS-CI Allocation Statistics**\n`;
-    statsText += `*(Analysis of ${projects.length} projects from ${pagesToAnalyze} pages)*\n\n`;
+    statsText += snapshot.truncated
+      ? `*(Analysis of ${allProjects.length} projects — corpus incomplete; counts are a lower bound)*\n\n`
+      : `*(Census of all ${allProjects.length} current projects)*\n\n`;
 
     statsText += `**🔬 Top Fields of Science:**\n`;
     topFields.forEach(([field, count], i) => {
