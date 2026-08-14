@@ -57,7 +57,7 @@ interface EventContentFields {
 interface CreateEventParams extends EventContentFields {
   title: string;
   recur_type: string;
-  field_affinity_group_node: string[];
+  field_affinity_group_node?: string[];
   custom_dates?: Array<{ start_date: string; end_date: string }>;
 }
 
@@ -412,7 +412,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "create_event",
         description:
-          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\"), and field_affinity_group_node (one or more affinity-group node UUIDs the acting user coordinates — creation is refused with code \"not_coordinator\" if they do not coordinate ALL requested groups). For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]; for a rule recur_type, pass the matching rule field (e.g. weekly_recurring_date) with the rule's own shape. Optional content fields: body, field_summary, field_location, field_event_type, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. Returns {series_id, instance_ids, title, moderation_state, moderation}. No confirm step — creation is not previewed.",
+          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title and recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\"). Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]; for a rule recur_type, pass the matching rule field (e.g. weekly_recurring_date) with the rule's own shape. Optional content fields: body, field_summary, field_location, field_event_type, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. Returns {series_id, instance_ids, title, moderation_state, moderation}. No confirm step — creation is not previewed.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -426,7 +426,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
               type: "array",
               items: { type: "string" },
               description:
-                "Affinity-group node UUID(s) this event belongs to. The acting user must coordinate ALL of them or creation is refused (code: not_coordinator). Required.",
+                "Optional. Affinity-group node UUID(s) to publish this event to. Supply only if you want the event published to those groups; the acting user must coordinate ALL supplied groups or creation is refused (code: not_coordinator). An unresolvable UUID is also refused. Omit to create an event not published to any group.",
             },
             custom_dates: {
               type: "array",
@@ -448,7 +448,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             field_event_speakers: { type: "string" },
             field_event_virtual_meeting_link: { type: "string" },
           },
-          required: ["title", "recur_type", "field_affinity_group_node"],
+          required: ["title", "recur_type"],
         },
       },
       {
@@ -1411,12 +1411,8 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (!params?.recur_type) {
       return this.errorResponse("recur_type is required", { hint: "Use \"custom\" with custom_dates, or a recurrence rule type." });
     }
-    if (!params?.field_affinity_group_node || params.field_affinity_group_node.length === 0) {
-      return this.errorResponse(
-        "field_affinity_group_node is required",
-        { hint: "Pass one or more affinity-group node UUIDs the acting user coordinates." }
-      );
-    }
+    // Affinity group is optional: a group is supplied only to publish the event
+    // to it, and Drupal applies its own coordinator check on any supplied group.
 
     const { title, recur_type, field_affinity_group_node, custom_dates, ...content } = params;
     const outcome = await this.eventWriteRequest(
