@@ -2070,12 +2070,11 @@ describe("EventsServer", () => {
     });
 
     describe("schema shapes", () => {
-      it("create_event requires title, recur_type, field_affinity_group_node", () => {
+      it("create_event requires only title and recur_type (affinity group is optional)", () => {
         const tool = server["getTools"]().find((t) => t.name === "create_event")!;
         const schema = tool.inputSchema as { required?: string[] };
-        expect(schema.required).toEqual(
-          expect.arrayContaining(["title", "recur_type", "field_affinity_group_node"])
-        );
+        expect(schema.required).toEqual(["title", "recur_type"]);
+        expect(schema.required).not.toContain("field_affinity_group_node");
       });
 
       it("update_event requires only eventseries_id and does NOT expose confirmed (content-only, no preview step)", () => {
@@ -2254,7 +2253,7 @@ describe("EventsServer", () => {
         });
       });
 
-      it("requires title/recur_type/field_affinity_group_node client-side without calling Drupal", async () => {
+      it("requires title/recur_type client-side without calling Drupal", async () => {
         const r1 = await call("create_event", { recur_type: "custom", field_affinity_group_node: ["u"] });
         expect(r1.isError).toBe(true);
         expect(r1.content[0].text).toMatch(/title is required/i);
@@ -2263,11 +2262,60 @@ describe("EventsServer", () => {
         expect(r2.isError).toBe(true);
         expect(r2.content[0].text).toMatch(/recur_type is required/i);
 
-        const r3 = await call("create_event", { title: "X", recur_type: "custom" });
-        expect(r3.isError).toBe(true);
-        expect(r3.content[0].text).toMatch(/field_affinity_group_node is required/i);
-
         expect(mockRequestRaw).not.toHaveBeenCalled();
+      });
+
+      it("create_event with no affinity group reaches the Drupal write path (not rejected)", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 7,
+            instance_ids: [],
+            title: "No-group event",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        const result = await call("create_event", {
+          title: "No-group event",
+          recur_type: "custom",
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+        });
+        // The old client-side guard is gone: the request reaches Drupal.
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/events",
+          expect.objectContaining({ title: "No-group event", recur_type: "custom" })
+        );
+        expect(JSON.stringify(result)).not.toMatch(/field_affinity_group_node is required/i);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.executed).toBe(true);
+      });
+
+      it("create_event with an explicit empty affinity-group array reaches the write path", async () => {
+        // The old guard rejected empty-array too (|| length === 0); it must not now.
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 8,
+            instance_ids: [],
+            title: "Empty-array group",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        const result = await call("create_event", {
+          title: "Empty-array group",
+          recur_type: "custom",
+          field_affinity_group_node: [],
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+        });
+        expect(mockRequestRaw).toHaveBeenCalled();
+        expect(JSON.stringify(result)).not.toMatch(/field_affinity_group_node is required/i);
+        expect(JSON.parse(result.content[0].text).executed).toBe(true);
       });
 
       it("maps a not_coordinator 409 to a coded error", async () => {
