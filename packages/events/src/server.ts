@@ -253,7 +253,7 @@ export class EventsServer extends BaseAccessServer {
             type: {
               type: "string",
               description:
-                "Filter by event type. Common values: training, webinar, workshop, Office Hours, Conference, Other",
+                "Filter by event type. The type facet indexes the option LABELS, so current events carry \"Conference\", \"Training\", \"Office Hours\", or \"Other\" (never the internal zz_other key). Events created before the option list existed may carry legacy raw values (training, webinar, workshop).",
             },
             tags: {
               type: "string",
@@ -412,7 +412,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "create_event",
         description:
-          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title and recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\"). Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]; for a rule recur_type, pass the matching rule field (e.g. weekly_recurring_date) with the rule's own shape. Optional content fields: body, field_summary, field_location, field_event_type, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. Returns {series_id, instance_ids, title, moderation_state, moderation}. No confirm step — creation is not previewed.",
+          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\"), field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]; for a rule recur_type, pass the matching rule field (e.g. weekly_recurring_date) with the rule's own shape. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. Returns {series_id, instance_ids, title, moderation_state, moderation}. No confirm step — creation is not previewed.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -441,20 +441,36 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             },
             body: { type: "string", description: "Event description (HTML/basic_html allowed)." },
             field_summary: { type: "string" },
-            field_location: { type: "string" },
-            field_event_type: { type: "string" },
-            field_skill_level: { type: "string" },
+            field_location: {
+              type: "string",
+              description: "Event location. Required by site validation.",
+            },
+            // The enumerated allowed values here and in update_event mirror the
+            // portal repo's field.storage.eventseries.field_event_type.yml /
+            // field_skill_level.yml (required flags: field.field.eventseries.
+            // default.*.yml). A site-config change there must update these
+            // descriptions in the same release.
+            field_event_type: {
+              type: "string",
+              description:
+                "Event type. Required by site validation; allowed values: \"Conference\", \"Training\", \"Office Hours\", \"Other\" (case-insensitive; the API stores canonical keys, so the legacy internal key zz_other is also still accepted for Other). Any other value is refused (code: validation_error).",
+            },
+            field_skill_level: {
+              type: "string",
+              description:
+                "Optional. Allowed values: \"Beginner\", \"Intermediate\", \"Advanced\" (case-insensitive); any other value is refused (code: validation_error).",
+            },
             field_tags: { type: "array", items: { type: "string" } },
             field_event_speakers: { type: "string" },
             field_event_virtual_meeting_link: { type: "string" },
           },
-          required: ["title", "recur_type"],
+          required: ["title", "recur_type", "field_event_type", "field_location"],
         },
       },
       {
         name: "update_event",
         description:
-          "Edit an existing event series' CONTENT fields ONLY (title, body, field_summary, field_location, field_event_type, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link). This tool NEVER changes dates/recurrence and NEVER changes moderation_state — it applies immediately, with no preview step and no confirm flag. The API deliberately has NO whole-schedule rebuild operation: schedule changes are per-occurrence only — use edit_occurrence to move one occurrence's date, or add_occurrence/cancel_occurrence to add or remove a date. A series' recurrence pattern itself can never be rebuilt on any surface once it has registrations; the reschedule path there is cancel_occurrence → edit_occurrence (while dark) → restore_occurrence. For a state change (cancel, restore, send for review), use delete_event / restore_event / send_for_review. Returns {series_id, updated_fields}.",
+          "Edit an existing event series' CONTENT fields ONLY (title, body, field_summary, field_location, field_event_type, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link). This tool NEVER changes dates/recurrence and NEVER changes moderation_state — it applies immediately, with no preview step and no confirm flag. The API deliberately has NO whole-schedule rebuild operation: schedule changes are per-occurrence only — use edit_occurrence to move one occurrence's date, or add_occurrence/cancel_occurrence to add or remove a date. A series' recurrence pattern itself can never be rebuilt on any surface once it has registrations; the reschedule path there is cancel_occurrence → edit_occurrence (while dark) → restore_occurrence. For a state change (cancel, restore, send for review), use delete_event / restore_event / send_for_review. Edits are validated against the site's field rules (required fields, allowed values, link format); a violation is refused with code \"validation_error\" and a message naming the field — fix that field (or supply it, if the series was created without it) and retry. Returns {series_id, updated_fields}.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -466,8 +482,16 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             body: { type: "string" },
             field_summary: { type: "string" },
             field_location: { type: "string" },
-            field_event_type: { type: "string" },
-            field_skill_level: { type: "string" },
+            field_event_type: {
+              type: "string",
+              description:
+                "Allowed values: \"Conference\", \"Training\", \"Office Hours\", \"Other\" (case-insensitive; legacy key zz_other also accepted). Any other value is refused (code: validation_error). Also the field to supply when repairing a draft created without it.",
+            },
+            field_skill_level: {
+              type: "string",
+              description:
+                "Allowed values: \"Beginner\", \"Intermediate\", \"Advanced\" (case-insensitive); any other value is refused (code: validation_error).",
+            },
             field_tags: { type: "array", items: { type: "string" } },
             field_event_speakers: { type: "string" },
             field_event_virtual_meeting_link: { type: "string" },

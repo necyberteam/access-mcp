@@ -2070,10 +2070,18 @@ describe("EventsServer", () => {
     });
 
     describe("schema shapes", () => {
-      it("create_event requires only title and recur_type (affinity group is optional)", () => {
+      it("create_event requires the fields site validation enforces (affinity group stays optional)", () => {
         const tool = server["getTools"]().find((t) => t.name === "create_event")!;
         const schema = tool.inputSchema as { required?: string[] };
-        expect(schema.required).toEqual(["title", "recur_type"]);
+        // field_event_type and field_location mirror the site's required: true
+        // field config — the Drupal API refuses creation without them, so the
+        // schema must not advertise them as optional.
+        expect(schema.required).toEqual([
+          "title",
+          "recur_type",
+          "field_event_type",
+          "field_location",
+        ]);
         expect(schema.required).not.toContain("field_affinity_group_node");
       });
 
@@ -2331,9 +2339,68 @@ describe("EventsServer", () => {
         expect(result.isError).toBe(true);
         expect(JSON.parse(result.content[0].text)).toMatchObject({ error: { code: "not_coordinator" } });
       });
+
+      it("passes field_event_type and field_location through to the POST body", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 43,
+            instance_ids: [110],
+            title: "Typed Event",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        await call("create_event", {
+          title: "Typed Event",
+          recur_type: "custom",
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          field_event_type: "Training",
+          field_location: "Building 42",
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/events",
+          expect.objectContaining({
+            field_event_type: "Training",
+            field_location: "Building 42",
+          })
+        );
+      });
+
+      it("maps a 422 validation_error to a coded error naming the field", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 422,
+          data: { error: "validation_error", message: "field_event_type: This value should not be null." },
+        });
+        const result = await call("create_event", {
+          title: "X",
+          recur_type: "custom",
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          field_location: "Building 42",
+        });
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed).toMatchObject({ error: { code: "validation_error" } });
+        expect(parsed.error.message).toContain("field_event_type");
+      });
     });
 
     describe("update_event", () => {
+      it("maps a 422 validation_error to a coded error naming the field", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 422,
+          data: { error: "validation_error", message: "field_event_type: This value should not be null." },
+        });
+        const result = await call("update_event", { eventseries_id: "42", title: "New Title" });
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed).toMatchObject({ error: { code: "validation_error" } });
+        expect(parsed.error.message).toContain("field_event_type");
+      });
+
       it("PATCHes /api/2.3/event-series/{id} with NO confirmed query param (content-only, applies immediately) and maps an updated response", async () => {
         mockRequestRaw.mockResolvedValue({
           status: 200,
