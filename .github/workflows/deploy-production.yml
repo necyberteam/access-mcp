@@ -111,6 +111,12 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
 
+            # Ensure the host-specific Caddyfile.local exists as a FILE before
+            # compose up. It is gitignored (survives the reset), but on a host
+            # that has none, a missing bind-mount source is auto-created by
+            # Docker as a directory, which breaks Caddy's file mount.
+            touch Caddyfile.local
+
             # Login to GitHub Container Registry
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
