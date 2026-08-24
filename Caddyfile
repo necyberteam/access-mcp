@@ -19,8 +19,26 @@ mcp.access-ci.org {
         reverse_proxy mcp-auth:3000
     }
 
-    # OAuth well-known endpoints (served by auth service for all servers)
-    handle /.well-known/oauth-protected-resource/* {
+    # OAuth well-known endpoints (served by auth service for all servers).
+    # The bare-path glob (no trailing slash) also matches the extensionless
+    # root form — an unmatched path here would get Caddy's default EMPTY 200,
+    # which strict OAuth clients treat as authoritative broken metadata.
+    handle /.well-known/oauth-protected-resource* {
+        reverse_proxy mcp-auth:3000
+    }
+    # RFC 8414 metadata URL for issuer https://mcp.access-ci.org/auth: the
+    # spec inserts the well-known segment BEFORE the issuer's path component,
+    # so compliant clients (claude.ai connectors among them) resolve
+    # /.well-known/oauth-authorization-server/auth FIRST — and only fall back
+    # on 404, never on an empty 200. Rewrite both derivations (plus the
+    # OIDC-discovery variant) to the root-form document the auth service
+    # serves.
+    handle /.well-known/oauth-authorization-server/auth {
+        rewrite * /.well-known/oauth-authorization-server
+        reverse_proxy mcp-auth:3000
+    }
+    handle /.well-known/openid-configuration/auth {
+        rewrite * /.well-known/oauth-authorization-server
         reverse_proxy mcp-auth:3000
     }
     handle /.well-known/oauth-authorization-server {
