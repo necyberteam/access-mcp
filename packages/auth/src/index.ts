@@ -47,9 +47,18 @@ app.use((req, _res, next) => {
 // from the server URL it was given. We serve this for all server paths,
 // pointing to our auth service as the authorization server.
 app.use((req, res, next) => {
-  const prefix = "/.well-known/oauth-protected-resource/";
-  if (req.method === "GET" && req.path.startsWith(prefix)) {
-    const resourcePath = req.path.slice(prefix.length);
+  // Match both the per-server path (/.well-known/oauth-protected-resource/<name>)
+  // and the BARE root (/.well-known/oauth-protected-resource, per RFC 9728). The
+  // MCP client fetches the bare path during discovery; returning an empty 200
+  // there (the old behavior — the handler only matched the trailing-slash form)
+  // breaks the client with "expected object, received null" / EOF.
+  const base = "/.well-known/oauth-protected-resource";
+  if (
+    req.method === "GET" &&
+    (req.path === base || req.path.startsWith(`${base}/`))
+  ) {
+    const resourcePath =
+      req.path === base ? "" : req.path.slice(`${base}/`.length);
     res.json({
       resource: `https://mcp.access-ci.org/${resourcePath}`,
       authorization_servers: [EXTERNAL_BASE_URL],
@@ -140,8 +149,14 @@ app.use(
   })
 );
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`ACCESS-CI MCP Auth Service running on port ${PORT}`);
-  console.log(`External URL: ${EXTERNAL_BASE_URL}`);
-  console.log(`CILogon callback: ${EXTERNAL_BASE_URL}/callback`);
-});
+// Exported so tests can exercise the routes without binding a port.
+export { app };
+
+// Only bind a port when run as the entrypoint, not when imported by a test.
+if (process.env.NODE_ENV !== "test") {
+  app.listen(PORT, "0.0.0.0", () => {
+    console.log(`ACCESS-CI MCP Auth Service running on port ${PORT}`);
+    console.log(`External URL: ${EXTERNAL_BASE_URL}`);
+    console.log(`CILogon callback: ${EXTERNAL_BASE_URL}/callback`);
+  });
+}
