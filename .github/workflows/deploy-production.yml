@@ -7,6 +7,15 @@ on:
     types: [completed]
   workflow_dispatch:
 
+# Serialize deploys to the single production host. Two CI pushes landing close
+# together previously triggered two concurrent deploys that raced on
+# `docker compose up --force-recreate`, churning containers and failing the
+# smoke test. cancel-in-progress is false so a queued deploy WAITS for the
+# in-flight one to finish rather than cancelling it mid-recreate.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ${{ github.repository }}
