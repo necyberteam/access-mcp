@@ -189,8 +189,13 @@ services:
       - NODE_ENV=production
       - PORT=3000
       - DRUPAL_API_URL=${DRUPAL_API_URL:-https://support.access-ci.org}
-      - DRUPAL_USERNAME=${DRUPAL_USERNAME}
-      - DRUPAL_PASSWORD=${DRUPAL_PASSWORD}
+      # The acting-user gate requires the mcp_service role, which only the
+      # mcp_service account (uid 67615) holds. The generic ${DRUPAL_USERNAME}
+      # resolves to the roleless mcp_bot account, whose requests 403 at the
+      # route gate ("X-Acting-User requires mcp_service role") — the whole
+      # authenticated announcements surface was down on it.
+      - DRUPAL_USERNAME=${MCP_SERVICE_DRUPAL_USERNAME}
+      - DRUPAL_PASSWORD=${MCP_SERVICE_DRUPAL_PASSWORD}
       - MCP_API_KEY=${MCP_API_KEY}
       - MCP_PATH_PREFIX=/announcements
       - OAUTH_VERIFY_URL=http://mcp-auth:3000/verify
