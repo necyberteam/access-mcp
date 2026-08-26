@@ -1,5 +1,5 @@
 # Multi-stage build for Node.js MCP servers
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Build argument for package name
 ARG PACKAGE
@@ -26,7 +26,7 @@ RUN npx tsc --build packages/shared
 RUN npx tsc --build packages/${PACKAGE}
 
 # Production stage
-FROM node:18-alpine AS production
+FROM node:22-alpine AS production
 
 ARG PACKAGE
 ENV PACKAGE=${PACKAGE}
