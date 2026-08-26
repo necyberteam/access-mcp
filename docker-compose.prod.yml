@@ -51,6 +51,9 @@ services:
       - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS:-}
       - HONEYCOMB_DATASET=${HONEYCOMB_DATASET:-access-ci-mcp}
       - MCP_USAGE_DB_URL=${MCP_USAGE_DB_URL:-postgresql://mcp_usage_app:mcpusage@mcp-usage-db:5432/mcp_usage}
+      - CLIENT_STORE_PATH=/data/clients.db
+    volumes:
+      - mcp_auth_data:/data
     deploy:
       resources:
         limits:
@@ -398,6 +401,7 @@ volumes:
   reporting_backups:
   mcp_usage_data:
   mcp_usage_backups:
+  mcp_auth_data:
 
 networks:
   default:
