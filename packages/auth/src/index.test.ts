@@ -15,6 +15,14 @@ beforeAll(async () => {
   ({ app } = await import("./index.js"));
 });
 
+describe("service construction", () => {
+  it("constructs with an in-memory client store under test env (no CLIENT_STORE_PATH)", async () => {
+    // Importing index wires the provider; a throw here means the fail-loud
+    // resolver mis-fired in test env. NODE_ENV=test is set at file top.
+    await expect(import("./index.js")).resolves.toBeDefined();
+  });
+});
+
 describe("OAuth protected-resource metadata discovery", () => {
   // Regression: the handler previously only matched the trailing-slash form
   // (/.well-known/oauth-protected-resource/<name>), so the BARE root path fell
