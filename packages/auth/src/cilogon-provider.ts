@@ -26,6 +26,8 @@ interface CILogonConfig {
   clientSecret: string;
   /** External base URL, e.g., "https://mcp.access-ci.org/auth" */
   externalBaseUrl: string;
+  /** Persistent (or explicitly in-memory) OAuth client registry. */
+  clientStore: OAuthRegisteredClientsStore;
 }
 
 interface PendingAuthorization {
@@ -67,7 +69,7 @@ export class InMemoryClientStore implements OAuthRegisteredClientsStore {
 }
 
 export class CILogonOAuthProvider implements OAuthServerProvider {
-  private _clientStore = new InMemoryClientStore();
+  private _clientStore: OAuthRegisteredClientsStore;
   private _pendingAuthorizations = new Map<string, PendingAuthorization>();
   private _authCodes = new Map<string, StoredAuthCode>();
   private _tokenCache = new Map<string, CachedUserInfo>();
@@ -76,6 +78,8 @@ export class CILogonOAuthProvider implements OAuthServerProvider {
   skipLocalPkceValidation = true;
 
   constructor(private config: CILogonConfig) {
+    this._clientStore = config.clientStore;
+
     // Periodic cleanup of expired pending authorizations (10 min TTL)
     // and auth codes (5 min TTL)
     setInterval(() => {
