@@ -14,6 +14,10 @@ COPY tsconfig.json ./
 COPY packages/shared ./packages/shared
 COPY packages/${PACKAGE} ./packages/${PACKAGE}
 
+# better-sqlite3 (used by the auth service) is a native module — the Alpine
+# builder needs a toolchain to compile it. Build-only; not copied to production.
+RUN apk add --no-cache python3 make g++
+
 # Install all dependencies (including dev dependencies for building)
 RUN npm ci
 
@@ -36,6 +40,12 @@ WORKDIR /app
 # Create non-root user
 RUN addgroup -g 1001 -S mcp && \
     adduser -S mcp -u 1001
+
+# The auth service's client store persists to a volume mounted at /data. Create
+# the dir owned by the non-root runtime user so a freshly-mounted named volume
+# is writable (an absent mountpoint would default to root:root -> EACCES). This
+# dir is unused by the other servers built from this shared image (harmless).
+RUN mkdir -p /data && chown mcp:mcp /data
 
 # Copy built application
 COPY --from=builder --chown=mcp:mcp /app/packages/shared ./packages/shared

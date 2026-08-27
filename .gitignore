@@ -56,3 +56,6 @@ docs/presentations/
 ~$*
 # Host-specific Caddy extras (per-deployment, not repo content). Keep the .example.
 Caddyfile.local
+
+# git worktrees for isolated feature development
+.worktrees/

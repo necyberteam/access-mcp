@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { OAuthClientInformationFull, OAuthTokenRevocationRequest } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { CILogonOAuthProvider, InMemoryClientStore } from "../cilogon-provider.js";
+import { SqliteClientStore } from "../sqlite-client-store.js";
 
 describe("InMemoryClientStore", () => {
   let store: InMemoryClientStore;
@@ -30,13 +31,20 @@ describe("InMemoryClientStore", () => {
 
 describe("CILogonOAuthProvider", () => {
   let provider: CILogonOAuthProvider;
+  let providerClientStore: SqliteClientStore;
 
   beforeEach(() => {
+    providerClientStore = new SqliteClientStore(":memory:");
     provider = new CILogonOAuthProvider({
       clientId: "test-cilogon-client-id",
       clientSecret: "test-cilogon-secret",
       externalBaseUrl: "https://mcp.access-ci.org/auth",
+      clientStore: providerClientStore,
     });
+  });
+
+  afterEach(() => {
+    providerClientStore.close();
   });
 
   it("should have skipLocalPkceValidation enabled", () => {
@@ -112,5 +120,22 @@ describe("CILogonOAuthProvider", () => {
         provider.revokeToken!(client, { token: "some-token" } as OAuthTokenRevocationRequest)
       ).resolves.not.toThrow();
     });
+  });
+
+  it("exposes the client store passed in config via clientsStore", async () => {
+    const store = new SqliteClientStore(":memory:");
+    const wiredProvider = new CILogonOAuthProvider({
+      clientId: "cid",
+      clientSecret: "secret",
+      externalBaseUrl: "https://mcp.access-ci.org/auth",
+      clientStore: store,
+    });
+    await wiredProvider.clientsStore.registerClient({
+      client_id: "wired-client",
+      redirect_uris: ["https://claude.ai/api/mcp/auth_callback"],
+    } as never);
+    const got = await wiredProvider.clientsStore.getClient("wired-client");
+    expect(got).toBeDefined();
+    store.close();
   });
 });

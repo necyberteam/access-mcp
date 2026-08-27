@@ -9,6 +9,7 @@
 import express from "express";
 import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { CILogonOAuthProvider } from "./cilogon-provider.js";
+import { SqliteClientStore, resolveClientStorePath } from "./sqlite-client-store.js";
 
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const CILOGON_CLIENT_ID = process.env.CILOGON_CLIENT_ID;
@@ -23,10 +24,13 @@ if (!CILOGON_CLIENT_ID || !CILOGON_CLIENT_SECRET) {
   process.exit(1);
 }
 
+const clientStore = new SqliteClientStore(resolveClientStorePath(process.env));
+
 const provider = new CILogonOAuthProvider({
   clientId: CILOGON_CLIENT_ID,
   clientSecret: CILOGON_CLIENT_SECRET,
   externalBaseUrl: EXTERNAL_BASE_URL,
+  clientStore,
 });
 
 const app = express();
