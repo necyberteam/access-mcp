@@ -114,3 +114,17 @@ describe("buildRuleField — native key + exact columns", () => {
     });
   });
 });
+
+describe("DRUPAL_CONTRACT drift guard", () => {
+  // If any of these fail, Drupal's recurring_events vocab may have changed —
+  // re-verify against the FieldType/widget source before editing these numbers.
+  // Source pointers are in recurrence.ts's DRUPAL_CONTRACT comment.
+  it("has exactly the Drupal-verified vocab sizes", () => {
+    expect(Object.keys(DRUPAL_CONTRACT.weekdays)).toHaveLength(7);
+    expect(Object.values(DRUPAL_CONTRACT.weekdays)).toContain("monday"); // full lowercase, not "mon"
+    expect(DRUPAL_CONTRACT.weekPositions).toHaveLength(5);
+    expect(Object.keys(DRUPAL_CONTRACT.months)).toHaveLength(12);
+    expect(Object.values(DRUPAL_CONTRACT.months)).toContain("Mar"); // capitalized 3-letter
+    expect(DRUPAL_CONTRACT.monthlyModes).toEqual(["weekday", "monthday"]);
+  });
+});
