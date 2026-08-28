@@ -16,6 +16,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import axios, { AxiosInstance } from "axios";
 import { createRequire } from "module";
+import { validateRecurrence, buildRuleField } from "./recurrence.js";
+import type { RecurrenceIntent } from "./recurrence.js";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
 
@@ -56,7 +58,8 @@ interface EventContentFields {
 
 interface CreateEventParams extends EventContentFields {
   title: string;
-  recur_type: string;
+  recur_type?: string;
+  recurrence?: RecurrenceIntent;
   field_affinity_group_node?: string[];
   custom_dates?: Array<{ start_date: string; end_date: string }>;
 }
@@ -412,7 +415,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "create_event",
         description:
-          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\"), field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]; for a rule recur_type, pass the matching rule field (e.g. weekly_recurring_date) with the rule's own shape. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. Returns {series_id, instance_ids, title, moderation_state, moderation}. No confirm step — creation is not previewed.",
+          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. You must ALSO supply either recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\" paired with the matching rule field) OR a recurrence object — the two are mutually exclusive with custom_dates and rejected together with code \"validation_error\". Prefer recurrence: describe the pattern (frequency, start_date, end_date, start_time, duration_minutes, days, …) and it is translated to the native Drupal rule-field columns for you; invalid recurrence fields are refused with a coded error (validation_error/over_fill/out_of_vocab) before anything is written. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. Returns {series_id, instance_ids, title, moderation_state, moderation}; if a recurrence pattern produces zero occurrences the response also carries recurrence_warning. No confirm step — creation is not previewed.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -420,7 +423,30 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             recur_type: {
               type: "string",
               description:
-                "\"custom\" for one-off/custom dates (pair with custom_dates), or a recurrence rule type (e.g. \"weekly_recurring_date\") whose matching rule field you also supply. Required.",
+                "\"custom\" for one-off/custom dates (pair with custom_dates), or a recurrence rule type (e.g. \"weekly_recurring_date\") whose matching rule field you also supply. Either this or recurrence is required (not both, and not neither).",
+            },
+            recurrence: {
+              type: "object",
+              description:
+                "A high-level recurrence pattern, translated to the native Drupal rule-field columns server-side. Either this or recur_type is required (not both). Mutually exclusive with custom_dates. Shape: { frequency: \"daily\"|\"weekly\"|\"monthly\"|\"yearly\"|\"consecutive\", start_date, end_date (YYYY-MM-DD), start_time (HH:MM, daily/weekly/monthly/yearly), duration_minutes or ends_at, days (weekly/weekday-mode monthly, e.g. [\"mon\",\"wed\"]), monthly_mode (\"weekday\"|\"monthday\"), week_positions, days_of_month, year_interval, months (yearly), window_start/window_end/session_minutes/gap_minutes (consecutive) }. Invalid combinations are refused with code validation_error, over_fill, or out_of_vocab naming the problem field.",
+              properties: {
+                frequency: { type: "string" },
+                start_date: { type: "string" },
+                end_date: { type: "string" },
+                start_time: { type: "string" },
+                duration_minutes: { type: "number" },
+                ends_at: { type: "string" },
+                days: { type: "array", items: { type: "string" } },
+                monthly_mode: { type: "string" },
+                week_positions: { type: "array", items: { type: "string" } },
+                days_of_month: { type: "array", items: { type: "number" } },
+                year_interval: { type: "number" },
+                months: { type: "array", items: { type: "string" } },
+                window_start: { type: "string" },
+                window_end: { type: "string" },
+                session_minutes: { type: "number" },
+                gap_minutes: { type: "number" },
+              },
             },
             field_affinity_group_node: {
               type: "array",
@@ -464,7 +490,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             field_event_speakers: { type: "string" },
             field_event_virtual_meeting_link: { type: "string" },
           },
-          required: ["title", "recur_type", "field_event_type", "field_location"],
+          required: ["title", "field_event_type", "field_location"],
         },
       },
       {
@@ -1432,31 +1458,71 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     if (!params?.title) {
       return this.errorResponse("title is required", { hint: "Pass an event title." });
     }
-    if (!params?.recur_type) {
-      return this.errorResponse("recur_type is required", { hint: "Use \"custom\" with custom_dates, or a recurrence rule type." });
+    // Guard: need EITHER a recurrence object OR a raw recur_type (custom path).
+    if (!params?.recur_type && !params?.recurrence) {
+      return this.errorResponse("recur_type or recurrence is required", {
+        code: "validation_error",
+        hint: "Pass a recurrence object, or recur_type:\"custom\" with custom_dates.",
+      });
+    }
+    if (params.recurrence && params.custom_dates) {
+      return this.errorResponse("recurrence and custom_dates are mutually exclusive", {
+        code: "validation_error",
+        hint: "Use recurrence for rule recurrences, or custom_dates for one-off dates — not both.",
+      });
     }
     // Affinity group is optional: a group is supplied only to publish the event
     // to it, and Drupal applies its own coordinator check on any supplied group.
 
-    const { title, recur_type, field_affinity_group_node, custom_dates, ...content } = params;
+    // Clean break: strip any raw *_recurring_date keys from content so they can
+    // never reach Drupal (which validates nothing about them). recurrence is the
+    // only supported way to specify a rule recurrence.
+    const { title, recur_type: rawRecurType, field_affinity_group_node, custom_dates, recurrence, ...restContent } = params;
+    const content: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(restContent)) {
+      if (k.endsWith("_recurring_date")) continue; // dropped by design
+      content[k] = v;
+    }
+
+    let recur_type = rawRecurType;
+    let ruleFieldEntry: Record<string, unknown> = {};
+    if (recurrence) {
+      const { ok, errors } = validateRecurrence(recurrence);
+      if (!ok) {
+        const first = errors[0];
+        return this.errorResponse(
+          errors.map((e) => e.message).join(" "),
+          { code: first.code, hint: "Fix the recurrence fields and retry." }
+        );
+      }
+      const built = buildRuleField(recurrence);
+      recur_type = built.recur_type;
+      const { recur_type: _rt, ...rule } = built;
+      ruleFieldEntry = rule; // e.g. { weekly_recurring_date: {...cols} }
+    }
+
     const outcome = await this.eventWriteRequest(
       "POST",
       "/api/2.3/events",
-      { title, recur_type, field_affinity_group_node, custom_dates, ...content },
+      { title, recur_type, field_affinity_group_node, custom_dates, ...ruleFieldEntry, ...content },
       "Could not create the event."
     );
     if ("result" in outcome) return outcome.result;
 
+    const instanceIds = outcome.data.instance_ids;
     return this.writeResponse({
       action: "create",
       status: "created",
       executed: true,
       data: {
         series_id: outcome.data.series_id,
-        instance_ids: outcome.data.instance_ids,
+        instance_ids: instanceIds,
         title: outcome.data.title,
         moderation_state: outcome.data.moderation_state,
         moderation: outcome.data.moderation,
+        ...(Array.isArray(instanceIds) && instanceIds.length === 0
+          ? { recurrence_warning: "This recurrence produced no occurrences — verify the day/date-range combination." }
+          : {}),
       },
     });
   }
