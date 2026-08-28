@@ -40,3 +40,11 @@ export const DRUPAL_CONTRACT = {
   } as Record<string, string>,
   monthlyModes: ["weekday", "monthday"],
 };
+
+/** 24-hour "HH:MM" → Drupal's 12-hour uppercase "hh:MM AM/PM" (leading zero). */
+export function fmt12(hhmm: string): string {
+  const [h, m] = hhmm.split(":").map((n) => parseInt(n, 10));
+  const period = h < 12 ? "AM" : "PM";
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${String(h12).padStart(2, "0")}:${String(m).padStart(2, "0")} ${period}`;
+}
