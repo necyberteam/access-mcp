@@ -415,7 +415,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "create_event",
         description:
-          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. You must ALSO supply either recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\" paired with the matching rule field) OR a recurrence object — the two are mutually exclusive with custom_dates and rejected together with code \"validation_error\". Prefer recurrence: describe the pattern (frequency, start_date, end_date, start_time, duration_minutes, days, …) and it is translated to the native Drupal rule-field columns for you; invalid recurrence fields are refused with a coded error (validation_error/over_fill/out_of_vocab) before anything is written. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. Returns {series_id, instance_ids, title, moderation_state, moderation}; if a recurrence pattern produces zero occurrences the response also carries recurrence_warning. No confirm step — creation is not previewed.",
+          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. You must ALSO supply either recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\" paired with the matching rule field) OR a recurrence object — the two are mutually exclusive with custom_dates and rejected together with code \"validation_error\". Prefer recurrence: describe the pattern using frequency (\"daily\", \"weekly\", \"monthly\", \"yearly\", \"consecutive\"), start_date, end_date, start_time, and choose either duration_minutes OR ends_at for daily/weekly/monthly/yearly. For monthly, use weekday mode (days + week_positions, e.g. [\"mon\"] + [\"first\"] for first Monday; use monthday mode (days_of_month, e.g. [15] or [-1] for last day) for 'the 15th' or 'last day' patterns. Yearly uses months + days/days_of_month. Consecutive uses window_start/window_end + session_minutes + gap_minutes. Invalid recurrence fields are refused with a coded error (validation_error/over_fill/out_of_vocab) naming the problem field before anything is written. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. Returns {series_id, instance_ids, title, moderation_state, moderation}; if a recurrence pattern produces zero occurrences the response also carries recurrence_warning. No confirm step yet — creation is not previewed.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -428,24 +428,76 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             recurrence: {
               type: "object",
               description:
-                "A high-level recurrence pattern, translated to the native Drupal rule-field columns server-side. Either this or recur_type is required (not both). Mutually exclusive with custom_dates. Shape: { frequency: \"daily\"|\"weekly\"|\"monthly\"|\"yearly\"|\"consecutive\", start_date, end_date (YYYY-MM-DD), start_time (HH:MM, daily/weekly/monthly/yearly), duration_minutes or ends_at, days (weekly/weekday-mode monthly, e.g. [\"mon\",\"wed\"]), monthly_mode (\"weekday\"|\"monthday\"), week_positions, days_of_month, year_interval, months (yearly), window_start/window_end/session_minutes/gap_minutes (consecutive) }. Invalid combinations are refused with code validation_error, over_fill, or out_of_vocab naming the problem field.",
+                "A high-level recurrence pattern, translated to the native Drupal rule-field columns server-side. Either this or recur_type is required (not both). Mutually exclusive with custom_dates. Examples: daily (freq:daily, start_date:2025-01-01, start_time:10:00, duration_minutes:90); weekly (freq:weekly, start_date:2025-01-06, days:[mon,wed], start_time:14:00, duration_minutes:60); monthly weekday (freq:monthly, monthly_mode:weekday, start_date:2025-01-06, days:[mon], week_positions:[first], start_time:15:00, ends_at:16:30); monthly monthday (freq:monthly, monthly_mode:monthday, start_date:2025-01-15, days_of_month:[15], start_time:10:00, duration_minutes:120); yearly (freq:yearly, start_date:2025-06-21, months:[june], days_of_month:[21], start_time:12:00, ends_at:13:00); consecutive (freq:consecutive, window_start:2025-01-13, window_end:2025-01-17, session_minutes:180, gap_minutes:30). Invalid combinations are refused with code validation_error, over_fill, or out_of_vocab naming the problem field.",
               properties: {
-                frequency: { type: "string" },
-                start_date: { type: "string" },
-                end_date: { type: "string" },
-                start_time: { type: "string" },
-                duration_minutes: { type: "number" },
-                ends_at: { type: "string" },
-                days: { type: "array", items: { type: "string" } },
-                monthly_mode: { type: "string" },
-                week_positions: { type: "array", items: { type: "string" } },
-                days_of_month: { type: "array", items: { type: "number" } },
-                year_interval: { type: "number" },
-                months: { type: "array", items: { type: "string" } },
-                window_start: { type: "string" },
-                window_end: { type: "string" },
-                session_minutes: { type: "number" },
-                gap_minutes: { type: "number" },
+                frequency: {
+                  type: "string",
+                  enum: ["daily", "weekly", "monthly", "yearly", "consecutive"],
+                  description: "Recurrence frequency type.",
+                },
+                start_date: { type: "string", description: "Start date (YYYY-MM-DD). Required." },
+                end_date: { type: "string", description: "End date (YYYY-MM-DD). Optional; omit for no end date." },
+                start_time: {
+                  type: "string",
+                  description: "Start time (HH:MM). Required for daily/weekly/monthly/yearly.",
+                },
+                duration_minutes: {
+                  type: "number",
+                  description:
+                    "Event duration in minutes. Pick one: duration_minutes OR ends_at (not both). For daily/weekly/monthly/yearly.",
+                },
+                ends_at: {
+                  type: "string",
+                  description:
+                    "End time (HH:MM). Pick one: duration_minutes OR ends_at (not both). For daily/weekly/monthly/yearly.",
+                },
+                days: {
+                  type: "array",
+                  items: { type: "string" },
+                  description:
+                    "Day abbreviations ([\"mon\",\"tue\",\"wed\",\"thu\",\"fri\",\"sat\",\"sun\"]). Required for weekly and weekday-mode monthly.",
+                },
+                monthly_mode: {
+                  type: "string",
+                  enum: ["weekday", "monthday"],
+                  description:
+                    "Monthly recurrence mode. Use weekday for patterns like 'first Monday' or 'last Friday' (pair with days + week_positions). Use monthday for 'the 15th' or 'the last day' (pair with days_of_month, where -1 = last day).",
+                },
+                week_positions: {
+                  type: "array",
+                  items: { type: "string" },
+                  description:
+                    "Week positions for weekday-mode monthly ([\"first\",\"second\",\"third\",\"fourth\",\"last\"]). Required for weekday-mode monthly.",
+                },
+                days_of_month: {
+                  type: "array",
+                  items: { type: "number" },
+                  description:
+                    "Day numbers (1-31) or -1 for last day. Required for monthday-mode monthly and optional for yearly.",
+                },
+                year_interval: { type: "number", description: "Years between recurrences (yearly only)." },
+                months: {
+                  type: "array",
+                  items: { type: "string" },
+                  description:
+                    "Month names or abbreviations ([\"january\",\"february\",…] or [\"jan\",\"feb\",…]). Required for yearly.",
+                },
+                window_start: {
+                  type: "string",
+                  description: "Window start date (YYYY-MM-DD). Required for consecutive.",
+                },
+                window_end: {
+                  type: "string",
+                  description: "Window end date (YYYY-MM-DD). Required for consecutive.",
+                },
+                session_minutes: {
+                  type: "number",
+                  description: "Duration of each session in minutes (consecutive only).",
+                },
+                gap_minutes: {
+                  type: "number",
+                  description: "Minutes between consecutive sessions (consecutive only).",
+                },
               },
             },
             field_affinity_group_node: {
