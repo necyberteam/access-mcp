@@ -428,7 +428,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             recurrence: {
               type: "object",
               description:
-                "A high-level recurrence pattern, translated to the native Drupal rule-field columns server-side. Either this or recur_type is required (not both). Mutually exclusive with custom_dates. Examples: daily (freq:daily, start_date:2025-01-01, start_time:10:00, duration_minutes:90); weekly (freq:weekly, start_date:2025-01-06, days:[mon,wed], start_time:14:00, duration_minutes:60); monthly weekday (freq:monthly, monthly_mode:weekday, start_date:2025-01-06, days:[mon], week_positions:[first], start_time:15:00, ends_at:16:30); monthly monthday (freq:monthly, monthly_mode:monthday, start_date:2025-01-15, days_of_month:[15], start_time:10:00, duration_minutes:120); yearly (freq:yearly, start_date:2025-06-21, months:[june], days_of_month:[21], start_time:12:00, ends_at:13:00); consecutive (freq:consecutive, window_start:2025-01-13, window_end:2025-01-17, session_minutes:180, gap_minutes:30). Invalid combinations are refused with code validation_error, over_fill, or out_of_vocab naming the problem field.",
+                "A high-level recurrence pattern, translated to the native Drupal rule-field columns server-side. Either this or recur_type is required (not both). Mutually exclusive with custom_dates. Examples: daily (freq:daily, start_date:2025-01-01, end_date:2025-02-28, start_time:10:00, duration_minutes:90); weekly (freq:weekly, start_date:2025-01-06, end_date:2025-03-31, days:[mon,wed], start_time:14:00, duration_minutes:60); monthly weekday (freq:monthly, monthly_mode:weekday, start_date:2025-01-06, end_date:2025-06-30, days:[mon], week_positions:[first], start_time:15:00, ends_at:16:30); monthly monthday (freq:monthly, monthly_mode:monthday, start_date:2025-01-15, end_date:2025-12-31, days_of_month:[15], start_time:10:00, duration_minutes:120); yearly (freq:yearly, start_date:2025-06-21, end_date:2027-06-21, monthly_mode:monthday, months:[jun], days_of_month:[21], year_interval:1, start_time:12:00, ends_at:13:00); consecutive (freq:consecutive, start_date:2025-01-13, end_date:2025-01-17, window_start:2025-01-13, window_end:2025-01-17, session_minutes:180, gap_minutes:30). Invalid combinations are refused with code validation_error, over_fill, or out_of_vocab naming the problem field.",
               properties: {
                 frequency: {
                   type: "string",
@@ -436,7 +436,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
                   description: "Recurrence frequency type.",
                 },
                 start_date: { type: "string", description: "Start date (YYYY-MM-DD). Required." },
-                end_date: { type: "string", description: "End date (YYYY-MM-DD). Optional; omit for no end date." },
+                end_date: { type: "string", description: "End date (YYYY-MM-DD). Required; recurring events cannot create an open-ended series." },
                 start_time: {
                   type: "string",
                   description: "Start time (HH:MM). Required for daily/weekly/monthly/yearly.",
@@ -473,14 +473,14 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
                   type: "array",
                   items: { type: "number" },
                   description:
-                    "Day numbers (1-31) or -1 for last day. Required for monthday-mode monthly and optional for yearly.",
+                    "Day numbers (1-31) or -1 for last day. Required for monthday mode (monthly or yearly).",
                 },
-                year_interval: { type: "number", description: "Years between recurrences (yearly only)." },
+                year_interval: { type: "number", description: "Years between recurrences. Required for yearly." },
                 months: {
                   type: "array",
                   items: { type: "string" },
                   description:
-                    "Month names or abbreviations ([\"january\",\"february\",…] or [\"jan\",\"feb\",…]). Required for yearly.",
+                    "Short lowercase month abbreviations ([\"jan\",\"feb\",\"mar\",…,\"dec\"]). Required for yearly.",
                 },
                 window_start: {
                   type: "string",
