@@ -2070,19 +2070,22 @@ describe("EventsServer", () => {
     });
 
     describe("schema shapes", () => {
-      it("create_event requires the fields site validation enforces (affinity group stays optional)", () => {
+      it("create_event requires the fields site validation enforces (affinity group and recur_type stay optional)", () => {
         const tool = server["getTools"]().find((t) => t.name === "create_event")!;
         const schema = tool.inputSchema as { required?: string[] };
         // field_event_type and field_location mirror the site's required: true
         // field config — the Drupal API refuses creation without them, so the
-        // schema must not advertise them as optional.
+        // schema must not advertise them as optional. recur_type is NOT in this
+        // list: it's conditionally required (recur_type OR recurrence), enforced
+        // by the handler guard, not JSON-Schema — otherwise the framework would
+        // reject any recurrence-only call before the handler ever runs.
         expect(schema.required).toEqual([
           "title",
-          "recur_type",
           "field_event_type",
           "field_location",
         ]);
         expect(schema.required).not.toContain("field_affinity_group_node");
+        expect(schema.required).not.toContain("recur_type");
       });
 
       it("update_event requires only eventseries_id and does NOT expose confirmed (content-only, no preview step)", () => {
@@ -2261,14 +2264,14 @@ describe("EventsServer", () => {
         });
       });
 
-      it("requires title/recur_type client-side without calling Drupal", async () => {
+      it("requires title/recur_type-or-recurrence client-side without calling Drupal", async () => {
         const r1 = await call("create_event", { recur_type: "custom", field_affinity_group_node: ["u"] });
         expect(r1.isError).toBe(true);
         expect(r1.content[0].text).toMatch(/title is required/i);
 
         const r2 = await call("create_event", { title: "X", field_affinity_group_node: ["u"] });
         expect(r2.isError).toBe(true);
-        expect(r2.content[0].text).toMatch(/recur_type is required/i);
+        expect(r2.content[0].text).toMatch(/recur_type or recurrence is required/i);
 
         expect(mockRequestRaw).not.toHaveBeenCalled();
       });
@@ -2385,6 +2388,208 @@ describe("EventsServer", () => {
         const parsed = JSON.parse(result.content[0].text);
         expect(parsed).toMatchObject({ error: { code: "validation_error" } });
         expect(parsed.error.message).toContain("field_event_type");
+      });
+    });
+
+    describe("create_event with recurrence", () => {
+      const validRecurrence = {
+        frequency: "weekly",
+        start_date: "2026-09-01",
+        end_date: "2026-09-30",
+        start_time: "14:00",
+        duration_minutes: 60,
+        days: ["mon"],
+      };
+
+      it("(a) recurrence object → native weekly_recurring_date columns in the POST body", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 50,
+            instance_ids: [200],
+            title: "Weekly Standup",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        await call("create_event", {
+          title: "Weekly Standup",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          recurrence: validRecurrence,
+        });
+        const body = mockRequestRaw.mock.calls[0][3];
+        expect(body).toMatchObject({
+          recur_type: "weekly_recurring_date",
+          weekly_recurring_date: expect.objectContaining({
+            value: "2026-09-01",
+            end_value: "2026-09-30",
+            days: "monday",
+          }),
+        });
+      });
+
+      it("(b) CLEAN BREAK: a raw weekly_recurring_date key is stripped, never reaches the POST body", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 51,
+            instance_ids: [201],
+            title: "Raw Key Attempt",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        await call("create_event", {
+          title: "Raw Key Attempt",
+          recur_type: "weekly_recurring_date",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          weekly_recurring_date: {
+            value: "2026-09-01",
+            end_value: "2026-09-30",
+            time: "02:00 PM",
+            days: "monday",
+            duration_or_end_time: "duration",
+            duration: 3600,
+            end_time: "",
+          },
+        });
+        const body = mockRequestRaw.mock.calls[0][3];
+        expect(body).not.toHaveProperty("weekly_recurring_date");
+      });
+
+      it("(c) content fields (body, field_summary) are still forwarded alongside recurrence", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 52,
+            instance_ids: [202],
+            title: "Content Fields",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        await call("create_event", {
+          title: "Content Fields",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          body: "Description body",
+          field_summary: "A short summary",
+          recurrence: validRecurrence,
+        });
+        const body = mockRequestRaw.mock.calls[0][3];
+        expect(body).toMatchObject({
+          body: "Description body",
+          field_summary: "A short summary",
+        });
+      });
+
+      it("(d) recur_type:custom with custom_dates still works unchanged", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 53,
+            instance_ids: [203],
+            title: "Custom Dates Event",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        await call("create_event", {
+          title: "Custom Dates Event",
+          recur_type: "custom",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+        });
+        const body = mockRequestRaw.mock.calls[0][3];
+        expect(body).toMatchObject({
+          recur_type: "custom",
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+        });
+      });
+
+      it("(e) recurrence present, recur_type absent → NOT rejected by the guard", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 54,
+            instance_ids: [204],
+            title: "No Top-Level recur_type",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        const result = await call("create_event", {
+          title: "No Top-Level recur_type",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          recurrence: validRecurrence,
+        });
+        expect(JSON.stringify(result)).not.toMatch(/recur_type or recurrence is required/i);
+        expect(mockRequestRaw).toHaveBeenCalled();
+        expect(JSON.parse(result.content[0].text).executed).toBe(true);
+      });
+
+      it("(f) invalid recurrence → errorResponse with a validation code, without calling Drupal", async () => {
+        const result = await call("create_event", {
+          title: "Broken Recurrence",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          recurrence: {
+            frequency: "weekly",
+            start_date: "2026-09-01",
+            end_date: "2026-09-30",
+            // missing days and start_time/duration
+          },
+        });
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(["validation_error", "over_fill", "out_of_vocab"]).toContain(parsed.error.code);
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+      });
+
+      it("(g) recurrence and custom_dates together → validation_error, without calling Drupal", async () => {
+        const result = await call("create_event", {
+          title: "Both Recurrence And Custom",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          recurrence: validRecurrence,
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+        });
+        expect(result.isError).toBe(true);
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.error.code).toBe("validation_error");
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+      });
+
+      it("(h) Drupal returns instance_ids:[] → response includes recurrence_warning", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true,
+            series_id: 55,
+            instance_ids: [],
+            title: "Zero Occurrences",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        const result = await call("create_event", {
+          title: "Zero Occurrences",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          recurrence: validRecurrence,
+        });
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.data.instance_ids).toEqual([]);
+        expect(parsed.data.recurrence_warning).toEqual(expect.any(String));
       });
     });
 
