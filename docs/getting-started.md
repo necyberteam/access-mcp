@@ -31,7 +31,7 @@ Your AI queries the relevant ACCESS services and gives you a synthesized answer 
 | NSF Awards | All tools | — |
 | Documentation | All tools | — |
 | Events | All tools | — |
-| Announcements | `search_announcements`, `suggest_tags`, `suggest_summary`, `get_announcement_context` | `create_announcement`, `update_announcement`, `delete_announcement`, `get_my_announcements` |
+| Announcements | `search_announcements`, `get_announcement_context` | `suggest_tags`, `suggest_summary`, `create_announcement`, `update_announcement`, `delete_announcement`, `get_my_announcements` |
 | Affinity Groups | All tools | — |
 
 ### How to log in
