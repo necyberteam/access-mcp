@@ -1547,9 +1547,8 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
           { code: first.code, hint: "Fix the recurrence fields and retry." }
         );
       }
-      const built = buildRuleField(recurrence);
-      recur_type = built.recur_type;
-      const { recur_type: _rt, ...rule } = built;
+      const { recur_type: builtRecurType, ...rule } = buildRuleField(recurrence);
+      recur_type = builtRecurType;
       ruleFieldEntry = rule; // e.g. { weekly_recurring_date: {...cols} }
     }
 
