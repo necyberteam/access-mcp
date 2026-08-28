@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { DRUPAL_CONTRACT, fmt12, validateRecurrence } from "./recurrence.js";
+import { buildRuleField } from "./recurrence.js";
 
 describe("DRUPAL_CONTRACT", () => {
   it("maps short weekdays to Drupal's full lowercase names", () => {
@@ -64,5 +65,52 @@ describe("validateRecurrence", () => {
   it("returns ALL errors, not first-only", () => {
     const r = validateRecurrence({ frequency: "weekly", ...base, days: ["funday"] }); // missing start_time+duration AND bad weekday
     expect(r.errors.length).toBeGreaterThan(1);
+  });
+});
+
+const win = { start_date: "2026-09-01", end_date: "2026-09-30" };
+
+describe("buildRuleField — native key + exact columns", () => {
+  it("weekly (duration branch)", () => {
+    const out = buildRuleField({ frequency: "weekly", ...win, start_time: "14:00", duration_minutes: 60, days: ["mon","wed"] });
+    expect(out.recur_type).toBe("weekly_recurring_date");
+    expect(out.weekly_recurring_date).toEqual({
+      value: "2026-09-01", end_value: "2026-09-30", time: "02:00 PM",
+      duration_or_end_time: "duration", duration: 3600, end_time: "",
+      days: "monday,wednesday",
+    });
+  });
+  it("daily end-time branch sets end_time column + duration 0", () => {
+    const out = buildRuleField({ frequency: "daily", ...win, start_time: "09:00", ends_at: "17:00" });
+    expect(out.recur_type).toBe("daily_recurring_date");
+    expect(out.daily_recurring_date).toMatchObject({
+      duration_or_end_time: "end_time", end_time: "05:00 PM", duration: 0,
+    });
+  });
+  it("monthly weekday mode (3rd Tuesday)", () => {
+    const out = buildRuleField({ frequency: "monthly", ...win, start_time: "14:00", duration_minutes: 60, monthly_mode: "weekday", week_positions: ["third"], days: ["tue"] });
+    expect(out.recur_type).toBe("monthly_recurring_date");
+    expect(out.monthly_recurring_date).toMatchObject({
+      type: "weekday", day_occurrence: "third", days: "tuesday", day_of_month: "",
+    });
+  });
+  it("monthly monthday mode with -1 (last day)", () => {
+    const out = buildRuleField({ frequency: "monthly", ...win, start_time: "14:00", duration_minutes: 60, monthly_mode: "monthday", days_of_month: [1,15,-1] });
+    expect(out.monthly_recurring_date).toMatchObject({
+      type: "monthday", day_of_month: "1,15,-1", day_occurrence: "", days: "",
+    });
+  });
+  it("yearly maps months to capitalized 3-letter + year_interval", () => {
+    const out = buildRuleField({ frequency: "yearly", ...win, start_time: "14:00", duration_minutes: 60, monthly_mode: "weekday", week_positions: ["first"], days: ["mon"], year_interval: 2, months: ["mar","apr"] });
+    expect(out.recur_type).toBe("yearly_recurring_date");
+    expect(out.yearly_recurring_date).toMatchObject({ year_interval: 2, months: "Mar,Apr", type: "weekday" });
+  });
+  it("consecutive wires window_end -> end_time (NOT end_value)", () => {
+    const out = buildRuleField({ frequency: "consecutive", ...win, window_start: "09:00", window_end: "17:00", session_minutes: 10, gap_minutes: 5 });
+    expect(out.recur_type).toBe("consecutive_recurring_date");
+    expect(out.consecutive_recurring_date).toEqual({
+      value: "2026-09-01", end_value: "2026-09-30", time: "09:00 AM", end_time: "05:00 PM",
+      duration: 10, duration_units: "minute", buffer: 5, buffer_units: "minute",
+    });
   });
 });

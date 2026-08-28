@@ -153,3 +153,62 @@ export function validateRecurrence(intent: RecurrenceIntent): { ok: boolean; err
 
   return { ok: errors.length === 0, errors };
 }
+
+const expandDays = (days: string[] = []) => days.map((d) => DRUPAL_CONTRACT.weekdays[d]).join(",");
+const mapMonths = (months: string[] = []) => months.map((m) => DRUPAL_CONTRACT.months[m]).join(",");
+
+/** Daily-family shared columns (value/end_value/time + duration-or-end_time branch). */
+function dailyCore(intent: RecurrenceIntent): Record<string, unknown> {
+  const core: Record<string, unknown> = {
+    value: intent.start_date,
+    end_value: intent.end_date,
+    time: fmt12(intent.start_time!),
+  };
+  if (intent.duration_minutes != null) {
+    core.duration_or_end_time = "duration";
+    core.duration = intent.duration_minutes * 60;
+    core.end_time = "";
+  } else {
+    core.duration_or_end_time = "end_time";
+    core.end_time = fmt12(intent.ends_at!);
+    core.duration = 0;
+  }
+  return core;
+}
+
+function monthlyColumns(intent: RecurrenceIntent): Record<string, unknown> {
+  const cols = { ...dailyCore(intent), type: intent.monthly_mode! } as Record<string, unknown>;
+  if (intent.monthly_mode === "weekday") {
+    cols.day_occurrence = (intent.week_positions ?? []).join(",");
+    cols.days = expandDays(intent.days);
+    cols.day_of_month = "";
+  } else {
+    cols.day_of_month = (intent.days_of_month ?? []).join(",");
+    cols.day_occurrence = "";
+    cols.days = "";
+  }
+  return cols;
+}
+
+export function buildRuleField(intent: RecurrenceIntent): { recur_type: string; [k: string]: unknown } {
+  switch (intent.frequency) {
+    case "daily":
+      return { recur_type: "daily_recurring_date", daily_recurring_date: dailyCore(intent) };
+    case "weekly":
+      return { recur_type: "weekly_recurring_date", weekly_recurring_date: { ...dailyCore(intent), days: expandDays(intent.days) } };
+    case "monthly":
+      return { recur_type: "monthly_recurring_date", monthly_recurring_date: monthlyColumns(intent) };
+    case "yearly":
+      return { recur_type: "yearly_recurring_date", yearly_recurring_date: { ...monthlyColumns(intent), year_interval: intent.year_interval, months: mapMonths(intent.months) } };
+    case "consecutive":
+      return {
+        recur_type: "consecutive_recurring_date",
+        consecutive_recurring_date: {
+          value: intent.start_date, end_value: intent.end_date,
+          time: fmt12(intent.window_start!), end_time: fmt12(intent.window_end!),
+          duration: intent.session_minutes, duration_units: "minute",
+          buffer: intent.gap_minutes, buffer_units: "minute",
+        },
+      };
+  }
+}
