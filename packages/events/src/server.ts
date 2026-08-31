@@ -416,7 +416,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "create_event",
         description:
-          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. You must ALSO supply either recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\" paired with the matching rule field) OR a recurrence object — the two are mutually exclusive with custom_dates and rejected together with code \"validation_error\". Prefer recurrence: describe the pattern using frequency (\"daily\", \"weekly\", \"monthly\", \"yearly\", \"consecutive\"), start_date, end_date, start_time, and choose either duration_minutes OR ends_at for daily/weekly/monthly/yearly. For monthly, use weekday mode (days + week_positions, e.g. [\"mon\"] + [\"first\"] for first Monday; use monthday mode (days_of_month, e.g. [15] or [-1] for last day) for 'the 15th' or 'last day' patterns. Yearly uses months + days/days_of_month. Consecutive uses window_start/window_end + session_minutes + gap_minutes. Invalid recurrence fields are refused with a coded error (validation_error/over_fill/out_of_vocab) naming the problem field before anything is written. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. WITHOUT confirmed:true this returns a no-write PREVIEW (status:\"preview\", executed:false) of the occurrence dates the recurrence would produce — show it to the user first. WITH confirmed:true it creates the series. Returns on commit: {series_id, instance_ids, title, moderation_state, moderation}; if a recurrence pattern produces zero occurrences the response also carries recurrence_warning.",
+          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. You must ALSO supply either recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\" paired with the matching rule field) OR a recurrence object — the two are mutually exclusive with custom_dates and rejected together with code \"validation_error\". Prefer recurrence: describe the pattern using frequency (\"daily\", \"weekly\", \"monthly\", \"yearly\", \"consecutive\"), start_date, end_date, start_time, and choose either duration_minutes OR ends_at for daily/weekly/monthly/yearly. For monthly, use weekday mode (days + week_positions, e.g. [\"mon\"] + [\"first\"] for first Monday; use monthday mode (days_of_month, e.g. [15] or [-1] for last day) for 'the 15th' or 'last day' patterns. Yearly uses months + days/days_of_month. Consecutive uses window_start/window_end + session_minutes + gap_minutes. Invalid recurrence fields are refused with a coded error (validation_error/over_fill/out_of_vocab) naming the problem field before anything is written. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. WITHOUT confirmed:true this returns a no-write PREVIEW (status:\"preview\", executed:false, with occurrence_count, truncated, and occurrences — truncated is true only when a 1000-occurrence hard cap clipped the set) of the occurrence dates the recurrence would produce — show it to the user first. WITH confirmed:true it creates the series. Returns on commit: {series_id, instance_ids, title, moderation_state, moderation}; if a recurrence pattern produces zero occurrences the response also carries recurrence_warning.",
         inputSchema: {
           type: "object" as const,
           properties: {
@@ -545,7 +545,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             confirmed: {
               type: "boolean",
               description:
-                "Omit or false for a no-write PREVIEW of the occurrence dates this recurrence would produce (status:\"preview\", executed:false, with occurrence_count/occurrences); true to actually create the series.",
+                "Omit or false for a no-write PREVIEW of the occurrence dates this recurrence would produce (status:\"preview\", executed:false, with occurrence_count/truncated/occurrences); true to actually create the series.",
             },
           },
           required: ["title", "field_event_type", "field_location"],
@@ -1509,12 +1509,16 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
   /**
    * POST /api/2.3/events — create a draft event series. Always creates
    * moderation_state:"draft" (Drupal ignores any caller-supplied state).
-   * PREVIEW-by-default: confirmed omitted/false sends ?confirmed=false and
-   * returns Drupal's computed occurrence preview (occurrence_count/
-   * occurrences) as a no-write writeResponse. confirmed:true sends
-   * ?confirmed=true and creates as before, passing through series_id/
-   * instance_ids/title/moderation_state/moderation as the write envelope's
-   * data.
+   * PREVIEW-by-default: confirmed omitted/false sends ?confirmed=false, then
+   * branches on Drupal's RESPONSE (not the local confirmed flag, mirroring
+   * deleteEvent): outcome.data.status === "preview" returns Drupal's
+   * computed occurrence preview (occurrence_count/truncated/occurrences,
+   * forwarded verbatim) as a no-write writeResponse; otherwise Drupal did
+   * not preview (e.g. it doesn't yet understand ?confirmed=false and
+   * committed instead) and the same commit mapping below is used, so the
+   * caller is told the truth. confirmed:true sends ?confirmed=true and
+   * always takes the commit mapping: series_id/instance_ids/title/
+   * moderation_state/moderation as the write envelope's data.
    */
   private async createEvent(params: CreateEventParams): Promise<CallToolResult> {
     if (!params?.title) {
@@ -1573,12 +1577,19 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       );
       if ("result" in outcome) return outcome.result;
 
-      return this.writeResponse({
-        action: "create",
-        status: "preview",
-        executed: false,
-        data: outcome.data,
-      });
+      if (outcome.data.status === "preview") {
+        return this.writeResponse({
+          action: "create",
+          status: "preview",
+          executed: false,
+          data: outcome.data,
+        });
+      }
+      // Drupal did NOT preview (e.g. it committed because it doesn't yet
+      // understand ?confirmed=false) — fall through to the same commit
+      // mapping the confirmed:true path uses, so the caller is told the
+      // truth about what actually happened.
+      return this.createdEventResponse(outcome.data);
     }
 
     const outcome = await this.eventWriteRequest(
@@ -1589,17 +1600,24 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     );
     if ("result" in outcome) return outcome.result;
 
-    const instanceIds = outcome.data.instance_ids;
+    return this.createdEventResponse(outcome.data);
+  }
+
+  /** Shared "created" envelope mapping for createEvent's confirmed:true path
+   * and its preview-fell-through-to-commit case (Drupal ignored an unknown
+   * ?confirmed=false and created anyway). */
+  private createdEventResponse(data: Record<string, unknown>): CallToolResult {
+    const instanceIds = data.instance_ids;
     return this.writeResponse({
       action: "create",
       status: "created",
       executed: true,
       data: {
-        series_id: outcome.data.series_id,
+        series_id: data.series_id,
         instance_ids: instanceIds,
-        title: outcome.data.title,
-        moderation_state: outcome.data.moderation_state,
-        moderation: outcome.data.moderation,
+        title: data.title,
+        moderation_state: data.moderation_state,
+        moderation: data.moderation,
         ...(Array.isArray(instanceIds) && instanceIds.length === 0
           ? { recurrence_warning: "This recurrence produced no occurrences — verify the day/date-range combination." }
           : {}),

@@ -2266,16 +2266,18 @@ describe("EventsServer", () => {
       });
 
       it("confirmed omitted previews via a query-string flag and writes nothing", async () => {
+        const occurrences = [
+          { start_date: "2026-09-01T09:00:00+00:00", end_date: "2026-09-01T10:00:00+00:00" },
+          { start_date: "2026-09-08T09:00:00+00:00", end_date: "2026-09-08T10:00:00+00:00" },
+        ];
         mockRequestRaw.mockResolvedValue({
           status: 200,
           data: {
             status: "preview",
             executed: false,
             occurrence_count: 2,
-            occurrences: [
-              { start_date: "2026-09-01T09:00:00+00:00", end_date: "2026-09-01T10:00:00+00:00" },
-              { start_date: "2026-09-08T09:00:00+00:00", end_date: "2026-09-08T10:00:00+00:00" },
-            ],
+            truncated: false,
+            occurrences,
           },
         });
         const result = await call("create_event", {
@@ -2299,7 +2301,77 @@ describe("EventsServer", () => {
           action: "create",
           status: "preview",
           executed: false,
-          data: { occurrence_count: 2 },
+          data: { occurrence_count: 2, truncated: false, occurrences },
+        });
+      });
+
+      it("forwards truncated:true verbatim when Drupal's hard cap clipped the occurrence set", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            status: "preview",
+            executed: false,
+            occurrence_count: 1000,
+            truncated: true,
+            occurrences: [{ start_date: "2026-09-01T09:00:00+00:00", end_date: "2026-09-01T10:00:00+00:00" }],
+          },
+        });
+        const result = await call("create_event", {
+          title: "Daily Forever",
+          recurrence: {
+            frequency: "daily",
+            start_date: "2026-09-01",
+            end_date: "2099-09-01",
+            start_time: "09:00",
+            duration_minutes: 60,
+          },
+        });
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          status: "preview",
+          executed: false,
+          data: { occurrence_count: 1000, truncated: true },
+        });
+      });
+
+      it("A6: falls through to the CREATED envelope when Drupal ignores ?confirmed=false and commits anyway", async () => {
+        // Simulates a deploy-order mismatch: the MCP sends ?confirmed=false but
+        // an older Drupal that doesn't understand the param ignores it and
+        // creates for real. The MCP must report the truth, not a fake preview.
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            status: "created",
+            executed: true,
+            success: true,
+            series_id: 77,
+            instance_ids: [300, 301],
+            title: "Accidental Commit",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        const result = await call("create_event", {
+          title: "Accidental Commit",
+          recurrence: {
+            frequency: "weekly",
+            start_date: "2026-09-01",
+            end_date: "2026-09-30",
+            days: ["tue"],
+            start_time: "09:00",
+            duration_minutes: 60,
+          },
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/events?confirmed=false",
+          expect.objectContaining({ title: "Accidental Commit" })
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "create",
+          status: "created",
+          executed: true,
+          data: { series_id: 77, instance_ids: [300, 301], moderation_state: "draft" },
         });
       });
 
