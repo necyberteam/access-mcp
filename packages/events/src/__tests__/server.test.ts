@@ -2231,7 +2231,7 @@ describe("EventsServer", () => {
     });
 
     describe("create_event", () => {
-      it("POSTs to /api/2.3/events and maps a created response", async () => {
+      it("POSTs to /api/2.3/events?confirmed=true and maps a created response", async () => {
         mockRequestRaw.mockResolvedValue({
           status: 200,
           data: {
@@ -2248,11 +2248,12 @@ describe("EventsServer", () => {
           recur_type: "custom",
           field_affinity_group_node: ["uuid-1"],
           custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          confirmed: true,
         });
         expect(mockRequestRaw).toHaveBeenCalledWith(
           "actor@example.com",
           "POST",
-          "/api/2.3/events",
+          "/api/2.3/events?confirmed=true",
           expect.objectContaining({ title: "GPU Bootcamp", recur_type: "custom", field_affinity_group_node: ["uuid-1"] })
         );
         const parsed = JSON.parse(result.content[0].text);
@@ -2261,6 +2262,44 @@ describe("EventsServer", () => {
           status: "created",
           executed: true,
           data: { series_id: 42, instance_ids: [100, 101], moderation_state: "draft" },
+        });
+      });
+
+      it("confirmed omitted previews via a query-string flag and writes nothing", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            status: "preview",
+            executed: false,
+            occurrence_count: 2,
+            occurrences: [
+              { start_date: "2026-09-01T09:00:00+00:00", end_date: "2026-09-01T10:00:00+00:00" },
+              { start_date: "2026-09-08T09:00:00+00:00", end_date: "2026-09-08T10:00:00+00:00" },
+            ],
+          },
+        });
+        const result = await call("create_event", {
+          title: "GPU Bootcamp",
+          recurrence: {
+            frequency: "weekly",
+            start_date: "2026-09-01",
+            end_date: "2026-09-30",
+            days: ["tue"],
+            start_time: "09:00",
+            duration_minutes: 60,
+          },
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/events?confirmed=false",
+          expect.objectContaining({ title: "GPU Bootcamp" })
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "create",
+          status: "preview",
+          executed: false,
+          data: { occurrence_count: 2 },
         });
       });
 
@@ -2292,12 +2331,13 @@ describe("EventsServer", () => {
           title: "No-group event",
           recur_type: "custom",
           custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          confirmed: true,
         });
         // The old client-side guard is gone: the request reaches Drupal.
         expect(mockRequestRaw).toHaveBeenCalledWith(
           "actor@example.com",
           "POST",
-          "/api/2.3/events",
+          "/api/2.3/events?confirmed=true",
           expect.objectContaining({ title: "No-group event", recur_type: "custom" })
         );
         expect(JSON.stringify(result)).not.toMatch(/field_affinity_group_node is required/i);
@@ -2323,6 +2363,7 @@ describe("EventsServer", () => {
           recur_type: "custom",
           field_affinity_group_node: [],
           custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          confirmed: true,
         });
         expect(mockRequestRaw).toHaveBeenCalled();
         expect(JSON.stringify(result)).not.toMatch(/field_affinity_group_node is required/i);
@@ -2361,11 +2402,12 @@ describe("EventsServer", () => {
           custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
           field_event_type: "Training",
           field_location: "Building 42",
+          confirmed: true,
         });
         expect(mockRequestRaw).toHaveBeenCalledWith(
           "actor@example.com",
           "POST",
-          "/api/2.3/events",
+          "/api/2.3/events?confirmed=true",
           expect.objectContaining({
             field_event_type: "Training",
             field_location: "Building 42",
@@ -2531,6 +2573,7 @@ describe("EventsServer", () => {
           field_event_type: "Training",
           field_location: "Building 42",
           recurrence: validRecurrence,
+          confirmed: true,
         });
         expect(JSON.stringify(result)).not.toMatch(/recur_type or recurrence is required/i);
         expect(mockRequestRaw).toHaveBeenCalled();
@@ -2586,6 +2629,7 @@ describe("EventsServer", () => {
           field_event_type: "Training",
           field_location: "Building 42",
           recurrence: validRecurrence,
+          confirmed: true,
         });
         const parsed = JSON.parse(result.content[0].text);
         expect(parsed.data.instance_ids).toEqual([]);
