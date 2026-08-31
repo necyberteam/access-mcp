@@ -2231,7 +2231,7 @@ describe("EventsServer", () => {
     });
 
     describe("create_event", () => {
-      it("POSTs to /api/2.3/events and maps a created response", async () => {
+      it("POSTs to /api/2.3/events?confirmed=true and maps a created response", async () => {
         mockRequestRaw.mockResolvedValue({
           status: 200,
           data: {
@@ -2248,11 +2248,12 @@ describe("EventsServer", () => {
           recur_type: "custom",
           field_affinity_group_node: ["uuid-1"],
           custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          confirmed: true,
         });
         expect(mockRequestRaw).toHaveBeenCalledWith(
           "actor@example.com",
           "POST",
-          "/api/2.3/events",
+          "/api/2.3/events?confirmed=true",
           expect.objectContaining({ title: "GPU Bootcamp", recur_type: "custom", field_affinity_group_node: ["uuid-1"] })
         );
         const parsed = JSON.parse(result.content[0].text);
@@ -2261,6 +2262,119 @@ describe("EventsServer", () => {
           status: "created",
           executed: true,
           data: { series_id: 42, instance_ids: [100, 101], moderation_state: "draft" },
+        });
+      });
+
+      it("confirmed omitted previews via a query-string flag and writes nothing", async () => {
+        const occurrences = [
+          { start_date: "2026-09-01T09:00:00+00:00", end_date: "2026-09-01T10:00:00+00:00" },
+          { start_date: "2026-09-08T09:00:00+00:00", end_date: "2026-09-08T10:00:00+00:00" },
+        ];
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            status: "preview",
+            executed: false,
+            occurrence_count: 2,
+            truncated: false,
+            occurrences,
+          },
+        });
+        const result = await call("create_event", {
+          title: "GPU Bootcamp",
+          recurrence: {
+            frequency: "weekly",
+            start_date: "2026-09-01",
+            end_date: "2026-09-30",
+            days: ["tue"],
+            start_time: "09:00",
+            duration_minutes: 60,
+          },
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/events?confirmed=false",
+          expect.objectContaining({ title: "GPU Bootcamp" })
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "create",
+          status: "preview",
+          executed: false,
+          data: { occurrence_count: 2, truncated: false, occurrences },
+        });
+      });
+
+      it("forwards truncated:true and total_occurrence_count verbatim when Drupal's hard cap clipped the occurrence set", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            status: "preview",
+            executed: false,
+            occurrence_count: 1000,
+            total_occurrence_count: 3200,
+            truncated: true,
+            occurrences: [{ start_date: "2026-09-01T09:00:00+00:00", end_date: "2026-09-01T10:00:00+00:00" }],
+          },
+        });
+        const result = await call("create_event", {
+          title: "Daily Forever",
+          recurrence: {
+            frequency: "daily",
+            start_date: "2026-09-01",
+            end_date: "2099-09-01",
+            start_time: "09:00",
+            duration_minutes: 60,
+          },
+        });
+        // The MCP forwards data verbatim: the agent can honestly say "3,200
+        // occurrences, showing the first 1,000" rather than the vague "1000+".
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          status: "preview",
+          executed: false,
+          data: { occurrence_count: 1000, total_occurrence_count: 3200, truncated: true },
+        });
+      });
+
+      it("A6: falls through to the CREATED envelope when Drupal ignores ?confirmed=false and commits anyway", async () => {
+        // Simulates a deploy-order mismatch: the MCP sends ?confirmed=false but
+        // an older Drupal that doesn't understand the param ignores it and
+        // creates for real. The MCP must report the truth, not a fake preview.
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            status: "created",
+            executed: true,
+            success: true,
+            series_id: 77,
+            instance_ids: [300, 301],
+            title: "Accidental Commit",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        const result = await call("create_event", {
+          title: "Accidental Commit",
+          recurrence: {
+            frequency: "weekly",
+            start_date: "2026-09-01",
+            end_date: "2026-09-30",
+            days: ["tue"],
+            start_time: "09:00",
+            duration_minutes: 60,
+          },
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/events?confirmed=false",
+          expect.objectContaining({ title: "Accidental Commit" })
+        );
+        expect(JSON.parse(result.content[0].text)).toMatchObject({
+          action: "create",
+          status: "created",
+          executed: true,
+          data: { series_id: 77, instance_ids: [300, 301], moderation_state: "draft" },
         });
       });
 
@@ -2292,12 +2406,13 @@ describe("EventsServer", () => {
           title: "No-group event",
           recur_type: "custom",
           custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          confirmed: true,
         });
         // The old client-side guard is gone: the request reaches Drupal.
         expect(mockRequestRaw).toHaveBeenCalledWith(
           "actor@example.com",
           "POST",
-          "/api/2.3/events",
+          "/api/2.3/events?confirmed=true",
           expect.objectContaining({ title: "No-group event", recur_type: "custom" })
         );
         expect(JSON.stringify(result)).not.toMatch(/field_affinity_group_node is required/i);
@@ -2323,6 +2438,7 @@ describe("EventsServer", () => {
           recur_type: "custom",
           field_affinity_group_node: [],
           custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          confirmed: true,
         });
         expect(mockRequestRaw).toHaveBeenCalled();
         expect(JSON.stringify(result)).not.toMatch(/field_affinity_group_node is required/i);
@@ -2361,11 +2477,12 @@ describe("EventsServer", () => {
           custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
           field_event_type: "Training",
           field_location: "Building 42",
+          confirmed: true,
         });
         expect(mockRequestRaw).toHaveBeenCalledWith(
           "actor@example.com",
           "POST",
-          "/api/2.3/events",
+          "/api/2.3/events?confirmed=true",
           expect.objectContaining({
             field_event_type: "Training",
             field_location: "Building 42",
@@ -2531,6 +2648,7 @@ describe("EventsServer", () => {
           field_event_type: "Training",
           field_location: "Building 42",
           recurrence: validRecurrence,
+          confirmed: true,
         });
         expect(JSON.stringify(result)).not.toMatch(/recur_type or recurrence is required/i);
         expect(mockRequestRaw).toHaveBeenCalled();
@@ -2586,6 +2704,7 @@ describe("EventsServer", () => {
           field_event_type: "Training",
           field_location: "Building 42",
           recurrence: validRecurrence,
+          confirmed: true,
         });
         const parsed = JSON.parse(result.content[0].text);
         expect(parsed.data.instance_ids).toEqual([]);
