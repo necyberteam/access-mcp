@@ -2305,13 +2305,14 @@ describe("EventsServer", () => {
         });
       });
 
-      it("forwards truncated:true verbatim when Drupal's hard cap clipped the occurrence set", async () => {
+      it("forwards truncated:true and total_occurrence_count verbatim when Drupal's hard cap clipped the occurrence set", async () => {
         mockRequestRaw.mockResolvedValue({
           status: 200,
           data: {
             status: "preview",
             executed: false,
             occurrence_count: 1000,
+            total_occurrence_count: 3200,
             truncated: true,
             occurrences: [{ start_date: "2026-09-01T09:00:00+00:00", end_date: "2026-09-01T10:00:00+00:00" }],
           },
@@ -2326,10 +2327,12 @@ describe("EventsServer", () => {
             duration_minutes: 60,
           },
         });
+        // The MCP forwards data verbatim: the agent can honestly say "3,200
+        // occurrences, showing the first 1,000" rather than the vague "1000+".
         expect(JSON.parse(result.content[0].text)).toMatchObject({
           status: "preview",
           executed: false,
-          data: { occurrence_count: 1000, truncated: true },
+          data: { occurrence_count: 1000, total_occurrence_count: 3200, truncated: true },
         });
       });
 
