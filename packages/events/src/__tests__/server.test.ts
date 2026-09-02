@@ -2390,6 +2390,28 @@ describe("EventsServer", () => {
         expect(mockRequestRaw).not.toHaveBeenCalled();
       });
 
+      it("rejects recurrence + recur_type both set, before any POST (no silent override)", async () => {
+        const result = await call("create_event", {
+          title: "Both set",
+          field_event_type: "Training",
+          field_location: "Building 42",
+          recur_type: "custom",
+          recurrence: {
+            frequency: "weekly",
+            start_date: "2026-10-01",
+            end_date: "2026-10-31",
+            days: ["mon"],
+            start_time: "09:00",
+            duration_minutes: 60,
+          },
+        });
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.status).toBe("error");
+        expect(parsed.error.code).toBe("validation_error");
+        expect(parsed.error.message).toMatch(/recurrence and recur_type are mutually exclusive/i);
+      });
+
       it("create_event with no affinity group reaches the Drupal write path (not rejected)", async () => {
         mockRequestRaw.mockResolvedValue({
           status: 200,
@@ -2547,19 +2569,8 @@ describe("EventsServer", () => {
         });
       });
 
-      it("(b) CLEAN BREAK: a raw weekly_recurring_date key is stripped, never reaches the POST body", async () => {
-        mockRequestRaw.mockResolvedValue({
-          status: 200,
-          data: {
-            success: true,
-            series_id: 51,
-            instance_ids: [201],
-            title: "Raw Key Attempt",
-            moderation_state: "draft",
-            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
-          },
-        });
-        await call("create_event", {
+      it("(b) a raw rule recur_type without a recurrence object is refused with a redirect to recurrence, before any POST", async () => {
+        const result = await call("create_event", {
           title: "Raw Key Attempt",
           recur_type: "weekly_recurring_date",
           field_event_type: "Training",
@@ -2574,8 +2585,14 @@ describe("EventsServer", () => {
             end_time: "",
           },
         });
-        const body = mockRequestRaw.mock.calls[0][3];
-        expect(body).not.toHaveProperty("weekly_recurring_date");
+        // Refused at the MCP boundary — never forwarded to Drupal.
+        expect(mockRequestRaw).not.toHaveBeenCalled();
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.status).toBe("error");
+        expect(parsed.error.code).toBe("validation_error");
+        // The error redirects the caller to the recurrence object.
+        expect(parsed.error.hint).toMatch(/recurrence object/i);
+        expect(parsed.error.hint).toMatch(/"frequency"/);
       });
 
       it("(c) content fields (body, field_summary) are still forwarded alongside recurrence", async () => {

@@ -416,20 +416,21 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       {
         name: "create_event",
         description:
-          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. You must ALSO supply either recur_type (\"custom\" for one-off/custom_dates, or a rule type like \"weekly_recurring_date\" paired with the matching rule field) OR a recurrence object — the two are mutually exclusive with custom_dates and rejected together with code \"validation_error\". Prefer recurrence: describe the pattern using frequency (\"daily\", \"weekly\", \"monthly\", \"yearly\", \"consecutive\"), start_date, end_date, start_time, and choose either duration_minutes OR ends_at for daily/weekly/monthly/yearly. For monthly, use weekday mode (days + week_positions, e.g. [\"mon\"] + [\"first\"] for first Monday; use monthday mode (days_of_month, e.g. [15] or [-1] for last day) for 'the 15th' or 'last day' patterns. Yearly uses months + days/days_of_month. Consecutive uses window_start/window_end + session_minutes + gap_minutes. Invalid recurrence fields are refused with a coded error (validation_error/over_fill/out_of_vocab) naming the problem field before anything is written. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. WITHOUT confirmed:true this returns a no-write PREVIEW (status:\"preview\", executed:false, with occurrence_count, total_occurrence_count, truncated, and occurrences — truncated is true only when a 1000-occurrence hard cap clipped the set, in which case total_occurrence_count is the real total while occurrence_count/occurrences hold the shown first 1000; report total_occurrence_count to the user) of the occurrence dates the recurrence would produce — show it to the user first. WITH confirmed:true it creates the series. Returns on commit: {series_id, instance_ids, title, moderation_state, moderation}; if a recurrence pattern produces zero occurrences the response also carries recurrence_warning.",
+          "Create a new event series as a DRAFT (organizer write; acting-user-gated). There is no self-publish path — every created series starts moderation_state:\"draft\" regardless of what you pass. The response's moderation block tells you what to do next: moderation.can_publish (whether the acting user may publish directly) and moderation.next_action (\"send_for_review\" when they cannot — call send_for_review to route it to an editor). Requires title, field_event_type, and field_location — the last two are required by the site's field validation (the same rule the browser form enforces), and creation is refused with code \"validation_error\" naming the field if they are missing or invalid. You must ALSO specify the schedule, exactly one of two ways: for a repeating event pass a recurrence object; for one-off or irregular dates pass recur_type:\"custom\" with custom_dates. The recurrence object describes the pattern with frequency (\"daily\", \"weekly\", \"monthly\", \"yearly\", \"consecutive\"), start_date, end_date, start_time, and either duration_minutes OR ends_at for daily/weekly/monthly/yearly. For monthly, use weekday mode (days + week_positions, e.g. [\"mon\"] + [\"first\"] for first Monday; use monthday mode (days_of_month, e.g. [15] or [-1] for last day) for 'the 15th' or 'last day' patterns. Yearly uses months + days/days_of_month. Consecutive uses window_start/window_end + session_minutes + gap_minutes. Invalid recurrence fields are refused with a coded error (validation_error/over_fill/out_of_vocab) naming the problem field before anything is written. Affinity group is optional: supply field_affinity_group_node only to publish the event to one or more groups the acting user coordinates (creation is refused with code \"not_coordinator\" if they do not coordinate ALL supplied groups); omit it to create an event not published to any group. For recur_type:\"custom\", pass custom_dates as [{start_date, end_date}, …]. Optional content fields: body, field_summary, field_skill_level, field_tags, field_event_speakers, field_event_virtual_meeting_link. WITHOUT confirmed:true this returns a no-write PREVIEW (status:\"preview\", executed:false, with occurrence_count, total_occurrence_count, truncated, and occurrences — truncated is true only when a 1000-occurrence hard cap clipped the set, in which case total_occurrence_count is the real total while occurrence_count/occurrences hold the shown first 1000; report total_occurrence_count to the user) of the occurrence dates the recurrence would produce — show it to the user first. WITH confirmed:true it creates the series. Returns on commit: {series_id, instance_ids, title, moderation_state, moderation}; if a recurrence pattern produces zero occurrences the response also carries recurrence_warning.",
         inputSchema: {
           type: "object" as const,
           properties: {
             title: { type: "string", description: "Event title. Required." },
             recur_type: {
               type: "string",
+              enum: ["custom"],
               description:
-                "\"custom\" for one-off/custom dates (pair with custom_dates), or a recurrence rule type (e.g. \"weekly_recurring_date\") whose matching rule field you also supply. Either this or recurrence is required (not both, and not neither).",
+                "Set to \"custom\" for one-off or irregular dates, supplied via custom_dates. For a repeating event, use the recurrence object instead (it builds the rule internally).",
             },
             recurrence: {
               type: "object",
               description:
-                "A high-level recurrence pattern, translated to the native Drupal rule-field columns server-side. Either this or recur_type is required (not both). Mutually exclusive with custom_dates. Examples: daily (freq:daily, start_date:2025-01-01, end_date:2025-02-28, start_time:10:00, duration_minutes:90); weekly (freq:weekly, start_date:2025-01-06, end_date:2025-03-31, days:[mon,wed], start_time:14:00, duration_minutes:60); monthly weekday (freq:monthly, monthly_mode:weekday, start_date:2025-01-06, end_date:2025-06-30, days:[mon], week_positions:[first], start_time:15:00, ends_at:16:30); monthly monthday (freq:monthly, monthly_mode:monthday, start_date:2025-01-15, end_date:2025-12-31, days_of_month:[15], start_time:10:00, duration_minutes:120); yearly (freq:yearly, start_date:2025-06-21, end_date:2027-06-21, monthly_mode:monthday, months:[jun], days_of_month:[21], year_interval:1, start_time:12:00, ends_at:13:00); consecutive (freq:consecutive, start_date:2025-01-13, end_date:2025-01-17, window_start:2025-01-13, window_end:2025-01-17, session_minutes:180, gap_minutes:30). Invalid combinations are refused with code validation_error, over_fill, or out_of_vocab naming the problem field.",
+                "A high-level recurrence pattern for a REPEATING event, translated to the native Drupal rule-field columns server-side. Use this for any repeating pattern. Mutually exclusive with recur_type and with custom_dates (supplying more than one is refused with validation_error). Examples: daily (freq:daily, start_date:2025-01-01, end_date:2025-02-28, start_time:10:00, duration_minutes:90); weekly (freq:weekly, start_date:2025-01-06, end_date:2025-03-31, days:[mon,wed], start_time:14:00, duration_minutes:60); monthly weekday (freq:monthly, monthly_mode:weekday, start_date:2025-01-06, end_date:2025-06-30, days:[mon], week_positions:[first], start_time:15:00, ends_at:16:30); monthly monthday (freq:monthly, monthly_mode:monthday, start_date:2025-01-15, end_date:2025-12-31, days_of_month:[15], start_time:10:00, duration_minutes:120); yearly (freq:yearly, start_date:2025-06-21, end_date:2027-06-21, monthly_mode:monthday, months:[jun], days_of_month:[21], year_interval:1, start_time:12:00, ends_at:13:00); consecutive (freq:consecutive, start_date:2025-01-13, end_date:2025-01-17, window_start:2025-01-13, window_end:2025-01-17, session_minutes:180, gap_minutes:30). Invalid combinations are refused with code validation_error, over_fill, or out_of_vocab naming the problem field.",
               properties: {
                 frequency: {
                   type: "string",
@@ -1536,6 +1537,35 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         code: "validation_error",
         hint: "Use recurrence for rule recurrences, or custom_dates for one-off dates — not both.",
       });
+    }
+    // recurrence and recur_type are mutually exclusive. Without this guard, both
+    // being set falls through and buildRuleField silently overwrites recur_type
+    // with the value it derives from recurrence, discarding the caller's
+    // recur_type with no error — the same silent-failure class this tool's
+    // recurrence guidance exists to close. Reject explicitly instead.
+    if (params.recurrence && params.recur_type) {
+      return this.errorResponse("recurrence and recur_type are mutually exclusive", {
+        code: "validation_error",
+        hint: "Pass a recurrence object for a repeating event, OR recur_type:\"custom\" with custom_dates for one-off dates — not both.",
+      });
+    }
+    // Redirect the dead-door path: a raw rule recur_type (e.g.
+    // "weekly_recurring_date") without a recurrence object cannot work — the
+    // matching raw *_recurring_date rule field is stripped below and never
+    // reaches Drupal. Only recur_type:"custom" is a valid standalone recur_type.
+    // Reject here with the equivalent recurrence object so a caller who tries
+    // the raw path is redirected instead of silently producing a Drupal error.
+    if (params.recur_type && params.recur_type !== "custom" && !params.recurrence) {
+      return this.errorResponse(
+        `Rule recurrences are not specified with recur_type "${params.recur_type}" — use the recurrence object.`,
+        {
+          code: "validation_error",
+          hint:
+            'Describe the pattern with the recurrence object instead, e.g. ' +
+            '{"frequency":"weekly","days":["mon"],"start_date":"2026-10-01","end_date":"2026-10-31","start_time":"09:00","duration_minutes":60}. ' +
+            'recur_type is only for "custom" (one-off dates via custom_dates); every rule pattern (daily/weekly/monthly/yearly/consecutive) goes through recurrence.',
+        }
+      );
     }
     // Affinity group is optional: a group is supplied only to publish the event
     // to it, and Drupal applies its own coordinator check on any supplied group.
