@@ -388,7 +388,11 @@ export class XDMoDMetricsServer extends BaseAccessServer {
       {
         name: "get_chart_data",
         description:
-          "Fetch numeric data from XDMoD. Filters accept names (auto-resolved to IDs). " +
+          "The go-to tool for ACCESS-wide usage statistics, counts, and trends: " +
+          "job counts, CPU/GPU hours, utilization, most-used resources, active users/PIs, " +
+          "allocation usage — any 'how many / how much / trend over time' usage question " +
+          "(e.g. 'how many jobs ran on Delta last month'). Aggregate data only, not " +
+          "per-user extracts. Filters accept names (auto-resolved to IDs). " +
           "Stats by realm — Jobs: job_count, total_cpu_hours, total_su, active_person_count; " +
           "Allocations: allocated_ace, used_ace, active_allocation_count; Accounts: unique_account_count; " +
           "Gateways: active_gateway_count, job_count; SUPREMM: gpu_time, short_job_count, avg_flops_per_core, wall_time_accuracy; " +
