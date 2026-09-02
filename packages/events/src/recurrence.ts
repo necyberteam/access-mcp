@@ -157,11 +157,21 @@ export function validateRecurrence(intent: RecurrenceIntent): { ok: boolean; err
 const expandDays = (days: string[] = []) => days.map((d) => DRUPAL_CONTRACT.weekdays[d]).join(",");
 const mapMonths = (months: string[] = []) => months.map((m) => DRUPAL_CONTRACT.months[m]).join(",");
 
+/**
+ * The rule-field date columns (value/end_value) are stored as Drupal `datetime`
+ * fields (default storage format Y-m-d\TH:i:s), NOT date-only. A bare "Y-m-d"
+ * fails DateTimeComputed's createFromFormat parse → NULL start_date → the
+ * "recurrence needs a valid start and end date" refusal. Anchor the calendar
+ * date at midnight so it parses; the actual time-of-day lives in the separate
+ * `time` column, so the T00:00:00 here is only the date field's required format.
+ */
+const toRuleDate = (ymd: string): string => `${ymd}T00:00:00`;
+
 /** Daily-family shared columns (value/end_value/time + duration-or-end_time branch). */
 function dailyCore(intent: RecurrenceIntent): Record<string, unknown> {
   const core: Record<string, unknown> = {
-    value: intent.start_date,
-    end_value: intent.end_date,
+    value: toRuleDate(intent.start_date),
+    end_value: toRuleDate(intent.end_date),
     time: fmt12(intent.start_time!),
   };
   if (intent.duration_minutes != null) {
@@ -204,7 +214,7 @@ export function buildRuleField(intent: RecurrenceIntent): { recur_type: string; 
       return {
         recur_type: "consecutive_recurring_date",
         consecutive_recurring_date: {
-          value: intent.start_date, end_value: intent.end_date,
+          value: toRuleDate(intent.start_date), end_value: toRuleDate(intent.end_date),
           time: fmt12(intent.window_start!), end_time: fmt12(intent.window_end!),
           duration: intent.session_minutes, duration_units: "minute",
           buffer: intent.gap_minutes, buffer_units: "minute",

@@ -2540,8 +2540,8 @@ describe("EventsServer", () => {
         expect(body).toMatchObject({
           recur_type: "weekly_recurring_date",
           weekly_recurring_date: expect.objectContaining({
-            value: "2026-09-01",
-            end_value: "2026-09-30",
+            value: "2026-09-01T00:00:00",
+            end_value: "2026-09-30T00:00:00",
             days: "monday",
           }),
         });

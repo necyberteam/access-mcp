@@ -75,7 +75,7 @@ describe("buildRuleField — native key + exact columns", () => {
     const out = buildRuleField({ frequency: "weekly", ...win, start_time: "14:00", duration_minutes: 60, days: ["mon","wed"] });
     expect(out.recur_type).toBe("weekly_recurring_date");
     expect(out.weekly_recurring_date).toEqual({
-      value: "2026-09-01", end_value: "2026-09-30", time: "02:00 PM",
+      value: "2026-09-01T00:00:00", end_value: "2026-09-30T00:00:00", time: "02:00 PM",
       duration_or_end_time: "duration", duration: 3600, end_time: "",
       days: "monday,wednesday",
     });
@@ -109,7 +109,7 @@ describe("buildRuleField — native key + exact columns", () => {
     const out = buildRuleField({ frequency: "consecutive", ...win, window_start: "09:00", window_end: "17:00", session_minutes: 10, gap_minutes: 5 });
     expect(out.recur_type).toBe("consecutive_recurring_date");
     expect(out.consecutive_recurring_date).toEqual({
-      value: "2026-09-01", end_value: "2026-09-30", time: "09:00 AM", end_time: "05:00 PM",
+      value: "2026-09-01T00:00:00", end_value: "2026-09-30T00:00:00", time: "09:00 AM", end_time: "05:00 PM",
       duration: 10, duration_units: "minute", buffer: 5, buffer_units: "minute",
     });
   });
