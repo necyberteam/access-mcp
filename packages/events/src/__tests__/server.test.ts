@@ -190,12 +190,12 @@ describe("EventsServer", () => {
 
     it("should include tags as faceted filter", () => {
       const url = server["buildEventsUrl"]({ tags: "python" });
-      expect(url).toContain("f%5B0%5D=custom_event_tags%3Apython");
+      expect(url).toContain("f%5B0%5D=tags%3Apython");
     });
 
     it("should include skill as faceted filter", () => {
       const url = server["buildEventsUrl"]({ skill: "beginner" });
-      expect(url).toContain("f%5B0%5D=skill_level%3Abeginner");
+      expect(url).toContain("f%5B0%5D=custom_event_skill_level%3ABeginner");
     });
 
     it("should include multiple faceted filters with incrementing index", () => {
@@ -206,8 +206,8 @@ describe("EventsServer", () => {
       });
 
       expect(url).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
-      expect(url).toContain("f%5B1%5D=custom_event_tags%3Apython");
-      expect(url).toContain("f%5B2%5D=skill_level%3Abeginner");
+      expect(url).toContain("f%5B1%5D=tags%3Apython");
+      expect(url).toContain("f%5B2%5D=custom_event_skill_level%3ABeginner");
     });
 
     it("should include search_api_fulltext for query parameter", () => {
@@ -230,7 +230,7 @@ describe("EventsServer", () => {
       expect(url).toContain("beginning_date_relative=today");
       expect(url).toContain("end_date_relative=%2B1week");
       expect(url).toContain("f%5B0%5D=custom_event_type%3Awebinar");
-      expect(url).toContain("f%5B1%5D=skill_level%3Aintermediate");
+      expect(url).toContain("f%5B1%5D=custom_event_skill_level%3AIntermediate");
     });
   });
 
@@ -380,7 +380,7 @@ describe("EventsServer", () => {
         });
 
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("f%5B0%5D=skill_level%3Abeginner");
+        expect(calledUrl).toContain("f%5B0%5D=custom_event_skill_level%3ABeginner");
       });
 
       it("should pass tags as faceted filter to Drupal", async () => {
@@ -400,7 +400,7 @@ describe("EventsServer", () => {
         });
 
         const calledUrl = mockHttpClient.get.mock.calls[0][0];
-        expect(calledUrl).toContain("f%5B0%5D=custom_event_tags%3Apython");
+        expect(calledUrl).toContain("f%5B0%5D=tags%3Apython");
       });
 
       it("should apply limit to events", async () => {
@@ -634,7 +634,7 @@ describe("EventsServer", () => {
         expect(calledUrl).toContain("beginning_date_relative=today");
         expect(calledUrl).toContain("end_date_relative=%2B1week");
         expect(calledUrl).toContain("f%5B0%5D=custom_event_type%3Aworkshop");
-        expect(calledUrl).toContain("f%5B1%5D=skill_level%3Abeginner");
+        expect(calledUrl).toContain("f%5B1%5D=custom_event_skill_level%3ABeginner");
       });
 
       // The flat /api/2.3/events API serializes Drupal boolean fields as the

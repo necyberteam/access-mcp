@@ -894,16 +894,28 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       }
     }
 
-    // Faceted filters — uses Drupal's f[0]=field:value format
+    // Faceted filters — Drupal's f[0]=<facet-url_alias>:value format. The key
+    // MUST be the facet's url_alias (what the Facets QueryString URL processor
+    // parses), NOT its internal field_identifier. For custom_event_type the two
+    // coincide; for tags and skill they differ, so the field_identifier form
+    // silently no-ops (Drupal drops the unrecognized filter and returns
+    // unfiltered results). url_alias values are from the site's
+    // facets.facet.*.yml config.
     let facetIndex = 0;
     if (params.type) {
       url.searchParams.set(`f[${facetIndex++}]`, `custom_event_type:${params.type}`);
     }
     if (params.tags) {
-      url.searchParams.set(`f[${facetIndex++}]`, `custom_event_tags:${params.tags}`);
+      url.searchParams.set(`f[${facetIndex++}]`, `tags:${params.tags}`);
     }
     if (params.skill) {
-      url.searchParams.set(`f[${facetIndex++}]`, `skill_level:${params.skill}`);
+      // The facet VALUE must match the indexed field_skill_level allowed-value,
+      // which is capitalized ("Beginner"/"Intermediate"/"Advanced") and matched
+      // exactly (string index field, no case folding). The tool's input enum is
+      // lowercase for caller convenience, so capitalize before filtering — a
+      // lowercase value silently matches nothing.
+      const skill = params.skill.charAt(0).toUpperCase() + params.skill.slice(1).toLowerCase();
+      url.searchParams.set(`f[${facetIndex++}]`, `custom_event_skill_level:${skill}`);
     }
 
     return url.toString();
