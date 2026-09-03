@@ -441,7 +441,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
                 end_date: { type: "string", description: "End date (YYYY-MM-DD). Required; recurring events cannot create an open-ended series." },
                 start_time: {
                   type: "string",
-                  description: "Start time (HH:MM). Required for daily/weekly/monthly/yearly.",
+                  description: "Start time (24h HH:MM), interpreted in the acting user's ACCESS profile timezone. Required for daily/weekly/monthly/yearly.",
                 },
                 duration_minutes: {
                   type: "number",
@@ -451,7 +451,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
                 ends_at: {
                   type: "string",
                   description:
-                    "End time (HH:MM). Pick one: duration_minutes OR ends_at (not both). For daily/weekly/monthly/yearly.",
+                    "End time (24h HH:MM), interpreted in the acting user's ACCESS profile timezone. Pick one: duration_minutes OR ends_at (not both). For daily/weekly/monthly/yearly.",
                 },
                 days: {
                   type: "array",
