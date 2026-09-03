@@ -62,6 +62,23 @@ describe("validateRecurrence", () => {
     const r = validateRecurrence({ frequency: "daily", start_date: "2026-09-30", end_date: "2026-09-01", start_time: "09:00", duration_minutes: 60 });
     expect(r.errors.some((e) => e.code === "out_of_vocab")).toBe(true);
   });
+  it("rejects a non-bare (datetime-shaped) start_date (validation_error)", () => {
+    const r = validateRecurrence({ frequency: "daily", start_date: "2026-09-01T00:00:00", end_date: "2026-09-30", start_time: "09:00", duration_minutes: 60 });
+    expect(r.errors.some((e) => e.code === "validation_error" && /start_date must be a bare calendar date/.test(e.message))).toBe(true);
+    // and it must NOT spuriously flag ordering
+    expect(r.errors.some((e) => e.code === "out_of_vocab" && /before/.test(e.message))).toBe(false);
+  });
+  it("rejects a non-bare end_date (validation_error)", () => {
+    const r = validateRecurrence({ frequency: "daily", start_date: "2026-09-01", end_date: "2026-09-30T12:00:00", start_time: "09:00", duration_minutes: 60 });
+    expect(r.errors.some((e) => e.code === "validation_error" && /end_date must be a bare calendar date/.test(e.message))).toBe(true);
+  });
+  it("a mixed-shape same-day range does NOT falsely report end-before-start", () => {
+    // start_date is datetime-shaped, end_date bare, same calendar day. The old
+    // string compare "2026-10-01" < "2026-10-01T12:00:00" would spuriously fire.
+    const r = validateRecurrence({ frequency: "daily", start_date: "2026-10-01T12:00:00", end_date: "2026-10-01", start_time: "09:00", duration_minutes: 60 });
+    expect(r.errors.some((e) => e.code === "validation_error" && /start_date must be a bare/.test(e.message))).toBe(true);
+    expect(r.errors.some((e) => e.code === "out_of_vocab" && /before/.test(e.message))).toBe(false);
+  });
   it("returns ALL errors, not first-only", () => {
     const r = validateRecurrence({ frequency: "weekly", ...base, days: ["funday"] }); // missing start_time+duration AND bad weekday
     expect(r.errors.length).toBeGreaterThan(1);
