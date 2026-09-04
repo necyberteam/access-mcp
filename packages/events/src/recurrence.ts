@@ -56,6 +56,12 @@ export interface RecurrenceError {
 
 const FREQUENCIES: Frequency[] = ["daily", "weekly", "monthly", "yearly", "consecutive"];
 const DAILY_FAMILY = new Set<Frequency>(["daily", "weekly", "monthly", "yearly"]);
+// start_date/end_date must be a bare calendar date with zero-padded month/day.
+// Zero-padding IS enforced (2026-1-1 is rejected) — every caller/example sends
+// YYYY-MM-DD, so this is intended, not a regression. Shape only: 2026-13-45
+// passes here and is left for Drupal's calendar validation. The point is to
+// reject datetime/timezone-suffixed strings (the mistake that caused PR #61).
+const BARE_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function validateRecurrence(intent: RecurrenceIntent): { ok: boolean; errors: RecurrenceError[] } {
   const errors: RecurrenceError[] = [];
@@ -70,7 +76,17 @@ export function validateRecurrence(intent: RecurrenceIntent): { ok: boolean; err
   // Always required.
   if (!intent.start_date) err("validation_error", "start_date is required.");
   if (!intent.end_date) err("validation_error", "end_date is required.");
-  if (intent.start_date && intent.end_date && intent.end_date < intent.start_date) {
+  // Format: a present date must be a bare YYYY-MM-DD (no time, no timezone).
+  const badStart = !!intent.start_date && !BARE_DATE.test(intent.start_date);
+  const badEnd = !!intent.end_date && !BARE_DATE.test(intent.end_date);
+  if (badStart) err("validation_error", "start_date must be a bare calendar date (YYYY-MM-DD), no time or timezone.");
+  if (badEnd) err("validation_error", "end_date must be a bare calendar date (YYYY-MM-DD), no time or timezone.");
+  // Ordering: only compare when both are present AND bare — a lexical compare on
+  // bare YYYY-MM-DD equals chronological. Gating on !badStart/!badEnd avoids a
+  // spurious "end before start" when a value is malformed (which the accumulate-
+  // all-errors flow would otherwise still push).
+  if (intent.start_date && intent.end_date && !badStart && !badEnd
+      && intent.end_date < intent.start_date) {
     err("out_of_vocab", "end_date is before start_date.");
   }
 
