@@ -665,15 +665,7 @@ export class AllocationsServer extends BaseAccessServer {
       // "Drupal API error: 307 Temporary Redirect".
       const authError = this.drupalAuthError(error);
       if (authError) return authError;
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error: ${handleApiError(error)}`,
-          },
-        ],
-        isError: true,
-      };
+      return this.errorResponse(handleApiError(error));
     }
   }
 
@@ -952,21 +944,10 @@ sort_by: "date_desc"
     }
 
     // If no parameters provided, return error
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(
-            {
-              error:
-                "Please provide at least one search parameter: query, project_id, field_of_science, resource_name, allocation_type, similar_to, or similarity_keywords",
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
+    return this.errorResponse(
+      "Please provide at least one search parameter: query, project_id, field_of_science, resource_name, allocation_type, similar_to, or similarity_keywords",
+      { code: "invalid_request" }
+    );
   }
 
   /**
@@ -1306,20 +1287,10 @@ sort_by: "date_desc"
       };
     }
 
-    return {
-      content: [
-        {
-          type: "text" as const,
-          text: JSON.stringify(
-            {
-              error: `Project with ID ${projectId} not found in current allocations.`,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
+    return this.errorResponse(
+      `Project with ID ${projectId} not found in current allocations.`,
+      { code: "not_found" }
+    );
   }
 
   /**
@@ -1599,20 +1570,10 @@ sort_by: "date_desc"
       referenceProject = (await this.findProjectById(projectId)) || null;
 
       if (!referenceProject) {
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: JSON.stringify(
-                {
-                  error: `Project with ID ${projectId} not found in current allocations database.`,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+        return this.errorResponse(
+          `Project with ID ${projectId} not found in current allocations database.`,
+          { code: "not_found" }
+        );
       }
 
       // Extract sophisticated search terms from reference project
@@ -1622,20 +1583,10 @@ sort_by: "date_desc"
       searchTerms = keywords;
       referenceField = ""; // No specific field for keyword searches
     } else {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: JSON.stringify(
-              {
-                error: "Please provide either a project_id or keywords to find similar projects.",
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
+      return this.errorResponse(
+        "Please provide either a project_id or keywords to find similar projects.",
+        { code: "invalid_request" }
+      );
     }
 
     // Score similarity over the COMPLETE corpus, not a 15-page window.
@@ -2108,14 +2059,9 @@ sort_by: "date_desc"
         ],
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error analyzing project funding: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-      };
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
+      return this.errorResponse(`Error analyzing project funding: ${handleApiError(error)}`);
     }
   }
 
@@ -2439,14 +2385,9 @@ sort_by: "date_desc"
         ],
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error finding funded projects: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-      };
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
+      return this.errorResponse(`Error finding funded projects: ${handleApiError(error)}`);
     }
   }
 
@@ -2788,14 +2729,11 @@ sort_by: "date_desc"
         ],
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error generating institutional funding profile: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-      };
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
+      return this.errorResponse(
+        `Error generating institutional funding profile: ${handleApiError(error)}`
+      );
     }
   }
 

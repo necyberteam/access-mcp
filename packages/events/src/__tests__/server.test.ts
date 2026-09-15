@@ -2975,6 +2975,26 @@ describe("EventsServer", () => {
         });
       });
 
+      it("preview data does not duplicate top-level status/executed", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            status: "preview",
+            executed: false,
+            series_id: 42,
+            would_archive: true,
+          },
+        });
+        const result = await call("delete_event", { eventseries_id: "42" });
+        const parsed = JSON.parse(result.content[0].text);
+        expect(parsed.status).toBe("preview");
+        expect(parsed.executed).toBe(false);
+        // The nested Drupal body keeps its detail but not the duplicated envelope keys.
+        expect(parsed.data).not.toHaveProperty("status");
+        expect(parsed.data).not.toHaveProperty("executed");
+        expect(parsed.data.would_archive).toBe(true);
+      });
+
       it("confirmed:true executes and maps instances_archived/notified/notifications_disabled", async () => {
         mockRequestRaw.mockResolvedValue({
           status: 200,

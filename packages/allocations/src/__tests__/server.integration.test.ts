@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { AllocationsServer } from "../server.js";
 
 interface TextContent {
@@ -280,10 +280,31 @@ describe("AllocationsServer Integration Tests", () => {
 
       // Should contain error message about required parameters
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("error");
-      expect(responseData.error).toContain("search parameter");
+      expect(responseData.status).toBe("error");
+      expect(responseData.executed).toBe(false);
+      expect(responseData.error.message).toContain("search parameter");
 
       console.log("✅ Parameter validation working");
+    }, 5000);
+
+    it("a validation error surfaces as the unified envelope", async () => {
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_projects",
+          arguments: { project_id: -1 },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
+
+      expect(result.isError).toBe(true);
+      expect(responseData.status).toBe("error");
+      expect(responseData.executed).toBe(false);
+      expect(responseData.error.message).toContain(
+        "Project ID must be a positive number"
+      );
     }, 5000);
   });
 
@@ -378,5 +399,90 @@ describe("AllocationsServer Integration Tests", () => {
 
       console.log("✅ Resource details included in results");
     }, 15000);
+  });
+
+  describe("Funding-analysis local catches surface the unified envelope", () => {
+    // analyzeProjectFunding, findFundedProjects, and institutionalFundingProfile
+    // each have their OWN try/catch (they never reach the generic handleToolCall
+    // catch), and all three converge on ensureCorpus() early in their try block.
+    // A fresh server instance per test avoids touching the shared corpus used by
+    // the rest of this suite.
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("analyzeProjectFunding: an upstream failure surfaces as the unified envelope", async () => {
+      const freshServer = new AllocationsServer();
+      vi.spyOn(
+        freshServer as unknown as { ensureCorpus: () => Promise<unknown> },
+        "ensureCorpus"
+      ).mockRejectedValue(new Error("corpus unavailable"));
+
+      const result = await freshServer["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "analyze_funding",
+          arguments: { project_id: 1 },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
+      expect(result.isError).toBe(true);
+      expect(responseData.status).toBe("error");
+      expect(responseData.executed).toBe(false);
+      expect(responseData.error.message).toContain("Error analyzing project funding");
+      expect(responseData.error.message).toContain("corpus unavailable");
+    });
+
+    it("findFundedProjects: an upstream failure surfaces as the unified envelope", async () => {
+      const freshServer = new AllocationsServer();
+      vi.spyOn(
+        freshServer as unknown as { ensureCorpus: () => Promise<unknown> },
+        "ensureCorpus"
+      ).mockRejectedValue(new Error("corpus unavailable"));
+
+      const result = await freshServer["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "analyze_funding",
+          arguments: {},
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
+      expect(result.isError).toBe(true);
+      expect(responseData.status).toBe("error");
+      expect(responseData.executed).toBe(false);
+      expect(responseData.error.message).toContain("Error finding funded projects");
+      expect(responseData.error.message).toContain("corpus unavailable");
+    });
+
+    it("institutionalFundingProfile: an upstream failure surfaces as the unified envelope", async () => {
+      const freshServer = new AllocationsServer();
+      vi.spyOn(
+        freshServer as unknown as { ensureCorpus: () => Promise<unknown> },
+        "ensureCorpus"
+      ).mockRejectedValue(new Error("corpus unavailable"));
+
+      const result = await freshServer["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "analyze_funding",
+          arguments: { institution: "Stanford University" },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
+      expect(result.isError).toBe(true);
+      expect(responseData.status).toBe("error");
+      expect(responseData.executed).toBe(false);
+      expect(responseData.error.message).toContain(
+        "Error generating institutional funding profile"
+      );
+      expect(responseData.error.message).toContain("corpus unavailable");
+    });
   });
 });
