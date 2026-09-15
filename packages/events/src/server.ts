@@ -97,7 +97,7 @@ interface RawEvent {
   video?: string;
   description?: string;
   registration?: string;
-  // The flat /api/2.3/events API serializes Drupal boolean fields as the
+  // The flat /api/2.4/events API serializes Drupal boolean fields as the
   // strings 'Yes'/'No' and numeric fields as strings ('0'/'11'), so these
   // arrive as strings in practice. Typed permissively and parsed at the map
   // (see parseDrupalBool / access_registration below) — do NOT treat the raw
@@ -144,7 +144,7 @@ export function compactDescription(
 
 /**
  * Parse a Drupal boolean value that may arrive as a string. The flat
- * /api/2.3/events API renders boolean fields as the strings 'Yes'/'No'
+ * /api/2.4/events API renders boolean fields as the strings 'Yes'/'No'
  * (not JS booleans), so a naive `Boolean(value)` is wrong — Boolean('No')
  * is `true`. Treats 'yes'/'true'/'1'/true/1 as true; everything else
  * ('no'/'false'/'0'/''/false/0/null/undefined) as false. Mirrors the
@@ -846,7 +846,11 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
   private static readonly ALLOWED_PAGE_SIZES = [1, 5, 10, 20, 25, 50, 100, 250, 500];
 
   private buildEventsUrl(params: SearchEventsParams): string {
-    const url = new URL("/api/2.3/events", this.baseURL);
+    // /api/2.4 emits start_date/end_date as true UTC instants (…Z). v2.3 and
+    // earlier appended Z to a clock already converted to site-local, so the
+    // values were offset from the real instant (4h summer / 5h winter for a US
+    // Eastern site). isoInstant leaves the already-zoned 2.4 values untouched.
+    const url = new URL("/api/2.4/events", this.baseURL);
 
     // Map requested limit to nearest allowed page size
     const limit = params.limit || 50;
@@ -941,15 +945,20 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         registration_has_waitlist,
         ...rest
       } = event;
+      // Normalize the daterange fields to unambiguous instants ONCE, and use
+      // them for both the emitted fields and the duration/starts math. Using the
+      // raw value in `new Date()` is unsafe: a naive string (no zone) parses as
+      // LOCAL time on a non-UTC runtime, so starts_in_hours — and the sort that
+      // depends on it — would drift by the runtime offset. isoInstant yields a
+      // zoned instant (…Z / +00:00 / offset), which Date parses unambiguously.
+      const startNorm = isoInstant(event.start_date) ?? event.start_date;
+      const endNorm = isoInstant(event.end_date) ?? event.end_date;
       return {
         ...rest,
-        // Z-normalize the daterange fields so search_events matches
-        // get_my_events / get_event, which already emit Z-suffixed UTC via
-        // isoInstant. The raw event.start_date/end_date are still used below
-        // for the duration/starts computations (unaffected). Preserve the
-        // original if isoInstant returns undefined (belt and suspenders).
-        start_date: isoInstant(event.start_date) ?? event.start_date,
-        end_date: isoInstant(event.end_date) ?? event.end_date,
+        // Z-normalized daterange fields so search_events matches get_my_events /
+        // get_event, which also emit zoned instants via isoInstant.
+        start_date: startNorm,
+        end_date: endNorm,
         description: params.full_description
           ? event.description
           : compactDescription(event.description),
@@ -959,15 +968,14 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
             : Array.isArray(event.tags)
               ? event.tags
               : [],
-        duration_hours: event.end_date
+        duration_hours: endNorm
           ? Math.round(
-              (new Date(event.end_date).getTime() - new Date(event.start_date || "").getTime()) /
-                3600000
+              (new Date(endNorm).getTime() - new Date(startNorm || "").getTime()) / 3600000
             )
           : null,
         starts_in_hours: Math.max(
           0,
-          Math.round((new Date(event.start_date || "").getTime() - Date.now()) / 3600000)
+          Math.round((new Date(startNorm || "").getTime() - Date.now()) / 3600000)
         ),
         // Native ACCESS registration (managed via the registration tools),
         // distinct from the external registration_url below. The flat API
@@ -1137,9 +1145,10 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
 
   /**
    * Fetch one event's full detail + live registration state via the Drupal
-   * GET /api/2.3/events/{eventinstance_id} route. Drupal
-   * already Z-normalizes the dates and shapes the registration block, so this
-   * is a thin passthrough with error handling. Uses the non-throwing
+   * GET /api/2.4/events/{eventinstance_id} route. v2.4 emits start_date/end_date
+   * as true UTC (…Z); v2.3 offset them by the site TZ. Drupal shapes the
+   * registration block, so this is a thin passthrough with error handling. Uses
+   * the non-throwing
    * requestRaw accessor so a 404 is surfaced as a first-class error rather than
    * a thrown exception.
    */
@@ -1155,7 +1164,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     const { status, data } = await auth.requestRaw(
       actingUser,
       "GET",
-      `/api/2.3/events/${encodeURIComponent(eventinstanceId)}`
+      `/api/2.4/events/${encodeURIComponent(eventinstanceId)}`
     );
     if (status === 404) {
       return this.errorResponse(

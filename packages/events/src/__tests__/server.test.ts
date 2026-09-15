@@ -149,9 +149,9 @@ describe("EventsServer", () => {
   });
 
   describe("URL Building", () => {
-    it("should build correct URLs with v2.2 endpoint", () => {
+    it("should build correct URLs with the v2.4 read endpoint", () => {
       const url = server["buildEventsUrl"]({});
-      expect(url).toContain("/api/2.3/events");
+      expect(url).toContain("/api/2.4/events");
     });
 
     it("should map 'date: today' to beginning_date_relative", () => {
@@ -446,17 +446,17 @@ describe("EventsServer", () => {
         expect(event.starts_in_hours).toBeDefined();
       });
 
-      it("should Z-normalize start_date and end_date (parity with get_my_events/get_event)", async () => {
-        // Flat-API fixture with naive-UTC dates (no Z), matching what the
-        // /api/2.3/events endpoint actually returns.
+      it("passes through the v2.4 already-zoned start_date/end_date (isoInstant no-op)", async () => {
+        // /api/2.4/events returns true-UTC instants WITH a Z. isoInstant must
+        // leave an already-zoned value untouched (not double-append).
         mockHttpClient.get.mockResolvedValue({
           status: 200,
           data: [
             {
               id: "8504",
               title: "OnDemand",
-              start_date: "2026-08-06T13:00:00",
-              end_date: "2026-08-06T14:00:00",
+              start_date: "2026-08-06T13:00:00Z",
+              end_date: "2026-08-06T14:00:00Z",
             },
           ],
         });
@@ -473,8 +473,35 @@ describe("EventsServer", () => {
         const item = responseData.items[0];
         expect(item.start_date).toBe("2026-08-06T13:00:00Z");
         expect(item.end_date).toBe("2026-08-06T14:00:00Z");
-        // duration_hours/starts_in_hours must still compute from the raw dates.
-        expect(item.duration_hours).toBe(1); // 13:00 to 14:00
+        expect(item.duration_hours).toBe(1); // 13:00Z to 14:00Z
+      });
+
+      it("computes starts_in_hours from the zoned instant, independent of runtime TZ", async () => {
+        // A zoned value must be parsed as the instant it denotes, NOT as the
+        // runtime's local time. Fixed 'now' so the assertion is deterministic.
+        const now = Date.parse("2026-08-06T10:00:00Z");
+        const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+        try {
+          mockHttpClient.get.mockResolvedValue({
+            status: 200,
+            data: [
+              {
+                id: "8504",
+                title: "OnDemand",
+                start_date: "2026-08-06T13:00:00Z", // 3h after 'now'
+                end_date: "2026-08-06T14:00:00Z",
+              },
+            ],
+          });
+          const result = await server["handleToolCall"]({
+            method: "tools/call",
+            params: { name: "search_events", arguments: {} },
+          });
+          const item = JSON.parse(result.content[0].text).items[0];
+          expect(item.starts_in_hours).toBe(3); // 13:00Z − 10:00Z, TZ-independent
+        } finally {
+          nowSpy.mockRestore();
+        }
       });
 
       it("should parse comma-separated string tags", async () => {
@@ -1309,7 +1336,7 @@ describe("EventsServer", () => {
       expect(mockRequestRaw).toHaveBeenCalledWith(
         "actor@example.com",
         "GET",
-        "/api/2.3/events/8504"
+        "/api/2.4/events/8504"
       );
       const body = JSON.parse(result.content[0].text);
       expect(body.id).toBe("8504");
