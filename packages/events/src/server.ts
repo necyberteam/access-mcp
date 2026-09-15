@@ -145,6 +145,18 @@ export function isoInstantUtc(value: string | undefined | null): string | undefi
   return Number.isNaN(ms) ? value : new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
 }
 
+/**
+ * Drupal's preview body repeats status:"preview"/executed:false, which the write
+ * envelope already carries at the top level. Strip them from the nested body so
+ * each field appears once; keep every other preview field Drupal returns.
+ */
+function previewData(body: Record<string, unknown>): Record<string, unknown> {
+  const rest = { ...body };
+  delete rest.status;
+  delete rest.executed;
+  return rest;
+}
+
 export function compactDescription(
   raw: string | undefined,
   maxChars: number = DESCRIPTION_MAX_CHARS
@@ -1682,7 +1694,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
           action: "create",
           status: "preview",
           executed: false,
-          data: outcome.data,
+          data: previewData(outcome.data),
         });
       }
       // Drupal did NOT preview (e.g. it committed because it doesn't yet
@@ -1790,7 +1802,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         action: "delete",
         status: "preview",
         executed: false,
-        data: outcome.data,
+        data: previewData(outcome.data),
       });
     }
 
@@ -1899,7 +1911,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         action: "delete",
         status: "preview",
         executed: false,
-        data: outcome.data,
+        data: previewData(outcome.data),
       });
     }
 
@@ -1980,7 +1992,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         action: "update",
         status: "preview",
         executed: false,
-        data: outcome.data,
+        data: previewData(outcome.data),
       });
     }
 
