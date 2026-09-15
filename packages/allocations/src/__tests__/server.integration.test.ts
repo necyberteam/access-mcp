@@ -280,10 +280,31 @@ describe("AllocationsServer Integration Tests", () => {
 
       // Should contain error message about required parameters
       const responseData = JSON.parse(content.text);
-      expect(responseData).toHaveProperty("error");
-      expect(responseData.error).toContain("search parameter");
+      expect(responseData.status).toBe("error");
+      expect(responseData.executed).toBe(false);
+      expect(responseData.error.message).toContain("search parameter");
 
       console.log("✅ Parameter validation working");
+    }, 5000);
+
+    it("a validation error surfaces as the unified envelope", async () => {
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_projects",
+          arguments: { project_id: -1 },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const responseData = JSON.parse(content.text);
+
+      expect(result.isError).toBe(true);
+      expect(responseData.status).toBe("error");
+      expect(responseData.executed).toBe(false);
+      expect(responseData.error.message).toContain(
+        "Project ID must be a positive number"
+      );
     }, 5000);
   });
 
