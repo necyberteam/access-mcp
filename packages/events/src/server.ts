@@ -1147,12 +1147,14 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
 
   /**
    * Fetch one event's full detail + live registration state via the Drupal
-   * GET /api/2.4/events/{eventinstance_id} route. v2.4 emits start_date/end_date
-   * as true UTC (…Z); v2.3 offset them by the site TZ. Drupal shapes the
-   * registration block, so this is a thin passthrough with error handling. Uses
-   * the non-throwing
-   * requestRaw accessor so a 404 is surfaced as a first-class error rather than
-   * a thrown exception.
+   * GET /api/2.3/events/{eventinstance_id} route. Stays on 2.3 deliberately:
+   * the offset bug is LIST-ONLY — verified against prod, the 2.3 DETAIL endpoint
+   * already returns true-UTC start_date/end_date (…Z), and there is NO 2.4
+   * detail endpoint (/api/2.4/events/{id} 404s). Only search_events (the list)
+   * moves to 2.4. Do not flip this to 2.4 — it does not exist there.
+   * Drupal shapes the registration block, so this is a thin passthrough with
+   * error handling. Uses the non-throwing requestRaw accessor so a 404 is
+   * surfaced as a first-class error rather than a thrown exception.
    */
   private async getEvent(eventinstanceId: string): Promise<CallToolResult> {
     if (!eventinstanceId || typeof eventinstanceId !== "string") {
@@ -1166,7 +1168,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     const { status, data } = await auth.requestRaw(
       actingUser,
       "GET",
-      `/api/2.4/events/${encodeURIComponent(eventinstanceId)}`
+      `/api/2.3/events/${encodeURIComponent(eventinstanceId)}`
     );
     if (status === 404) {
       return this.errorResponse(

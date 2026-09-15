@@ -1365,7 +1365,7 @@ describe("EventsServer", () => {
       expect(mockRequestRaw).toHaveBeenCalledWith(
         "actor@example.com",
         "GET",
-        "/api/2.4/events/8504"
+        "/api/2.3/events/8504"
       );
       const body = JSON.parse(result.content[0].text);
       expect(body.id).toBe("8504");
