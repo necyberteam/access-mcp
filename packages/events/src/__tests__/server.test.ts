@@ -2442,6 +2442,34 @@ describe("EventsServer", () => {
         expect(parsed.executed).toBe(true);
       });
 
+      it("create_event forwards field_event_timezone and field_event_in_person to the POST body", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: {
+            success: true, series_id: 8, instance_ids: [], title: "TZ event",
+            moderation_state: "draft",
+            moderation: { state: "draft", can_publish: false, next_action: "send_for_review", message: "Saved as a draft." },
+          },
+        });
+        await call("create_event", {
+          title: "TZ event",
+          recur_type: "custom",
+          custom_dates: [{ start_date: "2026-09-01T14:00:00", end_date: "2026-09-01T15:00:00" }],
+          field_event_timezone: "America/Los_Angeles",
+          field_event_in_person: true,
+          confirmed: true,
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "POST",
+          "/api/2.3/events?confirmed=true",
+          expect.objectContaining({
+            field_event_timezone: "America/Los_Angeles",
+            field_event_in_person: true,
+          })
+        );
+      });
+
       it("create_event with an explicit empty affinity-group array reaches the write path", async () => {
         // The old guard rejected empty-array too (|| length === 0); it must not now.
         mockRequestRaw.mockResolvedValue({
@@ -2760,6 +2788,24 @@ describe("EventsServer", () => {
           executed: true,
           data: { series_id: 42, updated_fields: ["title", "field_summary"] },
         });
+      });
+
+      it("update_event forwards field_event_timezone and field_event_in_person in the PATCH body", async () => {
+        mockRequestRaw.mockResolvedValue({
+          status: 200,
+          data: { success: true, series_id: 42, updated_fields: ["field_event_timezone", "field_event_in_person"] },
+        });
+        await call("update_event", {
+          eventseries_id: "42",
+          field_event_timezone: "America/Chicago",
+          field_event_in_person: false,
+        });
+        expect(mockRequestRaw).toHaveBeenCalledWith(
+          "actor@example.com",
+          "PATCH",
+          "/api/2.3/event-series/42",
+          { field_event_timezone: "America/Chicago", field_event_in_person: false }
+        );
       });
 
       it("does not accept/forward a confirmed flag — content-only edits are not gated on it", async () => {
