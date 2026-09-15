@@ -955,8 +955,10 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       const endNorm = isoInstant(event.end_date) ?? event.end_date;
       return {
         ...rest,
-        // Z-normalized daterange fields so search_events matches get_my_events /
-        // get_event, which also emit zoned instants via isoInstant.
+        // Emit zoned instants. /api/2.4 already returns …Z, so isoInstant is a
+        // no-op here; the fallback covers any non-zoned value. (get_event also
+        // emits zoned instants; get_my_events reads a different jsonapi path and
+        // is not guaranteed identical — do not assume cross-tool parity.)
         start_date: startNorm,
         end_date: endNorm,
         description: params.full_description

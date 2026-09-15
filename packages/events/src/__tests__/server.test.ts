@@ -504,6 +504,35 @@ describe("EventsServer", () => {
         }
       });
 
+      it("normalizes a NAIVE (no-zone) date before computing starts_in_hours (the fallback branch)", async () => {
+        // This is the case the refactor actually guards: a bare value must be
+        // treated as UTC (via isoInstant's Z-append) before new Date(), NOT as
+        // the runtime's local time. Feeding a naive value and asserting the UTC
+        // interpretation proves it, regardless of the machine's timezone.
+        const now = Date.parse("2026-08-06T10:00:00Z");
+        const nowSpy = vi.spyOn(Date, "now").mockReturnValue(now);
+        try {
+          mockHttpClient.get.mockResolvedValue({
+            status: 200,
+            data: [
+              { id: "8504", title: "OnDemand", start_date: "2026-08-06T13:00:00", end_date: "2026-08-06T14:00:00" },
+            ],
+          });
+          const result = await server["handleToolCall"]({
+            method: "tools/call",
+            params: { name: "search_events", arguments: {} },
+          });
+          const item = JSON.parse(result.content[0].text).items[0];
+          // isoInstant makes it 13:00:00Z → 3h after 10:00Z. If the code used the
+          // raw naive value, new Date() would parse it as local and this would
+          // drift by the runtime offset.
+          expect(item.starts_in_hours).toBe(3);
+          expect(item.start_date).toBe("2026-08-06T13:00:00Z");
+        } finally {
+          nowSpy.mockRestore();
+        }
+      });
+
       it("should parse comma-separated string tags", async () => {
         const eventsWithStringTags = [
           {
