@@ -1892,6 +1892,17 @@ describe("EventsServer", () => {
                 moderation_state: "published",
               },
             },
+            {
+              id: "uuid-3",
+              type: "eventinstance--instance",
+              attributes: {
+                title: "Already UTC",
+                // already-Z passthrough branch: must return unchanged.
+                date: [{ value: "2025-12-01T18:00:00Z", end_value: "2025-12-01T19:00:00Z" }],
+                status: true,
+                moderation_state: "published",
+              },
+            },
           ],
         });
         const server = new EventsServer();
@@ -1903,10 +1914,14 @@ describe("EventsServer", () => {
               params: { name: "get_my_events", arguments: { limit: 5 } },
             })
         );
-        const item = JSON.parse((result.content[0] as { text: string }).text).items[0];
+        const items = JSON.parse((result.content[0] as { text: string }).text).items;
+        const item = items[0];
         // 15:00 at -05:00 == 20:00 UTC; emitted as "…Z", no offset, no millis.
         expect(item.start_date).toBe("2025-11-11T20:00:00Z");
         expect(item.end_date).toBe("2025-11-11T21:00:00Z");
+        // already-Z value passes through unchanged (identity branch).
+        expect(items[1].start_date).toBe("2025-12-01T18:00:00Z");
+        expect(items[1].end_date).toBe("2025-12-01T19:00:00Z");
       } finally {
         if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
         else process.env.DRUPAL_API_URL = saved.url;
