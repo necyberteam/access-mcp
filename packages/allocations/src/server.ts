@@ -2059,14 +2059,9 @@ sort_by: "date_desc"
         ],
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error analyzing project funding: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-      };
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
+      return this.errorResponse(`Error analyzing project funding: ${handleApiError(error)}`);
     }
   }
 
@@ -2390,14 +2385,9 @@ sort_by: "date_desc"
         ],
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error finding funded projects: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-      };
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
+      return this.errorResponse(`Error finding funded projects: ${handleApiError(error)}`);
     }
   }
 
@@ -2739,14 +2729,11 @@ sort_by: "date_desc"
         ],
       };
     } catch (error) {
-      return {
-        content: [
-          {
-            type: "text" as const,
-            text: `Error generating institutional funding profile: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        ],
-      };
+      const authError = this.drupalAuthError(error);
+      if (authError) return authError;
+      return this.errorResponse(
+        `Error generating institutional funding profile: ${handleApiError(error)}`
+      );
     }
   }
 
