@@ -1921,6 +1921,72 @@ describe("EventsServer", () => {
         else process.env.DRUPAL_PASSWORD = saved.pass;
       }
     });
+
+    it("canonicalizes an offset-bearing daterange to UTC Z (matches search_events/get_event form)", async () => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        // The real jsonapi view emits offset-bearing values (site-local clock +
+        // its offset), e.g. 15:00:00-05:00. That's a correct instant but a
+        // different string form than the flat read tools' "…Z". Canonicalize it.
+        mockGet.mockResolvedValue({
+          data: [
+            {
+              id: "uuid-2",
+              type: "eventinstance--instance",
+              attributes: {
+                title: "Chicago Workshop",
+                date: [{ value: "2025-11-11T15:00:00-05:00", end_value: "2025-11-11T16:00:00-05:00" }],
+                status: true,
+                moderation_state: "published",
+              },
+            },
+            {
+              id: "uuid-3",
+              type: "eventinstance--instance",
+              attributes: {
+                title: "Already UTC",
+                // already-Z passthrough branch: must return unchanged.
+                date: [{ value: "2025-12-01T18:00:00Z", end_value: "2025-12-01T19:00:00Z" }],
+                status: true,
+                moderation_state: "published",
+              },
+            },
+          ],
+        });
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () =>
+            server["handleToolCall"]({
+              method: "tools/call",
+              params: { name: "get_my_events", arguments: { limit: 5 } },
+            })
+        );
+        const items = JSON.parse((result.content[0] as { text: string }).text).items;
+        const item = items[0];
+        // 15:00 at -05:00 == 20:00 UTC; emitted as "…Z", no offset, no millis.
+        expect(item.start_date).toBe("2025-11-11T20:00:00Z");
+        expect(item.end_date).toBe("2025-11-11T21:00:00Z");
+        // already-Z value passes through unchanged (identity branch).
+        expect(items[1].start_date).toBe("2025-12-01T18:00:00Z");
+        expect(items[1].end_date).toBe("2025-12-01T19:00:00Z");
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
   });
 
   // ---------------------------------------------------------------------------

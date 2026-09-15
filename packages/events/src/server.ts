@@ -125,6 +125,26 @@ export function isoInstant(value: string | undefined | null): string | undefined
   return /[Z+-]\d{2}:?\d{2}$|Z$/.test(value) ? value : `${value}Z`;
 }
 
+/**
+ * Canonicalize a daterange value to a UTC "…Z" instant, whatever zone form it
+ * arrives in — so all read tools emit one uniform shape. Three cases:
+ *  - already "…Z": returned unchanged.
+ *  - offset-bearing ("…-05:00"): a correct instant, but a different string form;
+ *    convert to the equivalent UTC "…Z" (e.g. 15:00:00-05:00 → 20:00:00Z).
+ *  - naive (no zone): mark as UTC by appending "Z" (Drupal stores daterange in
+ *    UTC), NOT via new Date(), which would parse a naive string as local time.
+ * Returns undefined for a missing value; falls back to the raw value if a zoned
+ * string somehow fails to parse (belt and suspenders — never throws).
+ */
+export function isoInstantUtc(value: string | undefined | null): string | undefined {
+  if (!value) return undefined;
+  const zoned = /[Z+-]\d{2}:?\d{2}$|Z$/.test(value);
+  if (!zoned) return `${value}Z`; // naive → mark UTC (no local-time parse)
+  if (/Z$/.test(value)) return value; // already canonical
+  const ms = Date.parse(value); // offset-bearing → convert to UTC Z
+  return Number.isNaN(ms) ? value : new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
 export function compactDescription(
   raw: string | undefined,
   maxChars: number = DESCRIPTION_MAX_CHARS
@@ -1122,8 +1142,11 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
         id: item.id,
         type: item.type,
         title: attrs.title,
-        start_date: isoInstant(dateRange?.value),
-        end_date: isoInstant(dateRange?.end_value),
+        // The jsonapi view emits offset-bearing values (e.g. "…-05:00");
+        // canonicalize to UTC "…Z" so get_my_events matches search_events /
+        // get_event's date form. Correct instant either way — this is uniformity.
+        start_date: isoInstantUtc(dateRange?.value),
+        end_date: isoInstantUtc(dateRange?.end_value),
         status: attrs.moderation_state,
       };
     });
