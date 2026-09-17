@@ -10,6 +10,7 @@ import {
   DrupalAuthProvider,
   getRequestContext,
   fetchAllPages,
+  buildPagination,
 } from "@access-mcp/shared";
 import { CorpusCache, type CorpusSnapshot } from "./corpus-cache.js";
 import { resolveInstitution, type AliasTable } from "./institution-resolver.js";
@@ -69,6 +70,7 @@ interface SearchProjectsArgs {
   date_range?: { start_date?: string; end_date?: string };
   min_allocation?: number;
   sort_by?: string;
+  offset?: number;
   fields?: string[];
 }
 
@@ -421,8 +423,13 @@ export class AllocationsServer extends BaseAccessServer {
             },
             limit: {
               type: "number",
-              description: "Maximum number of results to return (default: 20, max: 100)",
+              description: "Maximum number of results to return (default: 20, max: 500)",
               default: 20,
+            },
+            offset: {
+              type: "number",
+              description: "Number of results to skip, for paging past the first `limit`. Default 0.",
+              default: 0,
             },
             fields: {
               type: "array",
@@ -911,12 +918,28 @@ sort_by: "date_desc"
 
     // List projects by resource
     if (args.resource_name && !args.query) {
-      return await this.listProjectsByResource(args.resource_name, args.limit, args.fields);
+      return await this.listProjectsByResource(
+        args.resource_name,
+        args.limit,
+        args.fields,
+        args.date_range,
+        args.min_allocation,
+        args.sort_by,
+        args.offset ?? 0
+      );
     }
 
     // List projects by field (when field provided without query)
     if (args.field_of_science && !args.query && !args.resource_name && !args.allocation_type) {
-      return await this.listProjectsByField(args.field_of_science, args.limit, args.fields);
+      return await this.listProjectsByField(
+        args.field_of_science,
+        args.limit,
+        args.fields,
+        args.date_range,
+        args.min_allocation,
+        args.sort_by,
+        args.offset ?? 0
+      );
     }
 
     // List/filter projects by allocation_type (when provided without query)
@@ -925,7 +948,11 @@ sort_by: "date_desc"
         args.allocation_type,
         args.field_of_science,
         args.limit,
-        args.fields
+        args.fields,
+        args.date_range,
+        args.min_allocation,
+        args.sort_by,
+        args.offset ?? 0
       );
     }
 
@@ -939,7 +966,8 @@ sort_by: "date_desc"
         args.date_range,
         args.min_allocation,
         args.sort_by,
-        args.fields
+        args.fields,
+        args.offset ?? 0
       );
     }
 
@@ -970,33 +998,32 @@ sort_by: "date_desc"
     return await this.findFundedProjects(args.pi_name, args.field_of_science, args.limit || 10);
   }
 
-  private async searchProjects(
-    query: string,
-    fieldOfScience?: string,
-    allocationType?: string,
-    limit: number = 20,
-    dateRange?: { start_date?: string; end_date?: string },
-    minAllocation?: number,
-    sortBy: string = "relevance",
-    fields?: string[]
-  ) {
-    // Input validation
-    if (!query || query.trim().length === 0) {
-      throw new Error("Search query cannot be empty");
+  /**
+   * Apply the date-range/min-allocation corpus filters shared by every
+   * search_projects routing branch. Extracted verbatim from the query
+   * branch's inline filter block — same truthiness gates, same comparisons —
+   * so `applied` only gains a key when the corresponding gate actually fires
+   * (e.g. `minAllocation: 0` is treated as unset, matching the pre-extraction
+   * behavior).
+   */
+  private applyCorpusFilters(
+    records: Project[],
+    filters: {
+      dateRange?: { start_date?: string; end_date?: string };
+      minAllocation?: number;
+    }
+  ): { filtered: Project[]; applied: Record<string, unknown> } {
+    const { dateRange, minAllocation } = filters;
+    const applied: Record<string, unknown> = {};
+
+    if (dateRange) {
+      applied.date_range = dateRange;
+    }
+    if (minAllocation) {
+      applied.min_allocation = minAllocation;
     }
 
-    if (limit > 100) limit = 100; // Cap at 100
-
-    // Parse advanced search query
-    const searchTerms = this.parseAdvancedQuery(query);
-
-    // Score/filter over the COMPLETE corpus, not a page-capped window — a match
-    // whose abstract sits past the old cap was previously invisible.
-    const snapshot = await this.ensureCorpus();
-    const allProjects = snapshot.records;
-
-    // Apply filters
-    const filteredProjects = allProjects.filter((project) => {
+    const filtered = records.filter((project) => {
       // Date range filter
       if (dateRange) {
         const projectStart = new Date(project.beginDate);
@@ -1022,6 +1049,39 @@ sort_by: "date_desc"
       return true;
     });
 
+    return { filtered, applied };
+  }
+
+  private async searchProjects(
+    query: string,
+    fieldOfScience?: string,
+    allocationType?: string,
+    limit?: number,
+    dateRange?: { start_date?: string; end_date?: string },
+    minAllocation?: number,
+    sortBy: string = "relevance",
+    fields?: string[],
+    offset: number = 0
+  ) {
+    // Input validation
+    if (!query || query.trim().length === 0) {
+      throw new Error("Search query cannot be empty");
+    }
+
+    // Parse advanced search query
+    const searchTerms = this.parseAdvancedQuery(query);
+
+    // Score/filter over the COMPLETE corpus, not a page-capped window — a match
+    // whose abstract sits past the old cap was previously invisible.
+    const snapshot = await this.ensureCorpus();
+    const allProjects = snapshot.records;
+
+    // Apply filters
+    const { filtered: filteredProjects, applied } = this.applyCorpusFilters(allProjects, {
+      dateRange,
+      minAllocation,
+    });
+
     // Score and filter projects based on search terms
     const scoredResults = filteredProjects
       .map((project) => ({
@@ -1037,7 +1097,17 @@ sort_by: "date_desc"
 
     // Apply sorting
     const sortedAll = this.applySorting(scoredResults, sortBy);
-    const sortedResults = sortedAll.slice(0, limit);
+    const pagination = buildPagination({
+      requestedLimit: limit,
+      offset,
+      total: sortedAll.length,
+      defaultLimit: 20,
+    });
+    // Slice with pagination.offset (validated), not the raw offset param — a
+    // negative/NaN offset must not reach Array.slice, which treats negative
+    // indices as "from the end" and would silently hand back the tail of the
+    // corpus as if it were an authoritative forward page.
+    const sortedResults = sortedAll.slice(pagination.offset, pagination.offset + pagination.limit);
 
     // Return in universal {total, items} format
     const items = sortedResults.map(({ project, score }) => ({
@@ -1045,21 +1115,22 @@ sort_by: "date_desc"
       relevance_score: score > 0 ? score : undefined,
     }));
 
+    // field_of_science / allocation_type are hard filters applied inside
+    // calculateAdvancedSearchScore (a non-match scores 0 and is excluded), so
+    // they must be disclosed here too — otherwise a caller sees a narrowed
+    // result set with no filter reported, mirroring listProjectsByAllocationType.
+    const queryFilters = {
+      ...(fieldOfScience && { field_of_science: fieldOfScience }),
+      ...(allocationType && { allocation_type: allocationType }),
+      ...applied,
+    };
+
     const envelope = {
       total: sortedAll.length,
       items: items,
       metadata: {
-        pagination: {
-          // Echo the requested limit, not items.length — the agent uses this
-          // to size follow-up pagination requests, and items.length collapses
-          // the cap-vs-actual distinction when the universe is smaller than
-          // the requested cap.
-          limit,
-          offset: 0,
-          // Scoring runs over the complete corpus, so total is the true match
-          // count; more remain only when it exceeds what we returned.
-          has_more: sortedAll.length > items.length,
-        },
+        pagination,
+        filters_applied: queryFilters,
         query_relevance: "loose_match" as const,
         fetched_at: new Date(snapshot.fetchedAt).toISOString(),
         ...(snapshot.truncated ? { corpus_truncated: true } : {}),
@@ -1326,7 +1397,15 @@ sort_by: "date_desc"
     return undefined;
   }
 
-  private async listProjectsByField(fieldOfScience: string, limit: number = 20, fields?: string[]) {
+  private async listProjectsByField(
+    fieldOfScience: string,
+    limit?: number,
+    fields?: string[],
+    dateRange?: { start_date?: string; end_date?: string },
+    minAllocation?: number,
+    sortBy: string = "relevance",
+    offset: number = 0,
+  ) {
     // Input validation
     if (
       !fieldOfScience ||
@@ -1336,15 +1415,27 @@ sort_by: "date_desc"
       throw new Error("Field of science must be a non-empty string");
     }
 
-    if (limit < 1 || limit > 200) {
-      throw new Error("Limit must be between 1 and 200");
-    }
+    // limit < 1 is validated centrally by buildPagination (via corpusListingEnvelope).
 
     const snapshot = await this.ensureCorpus();
     const needle = fieldOfScience.toLowerCase();
     const matched = snapshot.records.filter((project) => project.fos.toLowerCase().includes(needle));
 
-    const envelope = this.corpusListingEnvelope(matched, snapshot, limit);
+    const { filtered, applied } = this.applyCorpusFilters(matched, {
+      dateRange,
+      minAllocation,
+    });
+    const wrapped = filtered.map((project) => ({ project, score: 0 }));
+    const sorted = this.applySorting(wrapped, sortBy).map((w) => w.project);
+
+    const base = this.corpusListingEnvelope(sorted, snapshot, limit, offset);
+    const envelope = {
+      ...base,
+      metadata: {
+        filters_applied: applied,
+        ...base.metadata,
+      },
+    };
 
     return {
       content: [
@@ -1362,8 +1453,12 @@ sort_by: "date_desc"
   private async listProjectsByAllocationType(
     allocationType: string,
     fieldOfScience?: string,
-    limit: number = 20,
-    fields?: string[]
+    limit?: number,
+    fields?: string[],
+    dateRange?: { start_date?: string; end_date?: string },
+    minAllocation?: number,
+    sortBy: string = "relevance",
+    offset: number = 0,
   ) {
     // Input validation
     if (
@@ -1374,9 +1469,7 @@ sort_by: "date_desc"
       throw new Error("Allocation type must be a non-empty string");
     }
 
-    if (limit < 1 || limit > 200) {
-      throw new Error("Limit must be between 1 and 200");
-    }
+    // limit < 1 is validated centrally by buildPagination (via corpusListingEnvelope).
 
     const snapshot = await this.ensureCorpus();
     const typeNeedle = allocationType.toLowerCase();
@@ -1387,13 +1480,21 @@ sort_by: "date_desc"
       return typeMatch && fieldMatch;
     });
 
-    const base = this.corpusListingEnvelope(matched, snapshot, limit);
+    const { filtered, applied } = this.applyCorpusFilters(matched, {
+      dateRange,
+      minAllocation,
+    });
+    const wrapped = filtered.map((project) => ({ project, score: 0 }));
+    const sorted = this.applySorting(wrapped, sortBy).map((w) => w.project);
+
+    const base = this.corpusListingEnvelope(sorted, snapshot, limit, offset);
     const envelope = {
       ...base,
       metadata: {
         filters_applied: {
           allocation_type: allocationType,
           ...(fieldOfScience && { field_of_science: fieldOfScience }),
+          ...applied,
         },
         ...base.metadata,
       },
@@ -1411,25 +1512,27 @@ sort_by: "date_desc"
 
   /**
    * Build a listing envelope from the COMPLETE filtered set. `total` is the true
-   * match count over the whole corpus; `items` is sliced to `limit`. Surfaces
-   * corpus freshness (fetchedAt) and, if the corpus was itself truncated at
-   * hardCap, a truncated flag so a partial corpus is never reported as complete.
+   * match count over the whole corpus; `items` is the `[offset, offset+limit)`
+   * window. Surfaces corpus freshness (fetchedAt) and, if the corpus was itself
+   * truncated at hardCap, a truncated flag so a partial corpus is never reported
+   * as complete.
    */
   private corpusListingEnvelope(
     matched: Project[],
     snapshot: CorpusSnapshot<Project>,
-    limit: number,
+    requestedLimit: number | undefined,
+    offset: number,
+    defaultLimit: number = 20,
   ) {
-    const items = matched.slice(0, limit);
+    const pagination = buildPagination({ requestedLimit, offset, total: matched.length, defaultLimit });
+    // Slice with pagination.offset (validated), not the raw offset param — see
+    // the matching comment in searchProjects for why this matters.
+    const items = matched.slice(pagination.offset, pagination.offset + pagination.limit);
     return {
       total: matched.length,
       items,
       metadata: {
-        pagination: {
-          limit,
-          offset: 0,
-          has_more: matched.length > items.length,
-        },
+        pagination,
         query_relevance: "loose_match" as const,
         fetched_at: new Date(snapshot.fetchedAt).toISOString(),
         ...(snapshot.truncated ? { corpus_truncated: true } : {}),
@@ -1441,15 +1544,21 @@ sort_by: "date_desc"
     };
   }
 
-  private async listProjectsByResource(resourceName: string, limit: number = 20, fields?: string[]) {
+  private async listProjectsByResource(
+    resourceName: string,
+    limit?: number,
+    fields?: string[],
+    dateRange?: { start_date?: string; end_date?: string },
+    minAllocation?: number,
+    sortBy: string = "relevance",
+    offset: number = 0,
+  ) {
     // Input validation
     if (!resourceName || typeof resourceName !== "string" || resourceName.trim().length === 0) {
       throw new Error("Resource name must be a non-empty string");
     }
 
-    if (limit < 1 || limit > 200) {
-      throw new Error("Limit must be between 1 and 200");
-    }
+    // limit < 1 is validated centrally by buildPagination (via corpusListingEnvelope).
 
     // Filter the COMPLETE corpus so `total` is the true match count (past the
     // old 10-page cap, e.g. PNRP's projects that lived on later pages).
@@ -1459,7 +1568,21 @@ sort_by: "date_desc"
       project.resources.some((resource) => resource.resourceName.toLowerCase().includes(needle)),
     );
 
-    const envelope = this.corpusListingEnvelope(matched, snapshot, limit);
+    const { filtered, applied } = this.applyCorpusFilters(matched, {
+      dateRange,
+      minAllocation,
+    });
+    const wrapped = filtered.map((project) => ({ project, score: 0 }));
+    const sorted = this.applySorting(wrapped, sortBy).map((w) => w.project);
+
+    const base = this.corpusListingEnvelope(sorted, snapshot, limit, offset);
+    const envelope = {
+      ...base,
+      metadata: {
+        filters_applied: applied,
+        ...base.metadata,
+      },
+    };
 
     return {
       content: [
