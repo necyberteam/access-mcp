@@ -3,6 +3,7 @@ import {
   handleApiError,
   projectFields,
   normalizeGlobalResourceId,
+  buildPagination,
   Tool,
   Resource,
   CallToolResult,
@@ -93,6 +94,7 @@ interface SearchSoftwareArgs {
   fuzzy?: boolean;
   include_ai_metadata?: boolean;
   limit?: number;
+  offset?: number;
   fields?: string[];
 }
 
@@ -100,6 +102,7 @@ interface ListAllSoftwareArgs {
   resource?: string;
   include_ai_metadata?: boolean;
   limit?: number;
+  offset?: number;
   fields?: string[];
 }
 
@@ -212,6 +215,11 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               description: "Max results (default: 100)",
               default: 100,
             },
+            offset: {
+              type: "number",
+              description:
+                "Number of results to skip, for paging past the first `limit`. Default 0.",
+            },
             fields: {
               type: "array",
               items: { type: "string" },
@@ -259,6 +267,11 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
               type: "number",
               description: "Max results (default: 100)",
               default: 100,
+            },
+            offset: {
+              type: "number",
+              description:
+                "Number of results to skip, for paging past the first `limit`. Default 0.",
             },
             fields: {
               type: "array",
@@ -514,7 +527,8 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   }
 
   private async searchSoftware(args: SearchSoftwareArgs): Promise<CallToolResult> {
-    const { query, resource, fuzzy = true, include_ai_metadata = true, limit = 100, fields } = args;
+    const { query, resource, fuzzy = true, include_ai_metadata = true, limit, offset, fields } =
+      args;
 
     // Build query params
     const params: SoftwareQueryParams = {};
@@ -541,8 +555,15 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       // API returns results pre-sorted: exact > starts-with > contains > other (alphabetically within each)
       const results = await this.queryApi(params);
 
-      // Apply limit
-      const limitedResults = results.slice(0, limit);
+      const pagination = buildPagination({
+        requestedLimit: limit,
+        offset: offset ?? 0,
+        total: results.length,
+        defaultLimit: 100,
+      });
+
+      // Apply pagination
+      const limitedResults = results.slice(pagination.offset, pagination.offset + pagination.limit);
 
       // Transform results
       const transformedResults = limitedResults.map((item) =>
@@ -565,11 +586,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
                 },
               }
             : {}),
-          pagination: {
-            limit,
-            offset: 0,
-            has_more: limitedResults.length < results.length,
-          },
+          pagination,
           query_relevance: fuzzy ? ("loose_match" as const) : ("exact" as const),
         },
         documentation: {
@@ -591,7 +608,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
   }
 
   private async listAllSoftware(args: ListAllSoftwareArgs): Promise<CallToolResult> {
-    const { resource, include_ai_metadata = false, limit = 100, fields } = args;
+    const { resource, include_ai_metadata = false, limit, offset, fields } = args;
 
     const params: SoftwareQueryParams = {
       software: ["*"],
@@ -606,8 +623,15 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
     try {
       const results = await this.queryApi(params);
 
-      // Apply limit
-      const limitedResults = results.slice(0, limit);
+      const pagination = buildPagination({
+        requestedLimit: limit,
+        offset: offset ?? 0,
+        total: results.length,
+        defaultLimit: 100,
+      });
+
+      // Apply pagination
+      const limitedResults = results.slice(pagination.offset, pagination.offset + pagination.limit);
 
       // Transform results
       const transformedResults = limitedResults.map((item) =>
@@ -615,7 +639,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
       );
 
       const envelope = {
-        total: transformedResults.length,
+        total: results.length,
         items: transformedResults,
         metadata: {
           filters_applied: {
@@ -628,11 +652,7 @@ export class SoftwareDiscoveryServer extends BaseAccessServer {
                 },
               }
             : {}),
-          pagination: {
-            limit,
-            offset: 0,
-            has_more: limitedResults.length < results.length,
-          },
+          pagination,
         },
         documentation: {
           links: this.listingLinks("list"),

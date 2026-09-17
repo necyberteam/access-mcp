@@ -1023,4 +1023,55 @@ describe("SoftwareDiscoveryServer", () => {
       expect((listTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
     });
   });
+
+  describe("pagination", () => {
+    function mockResults(items: unknown[]) {
+      mockSdsClient.post.mockResolvedValue({ status: 200, data: { data: items } });
+    }
+
+    it("search_software honors offset", async () => {
+      mockResults(Array.from({ length: 25 }, (_, i) => ({ software_name: `sw${i}` })));
+
+      const page0Result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 10, offset: 0 },
+        },
+      });
+      const page0 = JSON.parse((page0Result.content[0] as TextContent).text);
+
+      const page1Result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 10, offset: 10 },
+        },
+      });
+      const page1 = JSON.parse((page1Result.content[0] as TextContent).text);
+
+      expect(page0.metadata.pagination.offset).toBe(0);
+      expect(page1.metadata.pagination.offset).toBe(10);
+      expect(page1.items[0]).not.toEqual(page0.items[0]);
+      expect(page0.metadata.pagination.total).toBe(25); // true full count
+      expect(page0.metadata.pagination.has_more).toBe(true);
+    });
+
+    it("list_all_software total is the full match count, not the page size", async () => {
+      mockResults(Array.from({ length: 25 }, (_, i) => ({ software_name: `sw${i}` })));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "list_all_software",
+          arguments: { limit: 10 },
+        },
+      });
+      const res = JSON.parse((result.content[0] as TextContent).text);
+
+      expect(res.metadata.pagination.total).toBe(25); // NOT 10 — was transformedResults.length
+      expect(res.total).toBe(25); // top-level total also full count
+      expect(res.metadata.pagination.has_more).toBe(true);
+    });
+  });
 });
