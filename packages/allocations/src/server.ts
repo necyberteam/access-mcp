@@ -1103,7 +1103,11 @@ sort_by: "date_desc"
       total: sortedAll.length,
       defaultLimit: 20,
     });
-    const sortedResults = sortedAll.slice(offset, offset + pagination.limit);
+    // Slice with pagination.offset (validated), not the raw offset param — a
+    // negative/NaN offset must not reach Array.slice, which treats negative
+    // indices as "from the end" and would silently hand back the tail of the
+    // corpus as if it were an authoritative forward page.
+    const sortedResults = sortedAll.slice(pagination.offset, pagination.offset + pagination.limit);
 
     // Return in universal {total, items} format
     const items = sortedResults.map(({ project, score }) => ({
@@ -1111,12 +1115,22 @@ sort_by: "date_desc"
       relevance_score: score > 0 ? score : undefined,
     }));
 
+    // field_of_science / allocation_type are hard filters applied inside
+    // calculateAdvancedSearchScore (a non-match scores 0 and is excluded), so
+    // they must be disclosed here too — otherwise a caller sees a narrowed
+    // result set with no filter reported, mirroring listProjectsByAllocationType.
+    const queryFilters = {
+      ...(fieldOfScience && { field_of_science: fieldOfScience }),
+      ...(allocationType && { allocation_type: allocationType }),
+      ...applied,
+    };
+
     const envelope = {
       total: sortedAll.length,
       items: items,
       metadata: {
         pagination,
-        filters_applied: applied,
+        filters_applied: queryFilters,
         query_relevance: "loose_match" as const,
         fetched_at: new Date(snapshot.fetchedAt).toISOString(),
         ...(snapshot.truncated ? { corpus_truncated: true } : {}),
@@ -1401,9 +1415,7 @@ sort_by: "date_desc"
       throw new Error("Field of science must be a non-empty string");
     }
 
-    if (limit !== undefined && limit < 1) {
-      throw new Error("Limit must be at least 1");
-    }
+    // limit < 1 is validated centrally by buildPagination (via corpusListingEnvelope).
 
     const snapshot = await this.ensureCorpus();
     const needle = fieldOfScience.toLowerCase();
@@ -1457,9 +1469,7 @@ sort_by: "date_desc"
       throw new Error("Allocation type must be a non-empty string");
     }
 
-    if (limit !== undefined && limit < 1) {
-      throw new Error("Limit must be at least 1");
-    }
+    // limit < 1 is validated centrally by buildPagination (via corpusListingEnvelope).
 
     const snapshot = await this.ensureCorpus();
     const typeNeedle = allocationType.toLowerCase();
@@ -1515,7 +1525,9 @@ sort_by: "date_desc"
     defaultLimit: number = 20,
   ) {
     const pagination = buildPagination({ requestedLimit, offset, total: matched.length, defaultLimit });
-    const items = matched.slice(offset, offset + pagination.limit);
+    // Slice with pagination.offset (validated), not the raw offset param — see
+    // the matching comment in searchProjects for why this matters.
+    const items = matched.slice(pagination.offset, pagination.offset + pagination.limit);
     return {
       total: matched.length,
       items,
@@ -1546,9 +1558,7 @@ sort_by: "date_desc"
       throw new Error("Resource name must be a non-empty string");
     }
 
-    if (limit !== undefined && limit < 1) {
-      throw new Error("Limit must be at least 1");
-    }
+    // limit < 1 is validated centrally by buildPagination (via corpusListingEnvelope).
 
     // Filter the COMPLETE corpus so `total` is the true match count (past the
     // old 10-page cap, e.g. PNRP's projects that lived on later pages).

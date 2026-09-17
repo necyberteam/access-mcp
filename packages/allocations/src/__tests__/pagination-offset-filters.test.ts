@@ -274,3 +274,213 @@ describe("search_projects offset + filters + honest pagination metadata", () => 
     expect(res.items.map((p: { projectId: number }) => p.projectId)).toEqual([2, 1]);
   });
 });
+
+describe("adversarial offset/limit input — identical behavior across branches", () => {
+  const recs: Project[] = Array.from({ length: 25 }, (_, i) => ({
+    projectId: i + 1,
+    requestNumber: `R${i}`,
+    requestTitle: `Machine learning project ${i}`,
+    pi: "x",
+    piInstitution: "y",
+    fos: "Physics",
+    abstract: "machine learning research",
+    allocationType: "Explore",
+    beginDate: "2024-01-01",
+    endDate: "2026-01-01",
+    resources: [],
+  }));
+
+  it("offset:-3 does not return the tail on the query branch (coerced to 0)", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, {
+      query: "machine learning",
+      limit: 10,
+      offset: -3,
+    });
+
+    expect(res.metadata.pagination.offset).toBe(0);
+    expect(res.items[0].projectId).toBe(1);
+  });
+
+  it("offset:-3 does not return the tail on a list branch (coerced to 0)", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, {
+      field_of_science: "Physics",
+      limit: 10,
+      offset: -3,
+    });
+
+    expect(res.metadata.pagination.offset).toBe(0);
+    expect(res.items[0].projectId).toBe(1);
+  });
+
+  it("offset:NaN behaves as offset 0 on the query branch", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, {
+      query: "machine learning",
+      limit: 10,
+      offset: NaN,
+    });
+
+    expect(res.metadata.pagination.offset).toBe(0);
+  });
+
+  it("offset:NaN behaves as offset 0 on a list branch", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, {
+      field_of_science: "Physics",
+      limit: 10,
+      offset: NaN,
+    });
+
+    expect(res.metadata.pagination.offset).toBe(0);
+  });
+
+  it("limit:0 errors identically on the query branch", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, { query: "machine learning", limit: 0 });
+
+    expect(res.status).toBe("error");
+    expect(res.error.message).toMatch(/limit must be at least 1/i);
+  });
+
+  it("limit:0 errors identically on a list branch", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, { field_of_science: "Physics", limit: 0 });
+
+    expect(res.status).toBe("error");
+    expect(res.error.message).toMatch(/limit must be at least 1/i);
+  });
+
+  it("limit:-5 errors identically on the query branch", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, { query: "machine learning", limit: -5 });
+
+    expect(res.status).toBe("error");
+    expect(res.error.message).toMatch(/limit must be at least 1/i);
+  });
+
+  it("limit:-5 errors identically on a list branch", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, { field_of_science: "Physics", limit: -5 });
+
+    expect(res.status).toBe("error");
+    expect(res.error.message).toMatch(/limit must be at least 1/i);
+  });
+
+  it("limit:5.5 truncates to 5 on the query branch", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, { query: "machine learning", limit: 5.5 });
+
+    expect(res.metadata.pagination.limit).toBe(5);
+    expect(res.items).toHaveLength(5);
+  });
+
+  it("limit:5.5 truncates to 5 on a list branch", async () => {
+    const server = new AllocationsServer();
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, { field_of_science: "Physics", limit: 5.5 });
+
+    expect(res.metadata.pagination.limit).toBe(5);
+    expect(res.items).toHaveLength(5);
+  });
+});
+
+describe("query-branch filters_applied discloses hard filters (Finding 4)", () => {
+  it("discloses field_of_science when passed alongside a query", async () => {
+    const server = new AllocationsServer();
+    const recs: Project[] = [
+      {
+        projectId: 1,
+        requestNumber: "R1",
+        requestTitle: "GPU accelerated physics simulation",
+        pi: "x",
+        piInstitution: "y",
+        fos: "Physics",
+        abstract: "gpu simulation research",
+        allocationType: "Explore",
+        beginDate: "2024-01-01",
+        endDate: "2026-01-01",
+        resources: [],
+      },
+      {
+        projectId: 2,
+        requestNumber: "R2",
+        requestTitle: "GPU accelerated bio simulation",
+        pi: "x",
+        piInstitution: "y",
+        fos: "Biological Sciences",
+        abstract: "gpu simulation research",
+        allocationType: "Explore",
+        beginDate: "2024-01-01",
+        endDate: "2026-01-01",
+        resources: [],
+      },
+    ];
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, { query: "gpu", field_of_science: "Physics" });
+
+    // The non-Physics match is excluded by the hard filter inside
+    // calculateAdvancedSearchScore, so the filter must be disclosed.
+    expect(res.items.map((p: { projectId: number }) => p.projectId)).toEqual([1]);
+    expect(res.metadata.filters_applied).toHaveProperty("field_of_science", "Physics");
+  });
+
+  it("discloses allocation_type when passed alongside a query", async () => {
+    const server = new AllocationsServer();
+    const recs: Project[] = [
+      {
+        projectId: 1,
+        requestNumber: "R1",
+        requestTitle: "GPU project explore",
+        pi: "x",
+        piInstitution: "y",
+        fos: "Physics",
+        abstract: "gpu research",
+        allocationType: "Explore",
+        beginDate: "2024-01-01",
+        endDate: "2026-01-01",
+        resources: [],
+      },
+      {
+        projectId: 2,
+        requestNumber: "R2",
+        requestTitle: "GPU project discover",
+        pi: "x",
+        piInstitution: "y",
+        fos: "Physics",
+        abstract: "gpu research",
+        allocationType: "Discover",
+        beginDate: "2024-01-01",
+        endDate: "2026-01-01",
+        resources: [],
+      },
+    ];
+    stubCorpus(server, recs);
+
+    const res = await callSearchProjects(server, { query: "gpu", allocation_type: "Explore" });
+
+    expect(res.items.map((p: { projectId: number }) => p.projectId)).toEqual([1]);
+    expect(res.metadata.filters_applied).toHaveProperty("allocation_type", "Explore");
+  });
+});

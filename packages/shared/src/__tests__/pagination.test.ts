@@ -31,4 +31,51 @@ describe("buildPagination", () => {
     expect(p.has_more).toBe(false); // 40 < 100
     expect("capped" in p).toBe(false);
   });
+
+  describe("adversarial offset input", () => {
+    it("coerces a negative offset to 0 rather than slicing from the end", () => {
+      const p = buildPagination({ requestedLimit: 10, offset: -3, total: 25, defaultLimit: 20 });
+      expect(p.offset).toBe(0);
+    });
+
+    it("coerces NaN offset to 0", () => {
+      const p = buildPagination({ requestedLimit: 10, offset: NaN, total: 25, defaultLimit: 20 });
+      expect(p.offset).toBe(0);
+    });
+
+    it("coerces Infinity offset to 0", () => {
+      const p = buildPagination({ requestedLimit: 10, offset: Infinity, total: 25, defaultLimit: 20 });
+      expect(p.offset).toBe(0);
+    });
+
+    it("truncates a non-integer offset", () => {
+      const p = buildPagination({ requestedLimit: 10, offset: 2.9, total: 25, defaultLimit: 20 });
+      expect(p.offset).toBe(2);
+    });
+  });
+
+  describe("adversarial limit input", () => {
+    it("throws for limit: 0", () => {
+      expect(() =>
+        buildPagination({ requestedLimit: 0, offset: 0, total: 25, defaultLimit: 20 })
+      ).toThrow(/limit must be at least 1/i);
+    });
+
+    it("throws for a negative limit", () => {
+      expect(() =>
+        buildPagination({ requestedLimit: -5, offset: 0, total: 25, defaultLimit: 20 })
+      ).toThrow(/limit must be at least 1/i);
+    });
+
+    it("throws for NaN limit", () => {
+      expect(() =>
+        buildPagination({ requestedLimit: NaN, offset: 0, total: 25, defaultLimit: 20 })
+      ).toThrow(/limit must be at least 1/i);
+    });
+
+    it("truncates a fractional limit instead of echoing it back", () => {
+      const p = buildPagination({ requestedLimit: 5.5, offset: 0, total: 25, defaultLimit: 20 });
+      expect(p.limit).toBe(5);
+    });
+  });
 });
