@@ -7,6 +7,7 @@ import {
   CallToolResult,
   resolveResourceId,
   buildPagination,
+  MAX_LIMIT,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -234,9 +235,9 @@ export class SystemStatusServer extends BaseAccessServer {
     // Time-based routing
     switch (time) {
       case "current":
-        return await this.getCurrentOutages(resource, outage_type, fields);
+        return await this.getCurrentOutages(resource, outage_type, limit, offset, fields);
       case "scheduled":
-        return await this.getScheduledMaintenance(resource, outage_type, fields);
+        return await this.getScheduledMaintenance(resource, outage_type, limit, offset, fields);
       case "past":
         return await this.getPastOutages(resource, outage_type, limit, offset, fields);
       case "all":
@@ -310,9 +311,25 @@ export class SystemStatusServer extends BaseAccessServer {
     }
   }
 
+  /**
+   * `limit`/`offset` are optional so the no-arg resource-read callers
+   * (accessci://outages/current) keep compiling and inherit the same
+   * documented ceiling as the tool path.
+   *
+   * BEHAVIOR CHANGE: this path was previously UNBOUNDED (no slice at all).
+   * Routing through buildPagination with defaultLimit: MAX_LIMIT (500)
+   * introduces a hard 500-item ceiling on a no-limit call. This is a
+   * deliberate trade-off, not "returns everything" — it returns up to
+   * MAX_LIMIT. It's safe because the active outage set is realistically far
+   * below 500, so no truncation happens in practice; if it ever did exceed
+   * 500, buildPagination reports has_more:true and capped:true, making the
+   * overflow loud and pageable instead of silently dropping items.
+   */
   private async getCurrentOutages(
     resourceFilter?: string,
     outageTypeFilter?: string,
+    limit?: number,
+    offset?: number,
     fields?: string[]
   ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
@@ -372,19 +389,28 @@ export class SystemStatusServer extends BaseAccessServer {
       };
     });
 
+    // total/aggregations describe the full filtered set; only items is paged.
+    const totalCurrentOutages = enhancedOutages.length;
+    const pagination = buildPagination({
+      requestedLimit: limit,
+      offset: offset ?? 0,
+      total: totalCurrentOutages,
+      defaultLimit: MAX_LIMIT,
+    });
+    const pagedOutages = enhancedOutages.slice(
+      pagination.offset,
+      pagination.offset + pagination.limit
+    );
+
     const summary = {
-      total: enhancedOutages.length,
-      items: enhancedOutages,
+      total: totalCurrentOutages,
+      items: pagedOutages,
       metadata: {
         aggregations: {
           affected_resources: Array.from(affectedResources),
           severity_counts: severityCounts,
         },
-        pagination: {
-          limit: enhancedOutages.length,
-          offset: 0,
-          has_more: false,
-        },
+        pagination,
       },
       documentation: {
         links: this.listingLinks("list"),
@@ -401,9 +427,26 @@ export class SystemStatusServer extends BaseAccessServer {
     };
   }
 
+  /**
+   * `limit`/`offset` are optional so the no-arg resource-read callers
+   * (accessci://outages/scheduled) keep compiling and inherit the same
+   * documented ceiling as the tool path.
+   *
+   * BEHAVIOR CHANGE: this path was previously UNBOUNDED (no slice at all).
+   * Routing through buildPagination with defaultLimit: MAX_LIMIT (500)
+   * introduces a hard 500-item ceiling on a no-limit call. This is a
+   * deliberate trade-off, not "returns everything" — it returns up to
+   * MAX_LIMIT. It's safe because the scheduled-maintenance set is
+   * realistically far below 500, so no truncation happens in practice; if it
+   * ever did exceed 500, buildPagination reports has_more:true and
+   * capped:true, making the overflow loud and pageable instead of silently
+   * dropping items.
+   */
   private async getScheduledMaintenance(
     resourceFilter?: string,
     outageTypeFilter?: string,
+    limit?: number,
+    offset?: number,
     fields?: string[]
   ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
@@ -477,20 +520,29 @@ export class SystemStatusServer extends BaseAccessServer {
       };
     });
 
+    // total/aggregations describe the full filtered set; only items is paged.
+    const totalScheduledMaintenance = enhancedMaintenance.length;
+    const pagination = buildPagination({
+      requestedLimit: limit,
+      offset: offset ?? 0,
+      total: totalScheduledMaintenance,
+      defaultLimit: MAX_LIMIT,
+    });
+    const pagedMaintenance = enhancedMaintenance.slice(
+      pagination.offset,
+      pagination.offset + pagination.limit
+    );
+
     const summary = {
-      total: enhancedMaintenance.length,
-      items: enhancedMaintenance,
+      total: totalScheduledMaintenance,
+      items: pagedMaintenance,
       metadata: {
         aggregations: {
           upcoming_24h: upcoming24h,
           upcoming_week: upcomingWeek,
           affected_resources: Array.from(affectedResources),
         },
-        pagination: {
-          limit: enhancedMaintenance.length,
-          offset: 0,
-          has_more: false,
-        },
+        pagination,
       },
       documentation: {
         links: this.listingLinks("list"),

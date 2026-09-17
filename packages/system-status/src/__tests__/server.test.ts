@@ -240,6 +240,91 @@ describe("SystemStatusServer", () => {
       expect(emergencyOutage.severity).toBe("high");
       expect(maintenanceOutage.severity).toBe("low");
     });
+
+    it("returns all active outages by default (no hidden outages)", async () => {
+      const manyOutages = Array(8)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockCurrentOutagesData[0],
+          id: `current-${i}`,
+          Subject: `Current outage ${i}`,
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyOutages },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "get_infrastructure_news", arguments: { time: "current" } },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.items).toHaveLength(8);
+      expect(response.metadata.pagination.total).toBe(8);
+      expect(response.metadata.pagination.has_more).toBe(false);
+    });
+
+    it("emits honest pagination metadata (not result-length as limit)", async () => {
+      const manyOutages = Array(8)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockCurrentOutagesData[0],
+          id: `current-${i}`,
+          Subject: `Current outage ${i}`,
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyOutages },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "get_infrastructure_news", arguments: { time: "current" } },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.metadata.pagination.limit).not.toBe(8);
+      expect(response.metadata.pagination.limit).toBe(500);
+      expect(response.metadata.pagination.offset).toBe(0);
+      expect(response.metadata.pagination.total).toBe(8);
+      expect(response.metadata.pagination.has_more).toBe(false);
+    });
+
+    it("honors an explicit small limit + offset", async () => {
+      const manyOutages = Array(8)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockCurrentOutagesData[0],
+          id: `current-${i}`,
+          Subject: `Current outage ${i}`,
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyOutages },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "current", limit: 3, offset: 3 },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.items).toHaveLength(3);
+      expect(response.items[0].Subject).toBe("Current outage 3");
+      expect(response.items[2].Subject).toBe("Current outage 5");
+      expect(response.metadata.pagination.total).toBe(8);
+      expect(response.metadata.pagination.has_more).toBe(true);
+    });
   });
 
   describe("getScheduledMaintenance", () => {
@@ -316,6 +401,67 @@ describe("SystemStatusServer", () => {
       const response = JSON.parse(content.text);
       expect(response.items[0].Subject).toBe("Earlier maintenance");
       expect(response.items[1].Subject).toBe("Later maintenance");
+    });
+
+    it("returns all scheduled maintenance by default with honest pagination", async () => {
+      const manyMaintenance = Array(8)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockFutureOutagesData[0],
+          id: `future-${i}`,
+          Subject: `Future maintenance ${i}`,
+          OutageStart: `2024-08-3${i % 1}T10:00:00Z`,
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyMaintenance },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: { name: "get_infrastructure_news", arguments: { time: "scheduled" } },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.items).toHaveLength(8);
+      expect(response.metadata.pagination.limit).toBe(500);
+      expect(response.metadata.pagination.offset).toBe(0);
+      expect(response.metadata.pagination.total).toBe(8);
+      expect(response.metadata.pagination.has_more).toBe(false);
+    });
+
+    it("honors an explicit small limit + offset on scheduled maintenance", async () => {
+      const manyMaintenance = Array(8)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockFutureOutagesData[0],
+          id: `future-${i}`,
+          Subject: `Future maintenance ${i}`,
+          OutageStart: new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyMaintenance },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "scheduled", limit: 3, offset: 3 },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.items).toHaveLength(3);
+      expect(response.items[0].Subject).toBe("Future maintenance 3");
+      expect(response.items[2].Subject).toBe("Future maintenance 5");
+      expect(response.metadata.pagination.total).toBe(8);
+      expect(response.metadata.pagination.has_more).toBe(true);
     });
   });
 
