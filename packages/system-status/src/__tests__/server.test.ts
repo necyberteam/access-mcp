@@ -983,4 +983,168 @@ describe("SystemStatusServer", () => {
       expect((tool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
     });
   });
+
+  describe("adversarial input handling", () => {
+    it("time=past coerces a negative offset forward to 0", async () => {
+      const manyOutages = Array(25)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockPastOutagesData[0],
+          id: `past-${i}`,
+          Subject: `Past outage ${i}`,
+          OutageEnd: new Date(Date.now() - (i + 3) * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyOutages },
+      });
+
+      const negativeResult = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 10, offset: -3 },
+        },
+      });
+      const negative = JSON.parse((negativeResult.content[0] as TextContent).text);
+
+      const zeroResult = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 10, offset: 0 },
+        },
+      });
+      const zero = JSON.parse((zeroResult.content[0] as TextContent).text);
+
+      expect(negative.metadata.pagination.offset).toBe(0);
+      expect(negative.items[0].Subject).toEqual(zero.items[0].Subject);
+      expect(negative.items[0].Subject).not.toEqual(
+        manyOutages[manyOutages.length - 1].Subject
+      );
+    });
+
+    it("time=current coerces a negative offset forward to 0", async () => {
+      const manyCurrent = Array(8)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockCurrentOutagesData[0],
+          id: `cur-${i}`,
+          Subject: `Current outage ${i}`,
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyCurrent },
+      });
+
+      const negativeResult = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "current", limit: 3, offset: -5 },
+        },
+      });
+      const negative = JSON.parse((negativeResult.content[0] as TextContent).text);
+
+      const zeroResult = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "current", limit: 3, offset: 0 },
+        },
+      });
+      const zero = JSON.parse((zeroResult.content[0] as TextContent).text);
+
+      expect(negative.metadata.pagination.offset).toBe(0);
+      expect(negative.items[0].Subject).toEqual(zero.items[0].Subject);
+      expect(negative.items[0].Subject).not.toEqual(manyCurrent[manyCurrent.length - 1].Subject);
+    });
+
+    it("time=past rejects limit:0 with the nested error envelope", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: mockPastOutagesData },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 0 },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.status).toBe("error");
+      expect(response.executed).toBe(false);
+      expect(response.error.message).toBe("Limit must be at least 1");
+      expect(result.isError).toBe(true);
+    });
+
+    it("time=current rejects limit:0 with the nested error envelope", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: mockCurrentOutagesData },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "current", limit: 0 },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.status).toBe("error");
+      expect(response.executed).toBe(false);
+      expect(response.error.message).toBe("Limit must be at least 1");
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("Tier-A conformance", () => {
+    it("get_infrastructure_news declares limit and offset in its schema", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t: { name: string }) => t.name === "get_infrastructure_news");
+
+      expect(tool?.inputSchema.properties?.limit).toBeDefined();
+      expect(tool?.inputSchema.properties?.offset).toBeDefined();
+    });
+
+    it("clamps a limit above MAX_LIMIT to 500 with capped:true", async () => {
+      const manyOutages = Array(600)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockPastOutagesData[0],
+          id: `past-${i}`,
+          Subject: `Past outage ${i}`,
+          OutageEnd: new Date(Date.now() - (i + 3) * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyOutages },
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 600 },
+        },
+      });
+
+      const content = result.content[0] as TextContent;
+      const response = JSON.parse(content.text);
+      expect(response.items).toHaveLength(500);
+      expect(response.metadata.pagination.limit).toBe(500);
+      expect(response.metadata.pagination.capped).toBe(true);
+      expect(response.metadata.pagination.total).toBe(600);
+    });
+  });
 });

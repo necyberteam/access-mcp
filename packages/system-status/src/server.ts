@@ -148,7 +148,7 @@ export class SystemStatusServer extends BaseAccessServer {
             offset: {
               type: "number",
               description:
-                "Number of results to skip, for paging past the first `limit`. Applies to time=past and time=all.",
+                "Number of results to skip, for paging past the first `limit`. Applies to all time values.",
             },
             fields: {
               type: "array",
