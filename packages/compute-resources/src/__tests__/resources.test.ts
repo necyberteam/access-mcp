@@ -8,6 +8,21 @@ describe("Compute Resources - Resources", () => {
     server = new ComputeResourcesServer();
   });
 
+  describe("listingLinks", () => {
+    // compute-resources was the only server not overriding this hook, so it
+    // inherited the base class's undefined and emitted no documentation.links
+    // at all — the agent had nothing to cite for resource questions.
+    it("should expose see_all_url for list and search contexts", () => {
+      expect(server["listingLinks"]("list")?.see_all_url).toBe(
+        "https://allocations.access-ci.org/resources"
+      );
+      expect(server["listingLinks"]("search")?.see_all_url).toBe(
+        "https://allocations.access-ci.org/resources"
+      );
+      expect(server["listingLinks"]("details")).toBeUndefined();
+    });
+  });
+
   describe("getResources", () => {
     it("should list all available resources", () => {
       const resources = server["getResources"]();

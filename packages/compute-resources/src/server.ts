@@ -102,6 +102,15 @@ export class ComputeResourcesServer extends BaseAccessServer {
     super("access-mcp-compute-resources", version, "https://operations-api.access-ci.org");
   }
 
+  protected listingLinks(
+    context: "list" | "search" | "details" = "list"
+  ): Record<string, string> | undefined {
+    if (context === "list" || context === "search") {
+      return { see_all_url: "https://allocations.access-ci.org/resources" };
+    }
+    return undefined;
+  }
+
   protected getTools(): Tool[] {
     return [
       {
@@ -705,6 +714,9 @@ Consider:
           has_more: false,
         },
       },
+      documentation: {
+        links: this.listingLinks("list"),
+      },
     };
 
     return {
@@ -817,29 +829,6 @@ Consider:
         },
       ],
     };
-  }
-
-  /**
-   * Add contextual documentation links - only included when genuinely helpful
-   *
-   * @param context - What operation is being performed ('list' | 'search' | 'details')
-   */
-  private addDocumentation(context: "list" | "search" | "details" = "list") {
-    // For listing resources, provide next-step links
-    if (context === "list") {
-      return {
-        next_steps: "https://allocations.access-ci.org/get-started",
-        resource_catalog: "https://allocations.access-ci.org/resources",
-      };
-    }
-
-    // For search results, documentation is less useful - users already know what they want
-    if (context === "search") {
-      return undefined; // Don't clutter search results
-    }
-
-    // For resource details, provide specific resource documentation
-    return undefined; // Resource-specific docs should come from the resource itself
   }
 
   /**
@@ -1037,6 +1026,9 @@ Consider:
           offset: 0,
           has_more: false,
         },
+      },
+      documentation: {
+        links: this.listingLinks("search"),
       },
     };
 
