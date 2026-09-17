@@ -1073,5 +1073,48 @@ describe("SoftwareDiscoveryServer", () => {
       expect(res.total).toBe(25); // top-level total also full count
       expect(res.metadata.pagination.has_more).toBe(true);
     });
+
+    it("negative offset does not return the tail (coerced to forward)", async () => {
+      mockResults(Array.from({ length: 25 }, (_, i) => ({ software_name: `sw${i}` })));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 5, offset: -3 },
+        },
+      });
+      const res = JSON.parse((result.content[0] as TextContent).text);
+
+      expect(res.metadata.pagination.offset).toBe(0); // coerced, not -3
+      expect(res.items[0].name).toBe("sw0"); // NOT the tail
+    });
+
+    it("limit below 1 is rejected", async () => {
+      mockResults([{ software_name: "sw0" }]);
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 0 },
+        },
+      });
+
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      expect(parsed.status).toBe("error");
+      expect(parsed.executed).toBe(false);
+      expect(parsed.error.message).toContain("Limit must be at least 1");
+    });
+
+    for (const tool of ["search_software", "list_all_software"]) {
+      it(`${tool} declares limit and offset in its schema`, () => {
+        const tools = server["getTools"]();
+        const t = tools.find((x) => x.name === tool);
+        expect(t?.inputSchema.properties?.limit).toBeDefined();
+        expect(t?.inputSchema.properties?.offset).toBeDefined();
+      });
+    }
   });
 });
