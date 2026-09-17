@@ -39,7 +39,15 @@ export interface StandardToolResponse<T> extends UniversalResponse<T> {
       counts?: Record<string, number>;
       [key: string]: unknown;
     };
-    pagination?: { limit: number; offset: number; has_more: boolean };
+    pagination?: {
+      limit: number;
+      offset: number;
+      has_more: boolean;
+      total?: number;
+      total_lower_bound?: number;
+      capped?: true;
+      truncated?: true;
+    };
     query_relevance?: "exact" | "loose_match";
     [key: string]: unknown;
   };
