@@ -6,6 +6,7 @@ import {
   Resource,
   CallToolResult,
   resolveResourceId,
+  buildPagination,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -22,6 +23,7 @@ interface InfrastructureNewsArgs {
   outage_type?: string;
   ids?: string[];
   limit?: number;
+  offset?: number;
   fields?: string[];
 }
 
@@ -31,6 +33,7 @@ interface InfrastructureNewsRouterArgs {
   outage_type?: string;
   resource_ids?: string[];
   limit?: number;
+  offset?: number;
   fields?: string[];
 }
 
@@ -141,6 +144,11 @@ export class SystemStatusServer extends BaseAccessServer {
               description: "Max results to return",
               default: 50,
             },
+            offset: {
+              type: "number",
+              description:
+                "Number of results to skip, for paging past the first `limit`. Applies to time=past and time=all.",
+            },
             fields: {
               type: "array",
               items: { type: "string" },
@@ -198,6 +206,7 @@ export class SystemStatusServer extends BaseAccessServer {
             outage_type: typedArgs.outage_type,
             resource_ids: typedArgs.ids,
             limit: typedArgs.limit,
+            offset: typedArgs.offset,
             fields: typedArgs.fields,
           });
         default:
@@ -215,7 +224,7 @@ export class SystemStatusServer extends BaseAccessServer {
   private async getInfrastructureNewsRouter(
     args: InfrastructureNewsRouterArgs
   ): Promise<CallToolResult> {
-    const { resource, time = "current", outage_type, resource_ids, limit, fields } = args;
+    const { resource, time = "current", outage_type, resource_ids, limit, offset, fields } = args;
 
     // Check resource status (returns operational/affected) - only if IDs provided
     if (resource_ids && Array.isArray(resource_ids) && resource_ids.length > 0) {
@@ -229,9 +238,9 @@ export class SystemStatusServer extends BaseAccessServer {
       case "scheduled":
         return await this.getScheduledMaintenance(resource, outage_type, fields);
       case "past":
-        return await this.getPastOutages(resource, outage_type, limit || 100, fields);
+        return await this.getPastOutages(resource, outage_type, limit, offset, fields);
       case "all":
-        return await this.getSystemAnnouncements(outage_type, limit || 50, fields);
+        return await this.getSystemAnnouncements(outage_type, limit, offset, fields);
       default:
         throw new Error(
           `Invalid time parameter: ${time}. Must be one of: current, scheduled, past, all`
@@ -501,7 +510,8 @@ export class SystemStatusServer extends BaseAccessServer {
   private async getPastOutages(
     resourceFilter?: string,
     outageTypeFilter?: string,
-    limit: number = 100,
+    limit?: number,
+    offset?: number,
     fields?: string[]
   ): Promise<CallToolResult> {
     const response = await this.httpClient.get(
@@ -538,14 +548,18 @@ export class SystemStatusServer extends BaseAccessServer {
       return dateB.getTime() - dateA.getTime();
     });
 
-    // Capture pre-slice count so pagination.has_more reflects upstream
-    // truncation rather than always reporting false.
+    // Capture pre-slice count so pagination.total reflects the true
+    // filtered/sorted match count, not the returned page.
     const totalPastOutages = pastOutages.length;
 
-    // Apply limit
-    if (limit && pastOutages.length > limit) {
-      pastOutages = pastOutages.slice(0, limit);
-    }
+    const pagination = buildPagination({
+      requestedLimit: limit,
+      offset: offset ?? 0,
+      total: totalPastOutages,
+      defaultLimit: 100,
+    });
+
+    pastOutages = pastOutages.slice(pagination.offset, pagination.offset + pagination.limit);
 
     // Initialize tracking variables
     const affectedResources = new Set<string>();
@@ -611,11 +625,7 @@ export class SystemStatusServer extends BaseAccessServer {
           outage_types: Array.from(outageTypes),
           average_duration_hours: averageDurationHours,
         },
-        pagination: {
-          limit,
-          offset: 0,
-          has_more: enhancedOutages.length < totalPastOutages,
-        },
+        pagination,
       },
       documentation: {
         links: this.listingLinks("list"),
@@ -634,7 +644,8 @@ export class SystemStatusServer extends BaseAccessServer {
 
   private async getSystemAnnouncements(
     outageTypeFilter?: string,
-    limit: number = 50,
+    limit?: number,
+    offset?: number,
     fields?: string[]
   ): Promise<CallToolResult> {
     // Get current, future, and recent past announcements for comprehensive view
@@ -663,48 +674,55 @@ export class SystemStatusServer extends BaseAccessServer {
       return daysAgo <= 30;
     });
 
-    // Combine all announcements and sort by most relevant date
-    const allAnnouncements: OutageItem[] = [
+    // Combine all announcements and sort by most relevant date. Keep the
+    // FULL sorted list here (no slice in the chain) so `total` and the
+    // `categories` aggregation both describe the same full universe; the
+    // page is sliced separately below via buildPagination.
+    const fullSorted: OutageItem[] = [
       ...currentOutages.map((item: OutageItem) => ({ ...item, category: "current" as const })),
       ...futureOutages.map((item: OutageItem) => ({ ...item, category: "scheduled" as const })),
       ...recentPastOutages.map((item: OutageItem) => ({
         ...item,
         category: "recent_past" as const,
       })),
-    ]
-      .sort((a: OutageItem, b: OutageItem) => {
-        // Sort by most relevant date: current first, then future by start time, then past by end time
-        if (a.category === "current" && b.category !== "current") return -1;
-        if (b.category === "current" && a.category !== "current") return 1;
+    ].sort((a: OutageItem, b: OutageItem) => {
+      // Sort by most relevant date: current first, then future by start time, then past by end time
+      if (a.category === "current" && b.category !== "current") return -1;
+      if (b.category === "current" && a.category !== "current") return 1;
 
-        const dateA = new Date(a.OutageStart || "");
-        const dateB = new Date(b.OutageStart || "");
-        return dateB.getTime() - dateA.getTime(); // Most recent first
-      })
-      .slice(0, limit);
+      const dateA = new Date(a.OutageStart || "");
+      const dateB = new Date(b.OutageStart || "");
+      return dateB.getTime() - dateA.getTime(); // Most recent first
+    });
 
-    const totalCombined =
-      currentOutages.length + futureOutages.length + recentPastOutages.length;
+    const total = fullSorted.length;
+
+    const pagination = buildPagination({
+      requestedLimit: limit,
+      offset: offset ?? 0,
+      total,
+      defaultLimit: 50,
+    });
+
+    const page = fullSorted.slice(pagination.offset, pagination.offset + pagination.limit);
 
     const summary = {
-      total: totalCombined,
-      items: allAnnouncements,
+      total,
+      items: page,
       metadata: {
         aggregations: {
           current_outages: currentOutages.length,
           scheduled_maintenance: futureOutages.length,
           recent_past_outages: recentPastOutages.length,
+          // Reads fullSorted (the full set), not the returned page, so
+          // category counts describe the same universe `total` describes.
           categories: {
-            current: allAnnouncements.filter((a) => a.category === "current").length,
-            scheduled: allAnnouncements.filter((a) => a.category === "scheduled").length,
-            recent_past: allAnnouncements.filter((a) => a.category === "recent_past").length,
+            current: fullSorted.filter((a) => a.category === "current").length,
+            scheduled: fullSorted.filter((a) => a.category === "scheduled").length,
+            recent_past: fullSorted.filter((a) => a.category === "recent_past").length,
           },
         },
-        pagination: {
-          limit,
-          offset: 0,
-          has_more: allAnnouncements.length < totalCombined,
-        },
+        pagination,
       },
       documentation: {
         links: this.listingLinks("list"),

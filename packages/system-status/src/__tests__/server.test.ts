@@ -366,6 +366,47 @@ describe("SystemStatusServer", () => {
       const response = JSON.parse(content.text);
       expect(response.items).toHaveLength(10);
     });
+
+    it("honors offset with a true full-count total", async () => {
+      const manyOutages = Array(25)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockPastOutagesData[0],
+          id: `past-${i}`,
+          Subject: `Past outage ${i}`,
+          OutageEnd: new Date(Date.now() - (i + 3) * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: { results: manyOutages },
+      });
+
+      const page0Result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 10, offset: 0 },
+        },
+      });
+      const page0 = JSON.parse((page0Result.content[0] as TextContent).text);
+
+      const page1Result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "past", limit: 10, offset: 10 },
+        },
+      });
+      const page1 = JSON.parse((page1Result.content[0] as TextContent).text);
+
+      expect(page0.metadata.pagination.offset).toBe(0);
+      expect(page1.metadata.pagination.offset).toBe(10);
+      expect(page1.items[0].Subject).not.toEqual(page0.items[0].Subject);
+      expect(page0.metadata.pagination.total).toBe(25); // true full count, not sliced
+      expect(page0.metadata.pagination.has_more).toBe(true);
+      expect(page0.metadata.pagination.limit).toBe(10);
+    });
   });
 
   describe("getSystemAnnouncements", () => {
@@ -407,6 +448,101 @@ describe("SystemStatusServer", () => {
       const response = JSON.parse(content.text);
       const firstAnnouncement = response.items[0];
       expect(firstAnnouncement.category).toBe("current");
+    });
+
+    it("honors offset and total is the full assembled count", async () => {
+      const manyCurrent = Array(5)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockCurrentOutagesData[0],
+          id: `cur-${i}`,
+          Subject: `Current outage ${i}`,
+        }));
+      const manyFuture = Array(5)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockFutureOutagesData[0],
+          id: `fut-${i}`,
+          Subject: `Future outage ${i}`,
+          OutageStart: new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+      const manyPast = Array(5)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockPastOutagesData[0],
+          id: `past-${i}`,
+          Subject: `Past outage ${i}`,
+          OutageEnd: new Date(Date.now() - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+        }));
+
+      mockHttpClient.get
+        .mockResolvedValueOnce({ status: 200, data: { results: manyCurrent } })
+        .mockResolvedValueOnce({ status: 200, data: { results: manyFuture } })
+        .mockResolvedValueOnce({ status: 200, data: { results: manyPast } });
+
+      const page0Result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "all", limit: 5, offset: 0 },
+        },
+      });
+      const page0 = JSON.parse((page0Result.content[0] as TextContent).text);
+
+      mockHttpClient.get
+        .mockResolvedValueOnce({ status: 200, data: { results: manyCurrent } })
+        .mockResolvedValueOnce({ status: 200, data: { results: manyFuture } })
+        .mockResolvedValueOnce({ status: 200, data: { results: manyPast } });
+
+      const page1Result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "all", limit: 5, offset: 5 },
+        },
+      });
+      const page1 = JSON.parse((page1Result.content[0] as TextContent).text);
+
+      expect(page0.metadata.pagination.offset).toBe(0);
+      expect(page1.metadata.pagination.offset).toBe(5);
+      expect(page0.items).not.toEqual(page1.items);
+      // full assembled count (5 current + 5 future + 5 recent past), not the page size
+      expect(page0.metadata.pagination.total).toBe(15);
+      expect(page0.metadata.pagination.has_more).toBe(true);
+    });
+
+    it("categories aggregation reflects the full set, not the returned page", async () => {
+      // Full set: 3 current, 1 scheduled, 1 recent_past = 5 total.
+      // A page of limit:2 (offset 0) would only see 2 "current" items if it
+      // read the sliced page instead of the full assembled list.
+      const threeCurrent = Array(3)
+        .fill(0)
+        .map((_, i) => ({
+          ...mockCurrentOutagesData[0],
+          id: `cur-${i}`,
+          Subject: `Current outage ${i}`,
+        }));
+
+      mockHttpClient.get
+        .mockResolvedValueOnce({ status: 200, data: { results: threeCurrent } })
+        .mockResolvedValueOnce({ status: 200, data: { results: mockFutureOutagesData } })
+        .mockResolvedValueOnce({ status: 200, data: { results: mockPastOutagesData } });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "get_infrastructure_news",
+          arguments: { time: "all", limit: 2, offset: 0 },
+        },
+      });
+      const response = JSON.parse((result.content[0] as TextContent).text);
+
+      expect(response.items).toHaveLength(2); // page is small
+      // but categories + total describe the FULL set (3 current, 1 scheduled, 1 recent_past)
+      expect(response.metadata.pagination.total).toBe(5);
+      expect(response.metadata.aggregations.categories.current).toBe(3);
+      expect(response.metadata.aggregations.categories.scheduled).toBe(1);
+      expect(response.metadata.aggregations.categories.recent_past).toBe(1);
     });
   });
 
