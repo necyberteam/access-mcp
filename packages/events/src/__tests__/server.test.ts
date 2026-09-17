@@ -232,6 +232,45 @@ describe("EventsServer", () => {
       expect(url).toContain("f%5B0%5D=custom_event_type%3Awebinar");
       expect(url).toContain("f%5B1%5D=custom_event_skill_level%3AIntermediate");
     });
+
+    it("date_range routes to absolute beginning_date/end_date Drupal params", () => {
+      const url = server["buildEventsUrl"]({
+        date_range: { start_date: "2026-09-17", end_date: "2026-09-25" },
+      });
+
+      expect(url).toContain("beginning_date=2026-09-17");
+      expect(url).toContain("end_date=2026-09-25");
+      expect(url).not.toContain("beginning_date_relative");
+      expect(url).not.toContain("end_date_relative");
+    });
+
+    it("date_range overrides the date enum", () => {
+      const url = server["buildEventsUrl"]({
+        date: "upcoming",
+        date_range: { start_date: "2026-09-17" },
+      });
+
+      expect(url).toContain("beginning_date=2026-09-17");
+      expect(url).not.toContain("beginning_date_relative");
+    });
+
+    it("the date enum still works unchanged when no date_range is given", () => {
+      const url = server["buildEventsUrl"]({ date: "past" });
+
+      expect(url).toContain("beginning_date_relative=-1year");
+      expect(url).toContain("end_date_relative=today");
+    });
+
+    it("flat start_date/end_date are no longer accepted schema props", () => {
+      const tools = server["getTools"]();
+      const searchEvents = tools.find(
+        (t: { name: string }) => t.name === "search_events"
+      ) as { inputSchema: { properties: Record<string, unknown> } };
+
+      expect(searchEvents.inputSchema.properties.date_range).toBeDefined();
+      expect(searchEvents.inputSchema.properties.start_date).toBeUndefined();
+      expect(searchEvents.inputSchema.properties.end_date).toBeUndefined();
+    });
   });
 
   describe("Tool Methods", () => {
