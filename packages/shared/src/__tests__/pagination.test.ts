@@ -32,6 +32,19 @@ describe("buildPagination", () => {
     expect("capped" in p).toBe(false);
   });
 
+  it("a fractional limit that truncates to exactly MAX_LIMIT is not capped", () => {
+    // 500.9 → trunc 500 = MAX_LIMIT; nothing was clamped away, so capped must be absent
+    const p = buildPagination({ requestedLimit: 500.9, offset: 0, total: 7147, defaultLimit: 100 });
+    expect(p.limit).toBe(500);
+    expect("capped" in p).toBe(false);
+  });
+
+  it("a limit above MAX_LIMIT by one is capped", () => {
+    const p = buildPagination({ requestedLimit: 501, offset: 0, total: 7147, defaultLimit: 100 });
+    expect(p.limit).toBe(500);
+    expect(p.capped).toBe(true);
+  });
+
   describe("adversarial offset input", () => {
     it("coerces a negative offset to 0 rather than slicing from the end", () => {
       const p = buildPagination({ requestedLimit: 10, offset: -3, total: 25, defaultLimit: 20 });

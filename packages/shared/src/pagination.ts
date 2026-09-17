@@ -46,7 +46,8 @@ export function buildPagination(args: {
     total: args.total,
     has_more: offset + returned < args.total,
   };
-  return args.requestedLimit !== undefined && args.requestedLimit > MAX_LIMIT
-    ? { ...base, capped: true as const }
-    : base;
+  // capped iff the ceiling actually reduced the effective limit — compare the
+  // post-truncation `asked`, not the raw requestedLimit, so limit:500.9 (asked
+  // 500 = MAX_LIMIT, nothing clamped) is NOT reported as capped.
+  return limit < asked ? { ...base, capped: true as const } : base;
 }
