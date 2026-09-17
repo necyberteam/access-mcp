@@ -1108,6 +1108,24 @@ describe("SoftwareDiscoveryServer", () => {
       expect(parsed.error.message).toContain("Limit must be at least 1");
     });
 
+    it("a limit above MAX_LIMIT clamps to 500 and flags capped", async () => {
+      mockResults(Array.from({ length: 600 }, (_, i) => ({ software_name: `sw${i}` })));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 600 },
+        },
+      });
+      const res = JSON.parse((result.content[0] as TextContent).text);
+
+      expect(res.metadata.pagination.limit).toBe(500); // clamped to MAX_LIMIT
+      expect(res.metadata.pagination.capped).toBe(true);
+      expect(res.metadata.pagination.total).toBe(600); // full count still honest
+      expect(res.items.length).toBe(500); // only the clamped window returned
+    });
+
     for (const tool of ["search_software", "list_all_software"]) {
       it(`${tool} declares limit and offset in its schema`, () => {
         const tools = server["getTools"]();
