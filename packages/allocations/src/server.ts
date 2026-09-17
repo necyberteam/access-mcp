@@ -970,6 +970,60 @@ sort_by: "date_desc"
     return await this.findFundedProjects(args.pi_name, args.field_of_science, args.limit || 10);
   }
 
+  /**
+   * Apply the date-range/min-allocation corpus filters shared by every
+   * search_projects routing branch. Extracted verbatim from the query
+   * branch's inline filter block — same truthiness gates, same comparisons —
+   * so `applied` only gains a key when the corresponding gate actually fires
+   * (e.g. `minAllocation: 0` is treated as unset, matching the pre-extraction
+   * behavior).
+   */
+  private applyCorpusFilters(
+    records: Project[],
+    filters: {
+      dateRange?: { start_date?: string; end_date?: string };
+      minAllocation?: number;
+    }
+  ): { filtered: Project[]; applied: Record<string, unknown> } {
+    const { dateRange, minAllocation } = filters;
+    const applied: Record<string, unknown> = {};
+
+    if (dateRange) {
+      applied.date_range = dateRange;
+    }
+    if (minAllocation) {
+      applied.min_allocation = minAllocation;
+    }
+
+    const filtered = records.filter((project) => {
+      // Date range filter
+      if (dateRange) {
+        const projectStart = new Date(project.beginDate);
+        const projectEnd = new Date(project.endDate);
+
+        if (dateRange.start_date) {
+          const filterStart = new Date(dateRange.start_date);
+          if (projectEnd < filterStart) return false;
+        }
+
+        if (dateRange.end_date) {
+          const filterEnd = new Date(dateRange.end_date);
+          if (projectStart > filterEnd) return false;
+        }
+      }
+
+      // Minimum allocation filter — compare against the ACCESS Credits amount,
+      // not a cross-unit sum (see accessCreditsAmount).
+      if (minAllocation) {
+        if (this.accessCreditsAmount(project) < minAllocation) return false;
+      }
+
+      return true;
+    });
+
+    return { filtered, applied };
+  }
+
   private async searchProjects(
     query: string,
     fieldOfScience?: string,
@@ -996,30 +1050,9 @@ sort_by: "date_desc"
     const allProjects = snapshot.records;
 
     // Apply filters
-    const filteredProjects = allProjects.filter((project) => {
-      // Date range filter
-      if (dateRange) {
-        const projectStart = new Date(project.beginDate);
-        const projectEnd = new Date(project.endDate);
-
-        if (dateRange.start_date) {
-          const filterStart = new Date(dateRange.start_date);
-          if (projectEnd < filterStart) return false;
-        }
-
-        if (dateRange.end_date) {
-          const filterEnd = new Date(dateRange.end_date);
-          if (projectStart > filterEnd) return false;
-        }
-      }
-
-      // Minimum allocation filter — compare against the ACCESS Credits amount,
-      // not a cross-unit sum (see accessCreditsAmount).
-      if (minAllocation) {
-        if (this.accessCreditsAmount(project) < minAllocation) return false;
-      }
-
-      return true;
+    const { filtered: filteredProjects } = this.applyCorpusFilters(allProjects, {
+      dateRange,
+      minAllocation,
     });
 
     // Score and filter projects based on search terms
