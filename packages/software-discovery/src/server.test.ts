@@ -1023,4 +1023,116 @@ describe("SoftwareDiscoveryServer", () => {
       expect((listTool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
     });
   });
+
+  describe("pagination", () => {
+    function mockResults(items: unknown[]) {
+      mockSdsClient.post.mockResolvedValue({ status: 200, data: { data: items } });
+    }
+
+    it("search_software honors offset", async () => {
+      mockResults(Array.from({ length: 25 }, (_, i) => ({ software_name: `sw${i}` })));
+
+      const page0Result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 10, offset: 0 },
+        },
+      });
+      const page0 = JSON.parse((page0Result.content[0] as TextContent).text);
+
+      const page1Result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 10, offset: 10 },
+        },
+      });
+      const page1 = JSON.parse((page1Result.content[0] as TextContent).text);
+
+      expect(page0.metadata.pagination.offset).toBe(0);
+      expect(page1.metadata.pagination.offset).toBe(10);
+      expect(page1.items[0]).not.toEqual(page0.items[0]);
+      expect(page0.metadata.pagination.total).toBe(25); // true full count
+      expect(page0.metadata.pagination.has_more).toBe(true);
+    });
+
+    it("list_all_software total is the full match count, not the page size", async () => {
+      mockResults(Array.from({ length: 25 }, (_, i) => ({ software_name: `sw${i}` })));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "list_all_software",
+          arguments: { limit: 10 },
+        },
+      });
+      const res = JSON.parse((result.content[0] as TextContent).text);
+
+      expect(res.metadata.pagination.total).toBe(25); // NOT 10 — was transformedResults.length
+      expect(res.total).toBe(25); // top-level total also full count
+      expect(res.metadata.pagination.has_more).toBe(true);
+    });
+
+    it("negative offset does not return the tail (coerced to forward)", async () => {
+      mockResults(Array.from({ length: 25 }, (_, i) => ({ software_name: `sw${i}` })));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 5, offset: -3 },
+        },
+      });
+      const res = JSON.parse((result.content[0] as TextContent).text);
+
+      expect(res.metadata.pagination.offset).toBe(0); // coerced, not -3
+      expect(res.items[0].name).toBe("sw0"); // NOT the tail
+    });
+
+    it("limit below 1 is rejected", async () => {
+      mockResults([{ software_name: "sw0" }]);
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 0 },
+        },
+      });
+
+      expect(result.isError).toBe(true);
+      const parsed = JSON.parse((result.content[0] as TextContent).text);
+      expect(parsed.status).toBe("error");
+      expect(parsed.executed).toBe(false);
+      expect(parsed.error.message).toContain("Limit must be at least 1");
+    });
+
+    it("a limit above MAX_LIMIT clamps to 500 and flags capped", async () => {
+      mockResults(Array.from({ length: 600 }, (_, i) => ({ software_name: `sw${i}` })));
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_software",
+          arguments: { query: "x", limit: 600 },
+        },
+      });
+      const res = JSON.parse((result.content[0] as TextContent).text);
+
+      expect(res.metadata.pagination.limit).toBe(500); // clamped to MAX_LIMIT
+      expect(res.metadata.pagination.capped).toBe(true);
+      expect(res.metadata.pagination.total).toBe(600); // full count still honest
+      expect(res.items.length).toBe(500); // only the clamped window returned
+    });
+
+    for (const tool of ["search_software", "list_all_software"]) {
+      it(`${tool} declares limit and offset in its schema`, () => {
+        const tools = server["getTools"]();
+        const t = tools.find((x) => x.name === tool);
+        expect(t?.inputSchema.properties?.limit).toBeDefined();
+        expect(t?.inputSchema.properties?.offset).toBeDefined();
+      });
+    }
+  });
 });
