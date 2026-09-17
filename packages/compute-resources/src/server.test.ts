@@ -625,11 +625,16 @@ describe("ComputeResourcesServer", () => {
       expect(responseData.total).toBe(3);
       expect(responseData.items).toHaveLength(3);
       expect(Object.keys(responseData.items[0])).toEqual(["name"]);
-      // metadata is a sticky container — preserved on projection. search
-      // resources doesn't emit a documentation block (addDocumentation
-      // returns undefined for the "search" context), so it stays absent.
+      // metadata and documentation are both sticky containers — preserved on
+      // projection even though fields asked for neither. This assertion used
+      // to expect documentation to be absent, describing the behaviour of the
+      // orphaned addDocumentation() rather than a decision: the listingLinks
+      // hook now supplies a see_all_url on search, as the base class documents
+      // and the six sibling servers already do.
       expect(responseData.metadata).toBeDefined();
-      expect(responseData.documentation).toBeUndefined();
+      expect(responseData.documentation.links.see_all_url).toBe(
+        "https://allocations.access-ci.org/resources"
+      );
     });
 
     it("should always preserve total even when fields omits it", async () => {
