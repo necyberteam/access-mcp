@@ -1019,6 +1019,14 @@ describe("EventsServer", () => {
         expect(searchEvents?.inputSchema.properties?.offset).toBeDefined();
       });
 
+      it("search_events declares limit and offset in its schema", () => {
+        const t = server["getTools"]().find(
+          (x: { name: string }) => x.name === "search_events"
+        );
+        expect(t?.inputSchema.properties?.limit).toBeDefined();
+        expect(t?.inputSchema.properties?.offset).toBeDefined();
+      });
+
       it("a default (no-limit) search against a small result set does not report capped and honestly windows to the default limit", async () => {
         // No `limit` in arguments — handleToolCall passes raw args, so the
         // JSON-schema default:20 is never applied server-side. Before the
