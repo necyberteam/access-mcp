@@ -579,6 +579,128 @@ describe("NSFAwardsServer", () => {
       expect(response.total).toBe(1);
       expect(response.items[0].institution).toContain("Chicago");
     });
+
+    // The implementation's fetchAllPages walk uses a fixed internal rpp (500)
+    // for the primary_only complete-set fetch, independent of the caller's
+    // `limit`. To force a genuine second page, the corpus must exceed that
+    // fixed rpp — a smaller corpus would fit on page 1 and the "past the
+    // page" scenario would never trigger (a vacuous test). Both pages must
+    // carry metadata.totalCount: fetchAllPages reads totalPages from page 1,
+    // and fetchPage derives its own totalPages from each page's metadata.
+    const PRIMARY_ONLY_FETCH_RPP = 500;
+
+    function buildTwoPageInstitutionMock(rpp: number) {
+      const page1Awards = Array.from({ length: rpp }, (_, i) => ({
+        id: `collab-${i}`,
+        title: `Collaborative Award ${i}`,
+        awardeeName: "Stanford University",
+        piFirstName: "Jane",
+        piLastName: "Smith",
+        estimatedTotalAmt: "200000",
+        fundsObligatedAmt: "200000",
+        startDate: "2024-01-01",
+        expDate: "2025-01-01",
+        abstractText: "Collaborative project",
+        primaryProgram: "Test Program",
+        poName: "Test Officer",
+        ueiNumber: "789012",
+      }));
+      const page2Award = {
+        id: "primary-1",
+        title: "Primary Award",
+        awardeeName: "University of Chicago",
+        piFirstName: "John",
+        piLastName: "Doe",
+        estimatedTotalAmt: "100000",
+        fundsObligatedAmt: "100000",
+        startDate: "2024-01-01",
+        expDate: "2025-01-01",
+        abstractText: "Test abstract",
+        primaryProgram: "Test Program",
+        poName: "Test Officer",
+        ueiNumber: "123456",
+      };
+      const totalCount = rpp + 1;
+
+      return async (input: RequestInfo | URL) => {
+        const url = new URL(input.toString());
+        const nsfOffset = Number(url.searchParams.get("offset"));
+        if (nsfOffset === 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              response: { metadata: { offset: 1, rpp, totalCount }, award: page1Awards },
+            }),
+          } as Response;
+        }
+        if (nsfOffset === rpp + 1) {
+          return {
+            ok: true,
+            json: async () => ({
+              response: {
+                metadata: { offset: nsfOffset, rpp, totalCount },
+                award: [page2Award],
+              },
+            }),
+          } as Response;
+        }
+        throw new Error(`unexpected offset ${nsfOffset}`);
+      };
+    }
+
+    it("primary_only finds a primary award ranked past the first page", async () => {
+      // Page 1 (fixed rpp non-primary Stanford awards) sizes exactly to the
+      // implementation's internal fetch rpp; the one PRIMARY award (University
+      // of Chicago) sits alone on page 2. Filter-after-slice (the bug) would
+      // fetch only page 1 and never see the page-2 award; the fix must fetch
+      // the complete set first via fetchAllPages.
+      mockFetch.mockImplementation(buildTwoPageInstitutionMock(PRIMARY_ONLY_FETCH_RPP));
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: {
+            institution: "University of Chicago",
+            primary_only: true,
+            limit: 10,
+          },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      const awardNumbers = response.items.map((a: { awardNumber: string }) => a.awardNumber);
+
+      // Today (filter-after-slice) this award is dropped because it only
+      // exists on page 2, past the caller's single-page fetch window.
+      expect(awardNumbers).toContain("primary-1");
+      expect(response.items.every((a: { institution: string }) => a.institution === "University of Chicago")).toBe(
+        true
+      );
+    });
+
+    it("primary_only total reflects the filtered full set, not the post-slice length", async () => {
+      // Same two-page corpus as above, but assert on `total`/`has_more`
+      // directly: total must equal the count of ALL primary awards across
+      // both pages (1), not the length of whatever page happened to survive
+      // the old slice-then-filter order.
+      mockFetch.mockImplementation(buildTwoPageInstitutionMock(PRIMARY_ONLY_FETCH_RPP));
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: {
+            institution: "University of Chicago",
+            primary_only: true,
+            limit: 10,
+          },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+
+      expect(response.total).toBe(1);
+      expect(response.metadata.pagination.has_more).toBe(false);
+    });
   });
 
   describe("fields projection (Pillar 2)", () => {

@@ -5,6 +5,7 @@ import {
   projectFields,
   buildPagination,
   MAX_LIMIT,
+  fetchAllPages,
   Tool,
   Resource,
   CallToolResult,
@@ -287,6 +288,11 @@ export class NSFAwardsServer extends BaseAccessServer {
     fields?: string[];
   }) {
     const offset = args.offset ?? 0;
+
+    if (args.primary_only) {
+      return this.findNSFAwardsByInstitutionPrimaryOnly(args, offset);
+    }
+
     const nsfOffset = offset + 1;
     const rpp = resolveRpp(args.limit);
     const { awards: fetched, totalCount } = await this.searchNSFAwardsByInstitution(
@@ -310,21 +316,88 @@ export class NSFAwardsServer extends BaseAccessServer {
 
     // Defensive: the upstream API is trusted to honor rpp, but slice to
     // pagination.limit so an over-returning response can't leak extra rows.
-    let awards = fetched.slice(0, pagination.limit);
-
-    // primary_only post-filters this page. (The complete-set fix — filtering
-    // over every upstream page before slicing — is a separate follow-up task,
-    // out of scope here.)
-    if (args.primary_only) {
-      const normalizedInstitution = this.normalizeInstitutionName(args.institution_name);
-      awards = awards.filter((award) => {
-        const awardInstitution = this.normalizeInstitutionName(award.institution);
-        return this.matchesInstitution(awardInstitution, [normalizedInstitution]);
-      });
-    }
+    const awards = fetched.slice(0, pagination.limit);
 
     const envelope = {
-      total: args.primary_only ? awards.length : totalCount,
+      total: totalCount,
+      items: awards,
+      metadata: { pagination },
+    };
+
+    return {
+      content: [
+        {
+          type: "text" as const,
+          text: JSON.stringify(projectFields(envelope, args.fields)),
+        },
+      ],
+    };
+  }
+
+  /**
+   * primary_only must filter over the COMPLETE institution result set before
+   * paginating, not just the caller's page: a primary-recipient award ranked
+   * past a single fetch window would otherwise be sliced away before the
+   * filter ever sees it (the filter-after-slice bug). fetchAllPages walks the
+   * upstream to true completion at a fixed rpp so the filter runs over
+   * everything, then the caller's offset/limit window is applied to the
+   * filtered set.
+   */
+  private async findNSFAwardsByInstitutionPrimaryOnly(
+    args: { institution_name: string; limit?: number; fields?: string[] },
+    offset: number
+  ) {
+    const fetchRpp = 500;
+    const normalizedInstitution = this.normalizeInstitutionName(args.institution_name);
+
+    const result = await fetchAllPages<NSFAward>(
+      async (page) => {
+        const nsfOffset = (page - 1) * fetchRpp + 1;
+        const { awards, totalCount } = await this.searchNSFAwardsByInstitution(
+          args.institution_name,
+          fetchRpp,
+          nsfOffset
+        );
+        return {
+          items: awards,
+          totalPages: Math.ceil(Math.min(totalCount, NSF_TOTAL_COUNT_CEILING) / fetchRpp),
+        };
+      },
+      (award) => award.awardNumber,
+      { hardCap: Math.ceil(NSF_TOTAL_COUNT_CEILING / fetchRpp) }
+    );
+
+    const filtered = result.records.filter((award) => {
+      const awardInstitution = this.normalizeInstitutionName(award.institution);
+      return this.matchesInstitution(awardInstitution, [normalizedInstitution]);
+    });
+
+    const pagination: {
+      limit: number;
+      offset: number;
+      total?: number;
+      total_lower_bound?: number;
+      has_more: boolean;
+      capped?: true;
+    } = buildPagination({
+      requestedLimit: args.limit,
+      offset,
+      total: filtered.length,
+      defaultLimit: 10,
+    });
+
+    // result.truncated means fetchAllPages hit its hardCap before exhausting
+    // the upstream — filtered.length is a lower bound, not the true count.
+    if (result.truncated) {
+      delete pagination.total;
+      pagination.total_lower_bound = filtered.length;
+      pagination.has_more = true;
+    }
+
+    const awards = filtered.slice(offset, offset + pagination.limit);
+
+    const envelope = {
+      total: pagination.total,
       items: awards,
       metadata: { pagination },
     };
