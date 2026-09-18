@@ -837,6 +837,189 @@ describe("EventsServer", () => {
       });
     });
 
+    describe("search_events pagination (offset via fetch-from-0 + local slice)", () => {
+      // Distinguishable stub events e0..e{n-1}, each with a distinct
+      // start_date so the starts_in_hours sort is stable and predictable.
+      const stubEvents = (n: number) =>
+        Array.from({ length: n }, (_, i) => ({
+          id: `e${i}`,
+          title: `Event ${i}`,
+          start_date: `2026-09-${String(18 + i).padStart(2, "0")}T00:00:00Z`,
+          end_date: `2026-09-${String(18 + i).padStart(2, "0")}T01:00:00Z`,
+          tags: "",
+          description: "d",
+        }));
+
+      it("fetch size covers offset+limit+1 and no page param is set", () => {
+        const url = server["buildEventsUrl"]({ limit: 10, offset: 10 });
+        // needed = 10+10+1 = 21 → smallest ALLOWED_PAGE_SIZES >= 21 is 25
+        expect(url).toContain("items_per_page=25");
+        expect(new URL(url).searchParams.has("page")).toBe(false);
+      });
+
+      it("a mid-page offset returns the correct window (records offset..offset+limit), not records from 0", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(25),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 10, offset: 10 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(payload.items).toHaveLength(10);
+        expect(payload.items.map((e: { id: string }) => e.id)).toEqual(
+          Array.from({ length: 10 }, (_, i) => `e${i + 10}`)
+        );
+      });
+
+      it("has_more true when a record beyond offset+limit was fetched", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(25),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 10, offset: 10 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(payload.metadata.pagination.has_more).toBe(true);
+      });
+
+      it("has_more false at the true end", async () => {
+        // offset 10 / limit 10 → fetch returns exactly 20 records (nothing
+        // beyond offset+limit=20 was fetched, so the probe honestly says no more).
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(20),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 10, offset: 10 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(payload.metadata.pagination.has_more).toBe(false);
+        expect(payload.items.map((e: { id: string }) => e.id)).toEqual(
+          Array.from({ length: 10 }, (_, i) => `e${i + 10}`)
+        );
+      });
+
+      it("emits total_lower_bound, not a fabricated total", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(25),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 10, offset: 10 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(payload.metadata.pagination.total_lower_bound).toBe(20); // offset(10) + window.length(10)
+        expect(typeof payload.total).toBe("number");
+        expect(payload.total).toBe(payload.metadata.pagination.total_lower_bound);
+      });
+
+      it("negative offset is coerced to 0", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(10),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 10, offset: -5 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(payload.metadata.pagination.offset).toBe(0);
+        expect(payload.items.map((e: { id: string }) => e.id)).toEqual(
+          Array.from({ length: 10 }, (_, i) => `e${i}`)
+        );
+      });
+
+      it("offset+limit beyond 500 is capped, not fetched at an invalid page size", () => {
+        // needed = 495+10+1 = 506, no ALLOWED_PAGE_SIZES bucket >= 506 → clamp to 500
+        const url = server["buildEventsUrl"]({ limit: 10, offset: 495 });
+        expect(url).toContain("items_per_page=500");
+      });
+
+      it("offset+limit == 500 is treated as probe-lost: capped + honest has_more, not clean false", async () => {
+        // offset 490 / limit 10 → needed = 501, no ALLOWED_PAGE_SIZES bucket
+        // >= 501 → fetchSize clamps to 500, probePreserved is false. Stub a
+        // FULL 500-record page (upstream has at least 501 records in reality).
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(500),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 10, offset: 490 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(payload.items).toHaveLength(10);
+        expect(payload.items.map((e: { id: string }) => e.id)).toEqual(
+          Array.from({ length: 10 }, (_, i) => `e${i + 490}`)
+        );
+        expect(payload.metadata.pagination.capped).toBe(true);
+        expect(payload.metadata.pagination.has_more).toBe(true);
+      });
+
+      it("limit:0 returns items:[] with honest metadata, not an error (count-only contract preserved)", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(5),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 0 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(result.content[0].text).not.toContain('"error"');
+        expect(payload.items).toEqual([]);
+        expect(payload.metadata.pagination.limit).toBe(0);
+        expect(typeof payload.total).toBe("number");
+      });
+
+      it("declares offset in its schema", () => {
+        const tools = server["getTools"]();
+        const searchEvents = tools.find((t) => t.name === "search_events");
+        expect(searchEvents?.inputSchema.properties?.offset).toBeDefined();
+      });
+    });
+
     describe("Error Handling", () => {
       it("should handle API errors gracefully", async () => {
         mockHttpClient.get.mockResolvedValue({

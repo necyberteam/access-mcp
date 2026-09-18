@@ -8,6 +8,7 @@ import {
   DrupalAuthProvider,
   DrupalApiError,
   getRequestContext,
+  coerceOffset,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -30,6 +31,7 @@ interface SearchEventsParams {
   skill?: string;
   has_video?: boolean;
   limit?: number;
+  offset?: number;
   // When true, skip compactDescription's truncation so the agent gets the
   // full event description (e.g. needs the registration URL or wants to
   // summarize a workshop in detail). Default is the truncated form because
@@ -327,6 +329,11 @@ export class EventsServer extends BaseAccessServer {
               type: "number",
               description: "Max results (default: 20)",
               default: 20,
+            },
+            offset: {
+              type: "number",
+              description:
+                "Number of results to skip, for paging past the first `limit`. Default 0. Results beyond roughly the first 500 records are unreachable — paging past that ceiling returns a `capped` response with `total_lower_bound` instead of more records.",
             },
             full_description: {
               type: "boolean",
@@ -904,9 +911,16 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     // Eastern site). isoInstant leaves the already-zoned 2.4 values untouched.
     const url = new URL("/api/2.4/events", this.baseURL);
 
-    // Map requested limit to nearest allowed page size
+    // Fetch-from-page-0 + local slice (NOT Drupal page-number paging — an
+    // arbitrary offset can't be expressed as a page boundary). Size the
+    // single fetched page to cover the requested window PLUS one extra
+    // record (the has_more probe), capped at the largest allowed page size
+    // (items_per_page > 500 fails the pager's validation and returns an
+    // empty array, so 500 is a hard ceiling, not just a default).
+    const offset = coerceOffset(params.offset);
     const limit = params.limit || 50;
-    const itemsPerPage = EventsServer.ALLOWED_PAGE_SIZES.find((s) => s >= limit)
+    const needed = offset + limit + 1;
+    const itemsPerPage = EventsServer.ALLOWED_PAGE_SIZES.find((s) => s >= needed)
       || EventsServer.ALLOWED_PAGE_SIZES[EventsServer.ALLOWED_PAGE_SIZES.length - 1];
     url.searchParams.set("items_per_page", String(itemsPerPage));
 
@@ -1052,19 +1066,60 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       ? enhancedEvents.filter((e) => typeof e.video === "string" && e.video.trim() !== "")
       : enhancedEvents;
 
-    // Apply limit after sorting and filtering. Explicit-undefined so
-    // limit: 0 (count-only callers) doesn't fall through to the full list.
-    const limited = params.limit !== undefined ? filtered.slice(0, params.limit) : filtered;
+    // Local slice of the single fetched (page-0) response — see buildEventsUrl
+    // for why offset can't be expressed as a Drupal page number. offset MUST
+    // be coerced with the SAME function buildEventsUrl used to size the
+    // fetch, or the reported metadata can drift from what was actually
+    // fetched (the nsf-awards bug this pattern was built to avoid).
+    const offset = coerceOffset(params.offset);
+    const limit = params.limit ?? filtered.length;
+    // needed/probePreserved mirror buildEventsUrl's fetch-size math exactly —
+    // duplicated here (not read back from the URL) because it's the fetched
+    // array length, not a param, that has_more/capped actually depend on.
+    const needed = offset + limit + 1;
+    const fetchSize = EventsServer.ALLOWED_PAGE_SIZES.find((s) => s >= needed)
+      || EventsServer.ALLOWED_PAGE_SIZES[EventsServer.ALLOWED_PAGE_SIZES.length - 1];
+    // Single honest trigger for the ceiling: true when the fetch was sized to
+    // include the +1 probe record, false when the 500-record cap ate it. At
+    // offset+limit===500 (needed=501, no allowed bucket >= 501) this is
+    // false — the probe was lost even though a full window came back, so
+    // has_more must fall to the "assume more" branch below, not a clean
+    // false. (This is `fetchSize < needed`, i.e. `offset+limit >= 500` —
+    // NOT `> 500`, which would miss exactly that boundary.)
+    const probePreserved = fetchSize >= needed;
+    // window: local slice, not the old slice(0, limit) — an offset must
+    // return records [offset, offset+limit), never records from the start.
+    // limit:0 (deliberate count-only contract) naturally yields [] here —
+    // slice(offset, offset+0) — no special case needed.
+    const window = filtered.slice(offset, offset + limit);
+    const has_more = probePreserved
+      ? filtered.length > offset + limit
+      : filtered.length >= fetchSize;
+    // Bare-array upstream has no true count, so total is always a lower
+    // bound: what we can prove exists (offset + what we actually sliced).
+    const total_lower_bound = offset + window.length;
+
+    const pagination: {
+      limit: number;
+      offset: number;
+      total_lower_bound: number;
+      has_more: boolean;
+      capped?: true;
+    } = {
+      limit,
+      offset,
+      total_lower_bound,
+      has_more,
+      ...(probePreserved ? {} : { capped: true as const }),
+    };
 
     const envelope = {
-      total: filtered.length,
-      items: limited,
+      // Required top-level `total` stays a number via the lower-bound
+      // fallback (nsf-awards' shape) — there is no true count to report.
+      total: total_lower_bound,
+      items: window,
       metadata: {
-        pagination: {
-          limit: params.limit ?? filtered.length,
-          offset: 0,
-          has_more: limited.length < filtered.length,
-        },
+        pagination,
         query_relevance: params.query ? ("loose_match" as const) : ("exact" as const),
       },
       documentation: {
