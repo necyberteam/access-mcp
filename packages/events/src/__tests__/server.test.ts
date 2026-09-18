@@ -271,6 +271,30 @@ describe("EventsServer", () => {
       expect(searchEvents.inputSchema.properties.start_date).toBeUndefined();
       expect(searchEvents.inputSchema.properties.end_date).toBeUndefined();
     });
+
+    // Anti-conflation guard: the search FILTER migrated to date_range, but
+    // create_event's CONTENT dates (when the event happens) are a different
+    // concern and must NOT be migrated. This fails if a later change wrongly
+    // pulls content dates into date_range too.
+    it("create_event still uses start_date/end_date for content (not migrated to date_range)", () => {
+      const tools = server["getTools"]();
+      const createEvent = tools.find(
+        (t: { name: string }) => t.name === "create_event"
+      ) as { inputSchema: { properties: Record<string, unknown> } };
+      // Navigate the nested schema via a structural type rather than `any`
+      // (the repo's eslint forbids explicit any).
+      type SchemaNode = { properties?: Record<string, unknown>; items?: SchemaNode };
+      const props = createEvent.inputSchema.properties as Record<string, SchemaNode>;
+
+      // custom_dates items carry start_date/end_date content
+      expect(props.custom_dates.items?.properties?.start_date).toBeDefined();
+      expect(props.custom_dates.items?.properties?.end_date).toBeDefined();
+      // recurrence carries start_date/end_date content
+      expect(props.recurrence.properties?.start_date).toBeDefined();
+      expect(props.recurrence.properties?.end_date).toBeDefined();
+      // and create_event has NOT sprouted a date_range (that's search-only)
+      expect(props.date_range).toBeUndefined();
+    });
   });
 
   describe("Tool Methods", () => {
