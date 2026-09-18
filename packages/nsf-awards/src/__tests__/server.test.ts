@@ -142,6 +142,7 @@ describe("NSFAwardsServer", () => {
   describe("Search by PI", () => {
     const mockPISearchResponse = {
       response: {
+        metadata: { offset: 1, rpp: 100, totalCount: 2 },
         award: [
           {
             id: "2138259",
@@ -244,6 +245,7 @@ describe("NSFAwardsServer", () => {
     it("should search awards by institution", async () => {
       const mockInstitutionResponse = {
         response: {
+          metadata: { offset: 1, rpp: 100, totalCount: 1 },
           award: [
             {
               id: "1111111",
@@ -279,6 +281,7 @@ describe("NSFAwardsServer", () => {
     it("should search awards by keywords", async () => {
       const mockKeywordResponse = {
         response: {
+          metadata: { offset: 1, rpp: 100, totalCount: 1 },
           award: [
             {
               id: "2222222",
@@ -448,7 +451,9 @@ describe("NSFAwardsServer", () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ response: { award: mockAwards } }),
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 100, totalCount: 2 }, award: mockAwards },
+        }),
       });
 
       const result = await server["handleToolCall"]({
@@ -464,7 +469,9 @@ describe("NSFAwardsServer", () => {
 
       const response = JSON.parse(result.content[0].text);
 
-      // Should only include University of Chicago award
+      // Should only include University of Chicago award (primary_only filters
+      // to 1 of the 2 upstream totalCount, so total reflects the post-filter
+      // count, not the raw totalCount)
       expect(response.total).toBe(1);
       expect(response.items).toHaveLength(1);
       expect(response.items[0].institution).toBe("University of Chicago");
@@ -506,7 +513,9 @@ describe("NSFAwardsServer", () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ response: { award: mockAwards } }),
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 100, totalCount: 2 }, award: mockAwards },
+        }),
       });
 
       const result = await server["handleToolCall"]({
@@ -548,7 +557,9 @@ describe("NSFAwardsServer", () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
-        json: async () => ({ response: { award: mockAwards } }),
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 100, totalCount: 1 }, award: mockAwards },
+        }),
       });
 
       const result = await server["handleToolCall"]({
@@ -573,6 +584,7 @@ describe("NSFAwardsServer", () => {
   describe("fields projection (Pillar 2)", () => {
     const mockPISearchResponse = {
       response: {
+        metadata: { offset: 1, rpp: 100, totalCount: 1 },
         award: [
           {
             id: "2138259",
@@ -655,6 +667,171 @@ describe("NSFAwardsServer", () => {
 
       expect(tool?.inputSchema.properties.fields).toBeDefined();
       expect((tool as { _meta?: { supportsFieldProjection?: boolean } })._meta?.supportsFieldProjection).toBe(true);
+    });
+  });
+
+  describe("pagination (Phase 3a Task 1)", () => {
+    function makeAward(id: string) {
+      return {
+        id,
+        title: `Award ${id}`,
+        awardeeName: "University A",
+        piFirstName: "John",
+        piLastName: "Smith",
+        estimatedTotalAmt: "500000",
+        startDate: "09/01/2021",
+        expDate: "08/31/2024",
+        primaryProgram: "Computer Science",
+      };
+    }
+
+    it("find_nsf_awards_by_pi reports the true total from metadata.totalCount", async () => {
+      const page = Array.from({ length: 10 }, (_, i) => makeAward(String(i)));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 10, totalCount: 311 }, award: page },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", limit: 10 },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.total).toBe(311);
+      expect(response.items).toHaveLength(10);
+      expect(response.metadata.pagination.has_more).toBe(true);
+    });
+
+    it("saturated totalCount (10000) is reported as total_lower_bound, not total", async () => {
+      const page = Array.from({ length: 10 }, (_, i) => makeAward(String(i)));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 10, totalCount: 10000 }, award: page },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", limit: 10 },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.metadata.pagination.total_lower_bound).toBe(10000);
+      expect(response.metadata.pagination.total).toBeUndefined();
+      expect(response.metadata.pagination.has_more).toBe(true);
+      // Top-level `total` is a required number (UniversalResponse contract) —
+      // it carries the same lower-bound value as metadata.pagination.total_lower_bound.
+      expect(response.total).toBe(10000);
+    });
+
+    it("offset pages past the first window, translating to NSF's 1-indexed offset", async () => {
+      const page = Array.from({ length: 10 }, (_, i) => makeAward(String(i)));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 11, rpp: 10, totalCount: 311 }, award: page },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", limit: 10, offset: 10 },
+        },
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("offset=11"),
+        expect.anything()
+      );
+      const response = JSON.parse(result.content[0].text);
+      expect(response.metadata.pagination.offset).toBe(10);
+    });
+
+    it("a limit above MAX_LIMIT clamps to 500 with capped:true", async () => {
+      const page = Array.from({ length: 500 }, (_, i) => makeAward(String(i)));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 500, totalCount: 10000 }, award: page },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", limit: 5000 },
+        },
+      });
+
+      expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining("rpp=500"), expect.anything());
+      const response = JSON.parse(result.content[0].text);
+      expect(response.metadata.pagination.limit).toBe(500);
+      expect(response.metadata.pagination.capped).toBe(true);
+    });
+
+    it("find_nsf_awards_by_institution reports the true total from metadata.totalCount", async () => {
+      const page = Array.from({ length: 5 }, (_, i) => ({
+        ...makeAward(String(i)),
+        awardeeName: "Stanford University",
+      }));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 10, totalCount: 42 }, award: page },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { institution: "Stanford University", limit: 10 },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      expect(response.total).toBe(42);
+      expect(response.metadata.pagination.has_more).toBe(true);
+    });
+
+    it("a limit:0 error propagates as an error envelope, not an empty result (buildPagination called in the caller)", async () => {
+      // searchNSFAwardsByPI's own try/catch would normally swallow a thrown
+      // error and return an empty result; stubbing a rejection here proves
+      // buildPagination's "Limit must be at least 1" throw — raised in the
+      // caller, after the fetch resolves — is NOT caught by that swallowing
+      // catch, and instead propagates to handleToolCall's error envelope.
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 10, totalCount: 2 }, award: [makeAward("1")] },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", limit: 0 },
+        },
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response.error.message).toContain("Limit must be at least 1");
+    });
+
+    it("search_nsf_awards declares limit and offset in its schema", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t) => t.name === "search_nsf_awards");
+      expect(tool?.inputSchema.properties.limit).toBeDefined();
+      expect(tool?.inputSchema.properties.offset).toBeDefined();
     });
   });
 });

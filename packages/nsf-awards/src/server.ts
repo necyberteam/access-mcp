@@ -1,9 +1,55 @@
 #!/usr/bin/env node
 
-import { BaseAccessServer, projectFields, Tool, Resource, CallToolResult } from "@access-mcp/shared";
+import {
+  BaseAccessServer,
+  projectFields,
+  buildPagination,
+  MAX_LIMIT,
+  Tool,
+  Resource,
+  CallToolResult,
+} from "@access-mcp/shared";
 import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 const { version } = require("../package.json");
+
+// The NSF API's totalCount saturates at exactly this value for large/loose
+// queries — a display ceiling, not a real count. At that value it's a lower
+// bound, not an exact total (see applySaturatedLowerBound below).
+const NSF_TOTAL_COUNT_CEILING = 10000;
+
+/**
+ * Resolve the NSF `rpp` (rows-per-page) request size from the tool's
+ * requested limit, clamped only by MAX_LIMIT — independent of totalCount, so
+ * it can be computed before the fetch that will reveal totalCount.
+ * buildPagination (called by the caller, after the fetch) is the source of
+ * truth for the final `capped` pagination metadata; this only sizes the
+ * upstream request.
+ */
+function resolveRpp(requestedLimit: number | undefined): number {
+  const truncated = requestedLimit !== undefined ? Math.trunc(requestedLimit) : NaN;
+  const asked = Number.isFinite(truncated) && truncated >= 1 ? truncated : 10;
+  return Math.min(asked, MAX_LIMIT);
+}
+
+/**
+ * buildPagination emits `total` (and computes has_more from it), which is
+ * correct only for a real total. When the NSF API's totalCount has saturated
+ * at its display ceiling, mutate the pagination object in place: drop the
+ * (misleading) `total`, set `total_lower_bound`, and force `has_more` true —
+ * there are at least this many, and we're nowhere near exhausting a
+ * ceiling-saturated set within MAX_LIMIT.
+ */
+function applySaturatedLowerBound(
+  pagination: { total?: number; total_lower_bound?: number; has_more: boolean },
+  totalCount: number
+): void {
+  if (totalCount === NSF_TOTAL_COUNT_CEILING) {
+    delete pagination.total;
+    pagination.total_lower_bound = NSF_TOTAL_COUNT_CEILING;
+    pagination.has_more = true;
+  }
+}
 
 interface SearchNSFAwardsArgs {
   id?: string;
@@ -12,6 +58,7 @@ interface SearchNSFAwardsArgs {
   institution?: string;
   primary_only?: boolean;
   limit?: number;
+  offset?: number;
   fields?: string[];
 }
 
@@ -92,6 +139,11 @@ export class NSFAwardsServer extends BaseAccessServer {
               description: "Max results (default: 10)",
               default: 10,
             },
+            offset: {
+              type: "number",
+              description: "Number of results to skip, for paging past the first `limit`. Default 0.",
+              default: 0,
+            },
             fields: {
               type: "array",
               items: { type: "string" },
@@ -142,39 +194,68 @@ export class NSFAwardsServer extends BaseAccessServer {
     }
 
     if (args.pi) {
-      return await this.find_nsf_awards_by_pi({ pi_name: args.pi, limit: args.limit, fields: args.fields });
+      return await this.find_nsf_awards_by_pi({
+        pi_name: args.pi,
+        limit: args.limit,
+        offset: args.offset,
+        fields: args.fields,
+      });
     }
 
     if (args.institution) {
       return await this.find_nsf_awards_by_institution({
         institution_name: args.institution,
         limit: args.limit,
+        offset: args.offset,
         primary_only: args.primary_only || false,
         fields: args.fields,
       });
     }
 
     if (args.query) {
-      return await this.find_nsf_awards_by_keywords({ keywords: args.query, limit: args.limit, fields: args.fields });
+      return await this.find_nsf_awards_by_keywords({
+        keywords: args.query,
+        limit: args.limit,
+        offset: args.offset,
+        fields: args.fields,
+      });
     }
 
     return this.errorResponse("Provide id, query, pi, or institution");
   }
 
-  private async find_nsf_awards_by_pi(args: { pi_name: string; limit?: number; fields?: string[] }) {
-    const limit = args.limit || 10;
-    // Fetch one extra so has_more can distinguish "exactly limit" from
-    // "limit + more available" — guards against the >=limit false-positive
-    // when the universe is exactly the size of the requested cap.
-    const fetched = await this.searchNSFAwardsByPI(args.pi_name, limit + 1);
-    const hasMore = fetched.length > limit;
-    const awards = fetched.slice(0, limit);
+  private async find_nsf_awards_by_pi(args: {
+    pi_name: string;
+    limit?: number;
+    offset?: number;
+    fields?: string[];
+  }) {
+    const offset = args.offset ?? 0;
+    const nsfOffset = offset + 1;
+    // rpp is resolved from the MAX_LIMIT ceiling alone (totalCount doesn't
+    // affect it), so we can fetch once at that rpp and hand the returned
+    // totalCount to buildPagination for the authoritative pagination object.
+    const rpp = resolveRpp(args.limit);
+    const { awards, totalCount } = await this.searchNSFAwardsByPI(args.pi_name, rpp, nsfOffset);
+
+    // buildPagination must run here (the caller), not inside searchNSFAwardsByPI —
+    // that method's try/catch swallows thrown errors and returns an empty result,
+    // which would eat buildPagination's "limit must be at least 1" throw instead
+    // of letting it propagate to handleToolCall's error envelope.
+    const pagination = buildPagination({
+      requestedLimit: args.limit,
+      offset,
+      total: totalCount,
+      defaultLimit: 10,
+    });
+    applySaturatedLowerBound(pagination, totalCount);
+
     const envelope = {
-      total: awards.length,
-      items: awards,
-      metadata: {
-        pagination: { limit, offset: 0, has_more: hasMore },
-      },
+      total: totalCount,
+      // Defensive: the upstream API is trusted to honor rpp, but slice to
+      // pagination.limit so an over-returning response can't leak extra rows.
+      items: awards.slice(0, pagination.limit),
+      metadata: { pagination },
     };
     return {
       content: [
@@ -201,22 +282,39 @@ export class NSFAwardsServer extends BaseAccessServer {
   private async find_nsf_awards_by_institution(args: {
     institution_name: string;
     limit?: number;
+    offset?: number;
     primary_only?: boolean;
     fields?: string[];
   }) {
-    const limit = args.limit || 10;
-    // Fetch one extra so has_more can distinguish exact-limit from
-    // limit-plus-more. When primary_only post-filters, has_more is then
-    // computed against the upstream universe, not the post-filter length —
-    // a post-filter that drops some matches still emits has_more correctly
-    // when more upstream pages exist (vs the old logic that always reported
-    // has_more=false after a meaningful filter).
-    const fetched = await this.searchNSFAwardsByInstitution(args.institution_name, limit + 1);
-    const upstreamHasMore = fetched.length > limit;
-    let awards = fetched.slice(0, limit);
+    const offset = args.offset ?? 0;
+    const nsfOffset = offset + 1;
+    const rpp = resolveRpp(args.limit);
+    const { awards: fetched, totalCount } = await this.searchNSFAwardsByInstitution(
+      args.institution_name,
+      rpp,
+      nsfOffset
+    );
 
-    // If primary_only is requested, filter awards to only include those where
-    // the queried institution is the primary recipient
+    // buildPagination must run here (the caller), not inside
+    // searchNSFAwardsByInstitution — that method's try/catch swallows thrown
+    // errors and returns an empty result, which would eat buildPagination's
+    // "limit must be at least 1" throw instead of letting it propagate to
+    // handleToolCall's error envelope.
+    const pagination = buildPagination({
+      requestedLimit: args.limit,
+      offset,
+      total: totalCount,
+      defaultLimit: 10,
+    });
+    applySaturatedLowerBound(pagination, totalCount);
+
+    // Defensive: the upstream API is trusted to honor rpp, but slice to
+    // pagination.limit so an over-returning response can't leak extra rows.
+    let awards = fetched.slice(0, pagination.limit);
+
+    // primary_only post-filters this page. (The complete-set fix — filtering
+    // over every upstream page before slicing — is a separate follow-up task,
+    // out of scope here.)
     if (args.primary_only) {
       const normalizedInstitution = this.normalizeInstitutionName(args.institution_name);
       awards = awards.filter((award) => {
@@ -226,11 +324,9 @@ export class NSFAwardsServer extends BaseAccessServer {
     }
 
     const envelope = {
-      total: awards.length,
+      total: args.primary_only ? awards.length : totalCount,
       items: awards,
-      metadata: {
-        pagination: { limit, offset: 0, has_more: upstreamHasMore },
-      },
+      metadata: { pagination },
     };
 
     return {
@@ -243,17 +339,36 @@ export class NSFAwardsServer extends BaseAccessServer {
     };
   }
 
-  private async find_nsf_awards_by_keywords(args: { keywords: string; limit?: number; fields?: string[] }) {
-    const limit = args.limit || 10;
-    const fetched = await this.searchNSFAwardsByKeywords(args.keywords, limit + 1);
-    const hasMore = fetched.length > limit;
-    const awards = fetched.slice(0, limit);
+  private async find_nsf_awards_by_keywords(args: {
+    keywords: string;
+    limit?: number;
+    offset?: number;
+    fields?: string[];
+  }) {
+    const offset = args.offset ?? 0;
+    const nsfOffset = offset + 1;
+    const rpp = resolveRpp(args.limit);
+    const { awards, totalCount } = await this.searchNSFAwardsByKeywords(args.keywords, rpp, nsfOffset);
+
+    // buildPagination must run here (the caller), not inside
+    // searchNSFAwardsByKeywords — that method's try/catch swallows thrown
+    // errors and returns an empty result, which would eat buildPagination's
+    // "limit must be at least 1" throw instead of letting it propagate to
+    // handleToolCall's error envelope.
+    const pagination = buildPagination({
+      requestedLimit: args.limit,
+      offset,
+      total: totalCount,
+      defaultLimit: 10,
+    });
+    applySaturatedLowerBound(pagination, totalCount);
+
     const envelope = {
-      total: awards.length,
-      items: awards,
-      metadata: {
-        pagination: { limit, offset: 0, has_more: hasMore },
-      },
+      total: totalCount,
+      // Defensive: the upstream API is trusted to honor rpp, but slice to
+      // pagination.limit so an over-returning response can't leak extra rows.
+      items: awards.slice(0, pagination.limit),
+      metadata: { pagination },
     };
     return {
       content: [
@@ -285,7 +400,16 @@ export class NSFAwardsServer extends BaseAccessServer {
     return this.parseNSFAward(award);
   }
 
-  private async searchNSFAwardsByPI(piName: string, limit: number): Promise<NSFAward[]> {
+  /**
+   * Fetch a page of PI-search results, trying each name-matching strategy in
+   * turn until one yields results. Returns the parsed awards for that page
+   * plus the NSF API's totalCount for the winning strategy.
+   */
+  private async searchNSFAwardsByPI(
+    piName: string,
+    rpp: number,
+    nsfOffset = 1
+  ): Promise<{ awards: NSFAward[]; totalCount: number }> {
     // Use the correct NSF API parameter 'pdPIName' for PI name searches
     const searchStrategies = [
       {
@@ -304,7 +428,7 @@ export class NSFAwardsServer extends BaseAccessServer {
 
     for (const strategy of searchStrategies) {
       try {
-        const apiUrl = `https://api.nsf.gov/services/v1/awards.json?${strategy.params}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName&offset=1&rpp=100`;
+        const apiUrl = `https://api.nsf.gov/services/v1/awards.json?${strategy.params}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName&offset=${nsfOffset}&rpp=${rpp}`;
 
         const response = await fetch(apiUrl, { redirect: "follow" });
         if (!response.ok) {
@@ -314,12 +438,10 @@ export class NSFAwardsServer extends BaseAccessServer {
         const data = await response.json();
 
         if (data.response?.award && data.response.award.length > 0) {
-          const awards = data.response.award
-            .slice(0, Math.min(limit, 100))
-            .map((award: RawNSFAward) => this.parseNSFAward(award));
+          const awards = data.response.award.map((award: RawNSFAward) => this.parseNSFAward(award));
 
           if (awards.length > 0) {
-            return awards;
+            return { awards, totalCount: data.response.metadata?.totalCount ?? awards.length };
           }
         }
       } catch (error) {
@@ -327,7 +449,7 @@ export class NSFAwardsServer extends BaseAccessServer {
       }
     }
 
-    return [];
+    return { awards: [], totalCount: 0 };
   }
 
   private async searchNSFAwardsByPersonnel(personName: string, limit: number): Promise<NSFAward[]> {
@@ -335,7 +457,7 @@ export class NSFAwardsServer extends BaseAccessServer {
     const awards: NSFAward[] = [];
 
     // First search as PI
-    const piAwards = await this.searchNSFAwardsByPI(personName, limit);
+    const { awards: piAwards } = await this.searchNSFAwardsByPI(personName, limit);
     awards.push(...piAwards);
 
     // Then search Co-PI field (if we need more results)
@@ -364,46 +486,53 @@ export class NSFAwardsServer extends BaseAccessServer {
 
   private async searchNSFAwardsByInstitution(
     institutionName: string,
-    limit: number
-  ): Promise<NSFAward[]> {
+    rpp: number,
+    nsfOffset = 1
+  ): Promise<{ awards: NSFAward[]; totalCount: number }> {
     try {
-      const apiUrl = `https://api.nsf.gov/services/v1/awards.json?awardeeName=${encodeURIComponent(institutionName)}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName&offset=1&rpp=${Math.min(limit, 100)}`;
+      const apiUrl = `https://api.nsf.gov/services/v1/awards.json?awardeeName=${encodeURIComponent(institutionName)}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName&offset=${nsfOffset}&rpp=${rpp}`;
 
       const response = await fetch(apiUrl, { redirect: "follow" });
       if (!response.ok) {
-        return [];
+        return { awards: [], totalCount: 0 };
       }
 
       const data = await response.json();
 
       if (data.response?.award && data.response.award.length > 0) {
-        return data.response.award.map((award: RawNSFAward) => this.parseNSFAward(award));
+        const awards = data.response.award.map((award: RawNSFAward) => this.parseNSFAward(award));
+        return { awards, totalCount: data.response.metadata?.totalCount ?? awards.length };
       }
 
-      return [];
+      return { awards: [], totalCount: data.response?.metadata?.totalCount ?? 0 };
     } catch (error) {
-      return [];
+      return { awards: [], totalCount: 0 };
     }
   }
 
-  private async searchNSFAwardsByKeywords(keywords: string, limit: number): Promise<NSFAward[]> {
+  private async searchNSFAwardsByKeywords(
+    keywords: string,
+    rpp: number,
+    nsfOffset = 1
+  ): Promise<{ awards: NSFAward[]; totalCount: number }> {
     try {
-      const apiUrl = `https://api.nsf.gov/services/v1/awards.json?keyword=${encodeURIComponent(keywords)}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName&offset=1&rpp=${Math.min(limit, 100)}`;
+      const apiUrl = `https://api.nsf.gov/services/v1/awards.json?keyword=${encodeURIComponent(keywords)}&printFields=id,title,abstractText,piFirstName,piLastName,coPDPI,poName,awardeeName,awardeeCity,awardeeStateCode,fundsObligatedAmt,estimatedTotalAmt,startDate,expDate,primaryProgram,ueiNumber,fundProgramName&offset=${nsfOffset}&rpp=${rpp}`;
 
       const response = await fetch(apiUrl, { redirect: "follow" });
       if (!response.ok) {
-        return [];
+        return { awards: [], totalCount: 0 };
       }
 
       const data = await response.json();
 
       if (data.response?.award && data.response.award.length > 0) {
-        return data.response.award.map((award: RawNSFAward) => this.parseNSFAward(award));
+        const awards = data.response.award.map((award: RawNSFAward) => this.parseNSFAward(award));
+        return { awards, totalCount: data.response.metadata?.totalCount ?? awards.length };
       }
 
-      return [];
+      return { awards: [], totalCount: data.response?.metadata?.totalCount ?? 0 };
     } catch (error) {
-      return [];
+      return { awards: [], totalCount: 0 };
     }
   }
 
