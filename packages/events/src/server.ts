@@ -26,8 +26,7 @@ interface SearchEventsParams {
   type?: string;
   tags?: string;
   date?: string;
-  start_date?: string;
-  end_date?: string;
+  date_range?: { start_date?: string; end_date?: string };
   skill?: string;
   has_video?: boolean;
   limit?: number;
@@ -280,7 +279,7 @@ export class EventsServer extends BaseAccessServer {
       {
         name: "search_events",
         description:
-          "Search ACCESS-CI events (workshops, webinars, training). Returns future events by default. Use date='past' or start_date/end_date for historical events. Returns {total, items}. Each event may carry `access_registration` (native ACCESS registration — when enabled, the user can register through ACCESS itself; manage it with get_event for live availability, register_for_event to sign up, get_my_registrations to list, and cancel_registration to cancel) and/or `registration_url` (an external link to register on the resource provider's own site — ACCESS does not manage these; direct the user to the URL). access_registration.enabled true means act via the ACCESS tools; registration_url means go offsite.",
+          "Search ACCESS-CI events (workshops, webinars, training). Returns future events by default. Use date='past' or an absolute date_range for historical events. Returns {total, items}. Each event may carry `access_registration` (native ACCESS registration — when enabled, the user can register through ACCESS itself; manage it with get_event for live availability, register_for_event to sign up, get_my_registrations to list, and cancel_registration to cancel) and/or `registration_url` (an external link to register on the resource provider's own site — ACCESS does not manage these; direct the user to the URL). access_registration.enabled true means act via the ACCESS tools; registration_url means go offsite.",
         inputSchema: {
           type: "object",
           properties: {
@@ -305,15 +304,14 @@ export class EventsServer extends BaseAccessServer {
               enum: ["today", "upcoming", "past", "this_week", "this_month"],
               default: "upcoming",
             },
-            start_date: {
-              type: "string",
+            date_range: {
+              type: "object",
               description:
-                "Start date filter (YYYY-MM-DD or relative like '-6month', '-1year'). Overrides date parameter.",
-            },
-            end_date: {
-              type: "string",
-              description:
-                "End date filter (YYYY-MM-DD or relative like '+3month', '+1year'). Overrides date parameter.",
+                "Filter to events within an absolute date window (ISO-8601, YYYY-MM-DD). Use this when the user gives explicit dates (e.g. 'events in March 2026'). For relative windows ('this week', 'upcoming', 'past'), use the `date` parameter instead. When set, overrides `date`.",
+              properties: {
+                start_date: { type: "string", description: "Start date (YYYY-MM-DD)." },
+                end_date: { type: "string", description: "End date (YYYY-MM-DD)." },
+              },
             },
             skill: {
               type: "string",
@@ -916,22 +914,15 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       url.searchParams.set("search_api_fulltext", params.query);
     }
 
-    // Explicit start_date/end_date override the date shortcut
-    if (params.start_date || params.end_date) {
-      if (params.start_date) {
-        // Detect relative vs absolute: relative starts with + or - or is "today"
-        const isRelative = /^[+-]/.test(params.start_date) || params.start_date === "today";
-        url.searchParams.set(
-          isRelative ? "beginning_date_relative" : "beginning_date",
-          params.start_date
-        );
+    // Explicit date_range overrides the date shortcut. ISO-only: routes
+    // exclusively to the absolute beginning_date/end_date Drupal params (no
+    // relative detection — that's the enum's job, in the else branch below).
+    if (params.date_range && (params.date_range.start_date || params.date_range.end_date)) {
+      if (params.date_range.start_date) {
+        url.searchParams.set("beginning_date", params.date_range.start_date);
       }
-      if (params.end_date) {
-        const isRelative = /^[+-]/.test(params.end_date) || params.end_date === "today";
-        url.searchParams.set(
-          isRelative ? "end_date_relative" : "end_date",
-          params.end_date
-        );
+      if (params.date_range.end_date) {
+        url.searchParams.set("end_date", params.date_range.end_date);
       }
     } else {
       // Map date shortcut to API params
