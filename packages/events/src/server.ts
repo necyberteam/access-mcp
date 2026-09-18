@@ -9,6 +9,7 @@ import {
   DrupalApiError,
   getRequestContext,
   coerceOffset,
+  coerceLimit,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -327,8 +328,8 @@ export class EventsServer extends BaseAccessServer {
             },
             limit: {
               type: "number",
-              description: "Max results (default: 20)",
-              default: 20,
+              description: "Max results (default: 50)",
+              default: 50,
             },
             offset: {
               type: "number",
@@ -911,8 +912,11 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
   // disagreeing here (one defaulting to 50, the other falling back to the
   // fetched array's own length) is what let a default no-limit search report
   // wrong has_more/capped metadata without either function's own logic
-  // being wrong in isolation. `?? 50` (not `|| 50`) is required: limit:0 is
-  // the deliberate count-only contract and must survive as 0, not become 50.
+  // being wrong in isolation. coerceLimit (not `?? 50` alone) is required:
+  // limit:0 is the deliberate count-only contract and must survive as 0, not
+  // become 50 — but a negative/NaN/Infinity limit must NOT survive, or it
+  // becomes a slice-from-the-end footgun below (slice(offset, offset+limit)
+  // with a negative limit reads backward from offset instead of forward).
   private resolveEventsPageWindow(params: SearchEventsParams): {
     offset: number;
     limit: number;
@@ -920,7 +924,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     fetchSize: number;
   } {
     const offset = coerceOffset(params.offset);
-    const limit = params.limit ?? 50;
+    const limit = coerceLimit(params.limit, 50);
     const needed = offset + limit + 1;
     const fetchSize = EventsServer.ALLOWED_PAGE_SIZES.find((s) => s >= needed)
       || EventsServer.ALLOWED_PAGE_SIZES[EventsServer.ALLOWED_PAGE_SIZES.length - 1];
@@ -1185,7 +1189,11 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     // Ensure we have an acting user
     const actingUser = this.getActingUserAccessId();
 
-    const limit = params.limit || 50;
+    // coerceLimit (not `|| 50`): `||` turned an explicit 0 into 50, diverging
+    // from search_events' count-only contract where limit:0 stays 0. It also
+    // left a negative limit unclamped into this tool's own `slice(0, limit)`
+    // below (a negative limit there is also a slice-from-the-end footgun).
+    const limit = coerceLimit(params.limit, 50);
 
     // Fetch one extra so has_more can distinguish exact-limit from
     // limit-plus-more (avoids the >=limit false-positive when the

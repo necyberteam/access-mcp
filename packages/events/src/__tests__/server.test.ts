@@ -1013,6 +1013,87 @@ describe("EventsServer", () => {
         expect(typeof payload.total).toBe("number");
       });
 
+      it("negative limit is coerced to the default, not a from-the-end slice — no lying has_more/total_lower_bound", async () => {
+        // Before coerceLimit: slice(2, 2 + -1) === slice(2, 1) — a
+        // from-the-end slice — while has_more/total_lower_bound still
+        // claimed a normal forward window. After coercion, limit:-1 falls
+        // back to the default (50) and the window is an honest one.
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(10),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: -1, offset: 2 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(result.content[0].text).not.toContain('"error"');
+        // Honest forward window: offset 2, coerced limit 50 → records e2..e9.
+        expect(payload.items.map((e: { id: string }) => e.id)).toEqual(
+          Array.from({ length: 8 }, (_, i) => `e${i + 2}`)
+        );
+        expect(payload.metadata.pagination.limit).toBe(50);
+        // No lying metadata: has_more must be false (nothing beyond the
+        // fetched/returned window), and total_lower_bound must match what
+        // was actually returned (offset + window.length), not a stale claim.
+        expect(payload.metadata.pagination.has_more).toBe(false);
+        expect(payload.metadata.pagination.total_lower_bound).toBe(
+          2 + payload.items.length
+        );
+      });
+
+      it("limit:5000 is clamped via the existing 500 ceiling, not broken by coercion", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(500),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 5000, offset: 0 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(result.content[0].text).not.toContain('"error"');
+        expect(payload.items).toHaveLength(500);
+        expect(payload.metadata.pagination.capped).toBe(true);
+      });
+
+      it("limit:10.5 is truncated to 10", async () => {
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(20),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: { limit: 10.5 },
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(payload.items).toHaveLength(10);
+        expect(payload.metadata.pagination.limit).toBe(10);
+      });
+
+      it("search_events schema default limit is 50, matching the effective server default", () => {
+        const tools = server["getTools"]();
+        const searchEvents = tools.find((t) => t.name === "search_events");
+        expect(searchEvents?.inputSchema.properties?.limit).toMatchObject({
+          default: 50,
+        });
+      });
+
       it("declares offset in its schema", () => {
         const tools = server["getTools"]();
         const searchEvents = tools.find((t) => t.name === "search_events");
@@ -2325,6 +2406,47 @@ describe("EventsServer", () => {
         // top-level total stays a number via the lower-bound fallback.
         expect(payload.total).toBe(5);
         expect(payload.items).toHaveLength(5);
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
+
+    it("limit:0 is preserved as count-only (was coerced to 50 by the old `|| 50`), consistent with search_events", async () => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        mockGet.mockResolvedValue({ data: [] });
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () =>
+            server["handleToolCall"]({
+              method: "tools/call",
+              params: { name: "get_my_events", arguments: { limit: 0 } },
+            })
+        );
+        // `params.limit || 50` turned an explicit 0 into 50; coerceLimit
+        // preserves it, so the fetch asks for page[limit]=1 (0+1 probe).
+        expect(mockGet).toHaveBeenCalledWith(
+          "apasquale@access-ci.org",
+          "/jsonapi/views/event_instance_mine/mcp_my_events?page[limit]=1"
+        );
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(result.content[0].text).not.toContain('"error"');
+        expect(payload.items).toEqual([]);
+        expect(payload.metadata.pagination.limit).toBe(0);
       } finally {
         if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
         else process.env.DRUPAL_API_URL = saved.url;

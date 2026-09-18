@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { MAX_LIMIT, buildPagination } from "../pagination.js";
+import { MAX_LIMIT, buildPagination, coerceLimit } from "../pagination.js";
 
 describe("buildPagination", () => {
   it("MAX_LIMIT is 500", () => {
@@ -90,5 +90,43 @@ describe("buildPagination", () => {
       const p = buildPagination({ requestedLimit: 5.5, offset: 0, total: 25, defaultLimit: 20 });
       expect(p.limit).toBe(5);
     });
+  });
+});
+
+describe("coerceLimit", () => {
+  it("undefined falls back to defaultLimit", () => {
+    expect(coerceLimit(undefined, 50)).toBe(50);
+  });
+
+  it("null falls back to defaultLimit", () => {
+    expect(coerceLimit(null as unknown as undefined, 50)).toBe(50);
+  });
+
+  it("explicit 0 is preserved (count-only contract), not clamped up to default or 1", () => {
+    expect(coerceLimit(0, 50)).toBe(0);
+  });
+
+  it("a negative limit falls back to defaultLimit, not to 0 or a negative number", () => {
+    expect(coerceLimit(-1, 50)).toBe(50);
+  });
+
+  it("NaN falls back to defaultLimit", () => {
+    expect(coerceLimit(NaN, 50)).toBe(50);
+  });
+
+  it("Infinity falls back to defaultLimit", () => {
+    expect(coerceLimit(Infinity, 50)).toBe(50);
+  });
+
+  it("truncates a non-integer limit", () => {
+    expect(coerceLimit(10.5, 50)).toBe(10);
+  });
+
+  it("a plain positive integer passes through unchanged", () => {
+    expect(coerceLimit(7, 50)).toBe(7);
+  });
+
+  it("does not cap a huge limit itself — leaves MAX_LIMIT ceiling handling to callers", () => {
+    expect(coerceLimit(5000, 50)).toBe(5000);
   });
 });
