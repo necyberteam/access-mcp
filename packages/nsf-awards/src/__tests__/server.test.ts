@@ -955,5 +955,90 @@ describe("NSFAwardsServer", () => {
       expect(tool?.inputSchema.properties.limit).toBeDefined();
       expect(tool?.inputSchema.properties.offset).toBeDefined();
     });
+
+    it("find_nsf_awards_by_pi coerces a negative offset to 0 in the reported metadata", async () => {
+      const page = Array.from({ length: 10 }, (_, i) => makeAward(String(i)));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 10, totalCount: 2 }, award: page },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { pi: "John Smith", limit: 10, offset: -3 },
+        },
+      });
+
+      // The tool's offset -3 is not clamped before the fetch is issued: the
+      // caller computes `nsfOffset = (args.offset ?? 0) + 1` from the RAW
+      // offset and passes it straight into the upstream fetch URL, ahead of
+      // buildPagination's coercion. So the negative flows through as-is
+      // (offset=-2), even though buildPagination separately coerces the
+      // offset it reports in the metadata to 0. Verified via probe.
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("offset=-2"),
+        expect.anything()
+      );
+      const response = JSON.parse(result.content[0].text);
+      expect(response.metadata.pagination.offset).toBe(0);
+    });
+
+    it("find_nsf_awards_by_institution coerces a negative offset to 0 in the reported metadata", async () => {
+      const page = Array.from({ length: 5 }, (_, i) => ({
+        ...makeAward(String(i)),
+        awardeeName: "Stanford University",
+      }));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 10, totalCount: 5 }, award: page },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { institution: "Stanford University", limit: 10, offset: -3 },
+        },
+      });
+
+      // Same caller shape as the PI branch: the raw negative offset is used
+      // to compute nsfOffset BEFORE buildPagination runs, so it reaches the
+      // upstream fetch URL unclamped (offset=-2), while buildPagination
+      // separately coerces the metadata's reported offset to 0. Verified via
+      // probe.
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("offset=-2"),
+        expect.anything()
+      );
+      const response = JSON.parse(result.content[0].text);
+      expect(response.metadata.pagination.offset).toBe(0);
+    });
+
+    it("a limit:0 error propagates as an error envelope for the institution branch too", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: {
+            metadata: { offset: 1, rpp: 10, totalCount: 2 },
+            award: [{ ...makeAward("1"), awardeeName: "Stanford University" }],
+          },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { institution: "Stanford University", limit: 0 },
+        },
+      });
+
+      expect(result).toHaveProperty("isError", true);
+      const response = JSON.parse(result.content[0].text);
+      expect(response.error.message).toContain("Limit must be at least 1");
+    });
   });
 });
