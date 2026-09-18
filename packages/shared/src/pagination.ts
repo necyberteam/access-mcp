@@ -2,6 +2,20 @@
 export const MAX_LIMIT = 500;
 
 /**
+ * Coerce a caller-supplied offset to a safe forward offset: negative,
+ * non-finite, or non-integer values become a valid `>= 0` integer, never a
+ * slice-from-the-end footgun. This is the SINGLE source of offset coercion —
+ * `buildPagination` uses it for the metadata it reports, and upstream-paginated
+ * callers (e.g. nsf-awards) that must translate offset into a fetch param
+ * BEFORE `buildPagination` runs MUST call this so the value they fetch with is
+ * identical to the value reported. (A prior nsf-awards bug was exactly the two
+ * coercions drifting: metadata said offset 0 while the fetch used a negative.)
+ */
+export function coerceOffset(raw: number | undefined): number {
+  return Math.max(0, Math.trunc(Number.isFinite(raw) ? (raw as number) : 0));
+}
+
+/**
  * Build honest pagination metadata for an in-memory (true-total) list tool.
  * has_more is computed from the true total, so it never claims more when the
  * window already reaches the end. capped is set only when the caller's request
@@ -24,8 +38,7 @@ export function buildPagination(args: {
   total: number;
   defaultLimit: number;
 }): { limit: number; offset: number; total: number; has_more: boolean; capped?: true } {
-  const rawOffset = args.offset;
-  const offset = Math.max(0, Math.trunc(Number.isFinite(rawOffset) ? rawOffset : 0));
+  const offset = coerceOffset(args.offset);
 
   let asked = args.defaultLimit;
   if (args.requestedLimit !== undefined) {
