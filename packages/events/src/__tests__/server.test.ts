@@ -1018,6 +1018,38 @@ describe("EventsServer", () => {
         const searchEvents = tools.find((t) => t.name === "search_events");
         expect(searchEvents?.inputSchema.properties?.offset).toBeDefined();
       });
+
+      it("a default (no-limit) search against a small result set does not report capped and honestly windows to the default limit", async () => {
+        // No `limit` in arguments — handleToolCall passes raw args, so the
+        // JSON-schema default:20 is never applied server-side. Before the
+        // fix, getEvents fell back to `limit = filtered.length` (disagreeing
+        // with buildEventsUrl's `params.limit || 50`, which fetched only 100
+        // records for a no-limit call — needed = 0+50+1=51 -> bucket 100).
+        // With 60 stub events (> the true default limit of 50, < the 100
+        // fetched), the buggy fallback set limit=60 (=filtered.length),
+        // returned ALL 60 items, and silently reported has_more:false even
+        // though the caller only asked for the default page — a silent
+        // over-return with no capped/has_more signal at all, not merely a
+        // false capped:true.
+        mockHttpClient.get.mockResolvedValue({
+          status: 200,
+          data: stubEvents(60),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "search_events",
+            arguments: {},
+          },
+        });
+
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+        expect(payload.metadata.pagination.capped).toBeUndefined();
+        expect(payload.metadata.pagination.limit).toBe(50);
+        expect(payload.items).toHaveLength(50);
+        expect(payload.metadata.pagination.has_more).toBe(true);
+      });
     });
 
     describe("Error Handling", () => {

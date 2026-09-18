@@ -904,6 +904,29 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
   // list fails the exposed-pager select validation and returns an empty page.
   private static readonly ALLOWED_PAGE_SIZES = [1, 5, 10, 20, 25, 50, 100, 250, 500];
 
+  // Single source of truth for the offset/limit/needed/fetchSize window math
+  // shared by buildEventsUrl (sizes the actual fetch) and getEvents (sizes
+  // the has_more/capped arithmetic over the fetched array). They MUST derive
+  // the same limit default — the fetch and the arithmetic silently
+  // disagreeing here (one defaulting to 50, the other falling back to the
+  // fetched array's own length) is what let a default no-limit search report
+  // wrong has_more/capped metadata without either function's own logic
+  // being wrong in isolation. `?? 50` (not `|| 50`) is required: limit:0 is
+  // the deliberate count-only contract and must survive as 0, not become 50.
+  private resolveEventsPageWindow(params: SearchEventsParams): {
+    offset: number;
+    limit: number;
+    needed: number;
+    fetchSize: number;
+  } {
+    const offset = coerceOffset(params.offset);
+    const limit = params.limit ?? 50;
+    const needed = offset + limit + 1;
+    const fetchSize = EventsServer.ALLOWED_PAGE_SIZES.find((s) => s >= needed)
+      || EventsServer.ALLOWED_PAGE_SIZES[EventsServer.ALLOWED_PAGE_SIZES.length - 1];
+    return { offset, limit, needed, fetchSize };
+  }
+
   private buildEventsUrl(params: SearchEventsParams): string {
     // /api/2.4 emits start_date/end_date as true UTC instants (…Z). v2.3 and
     // earlier appended Z to a clock already converted to site-local, so the
@@ -917,11 +940,7 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
     // record (the has_more probe), capped at the largest allowed page size
     // (items_per_page > 500 fails the pager's validation and returns an
     // empty array, so 500 is a hard ceiling, not just a default).
-    const offset = coerceOffset(params.offset);
-    const limit = params.limit || 50;
-    const needed = offset + limit + 1;
-    const itemsPerPage = EventsServer.ALLOWED_PAGE_SIZES.find((s) => s >= needed)
-      || EventsServer.ALLOWED_PAGE_SIZES[EventsServer.ALLOWED_PAGE_SIZES.length - 1];
+    const { fetchSize: itemsPerPage } = this.resolveEventsPageWindow(params);
     url.searchParams.set("items_per_page", String(itemsPerPage));
 
     if (params.query) {
@@ -1067,18 +1086,14 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       : enhancedEvents;
 
     // Local slice of the single fetched (page-0) response — see buildEventsUrl
-    // for why offset can't be expressed as a Drupal page number. offset MUST
-    // be coerced with the SAME function buildEventsUrl used to size the
-    // fetch, or the reported metadata can drift from what was actually
-    // fetched (the nsf-awards bug this pattern was built to avoid).
-    const offset = coerceOffset(params.offset);
-    const limit = params.limit ?? filtered.length;
-    // needed/probePreserved mirror buildEventsUrl's fetch-size math exactly —
-    // duplicated here (not read back from the URL) because it's the fetched
-    // array length, not a param, that has_more/capped actually depend on.
-    const needed = offset + limit + 1;
-    const fetchSize = EventsServer.ALLOWED_PAGE_SIZES.find((s) => s >= needed)
-      || EventsServer.ALLOWED_PAGE_SIZES[EventsServer.ALLOWED_PAGE_SIZES.length - 1];
+    // for why offset can't be expressed as a Drupal page number. offset/limit
+    // MUST come from the SAME resolveEventsPageWindow helper buildEventsUrl
+    // used to size the fetch, or the reported metadata can drift from what
+    // was actually fetched (the nsf-awards bug this pattern was built to
+    // avoid) — a bare `filtered.length` fallback here previously disagreed
+    // with buildEventsUrl's default and made default (no-limit) searches
+    // silently over-return with dishonest has_more/capped metadata.
+    const { offset, limit, needed, fetchSize } = this.resolveEventsPageWindow(params);
     // Single honest trigger for the ceiling: true when the fetch was sized to
     // include the +1 probe record, false when the 500-record cap ate it. At
     // offset+limit===500 (needed=501, no allowed bucket >= 501) this is
