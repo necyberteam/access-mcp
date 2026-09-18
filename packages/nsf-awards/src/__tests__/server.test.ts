@@ -755,6 +755,85 @@ describe("NSFAwardsServer", () => {
       expect(returnedIds).toEqual(["0", "1", "2", "3", "4"]);
       expect(response.metadata.pagination.offset).toBe(0);
     });
+
+    it("primary_only demotes to total_lower_bound when the underlying institution corpus is ceiling-saturated", async () => {
+      // Saturated corpus: NSF reports totalCount 10000 (the display ceiling) on
+      // every page of the internal fetchAllPages walk (fetchRpp=500, hardCap=20
+      // pages — 20 = ceil(10000/500), so this walk always completes and
+      // `result.truncated` never fires; it is NOT the saturation signal). Page 1
+      // carries one primary-institution award so the filtered set is non-empty;
+      // later pages are non-primary filler so fetchAllPages has a full 20 pages
+      // to walk without inflating the fixture.
+      const fetchRpp = 500;
+      const totalCount = 10000;
+      const primaryAward = {
+        id: "primary-1",
+        title: "Primary Award",
+        awardeeName: "University of Chicago",
+        piFirstName: "John",
+        piLastName: "Doe",
+        estimatedTotalAmt: "100000",
+        fundsObligatedAmt: "100000",
+        startDate: "2024-01-01",
+        expDate: "2025-01-01",
+        abstractText: "Test abstract",
+        primaryProgram: "Test Program",
+        poName: "Test Officer",
+        ueiNumber: "123456",
+      };
+      const fillerAward = (page: number, i: number) => ({
+        id: `filler-${page}-${i}`,
+        title: `Filler Award ${page}-${i}`,
+        awardeeName: "Stanford University",
+        piFirstName: "Jane",
+        piLastName: "Smith",
+        estimatedTotalAmt: "200000",
+        fundsObligatedAmt: "200000",
+        startDate: "2024-01-01",
+        expDate: "2025-01-01",
+        abstractText: "Collaborative project",
+        primaryProgram: "Test Program",
+        poName: "Test Officer",
+        ueiNumber: "789012",
+      });
+
+      mockFetch.mockImplementation(async (input: RequestInfo | URL) => {
+        const url = new URL(input.toString());
+        const nsfOffset = Number(url.searchParams.get("offset"));
+        const page = Math.floor((nsfOffset - 1) / fetchRpp) + 1;
+        const awards =
+          page === 1
+            ? [primaryAward, ...Array.from({ length: 4 }, (_, i) => fillerAward(page, i))]
+            : Array.from({ length: 4 }, (_, i) => fillerAward(page, i));
+        return {
+          ok: true,
+          json: async () => ({
+            response: { metadata: { offset: nsfOffset, rpp: fetchRpp, totalCount }, award: awards },
+          }),
+        } as Response;
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: {
+            institution: "University of Chicago",
+            primary_only: true,
+            limit: 10,
+          },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+
+      expect(response.metadata.pagination.total_lower_bound).toBe(10000);
+      expect(response.metadata.pagination.total).toBeUndefined();
+      expect(response.metadata.pagination.has_more).toBe(true);
+      // Top-level `total` is a required number (UniversalResponse contract) —
+      // same fallback the single-fetch branches use when saturated.
+      expect(typeof response.total).toBe("number");
+      expect(response.total).toBe(10000);
+    });
   });
 
   describe("fields projection (Pillar 2)", () => {

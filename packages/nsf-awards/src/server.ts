@@ -357,6 +357,14 @@ export class NSFAwardsServer extends BaseAccessServer {
     const fetchRpp = 500;
     const normalizedInstitution = this.normalizeInstitutionName(args.institution_name);
 
+    // Captured from page 1's metadata.totalCount so the primary_only path can
+    // apply the same saturation check as the single-fetch branches.
+    // fetchAllPages returns only {records, pages, truncated} — pages is
+    // Math.min(totalCount, CEILING)/fetchRpp rounded up, which loses the raw
+    // totalCount needed to detect ceiling saturation, so it's captured here
+    // instead of derived from the result.
+    let fetchedTotalCount = 0;
+
     const result = await fetchAllPages<NSFAward>(
       async (page) => {
         const nsfOffset = (page - 1) * fetchRpp + 1;
@@ -365,6 +373,9 @@ export class NSFAwardsServer extends BaseAccessServer {
           fetchRpp,
           nsfOffset
         );
+        if (page === 1) {
+          fetchedTotalCount = totalCount;
+        }
         return {
           items: awards,
           totalPages: Math.ceil(Math.min(totalCount, NSF_TOTAL_COUNT_CEILING) / fetchRpp),
@@ -392,19 +403,21 @@ export class NSFAwardsServer extends BaseAccessServer {
       total: filtered.length,
       defaultLimit: 10,
     });
-
-    // result.truncated means fetchAllPages hit its hardCap before exhausting
-    // the upstream — filtered.length is a lower bound, not the true count.
-    if (result.truncated) {
-      delete pagination.total;
-      pagination.total_lower_bound = filtered.length;
-      pagination.has_more = true;
-    }
+    // Same saturation check as the single-fetch branches: fetchedTotalCount is
+    // the pre-filter NSF totalCount from page 1, so this demotes exactly when
+    // the underlying set was ceiling-saturated — independent of `truncated`,
+    // which can never fire here (totalPages is derived from
+    // min(totalCount, CEILING), so it can never exceed hardCap).
+    applySaturatedLowerBound(pagination, fetchedTotalCount);
 
     const awards = filtered.slice(offset, offset + pagination.limit);
 
     const envelope = {
-      total: pagination.total,
+      // Top-level `total` is a required number (UniversalResponse contract).
+      // When saturated, pagination.total is demoted to undefined; mirror the
+      // single-fetch branches' pattern (top-level total stays the raw
+      // ceiling-saturated count) by falling back to total_lower_bound.
+      total: pagination.total ?? (pagination.total_lower_bound as number),
       items: awards,
       metadata: { pagination },
     };
