@@ -701,6 +701,60 @@ describe("NSFAwardsServer", () => {
       expect(response.total).toBe(1);
       expect(response.metadata.pagination.has_more).toBe(false);
     });
+
+    it("primary_only coerces a negative offset before slicing the filtered set (not a JS Array.slice from-the-end)", async () => {
+      // primary_only never sends the caller's offset to NSF (fetchAllPages
+      // owns its own internal page math), but it DOES use the caller's
+      // offset to slice the in-memory filtered array: `filtered.slice(offset,
+      // offset + limit)`. Array.prototype.slice treats a negative start as
+      // "from the end", so an uncoerced offset:-3 would silently return the
+      // last 3 items instead of clamping to the front like buildPagination's
+      // metadata claims. Assert the coerced offset (0) is what's actually
+      // used for the slice, by checking the returned items match a
+      // from-the-front slice of the filtered set.
+      const awards = Array.from({ length: 5 }, (_, i) => ({
+        id: String(i),
+        title: `Award ${i}`,
+        awardeeName: "University of Chicago",
+        piFirstName: "John",
+        piLastName: "Doe",
+        estimatedTotalAmt: "100000",
+        fundsObligatedAmt: "100000",
+        startDate: "2024-01-01",
+        expDate: "2025-01-01",
+        abstractText: "Test abstract",
+        primaryProgram: "Test Program",
+        poName: "Test Officer",
+        ueiNumber: "123456",
+      }));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 500, totalCount: 5 }, award: awards },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: {
+            institution: "University of Chicago",
+            primary_only: true,
+            limit: 10,
+            offset: -3,
+          },
+        },
+      });
+
+      const response = JSON.parse(result.content[0].text);
+      const returnedIds = response.items.map((a: { awardNumber: string }) => a.awardNumber);
+
+      // Coerced-to-0 slice returns all 5 awards from the front (ids 0-4).
+      // The bug (raw -3 passed to Array.slice) would return only the last 3
+      // (ids 2-4), silently dropping ids 0-1.
+      expect(returnedIds).toEqual(["0", "1", "2", "3", "4"]);
+      expect(response.metadata.pagination.offset).toBe(0);
+    });
   });
 
   describe("fields projection (Pillar 2)", () => {
@@ -956,7 +1010,7 @@ describe("NSFAwardsServer", () => {
       expect(tool?.inputSchema.properties.offset).toBeDefined();
     });
 
-    it("find_nsf_awards_by_pi coerces a negative offset to 0 in the reported metadata", async () => {
+    it("find_nsf_awards_by_pi coerces a negative offset to 0 for BOTH the upstream fetch and the reported metadata", async () => {
       const page = Array.from({ length: 10 }, (_, i) => makeAward(String(i)));
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -972,13 +1026,18 @@ describe("NSFAwardsServer", () => {
         },
       });
 
-      // The tool's offset -3 is not clamped before the fetch is issued: the
-      // caller computes `nsfOffset = (args.offset ?? 0) + 1` from the RAW
-      // offset and passes it straight into the upstream fetch URL, ahead of
-      // buildPagination's coercion. So the negative flows through as-is
-      // (offset=-2), even though buildPagination separately coerces the
-      // offset it reports in the metadata to 0. Verified via probe.
+      // The tool's offset -3 must be coerced (buildPagination's rule:
+      // Math.max(0, Math.trunc(...))) BEFORE the fetch is issued, so the
+      // upstream NSF request (nsfOffset = coerced offset + 1 = 1) matches
+      // what the reported metadata claims was fetched. Pin the FETCH url,
+      // not just the metadata — a regression that clamps only the reported
+      // offset while still sending the raw negative value upstream (a
+      // silent-wrong-fetch bug) would pass a metadata-only assertion.
       expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("offset=1"),
+        expect.anything()
+      );
+      expect(mockFetch).not.toHaveBeenCalledWith(
         expect.stringContaining("offset=-2"),
         expect.anything()
       );
@@ -986,7 +1045,7 @@ describe("NSFAwardsServer", () => {
       expect(response.metadata.pagination.offset).toBe(0);
     });
 
-    it("find_nsf_awards_by_institution coerces a negative offset to 0 in the reported metadata", async () => {
+    it("find_nsf_awards_by_institution coerces a negative offset to 0 for BOTH the upstream fetch and the reported metadata", async () => {
       const page = Array.from({ length: 5 }, (_, i) => ({
         ...makeAward(String(i)),
         awardeeName: "Stanford University",
@@ -1005,12 +1064,46 @@ describe("NSFAwardsServer", () => {
         },
       });
 
-      // Same caller shape as the PI branch: the raw negative offset is used
-      // to compute nsfOffset BEFORE buildPagination runs, so it reaches the
-      // upstream fetch URL unclamped (offset=-2), while buildPagination
-      // separately coerces the metadata's reported offset to 0. Verified via
-      // probe.
+      // Same caller shape as the PI branch: the coerced offset must be used
+      // to compute nsfOffset BEFORE the fetch, so the upstream URL (offset=1)
+      // matches the metadata. Pin the FETCH url, not just the metadata.
       expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("offset=1"),
+        expect.anything()
+      );
+      expect(mockFetch).not.toHaveBeenCalledWith(
+        expect.stringContaining("offset=-2"),
+        expect.anything()
+      );
+      const response = JSON.parse(result.content[0].text);
+      expect(response.metadata.pagination.offset).toBe(0);
+    });
+
+    it("find_nsf_awards_by_keywords coerces a negative offset to 0 for BOTH the upstream fetch and the reported metadata", async () => {
+      const page = Array.from({ length: 5 }, (_, i) => makeAward(String(i)));
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          response: { metadata: { offset: 1, rpp: 10, totalCount: 5 }, award: page },
+        }),
+      });
+
+      const result = await server["handleToolCall"]({
+        params: {
+          name: "search_nsf_awards",
+          arguments: { query: "machine learning", limit: 10, offset: -3 },
+        },
+      });
+
+      // Same shape as the PI/institution branches: the coerced offset must
+      // be used to compute nsfOffset BEFORE the fetch, so the upstream URL
+      // (offset=1) matches the metadata. Pin the FETCH url, not just the
+      // metadata.
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.stringContaining("offset=1"),
+        expect.anything()
+      );
+      expect(mockFetch).not.toHaveBeenCalledWith(
         expect.stringContaining("offset=-2"),
         expect.anything()
       );

@@ -231,7 +231,14 @@ export class NSFAwardsServer extends BaseAccessServer {
     offset?: number;
     fields?: string[];
   }) {
-    const offset = args.offset ?? 0;
+    // Coerce offset with buildPagination's own rule (Math.max(0, Math.trunc(...)))
+    // BEFORE the fetch, so the NSF request and the reported metadata agree.
+    // Coercion doesn't depend on `total` (only has_more does), so it's safe to
+    // compute up front. Doing this after the fetch — as before — let a negative
+    // offset (e.g. -3) reach the NSF URL unclamped (nsfOffset=-2) while
+    // buildPagination silently reported offset:0, a silent-wrong-fetch bug.
+    const rawOffset = args.offset ?? 0;
+    const offset = Math.max(0, Math.trunc(Number.isFinite(rawOffset) ? rawOffset : 0));
     const nsfOffset = offset + 1;
     // rpp is resolved from the MAX_LIMIT ceiling alone (totalCount doesn't
     // affect it), so we can fetch once at that rpp and hand the returned
@@ -287,7 +294,10 @@ export class NSFAwardsServer extends BaseAccessServer {
     primary_only?: boolean;
     fields?: string[];
   }) {
-    const offset = args.offset ?? 0;
+    // Coerce offset with buildPagination's own rule BEFORE the fetch — see the
+    // comment in find_nsf_awards_by_pi for why (silent-wrong-fetch otherwise).
+    const rawOffset = args.offset ?? 0;
+    const offset = Math.max(0, Math.trunc(Number.isFinite(rawOffset) ? rawOffset : 0));
 
     if (args.primary_only) {
       return this.findNSFAwardsByInstitutionPrimaryOnly(args, offset);
@@ -418,7 +428,10 @@ export class NSFAwardsServer extends BaseAccessServer {
     offset?: number;
     fields?: string[];
   }) {
-    const offset = args.offset ?? 0;
+    // Coerce offset with buildPagination's own rule BEFORE the fetch — see the
+    // comment in find_nsf_awards_by_pi for why (silent-wrong-fetch otherwise).
+    const rawOffset = args.offset ?? 0;
+    const offset = Math.max(0, Math.trunc(Number.isFinite(rawOffset) ? rawOffset : 0));
     const nsfOffset = offset + 1;
     const rpp = resolveRpp(args.limit);
     const { awards, totalCount } = await this.searchNSFAwardsByKeywords(args.keywords, rpp, nsfOffset);
