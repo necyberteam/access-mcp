@@ -1224,13 +1224,23 @@ Returns: {total, items: [{id, type, title, start_date, end_date, status}]} where
       };
     });
 
+    // Bare page-length was reported as `total` before, which is a lie once
+    // has_more is true (there's more beyond what was fetched). No true count
+    // is available from this jsonapi view, so total is a lower bound — what
+    // we can prove exists (there's no paging here, so that's just the
+    // returned page length). offset stays 0, but now legitimately: this tool
+    // does not page (jsonapi `page[offset]` support is unverified against an
+    // authed endpoint), so record 0 really is where every call starts.
+    const total_lower_bound = events.length;
+
     const envelope = {
-      total: events.length,
+      total: total_lower_bound,
       items: events,
       metadata: {
         pagination: {
           limit,
           offset: 0,
+          total_lower_bound,
           has_more: hasMore,
         },
       },

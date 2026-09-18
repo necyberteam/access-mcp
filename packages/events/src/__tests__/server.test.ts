@@ -2265,6 +2265,67 @@ describe("EventsServer", () => {
         else process.env.DRUPAL_PASSWORD = saved.pass;
       }
     });
+
+    // Phase 3b Task 2: get_my_events' has_more (limit+1 probe) is already
+    // honest — this only fixes the metadata LIES: total was page-length
+    // (events.length), not a lower bound, and offset:0 was hardcoded without
+    // being tied to an actual (non-)paging story. No offset paging is added
+    // here — get_my_events' jsonapi page[offset] support is unverified
+    // (authed endpoint), so offset stays a legitimate 0 (no paging exists).
+    it("emits total_lower_bound and a legitimate offset:0, has_more stays honest (limit+1 probe unchanged)", async () => {
+      const saved = {
+        url: process.env.DRUPAL_API_URL,
+        user: process.env.DRUPAL_USERNAME,
+        pass: process.env.DRUPAL_PASSWORD,
+      };
+      try {
+        process.env.DRUPAL_API_URL = "https://drupal.example";
+        process.env.DRUPAL_USERNAME = "svc";
+        process.env.DRUPAL_PASSWORD = "pw";
+        mockGet.mockReset();
+        // limit 5 requested → fetch is limit+1=6; return 6 items so has_more
+        // is honestly true (one more than requested exists).
+        const items = Array.from({ length: 6 }, (_, i) => ({
+          id: `uuid-${i}`,
+          type: "eventinstance--instance",
+          attributes: {
+            title: `Event ${i}`,
+            date: [{ value: "2026-07-23T20:00:00", end_value: "2026-07-23T21:00:00" }],
+            status: true,
+            moderation_state: "published",
+          },
+        }));
+        mockGet.mockResolvedValue({ data: items });
+        const server = new EventsServer();
+        const result = await requestContextStorage.run(
+          { actingUser: "apasquale@access-ci.org" } as RequestContext,
+          () =>
+            server["handleToolCall"]({
+              method: "tools/call",
+              params: { name: "get_my_events", arguments: { limit: 5 } },
+            })
+        );
+        const payload = JSON.parse((result.content[0] as { text: string }).text);
+
+        // has_more: unchanged, honest limit+1 probe (6 fetched > 5 limit).
+        expect(payload.metadata.pagination.has_more).toBe(true);
+        // offset: still legitimately 0 (no paging added), not a lie anymore
+        // because get_my_events genuinely never advances past record 0.
+        expect(payload.metadata.pagination.offset).toBe(0);
+        // total_lower_bound replaces the old page-length `total` lie.
+        expect(payload.metadata.pagination.total_lower_bound).toBe(5);
+        // top-level total stays a number via the lower-bound fallback.
+        expect(payload.total).toBe(5);
+        expect(payload.items).toHaveLength(5);
+      } finally {
+        if (saved.url === undefined) delete process.env.DRUPAL_API_URL;
+        else process.env.DRUPAL_API_URL = saved.url;
+        if (saved.user === undefined) delete process.env.DRUPAL_USERNAME;
+        else process.env.DRUPAL_USERNAME = saved.user;
+        if (saved.pass === undefined) delete process.env.DRUPAL_PASSWORD;
+        else process.env.DRUPAL_PASSWORD = saved.pass;
+      }
+    });
   });
 
   // ---------------------------------------------------------------------------
