@@ -1164,7 +1164,11 @@ Which would you like to do?`,
     // Ensure acting user is set (will throw if not available)
     const actingUser = this.getActingUserAccessId();
 
-    const limit = args.limit || 25;
+    // coerceLimit (not `|| 25`): `||` turned an explicit 0 into 25, and left a
+    // negative limit unclamped into this tool's own `slice(0, limit)` below (a
+    // negative limit there is also a slice-from-the-end footgun) and into the
+    // `limit + 1` fetch param.
+    const limit = coerceLimit(args.limit, 25);
     // Fetch one extra so has_more distinguishes exact-limit from
     // limit-plus-more (avoids the >=limit false-positive when the
     // user's total is exactly the requested cap).
@@ -1205,13 +1209,23 @@ Which would you like to do?`,
       })
     );
 
+    // Bare page-length was reported as `total` before, which is a lie once
+    // has_more is true (there's more beyond what was fetched). No true count
+    // is available from this endpoint — it's a limit+1 probe, not a full
+    // fetch — so total is a lower bound: what we can prove exists. offset
+    // stays 0, but now legitimately: this tool does not page (jsonapi
+    // page[offset] support is unverified), so record 0 really is where
+    // every call starts.
+    const total_lower_bound = announcements.length;
+
     const envelope = {
-      total: announcements.length,
+      total: total_lower_bound,
       items: announcements,
       metadata: {
         pagination: {
           limit,
           offset: 0,
+          total_lower_bound,
           has_more: hasMore,
         },
       },

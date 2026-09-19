@@ -1676,6 +1676,122 @@ describe("AnnouncementsServer", () => {
         expect(responseData.total).toBe(0);
         expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
       });
+
+      it("emits total_lower_bound and honest has_more from the limit+1 probe", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: Array.from({ length: 26 }, (_, i) => ({
+            uuid: `ann-${i}`,
+            nid: i,
+            title: `Announcement ${i}`,
+            status: "published",
+            created: "2024-03-15T10:00:00Z",
+            published_date: "2024-03-15",
+            summary: "Summary",
+            tags: [],
+            edit_url: null,
+          })),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: 25 },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        // 26 items came back for a limit+1=26 fetch, so has_more is true and
+        // the page is sliced back down to 25 — total is a lower bound (what
+        // we can prove exists), not a fabricated exact count.
+        expect(responseData.items).toHaveLength(25);
+        expect(responseData.total).toBe(25);
+        expect(responseData.metadata.pagination.total_lower_bound).toBe(25);
+        expect(responseData.metadata.pagination.has_more).toBe(true);
+        expect(responseData.metadata.pagination.offset).toBe(0);
+      });
+
+      it("coerces a negative limit to the default (no negative fetch param, no from-end slice)", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: Array.from({ length: 10 }, (_, i) => ({
+            uuid: `ann-${i}`,
+            nid: i,
+            title: `Announcement ${i}`,
+            status: "published",
+            created: "2024-03-15T10:00:00Z",
+            published_date: "2024-03-15",
+            summary: "Summary",
+            tags: [],
+            edit_url: null,
+          })),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: -5 },
+          },
+        });
+
+        // Negative limit coerces to the default (25), never a negative
+        // fetch param and never a slice-from-the-end.
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=26"
+        );
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.items).toHaveLength(10);
+        expect(responseData.items[0].title).toBe("Announcement 0");
+        expect(responseData.metadata.pagination.limit).toBe(25);
+      });
+
+      it("coerces a NaN limit to the default", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({ items: [] });
+
+        await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: Number.NaN },
+          },
+        });
+
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=26"
+        );
+      });
+
+      it("limit:0 is reachable post-fix: count-only items:[], has_more still honest from the probe", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: [{ uuid: "ann-0", nid: 0, title: "Announcement 0" }],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: 0 },
+          },
+        });
+
+        // coerceLimit(0, 25) preserves the explicit 0 (unlike the old `|| 25`,
+        // which silently overrode it). The fetch becomes limit=1 (0+1 probe).
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=1"
+        );
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.items).toEqual([]);
+        expect(responseData.total).toBe(0);
+        expect(responseData.metadata.pagination.total_lower_bound).toBe(0);
+        // The probe fetched 1 item and sliced to 0, so has_more is honestly true.
+        expect(responseData.metadata.pagination.has_more).toBe(true);
+        expect(responseData.metadata.pagination.offset).toBe(0);
+      });
     });
 
     describe("get_announcement_context", () => {
