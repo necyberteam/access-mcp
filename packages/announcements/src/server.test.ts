@@ -234,7 +234,7 @@ describe("AnnouncementsServer", () => {
     });
 
     describe("search with limit", () => {
-      it("should respect limit parameter", async () => {
+      it("fetches items_per_page=All and still respects limit via local slice", async () => {
         const mockResponse = {
           status: 200,
           data: [
@@ -262,7 +262,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const url = mockHttpClient.get.mock.calls[0][0];
-        expect(url).toContain("items_per_page=5");
+        expect(url).toContain("items_per_page=All");
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.items).toHaveLength(1);
@@ -1676,6 +1676,156 @@ describe("AnnouncementsServer", () => {
         expect(responseData.total).toBe(0);
         expect(mockDrupalAuth.get).toHaveBeenCalledTimes(1);
       });
+
+      it("emits total_lower_bound and honest has_more from the limit+1 probe", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: Array.from({ length: 26 }, (_, i) => ({
+            uuid: `ann-${i}`,
+            nid: i,
+            title: `Announcement ${i}`,
+            status: "published",
+            created: "2024-03-15T10:00:00Z",
+            published_date: "2024-03-15",
+            summary: "Summary",
+            tags: [],
+            edit_url: null,
+          })),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: 25 },
+          },
+        });
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        // 26 items came back for a limit+1=26 fetch, so has_more is true and
+        // the page is sliced back down to 25 — total is a lower bound (what
+        // we can prove exists), not a fabricated exact count.
+        expect(responseData.items).toHaveLength(25);
+        expect(responseData.total).toBe(25);
+        expect(responseData.metadata.pagination.total_lower_bound).toBe(25);
+        expect(responseData.metadata.pagination.has_more).toBe(true);
+        expect(responseData.metadata.pagination.offset).toBe(0);
+      });
+
+      it("coerces a negative limit to the default (no negative fetch param, no from-end slice)", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: Array.from({ length: 10 }, (_, i) => ({
+            uuid: `ann-${i}`,
+            nid: i,
+            title: `Announcement ${i}`,
+            status: "published",
+            created: "2024-03-15T10:00:00Z",
+            published_date: "2024-03-15",
+            summary: "Summary",
+            tags: [],
+            edit_url: null,
+          })),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: -5 },
+          },
+        });
+
+        // Negative limit coerces to the default (25), never a negative
+        // fetch param and never a slice-from-the-end.
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=26"
+        );
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.items).toHaveLength(10);
+        expect(responseData.items[0].title).toBe("Announcement 0");
+        expect(responseData.metadata.pagination.limit).toBe(25);
+      });
+
+      it("coerces a NaN limit to the default", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({ items: [] });
+
+        await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: Number.NaN },
+          },
+        });
+
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=26"
+        );
+      });
+
+      it("limit:0 is reachable post-fix: count-only items:[], has_more still honest from the probe", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: [{ uuid: "ann-0", nid: 0, title: "Announcement 0" }],
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: 0 },
+          },
+        });
+
+        // coerceLimit(0, 25) preserves the explicit 0 (unlike the old `|| 25`,
+        // which silently overrode it). The fetch becomes limit=1 (0+1 probe).
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=1"
+        );
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.items).toEqual([]);
+        expect(responseData.total).toBe(0);
+        expect(responseData.metadata.pagination.total_lower_bound).toBe(0);
+        // The probe fetched 1 item and sliced to 0, so has_more is honestly true.
+        expect(responseData.metadata.pagination.has_more).toBe(true);
+        expect(responseData.metadata.pagination.offset).toBe(0);
+      });
+
+      it("coerces fractional limit to integer (adversarial input)", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: Array.from({ length: 10 }, (_, i) => ({
+            uuid: `ann-${i}`,
+            nid: i,
+            title: `Announcement ${i}`,
+            status: "published",
+            created: "2024-03-15T10:00:00Z",
+            published_date: "2024-03-15",
+            summary: "Summary",
+            tags: [],
+            edit_url: null,
+          })),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: 5.9 },
+          },
+        });
+
+        // Fractional limit should be floored to 5
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=6"
+        );
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.metadata.pagination.limit).toBe(5);
+        expect(responseData.items).toHaveLength(5);
+      });
     });
 
     describe("get_announcement_context", () => {
@@ -2270,6 +2420,278 @@ describe("AnnouncementsServer", () => {
       expect(parsed.action).toBe("delete");
       expect(parsed.status).toBe("preview");
       expect(parsed.executed).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // search_announcements pagination (fetch-All + local slice + exact total)
+  //
+  // items_per_page=All returns the TRUE full (filtered) corpus in one request,
+  // so search_announcements can report an EXACT total and page over it with a
+  // local slice — unlike events/nsf, which only ever see one upstream page and
+  // must report a total_lower_bound. Both offset and limit are coerced (the
+  // events lesson: a Critical shipped there from coercing only offset).
+  // ---------------------------------------------------------------------------
+  describe("search_announcements pagination", () => {
+    const makeAnnouncements = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        title: `Announcement ${i}`,
+        body: `Body ${i}`,
+        published_date: "2024-03-15",
+        tags: [],
+        affinity_group: [],
+        url: `https://support.access-ci.org/announcements/${i}`,
+      }));
+
+    it("reports the EXACT total and pages via offset (not from the start)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(105),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 10, offset: 10 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.total).toBe(105);
+      expect(responseData.items).toHaveLength(10);
+      expect(responseData.items[0].title).toBe("Announcement 10");
+      expect(responseData.items[9].title).toBe("Announcement 19");
+      expect(responseData.metadata.pagination.has_more).toBe(true);
+      expect(responseData.metadata.pagination.capped).toBeUndefined();
+    });
+
+    it("coerces both offset and limit (negative offset -> 0, negative/NaN limit -> default)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(30),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: -1, offset: -5 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Negative offset coerces to 0, negative limit coerces to the default
+      // (25) — never a slice-from-the-end footgun, and honest metadata.
+      expect(responseData.metadata.pagination.offset).toBe(0);
+      expect(responseData.metadata.pagination.limit).toBe(25);
+      expect(responseData.items).toHaveLength(25);
+      expect(responseData.items[0].title).toBe("Announcement 0");
+      expect(responseData.total).toBe(30);
+    });
+
+    it("limit:0 is count-only: items:[], no error, exact total still reported", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(12),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 0 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.items).toEqual([]);
+      expect(responseData.total).toBe(12);
+      expect(responseData.metadata.pagination.limit).toBe(0);
+    });
+
+    it("corpus > MAX_LIMIT logs a tripwire warning but still returns the exact total (no fake capped)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(600),
+      });
+      const warnSpy = vi.spyOn(server["logger"], "warn").mockImplementation(() => {});
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 10 },
+        },
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/corpus.*600|600.*corpus|page-based/i)
+      );
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Still EXACT — we DID fetch all 600 via items_per_page=All. The
+      // tripwire is a log, not a response guard: no `capped` from corpus
+      // size (capped only appears when the REQUESTED limit > MAX_LIMIT).
+      expect(responseData.total).toBe(600);
+      expect(responseData.items).toHaveLength(10);
+      expect(responseData.metadata.pagination.capped).toBeUndefined();
+
+      warnSpy.mockRestore();
+    });
+
+    it("has_more is false at the exact end of the corpus (offset + window.length === total)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(105),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { offset: 100, limit: 5 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Records 100-104 are the last 5 of a 105-item corpus: offset(100) +
+      // window.length(5) = 105, which is NOT < 105 — nothing remains, so
+      // has_more must be false. A `<=` typo or substituting `limit` for
+      // `window.length` here would flip this to true.
+      expect(responseData.items).toHaveLength(5);
+      expect(responseData.metadata.pagination.has_more).toBe(false);
+      expect(responseData.metadata.pagination.total).toBe(105);
+      expect(responseData.metadata.pagination.offset).toBe(100);
+    });
+
+    it("capped:true is emitted when the requested limit exceeds MAX_LIMIT", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(5),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 501 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.metadata.pagination.capped).toBe(true);
+      expect(responseData.metadata.pagination.limit).toBe(500);
+    });
+
+    it("declares offset and limit in its schema (Tier-A conformance)", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t: { name: string }) => t.name === "search_announcements");
+      expect(tool?.inputSchema.properties).toHaveProperty("limit");
+      expect(tool?.inputSchema.properties).toHaveProperty("offset");
+    });
+
+    it("coerces NaN offset to 0 (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(5),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { offset: Number.NaN },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.metadata.pagination.offset).toBe(0);
+    });
+
+    it("coerces NaN limit to default (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(30),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: Number.NaN },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.metadata.pagination.limit).toBe(25);
+    });
+
+    it("coerces negative offset to 0 (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(10),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { offset: -10 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.metadata.pagination.offset).toBe(0);
+    });
+
+    it("coerces fractional offset to integer (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(30),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { offset: 5.7 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Fractional offset should be floored to 5, not rounded
+      expect(responseData.metadata.pagination.offset).toBe(5);
+      expect(responseData.items[0].title).toBe("Announcement 5");
+    });
+
+    it("coerces fractional limit to integer (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(30),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 5.9 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Fractional limit should be floored to 5, not rounded
+      expect(responseData.metadata.pagination.limit).toBe(5);
+      expect(responseData.items).toHaveLength(5);
+    });
+  });
+
+  describe("get_my_announcements pagination (Tier-A conformance)", () => {
+    it("declares limit in its schema and does NOT declare offset (metadata-only paging)", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t: { name: string }) => t.name === "get_my_announcements");
+      expect(tool?.inputSchema.properties).toHaveProperty("limit");
+      expect(tool?.inputSchema.properties).not.toHaveProperty("offset");
     });
   });
 });
