@@ -46,7 +46,6 @@ interface AnnouncementFilters {
   end_date?: string;
   date?: string;
   limit?: number;
-  offset?: number;
 }
 
 interface Announcement {

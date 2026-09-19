@@ -2540,6 +2540,50 @@ describe("AnnouncementsServer", () => {
       warnSpy.mockRestore();
     });
 
+    it("has_more is false at the exact end of the corpus (offset + window.length === total)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(105),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { offset: 100, limit: 5 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Records 100-104 are the last 5 of a 105-item corpus: offset(100) +
+      // window.length(5) = 105, which is NOT < 105 — nothing remains, so
+      // has_more must be false. A `<=` typo or substituting `limit` for
+      // `window.length` here would flip this to true.
+      expect(responseData.items).toHaveLength(5);
+      expect(responseData.metadata.pagination.has_more).toBe(false);
+      expect(responseData.metadata.pagination.total).toBe(105);
+      expect(responseData.metadata.pagination.offset).toBe(100);
+    });
+
+    it("capped:true is emitted when the requested limit exceeds MAX_LIMIT", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(5),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 501 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.metadata.pagination.capped).toBe(true);
+      expect(responseData.metadata.pagination.limit).toBe(500);
+    });
+
     it("declares offset and limit in its schema (Tier-A conformance)", () => {
       const tools = server["getTools"]();
       const tool = tools.find((t: { name: string }) => t.name === "search_announcements");
