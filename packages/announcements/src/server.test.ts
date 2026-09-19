@@ -1792,6 +1792,40 @@ describe("AnnouncementsServer", () => {
         expect(responseData.metadata.pagination.has_more).toBe(true);
         expect(responseData.metadata.pagination.offset).toBe(0);
       });
+
+      it("coerces fractional limit to integer (adversarial input)", async () => {
+        mockDrupalAuth.get.mockResolvedValueOnce({
+          items: Array.from({ length: 10 }, (_, i) => ({
+            uuid: `ann-${i}`,
+            nid: i,
+            title: `Announcement ${i}`,
+            status: "published",
+            created: "2024-03-15T10:00:00Z",
+            published_date: "2024-03-15",
+            summary: "Summary",
+            tags: [],
+            edit_url: null,
+          })),
+        });
+
+        const result = await server["handleToolCall"]({
+          method: "tools/call",
+          params: {
+            name: "get_my_announcements",
+            arguments: { limit: 5.9 },
+          },
+        });
+
+        // Fractional limit should be floored to 5
+        expect(mockDrupalAuth.get).toHaveBeenCalledWith(
+          "testuser@access-ci.org",
+          "/api/2.3/announcements/mine?limit=6"
+        );
+
+        const responseData = JSON.parse((result.content[0] as TextContent).text);
+        expect(responseData.metadata.pagination.limit).toBe(5);
+        expect(responseData.items).toHaveLength(5);
+      });
     });
 
     describe("get_announcement_context", () => {
@@ -2511,6 +2545,109 @@ describe("AnnouncementsServer", () => {
       const tool = tools.find((t: { name: string }) => t.name === "search_announcements");
       expect(tool?.inputSchema.properties).toHaveProperty("limit");
       expect(tool?.inputSchema.properties).toHaveProperty("offset");
+    });
+
+    it("coerces NaN offset to 0 (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(5),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { offset: Number.NaN },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.metadata.pagination.offset).toBe(0);
+    });
+
+    it("coerces NaN limit to default (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(30),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: Number.NaN },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.metadata.pagination.limit).toBe(25);
+    });
+
+    it("coerces negative offset to 0 (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(10),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { offset: -10 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.metadata.pagination.offset).toBe(0);
+    });
+
+    it("coerces fractional offset to integer (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(30),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { offset: 5.7 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Fractional offset should be floored to 5, not rounded
+      expect(responseData.metadata.pagination.offset).toBe(5);
+      expect(responseData.items[0].title).toBe("Announcement 5");
+    });
+
+    it("coerces fractional limit to integer (adversarial input)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(30),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 5.9 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Fractional limit should be floored to 5, not rounded
+      expect(responseData.metadata.pagination.limit).toBe(5);
+      expect(responseData.items).toHaveLength(5);
+    });
+  });
+
+  describe("get_my_announcements pagination (Tier-A conformance)", () => {
+    it("declares limit in its schema and does NOT declare offset (metadata-only paging)", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t: { name: string }) => t.name === "get_my_announcements");
+      expect(tool?.inputSchema.properties).toHaveProperty("limit");
+      expect(tool?.inputSchema.properties).not.toHaveProperty("offset");
     });
   });
 });
