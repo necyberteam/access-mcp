@@ -141,16 +141,18 @@ jobs:
               sleep 10
             done
 
-            # Restart services (will use whatever images are available)
-            echo "Restarting services..."
+            # `up -d` alone won't recreate a container when only the image
+            # digest moved under an unchanged `:latest` tag, so force-recreate
+            # the app tier to pick up the pulled images. The stateful containers
+            # (mcp-usage-db + the two backup sidecars) are excluded — no moving
+            # app image, and they shouldn't churn on an app deploy.
+            echo "Restarting services (force-recreate app tier)..."
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
-
-            # Force-recreate Caddy so its bind-mounted Caddyfile is re-read.
-            # `up -d` does NOT recreate Caddy when only the Caddyfile changed
-            # (the service definition is unchanged), so route additions for new
-            # servers would otherwise be served against a stale, pinned mount.
-            echo "Recreating Caddy to pick up Caddyfile changes..."
-            docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
+            docker compose -f docker-compose.prod.yml up -d --force-recreate \
+              caddy dashboard \
+              mcp-auth mcp-affinity-groups mcp-compute-resources mcp-system-status \
+              mcp-software-discovery mcp-xdmod mcp-allocations mcp-nsf-awards \
+              mcp-announcements mcp-documentation mcp-events mcp-jsm mcp-xdmod-data
 
             # Clean up old images
             echo "Cleaning up old images..."
@@ -175,20 +177,37 @@ jobs:
 
             FAILED=0
 
-            # Check each MCP server health endpoint
+            # Check each MCP server's health AND that it's on the pulled image
+            # (`/health` alone passes on a stale container). Compose resolves the
+            # expected image id; compare it to what the container is running.
+            COMPOSE="docker compose -f docker-compose.prod.yml"
             for server in auth compute-resources system-status software-discovery xdmod allocations nsf-awards xdmod-data announcements documentation events affinity-groups jsm; do
-              PORT=$(docker port "access-mcp-mcp-${server}-1" 3000/tcp 2>/dev/null | head -1 | cut -d: -f2)
+              CONTAINER="access-mcp-mcp-${server}-1"
+              PORT=$(docker port "$CONTAINER" 3000/tcp 2>/dev/null | head -1 | cut -d: -f2)
               if [ -z "$PORT" ]; then
                 echo "FAIL: mcp-${server} — container not running"
                 FAILED=1
                 continue
               fi
-              if curl -sf "http://localhost:${PORT}/health" > /dev/null 2>&1; then
-                echo "OK: mcp-${server}"
-              else
+              if ! curl -sf "http://localhost:${PORT}/health" > /dev/null 2>&1; then
                 echo "FAIL: mcp-${server} — health check failed"
                 FAILED=1
+                continue
               fi
+              # `docker inspect .Image` returns `sha256:<hex>` but
+              # `compose images -q` returns the bare `<hex>` — strip the prefix
+              # so the comparison is between like formats (else it mismatches on
+              # every deploy, failing correct deploys, not just stale ones).
+              RUNNING_IMG=$(docker inspect --format '{{.Image}}' "$CONTAINER" 2>/dev/null)
+              RUNNING_IMG=${RUNNING_IMG#sha256:}
+              EXPECTED_IMG=$($COMPOSE images -q "mcp-${server}" 2>/dev/null | head -1)
+              EXPECTED_IMG=${EXPECTED_IMG#sha256:}
+              if [ -n "$EXPECTED_IMG" ] && [ "$RUNNING_IMG" != "$EXPECTED_IMG" ]; then
+                echo "FAIL: mcp-${server} — running a stale image (container did not recreate onto the pulled :latest)"
+                FAILED=1
+                continue
+              fi
+              echo "OK: mcp-${server}"
             done
 
             if [ "$FAILED" -ne 0 ]; then
