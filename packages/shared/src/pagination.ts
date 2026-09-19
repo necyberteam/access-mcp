@@ -16,10 +16,42 @@ export function coerceOffset(raw: number | undefined): number {
 }
 
 /**
+ * Coerce a caller-supplied limit to a safe value for callers (e.g. events)
+ * that slice locally instead of going through `buildPagination` — sliceing
+ * with a raw negative limit is a slice-from-the-end footgun just like an
+ * uncoerced offset is (`slice(2, 2 + -1)` === `slice(2, 1)`), so this is the
+ * limit-side counterpart to `coerceOffset`.
+ *
+ * `undefined`/`null` fall back to `defaultLimit`, matching coerceOffset's
+ * "missing input" handling. An EXPLICIT `0`, however, is preserved as-is:
+ * `search_events`'s count-only contract (`limit:0` → `items:[]`, honest
+ * metadata, no error) depends on 0 surviving coercion, so 0 must NOT be
+ * clamped up to 1 or up to defaultLimit — only genuinely invalid input
+ * (negative, NaN, Infinity) falls back to defaultLimit. Non-integers are
+ * truncated (10.5 → 10). This does not enforce MAX_LIMIT — the existing
+ * fetchSize/500-ceiling logic downstream of this call handles that.
+ */
+export function coerceLimit(raw: number | null | undefined, defaultLimit: number): number {
+  if (raw === undefined || raw === null) {
+    return defaultLimit;
+  }
+  if (!Number.isFinite(raw)) {
+    return defaultLimit;
+  }
+  const truncated = Math.trunc(raw);
+  return truncated < 0 ? defaultLimit : truncated;
+}
+
+/**
  * Build honest pagination metadata for an in-memory (true-total) list tool.
  * has_more is computed from the true total, so it never claims more when the
  * window already reaches the end. capped is set only when the caller's request
  * exceeded MAX_LIMIT — a previously-silent clamp made visible.
+ *
+ * For callers that use buildPagination, this is the limit/offset enforcement
+ * point. It is not the only one — callers with no true total (e.g. events,
+ * which slices a fetched page rather than a fully-known list) can't use the
+ * throwing contract here and instead use coerceOffset/coerceLimit directly.
  *
  * Validates both inputs so every caller — query branch and list branches alike
  * — gets identical behavior for adversarial input, instead of trusting numbers
