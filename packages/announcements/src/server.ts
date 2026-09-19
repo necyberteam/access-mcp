@@ -7,6 +7,9 @@ import {
   DrupalApiError,
   getRequestContext,
   projectFields,
+  MAX_LIMIT,
+  coerceOffset,
+  coerceLimit,
 } from "@access-mcp/shared";
 import {
   CallToolRequest,
@@ -28,6 +31,7 @@ interface SearchAnnouncementsArgs {
   tags?: string;
   date?: string;
   limit?: number;
+  offset?: number;
   fields?: string[];
 }
 
@@ -42,6 +46,7 @@ interface AnnouncementFilters {
   end_date?: string;
   date?: string;
   limit?: number;
+  offset?: number;
 }
 
 interface Announcement {
@@ -181,6 +186,10 @@ export class AnnouncementsServer extends BaseAccessServer {
               type: "number",
               description: "Max results (default: 25)",
               default: 25,
+            },
+            offset: {
+              type: "number",
+              description: "Number of results to skip. Default 0.",
             },
             fields: {
               type: "array",
@@ -704,17 +713,13 @@ Which would you like to do?`,
   // Read Operations (existing)
   // ============================================================================
 
-  private normalizeLimit(limit?: number): number {
-    const requestedLimit = limit || 25;
-    if (requestedLimit <= 5) return 5;
-    if (requestedLimit <= 10) return 10;
-    if (requestedLimit <= 25) return 25;
-    return 50;
-  }
-
   private buildAnnouncementsUrl(filters: AnnouncementFilters): string {
     const params = new URLSearchParams();
-    params.append("items_per_page", String(this.normalizeLimit(filters.limit)));
+    // Fetch the entire filtered corpus in one request so search_announcements
+    // can report an EXACT total and slice [offset, offset+limit) locally —
+    // this server's `All` value (verified live) returns the true corpus, not
+    // a capped page, which the {5,10,25,50} bucketed sizes could not give us.
+    params.append("items_per_page", "All");
 
     if (filters.query) {
       params.append("search_api_fulltext", filters.query);
@@ -781,20 +786,38 @@ Which would you like to do?`,
   }
 
   private async searchAnnouncements(filters: SearchAnnouncementsArgs): Promise<CallToolResult> {
-    const announcements = await this.fetchAnnouncements(filters);
-    const limited =
-      filters.limit !== undefined
-        ? announcements.slice(0, filters.limit)
-        : announcements;
+    const fetched = await this.fetchAnnouncements(filters);
+    // `fetched` is the ENTIRE filtered corpus (items_per_page=All), so its
+    // length is a true, exact total — not a lower bound like events/nsf,
+    // which can only ever see one upstream page at a time.
+    const total = fetched.length;
+
+    if (total > MAX_LIMIT) {
+      // Not a response guard — the slice below still returns a correct
+      // window and `total` stays exact. This just makes it loud in logs
+      // that fetch-All is no longer cheap and page-based pagination should
+      // be considered, before that migration is otherwise triggered by a
+      // performance complaint.
+      this.logger.warn(
+        `announcements corpus (${total}) exceeded ${MAX_LIMIT}; fetch-All pagination is unbounded — consider page-based pagination`
+      );
+    }
+
+    const offset = coerceOffset(filters.offset);
+    const requestedLimit = coerceLimit(filters.limit, 25);
+    const limit = Math.min(requestedLimit, MAX_LIMIT);
+    const window = fetched.slice(offset, offset + limit);
 
     const envelope = {
-      total: announcements.length,
-      items: limited,
+      total,
+      items: window,
       metadata: {
         pagination: {
-          limit: filters.limit ?? announcements.length,
-          offset: 0,
-          has_more: limited.length < announcements.length,
+          limit,
+          offset,
+          total,
+          has_more: offset + window.length < total,
+          ...(limit < requestedLimit ? { capped: true as const } : {}),
         },
         query_relevance: filters.query ? ("loose_match" as const) : ("exact" as const),
       },

@@ -234,7 +234,7 @@ describe("AnnouncementsServer", () => {
     });
 
     describe("search with limit", () => {
-      it("should respect limit parameter", async () => {
+      it("fetches items_per_page=All and still respects limit via local slice", async () => {
         const mockResponse = {
           status: 200,
           data: [
@@ -262,7 +262,7 @@ describe("AnnouncementsServer", () => {
         });
 
         const url = mockHttpClient.get.mock.calls[0][0];
-        expect(url).toContain("items_per_page=5");
+        expect(url).toContain("items_per_page=All");
 
         const responseData = JSON.parse((result.content[0] as TextContent).text);
         expect(responseData.items).toHaveLength(1);
@@ -2270,6 +2270,131 @@ describe("AnnouncementsServer", () => {
       expect(parsed.action).toBe("delete");
       expect(parsed.status).toBe("preview");
       expect(parsed.executed).toBe(false);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // search_announcements pagination (fetch-All + local slice + exact total)
+  //
+  // items_per_page=All returns the TRUE full (filtered) corpus in one request,
+  // so search_announcements can report an EXACT total and page over it with a
+  // local slice — unlike events/nsf, which only ever see one upstream page and
+  // must report a total_lower_bound. Both offset and limit are coerced (the
+  // events lesson: a Critical shipped there from coercing only offset).
+  // ---------------------------------------------------------------------------
+  describe("search_announcements pagination", () => {
+    const makeAnnouncements = (count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        title: `Announcement ${i}`,
+        body: `Body ${i}`,
+        published_date: "2024-03-15",
+        tags: [],
+        affinity_group: [],
+        url: `https://support.access-ci.org/announcements/${i}`,
+      }));
+
+    it("reports the EXACT total and pages via offset (not from the start)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(105),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 10, offset: 10 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.total).toBe(105);
+      expect(responseData.items).toHaveLength(10);
+      expect(responseData.items[0].title).toBe("Announcement 10");
+      expect(responseData.items[9].title).toBe("Announcement 19");
+      expect(responseData.metadata.pagination.has_more).toBe(true);
+      expect(responseData.metadata.pagination.capped).toBeUndefined();
+    });
+
+    it("coerces both offset and limit (negative offset -> 0, negative/NaN limit -> default)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(30),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: -1, offset: -5 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Negative offset coerces to 0, negative limit coerces to the default
+      // (25) — never a slice-from-the-end footgun, and honest metadata.
+      expect(responseData.metadata.pagination.offset).toBe(0);
+      expect(responseData.metadata.pagination.limit).toBe(25);
+      expect(responseData.items).toHaveLength(25);
+      expect(responseData.items[0].title).toBe("Announcement 0");
+      expect(responseData.total).toBe(30);
+    });
+
+    it("limit:0 is count-only: items:[], no error, exact total still reported", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(12),
+      });
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 0 },
+        },
+      });
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      expect(responseData.items).toEqual([]);
+      expect(responseData.total).toBe(12);
+      expect(responseData.metadata.pagination.limit).toBe(0);
+    });
+
+    it("corpus > MAX_LIMIT logs a tripwire warning but still returns the exact total (no fake capped)", async () => {
+      mockHttpClient.get.mockResolvedValue({
+        status: 200,
+        data: makeAnnouncements(600),
+      });
+      const warnSpy = vi.spyOn(server["logger"], "warn").mockImplementation(() => {});
+
+      const result = await server["handleToolCall"]({
+        method: "tools/call",
+        params: {
+          name: "search_announcements",
+          arguments: { limit: 10 },
+        },
+      });
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/corpus.*600|600.*corpus|page-based/i)
+      );
+
+      const responseData = JSON.parse((result.content[0] as TextContent).text);
+      // Still EXACT — we DID fetch all 600 via items_per_page=All. The
+      // tripwire is a log, not a response guard: no `capped` from corpus
+      // size (capped only appears when the REQUESTED limit > MAX_LIMIT).
+      expect(responseData.total).toBe(600);
+      expect(responseData.items).toHaveLength(10);
+      expect(responseData.metadata.pagination.capped).toBeUndefined();
+
+      warnSpy.mockRestore();
+    });
+
+    it("declares offset and limit in its schema (Tier-A conformance)", () => {
+      const tools = server["getTools"]();
+      const tool = tools.find((t: { name: string }) => t.name === "search_announcements");
+      expect(tool?.inputSchema.properties).toHaveProperty("limit");
+      expect(tool?.inputSchema.properties).toHaveProperty("offset");
     });
   });
 });
