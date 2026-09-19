@@ -183,12 +183,14 @@ export class AnnouncementsServer extends BaseAccessServer {
             },
             limit: {
               type: "number",
-              description: "Max results (default: 25)",
+              description:
+                "Max results (default: 25). Values above 500 are clamped to 500 and the response is marked `capped`; `total` always reflects the true corpus size regardless of the clamp.",
               default: 25,
             },
             offset: {
               type: "number",
-              description: "Number of results to skip. Default 0.",
+              description:
+                "Number of results to skip, for paging past the first `limit`. Default 0. The full corpus is fetched, so any offset within `total` is reachable.",
             },
             fields: {
               type: "array",
